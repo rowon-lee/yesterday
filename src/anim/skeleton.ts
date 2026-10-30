@@ -10,7 +10,7 @@ const FIST_W = 5;
 const TOE_LEN = 3;
 
 /** 그림 색 번호 (Indexed에 찍히는 값) */
-export const SLOT = { outline: 1, shadow: 2, base: 3, light: 4, eye: 5 } as const;
+export const SLOT = { outline: 1, shadow: 2, base: 3, light: 4 } as const;
 
 /** 캐릭터 색 한 벌: 어두운 단계, 바탕, 밝은 단계 */
 export interface Look {
@@ -18,13 +18,12 @@ export interface Look {
   shadow: ColorName;
   base: ColorName;
   light: ColorName;
-  eye: ColorName;
 }
 
 /** 아직 캐릭터가 없어서 뼈대만 그릴 때 쓰는 색 (1P, 2P) */
 export const LOOKS = {
-  p1: { outline: 'ink', shadow: 'goldDark', base: 'gold', light: 'goldLight', eye: 'ink' },
-  p2: { outline: 'ink', shadow: 'skyDark', base: 'sky', light: 'skyLight', eye: 'ink' },
+  p1: { outline: 'ink', shadow: 'goldDark', base: 'gold', light: 'goldLight' },
+  p2: { outline: 'ink', shadow: 'skyDark', base: 'sky', light: 'skyLight' },
 } as const satisfies Record<string, Look>;
 export type LookName = keyof typeof LOOKS;
 
@@ -74,11 +73,6 @@ export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number): v
     seg(m, j.neck, j.head, LIMB_W);
     stampDisc(m, ...P(j.head), HEAD_R);
   }, FRONT);
-  // 눈: 머리 중심에서 보는 쪽으로 2px, 세로 2px
-  const ex = Math.round(ox + j.head[0] + Math.cos(j.ha) * 2);
-  const ey = Math.round(oy + j.head[1] + Math.sin(j.ha) * 2);
-  img.set(ex, ey, SLOT.eye);
-  img.set(ex, ey + 1, SLOT.eye);
   group((m) => leg(m, j.kF, j.fF), FRONT);
   group((m) => {
     seg(m, j.sh, j.eF, LIMB_W);
@@ -98,7 +92,6 @@ export function toImageData(img: Indexed, look: Look): ImageData {
   table[SLOT.shadow] = rgb(look.shadow);
   table[SLOT.base] = rgb(look.base);
   table[SLOT.light] = rgb(look.light);
-  table[SLOT.eye] = rgb(look.eye);
   const out = new ImageData(img.w, img.h);
   for (let i = 0; i < img.a.length; i++) {
     const c = img.a[i];
