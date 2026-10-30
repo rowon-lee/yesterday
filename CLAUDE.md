@@ -45,6 +45,7 @@ src/
   vfx/       Sprite Fusion 이펙트 파일 (수정해서 씀)
   stage/     맵, 부서지는 물건
   net/       온라인 (나중)
+  scenes/    화면 단위 (?scene=이름): blank, viewer(모션 뷰어) …
 tools/       export-sheets, screenshot, simtest
 out/         생성물 (git 제외)
 docs/        기획 문서, motions/승인목록.md
@@ -117,4 +118,5 @@ docs/        기획 문서, motions/승인목록.md
 - 12~14프레임 규칙 위반
 - `sim/`에서 무작위 값이나 시간 값 사용
 - 캐릭터 대사 추가 (대사는 넣지 않기로 했다)
+- 눈 그리기 (캐릭터에 눈을 그리지 않는다)
 - 확인 없이 완료 보고
