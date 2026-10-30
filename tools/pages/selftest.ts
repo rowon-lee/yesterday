@@ -3,6 +3,7 @@ import { FOOT_X, FOOT_Y, type Motion } from '../../src/anim/motion';
 
 const box: Motion = {
   name: '_selftest/box',
+  label: '확인용 상자',
   dur: [4, 4, 3, 3, 2, 2, 2, 2, 3, 3, 4, 4],
   draw(ctx, frame, ox, oy) {
     const h = 20 + frame * 2;
@@ -11,6 +12,6 @@ const box: Motion = {
   },
 };
 
-const bad: Motion = { name: '_selftest/too-short', dur: [4, 4, 4], draw() {} };
+const bad: Motion = { name: '_selftest/too-short', label: '너무 짧음', dur: [4, 4, 4], draw() {} };
 
 export const SELFTEST_MOTIONS: Motion[] = [box, bad];

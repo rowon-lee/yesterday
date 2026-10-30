@@ -1,6 +1,7 @@
 import { Keyboard, type TickInput } from './core/input';
 import { startLoop } from './core/loop';
 import { setupScreen } from './render/screen';
+import { bakeAllMotions } from './anim/motions';
 import { DEFAULT_SCENE, SCENES } from './scenes';
 
 const params = new URLSearchParams(location.search);
@@ -13,6 +14,8 @@ const stopAt = params.has('stopAt') ? Number(params.get('stopAt')) : Infinity;
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
 const ctx = setupScreen(canvas);
 const keyboard = new Keyboard();
+// 모든 동작의 시트를 시작할 때 미리 그려 둔다.
+bakeAllMotions();
 const scene = makeScene();
 
 let tickCount = 0;

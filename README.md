@@ -16,4 +16,16 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 | `npm run simtest` | CPU끼리 N판 대전. 예외, `sim/`의 무작위·시간 값 사용, 같은 입력 재생·저장/복원 후 상태 해시 일치 확인 | 콘솔 |
 | `npm run simtest -- --matches 50 --ticks 5400 --seed 7` | 판 수·판당 최대 틱·시작 시드 지정 | |
 
-장면은 `src/scenes.ts`에 등록하고, 게임 주소 뒤 `?scene=이름`으로 열 수 있다.
+장면은 `src/scenes/index.ts`에 등록하고, 게임 주소 뒤 `?scene=이름`으로 열 수 있다.
+
+## 모션 뷰어
+
+배포 주소 뒤에 `?scene=viewer`: https://rowon-lee.github.io/yesterday/?scene=viewer
+
+화면 아래 버튼으로 동작 선택, 재생/정지, 한 프레임씩, 1·0.5·0.25배속, 판정 상자, 1P/2P 색, 좌우를 바꾼다.
+키보드: ↑↓ 동작, ←→ 한 프레임, Space 재생/정지, S 속도, H 판정, C 색, F 좌우.
+
+## 동작 데이터
+
+- 포즈와 키프레임: `src/data/poses/` (숫자만). 목록은 `src/data/poses/index.ts`.
+- 뼈대·IK·보간·그리기: `src/anim/`. 시작할 때 모든 동작을 시트로 미리 그린다 (`bakeAllMotions`).

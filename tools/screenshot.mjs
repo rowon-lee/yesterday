@@ -80,8 +80,12 @@ async function shoot(scene, v) {
       const r = document.getElementById('screen').getBoundingClientRect();
       return { w: r.width * devicePixelRatio, h: r.height * devicePixelRatio };
     });
-    const scale = size.w / 320;
-    if (!Number.isInteger(scale) || size.h !== 180 * scale) errors.push(`정수배 아님 (${size.w}×${size.h})`);
+    // 브라우저는 CSS 크기를 1/64px 단위로 저장하므로 dpr이 3 같은 값이면 끝자리가 조금 어긋난다.
+    // 그릴 때는 물리 픽셀에 맞춰지므로 0.1 물리 픽셀까지는 정수배로 본다.
+    const scale = Math.round(size.w / 320);
+    if (Math.abs(size.w - 320 * scale) > 0.1 || Math.abs(size.h - 180 * scale) > 0.1) {
+      errors.push(`정수배 아님 (${size.w}×${size.h})`);
+    }
     notes.push(`배율 ${scale}배`);
     if (stopAt >= 30) {
       if (rate < 50 || rate > 70) errors.push(`틱 속도 ${rate.toFixed(1)}/초`);

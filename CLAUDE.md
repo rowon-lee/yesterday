@@ -45,6 +45,7 @@ src/
   vfx/       Sprite Fusion 이펙트 파일 (수정해서 씀)
   stage/     맵, 부서지는 물건
   net/       온라인 (나중)
+  scenes/    화면 단위 (?scene=이름): blank, viewer(모션 뷰어) …
 tools/       export-sheets, screenshot, simtest
 out/         생성물 (git 제외)
 docs/        기획 문서, motions/승인목록.md
