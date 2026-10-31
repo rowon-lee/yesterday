@@ -3,6 +3,8 @@ import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import { drawCutin } from '../render/cutin';
 import { drawDust, Effects, type Dust } from '../render/effects';
+import { FightVfx } from '../render/fightvfx';
+import { VfxLayer } from '../render/vfx';
 import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
@@ -62,6 +64,9 @@ export function fightScene(): Scene {
   let s: SimState;
   let cpus: [CpuState, CpuState];
   let fx: Effects;
+  /** Sprite Fusion 이펙트 층과, 전투 이벤트를 이펙트로 바꾸는 쪽 */
+  let vfx: VfxLayer;
+  let fightVfx: FightVfx;
   let hud: Hud;
   let cutin: { who: number; text: string; t: number } | null = null;
   /** 카메라 왼쪽 끝 (px, 렌더 전용). -1이면 아직 안 정함 */
@@ -75,6 +80,9 @@ export function fightScene(): Scene {
     s = createState(seed);
     cpus = [createCpu(seed * 2 + 1), createCpu(seed * 2 + 2)];
     fx = new Effects();
+    vfx = new VfxLayer();
+    fightVfx = new FightVfx(vfx, fx);
+    fightVfx.reset(s);
     hud = new Hud();
     hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', 'CPU'];
     cutin = null;
@@ -87,7 +95,7 @@ export function fightScene(): Scene {
   // 확인 도구가 읽는 값
   (window as unknown as { __fight: () => SimState }).__fight = () => s;
 
-  /** 잔상을 남기고, 착지·대시·박차고 뛰는 순간에 흙먼지를 일으킨다 */
+  /** 잔상을 남기고, 착지·박차고 뛰는 순간에 흙먼지를 일으킨다 (대시의 잔상·먼지는 Sprite Fusion Dash & Blink) */
   const watchMotion = () => {
     s.fighters.forEach((f, i) => {
       const p = fighterPose(f);
@@ -97,7 +105,6 @@ export function fightScene(): Scene {
       const x = f.x / 256;
       const air = f.y < 0;
       if (was.air && !air) dust.push({ x, y: 0, dir: 0, t: 0, life: 14 });
-      if (f.mode === 'dash' && was.mode !== 'dash') dust.push({ x, y: 0, dir: -f.facing * f.dir, t: 0, life: 12 });
       // 뛰는 중에는 발이 땅을 박찰 때마다 (반 바퀴마다) 뒤로 먼지
       const half = (f.dir > 0 ? STATS.runCycle : STATS.runBackCycle) / 2;
       const stepNo = Math.floor(f.runDist / half);
@@ -133,6 +140,7 @@ export function fightScene(): Scene {
       const p2 = p2Idle ? 0 : cpuInput(cpus[1], s, 1);
       step(s, [p1, p2]);
       fx.push(s.events);
+      fightVfx.tick(s);
       fx.tick();
       hud.tick(s);
       for (const e of s.events) if (e.type === 'cutin') cutin = { who: e.who, text: e.text ?? '', t: 0 };
@@ -168,10 +176,14 @@ export function fightScene(): Scene {
           if (g && tr[tr.length - 1].fast && g.fast) drawGhost(ctx, g, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6);
         }
       });
+      vfx.draw(ctx, cam, 'back');
       // 맞고 있는 쪽을 뒤에, 공격하는 쪽을 앞에
       const order = [...s.fighters].sort((a, b) => Number(a.mode === 'attack') - Number(b.mode === 'attack'));
-      for (const f of order) drawFighter(ctx, f, s.fighters.indexOf(f), toScreen, s.tick);
-      fx.draw(ctx, toScreen);
+      for (const f of order) {
+        const i = s.fighters.indexOf(f);
+        drawFighter(ctx, f, i, toScreen, s.tick, fightVfx.white(i));
+      }
+      vfx.draw(ctx, cam, 'front');
       if (showBoxes) drawBoxes(ctx, s, cam);
       ctx.restore();
 
@@ -199,9 +211,9 @@ interface Snapshot {
   fast: boolean;
 }
 
-/** 잔상을 남길 만큼 빠른가: 대시, 공중 대시, 3px/틱 이상으로 움직일 때 */
+/** 잔상을 남길 만큼 빠른가: 3px/틱 이상으로 움직일 때 (대시는 Sprite Fusion 잔상이 따로 있어 뺀다) */
 function isFast(f: Fighter): boolean {
-  return f.mode === 'dash' || f.mode === 'airdash' || Math.abs(f.vx) >= 3 * 256;
+  return f.mode !== 'dash' && f.mode !== 'airdash' && Math.abs(f.vx) >= 3 * 256;
 }
 
 const ghostCanvas = document.createElement('canvas');
@@ -238,20 +250,25 @@ function drawGhost(
   ctx.drawImage(ghostCanvas, sx - FOOT_X, sy - FOOT_Y);
 }
 
+/** 맞아서 멈춘 동안(히트스톱) 맞은 쪽이 좌우로 1px씩 떨린다 */
+const SHAKEN: ReadonlySet<string> = new Set(['hitstun', 'airhit', 'blockstun', 'crush', 'ko']);
+
 function drawFighter(
   ctx: CanvasRenderingContext2D,
   f: Fighter,
   index: number,
   toScreen: (x: number, y: number) => [number, number],
   tick: number,
+  white: boolean,
 ) {
   // 대시 중 순간이동 구간은 깜빡인다
   if ((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && tick % 2) return;
   const pose = fighterPose(f);
   const m = motionByName.get(pose.motion)!;
   const [sx, sy] = toScreen(f.x / 256, f.y / 256);
-  const look = f.flash > 0 && f.flash % 2 === 0 ? 'flash' : index === 0 ? 'p1' : 'p2';
-  m.draw(ctx, pose.frame, sx - FOOT_X, sy - FOOT_Y, { look, flip: f.facing < 0 });
+  const jitter = f.hitstop > 0 && SHAKEN.has(f.mode) ? (tick % 2 ? 1 : -1) : 0;
+  const look = white ? 'flash' : index === 0 ? 'p1' : 'p2';
+  m.draw(ctx, pose.frame, sx - FOOT_X + jitter, sy - FOOT_Y, { look, flip: f.facing < 0 });
 }
 
 function drawBoxes(ctx: CanvasRenderingContext2D, s: SimState, camX: number) {

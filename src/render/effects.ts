@@ -1,77 +1,57 @@
 import type { SimEvent } from '../sim';
 import { COLORS } from './palette';
 
-/** 렌더 전용 이펙트: 타격 불꽃, 화면 흔들림·번쩍임. sim 이벤트를 받아 틱마다 진행한다. */
-interface Spark {
-  x: number;
-  y: number;
-  t: number;
-  life: number;
-  size: number;
-  color: string;
-}
+/**
+ * 화면 흔들림과 번쩍임 (렌더 전용). 흔들림은 '충격량(trauma)' 방식:
+ * 맞을 때마다 쌓이고 매 틱 줄어든다. 흔들리는 폭은 충격량의 제곱에 비례한다 (약한 건 거의 안 흔들림).
+ * 타격 불꽃 등 그림 이펙트는 Sprite Fusion 이펙트(src/vfx, render/vfx.ts)가 맡는다.
+ */
+export const SHAKE_MAX_PX = 5;
+const TRAUMA_DECAY = 0.04;
 
 export class Effects {
-  sparks: Spark[] = [];
-  shake = 0;
+  trauma = 0;
+  /** 화면 번쩍임 남은 틱 */
   flash = 0;
+  private t = 0;
+
+  /** 충격 더하기 (0~1) */
+  shake(amount: number): void {
+    this.trauma = Math.min(1, this.trauma + amount);
+  }
+
+  flashFor(ticks: number): void {
+    this.flash = Math.max(this.flash, ticks);
+  }
 
   push(events: readonly SimEvent[]): void {
     for (const e of events) {
-      const x = e.x / 256;
-      const y = e.y / 256;
-      if (e.type === 'hit') {
-        this.sparks.push({ x, y, t: 0, life: e.heavy ? 12 : 8, size: e.heavy ? 9 : 6, color: COLORS.goldLight });
-        if (e.heavy) {
-          this.shake = Math.max(this.shake, 8);
-          this.flash = Math.max(this.flash, 2);
-        }
-      } else if (e.type === 'block') {
-        this.sparks.push({ x, y, t: 0, life: 7, size: 5, color: COLORS.skyLight });
+      if (e.type === 'hit' && e.heavy) {
+        this.shake(e.move === 'super' ? 0.55 : 0.3);
+        this.flashFor(e.move === 'super' ? 3 : 1);
       } else if (e.type === 'crush') {
-        this.sparks.push({ x, y, t: 0, life: 14, size: 12, color: COLORS.red });
-        this.shake = Math.max(this.shake, 10);
-        this.flash = Math.max(this.flash, 3);
+        this.shake(0.45);
+        this.flashFor(2);
       } else if (e.type === 'ko') {
-        this.shake = Math.max(this.shake, 14);
-        this.flash = Math.max(this.flash, 4);
+        this.shake(0.6);
+        this.flashFor(3);
       }
     }
   }
 
   tick(): void {
-    for (const s of this.sparks) s.t++;
-    this.sparks = this.sparks.filter((s) => s.t < s.life);
-    if (this.shake > 0) this.shake--;
+    this.t++;
+    this.trauma = Math.max(0, this.trauma - TRAUMA_DECAY);
     if (this.flash > 0) this.flash--;
   }
 
-  /** 흔들림 오프셋 (정수 px) */
+  /** 흔들림 오프셋 (정수 px). 틱마다 정해진 무늬로 흔들어 같은 장면은 늘 같게 찍힌다 */
   offset(): [number, number] {
-    if (this.shake <= 0) return [0, 0];
-    const a = this.shake > 4 ? 2 : 1;
-    return [this.shake % 2 ? a : -a, this.shake % 3 === 0 ? a : 0];
-  }
-
-  /** 타격 불꽃: 십자와 대각선이 퍼졌다 줄어든다 (화면 좌표로 옮겨 그림) */
-  draw(ctx: CanvasRenderingContext2D, toScreen: (x: number, y: number) => [number, number]): void {
-    for (const s of this.sparks) {
-      const [sx, sy] = toScreen(s.x, s.y);
-      const k = s.t / s.life;
-      const r = Math.max(1, Math.round(s.size * (k < 0.4 ? k / 0.4 : 1)));
-      const thick = k < 0.5 ? 2 : 1;
-      ctx.fillStyle = s.t < 2 ? COLORS.white : s.color;
-      ctx.fillRect(sx - r, sy - (thick >> 1), r * 2 + 1, thick);
-      ctx.fillRect(sx - (thick >> 1), sy - r, thick, r * 2 + 1);
-      const d = Math.round(r * 0.6);
-      for (let i = 1; i <= d; i++) {
-        if (k > 0.7 && i < d / 2) continue;
-        ctx.fillRect(sx + i, sy + i, 1, 1);
-        ctx.fillRect(sx - i, sy + i, 1, 1);
-        ctx.fillRect(sx + i, sy - i, 1, 1);
-        ctx.fillRect(sx - i, sy - i, 1, 1);
-      }
-    }
+    const k = this.trauma * this.trauma * SHAKE_MAX_PX;
+    if (k < 0.5) return [0, 0];
+    const nx = Math.sin(this.t * 2.9) + 0.5 * Math.sin(this.t * 7.3);
+    const ny = Math.sin(this.t * 3.7 + 1) + 0.5 * Math.sin(this.t * 5.1 + 2);
+    return [Math.round((k * nx) / 1.5), Math.round((k * ny) / 1.5)];
   }
 }
 

@@ -42,6 +42,20 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 - 배치 숫자: `src/data/stages/downtown.ts`
 - 그리기: `src/render/stage/` (여러 겹 시차 배경, 매연·서치라이트·가스등 불빛은 매 틱)
 
+## 이펙트
+
+Sprite Fusion 픽셀 아트 VFX (MIT, https://www.spritefusion.com/pixel-art-vfx) 파일을 `src/vfx/`에 두고 쓴다.
+`src/render/vfx.ts`가 우리 화면에 맞춘다 (좌표 2단위 = 1px, 반투명 → 4×4 디더링, 색 → 제한 팔레트).
+전투 이벤트와의 연결은 `src/render/fightvfx.ts`.
+
+| 쓰임새 | 이펙트 |
+| --- | --- |
+| 타격 / 막힘 | Impact (뜨거운 색 / 차가운 색) |
+| 발차기·쓸기·내려찍기 궤적 | Slash |
+| 대시·공중 대시 | Dash & Blink |
+| 기력 3칸이 찬 동안 | Power Up (1P 금빛, 2P 하늘빛) |
+| 필살 적중·가드 크러시·KO | Explosion |
+
 ## 모션 뷰어
 
 배포 주소 뒤에 `?scene=viewer`: https://rowon-lee.github.io/yesterday/?scene=viewer
