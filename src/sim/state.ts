@@ -90,6 +90,9 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   crashProps(s);
   hitProps(s);
   flyThroughCity(s);
+  // 이번 틱에 무너진 건물·물건 위에 서 있었으면 바로 떨어지기 시작한다 (다음 틱이 슬로모션으로 건너뛰어져도 허공에 서 있지 않게)
+  settle(s, a);
+  settle(s, b);
   faceOpponent(a, b);
   faceOpponent(b, a);
   roundFlow(s);

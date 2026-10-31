@@ -257,6 +257,31 @@ function platformChecks() {
   run(s, hold(0, 90));
   f = s.fighters[0];
   results.push(['무너진 지붕에서는 떨어진다', stood && f.y > -roof.h * 256, `처음 ${roof.h}px → ${-f.y / 256}px`]);
+
+  // 5) 차양 위에 서 있는데, 날아온 상대가 1층을 뚫어 그 건물이 무너진다 → 그 틱에 바로 떨어지기 시작한다
+  //    (무너질 때 슬로모션으로 다음 틱이 건너뛰어져도 허공에 서 있지 않게)
+  const awn = sim.SURFACES.find((sf) => sf.kind === 'awning' && sf.b >= 0);
+  const ag = sim.GRIDS[awn.b];
+  const ax = Math.round((awn.x0 + awn.x1) / 2);
+  const ac = Math.floor((ax - ag.x) / 16);
+  s = fresh(ax, ax + 200);
+  f = s.fighters[0];
+  f.y = -awn.h * 256;
+  f.floor = f.y;
+  run(s, hold(0, 5));
+  const onAwning = f.y === -awn.h * 256 && !sim.isAirborne(f);
+  // 1층 기둥 넷(ac-1 ~ ac+2)을 거의 다 뚫어 두고 ac 기둥만 한 덩어리 남긴다. 날아온 2P가 그 덩어리를 뚫으면 무너진다
+  // (가는 길에 물건에 부딪혀 속도가 반으로 줄어도 건물을 깎을 만큼 빠르게)
+  for (let c = ac - 1; c <= ac + 2; c++) for (let r = 0; r < 3; r++) s.city.hp[ag.first + r * ag.cols + c] = c === ac && r === 0 ? 1 : 0;
+  Object.assign(s.fighters[1], { mode: 'airhit', t: 0, x: (ag.x + ac * 16 + 1) * 256, y: -4 * 256, floor: 0, vx: 12 * 256, vy: 0, cityHits: [] });
+  sim.step(s, [0, 0]);
+  const collapsed = s.events.some((e) => e.type === 'collapse');
+  const fellNow = f.floor === 0;
+  const slowNext = s.slow > 0;
+  sim.step(s, [0, 0]);
+  const noFloat = !(f.floor < 0 && sim.floorBelow(s, f.x, f.y) !== f.y);
+  run(s, hold(0, 60));
+  results.push(['차양 위에 서 있던 건물이 무너지면 그 틱에 바로 떨어진다 (슬로모션 틱에도 허공에 서 있지 않다)', onAwning && collapsed && fellNow && noFloat && f.y > -awn.h * 256, `무너짐 ${collapsed}, 그 틱에 떨어지기 시작 ${fellNow}, 슬로모션 ${slowNext}, 60틱 뒤 ${-f.y / 256}px`]);
   return results;
 }
 
