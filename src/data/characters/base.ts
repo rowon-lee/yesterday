@@ -38,4 +38,7 @@ export const BASE_STATS = {
   /** 벽 점프: 벽 반대쪽으로 튕겨 오르는 속도 (가로, 세로. 세로 8.6이면 약 88px 솟는다) */
   wallJumpVx: 4.4,
   wallJumpVy: 8.6,
+  /** 벽 달리기: 달려 오르는 속도와 높이 (약 1.5층. 135 ÷ 5.4 = 25틱) */
+  wallRunSpeed: 5.4,
+  wallRunHeight: 135,
 } as const;

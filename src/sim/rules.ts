@@ -43,6 +43,12 @@ export const SAME_WALL_MAX = 2;
 export const WALL_PUSH = px(1.2);
 /** 벽 점프 직후 이 틱 동안은 공중 좌우 조작이 듣지 않는다 (곧바로 같은 벽으로 되돌아가지 않게) */
 export const WALL_JUMP_LOCK = 10;
+/**
+ * 벽 달리기로 꼭대기에 닿으면(손이 모서리에 닿으면) 모서리를 넘어 윗면 쪽으로 튀어 오르는 속도 (가로, 세로).
+ * 발이 윗면보다 약 6px 높이 솟았다가, 모서리 안쪽 약 16px에 내려선다 (가장 좁은 급수탑 윗면 36px에도 선다)
+ */
+export const WALL_TOP_VX = px(1.3);
+export const WALL_TOP_VY = px(-5.5);
 
 // 방어
 export const GUARD_MAX = 100;

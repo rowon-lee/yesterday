@@ -122,6 +122,12 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
   }
   if (me.mode === 'blockstun' && me.meter >= METER_BAR && me.meter < METER_MAX && dist < 36 && roll(cpu, 20) === 0) return IN_SKILL_B;
 
+  // 가끔 가까운 벽으로 대시해 벽을 달려 오른다 (상대가 위에 있으면 더 자주)
+  if (NEUTRAL_GROUND.has(me.mode) && me.mode !== 'land' && roll(cpu, (me.y - op.y) / SUBPX > 40 ? 40 : 400) === 0) {
+    for (const dir of [1, -1]) {
+      if (findWall(s, me.x, Math.round(-me.y / SUBPX) + WALL_GRAB_H, dir, 50)) return IN_DASH | (dir > 0 ? IN_RIGHT : IN_LEFT);
+    }
+  }
   // 높이가 다르면 발판을 오르내린다
   const pm = platformMove(cpu, s, me, op);
   if (pm !== null) return pm;

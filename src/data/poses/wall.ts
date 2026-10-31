@@ -72,5 +72,42 @@ export const WALL_JUMP: MotionData = {
   ],
 };
 
+// ---- 벽 달리기 (벽은 앞쪽 x = +7. 벽을 바라보며 달려 오른다) ----
+/** 대시에서 이어져 앞발을 벽에 딛는다 */
+const WR_PLANT = P({ hx: 0, hy: -20, tl: 16, hd: -6, aFx: -4, aFy: 8, aBx: 9, aBy: -6, lFx: 6, lFy: -14, lBx: -6, lBy: -1 });
+/** 앞발을 높이 벽에 딛고 뒷다리로 밀어 올린다 (뒷팔은 앞위로, 앞팔은 뒤로) */
+const WR_A = P({ hx: 0, hy: -24, tl: 10, hd: -14, aFx: -3, aFy: 6, aBx: 8, aBy: -12, lFx: 6, lFy: -22, lBx: 0, lBy: -4 });
+/** 발을 바꿔 뒷발을 높이 벽에 딛는다 */
+const WR_B = P({ hx: 0, hy: -24, tl: 10, hd: -14, aFx: 8, aFy: -12, aBx: -3, aBy: 6, lFx: 0, lFy: -4, lBx: 6, lBy: -22 });
+/** 꼭대기 모서리를 두 손으로 잡는다 */
+const WR_GRAB = P({ hx: 0, hy: -24, tl: 4, hd: -20, aFx: 5, aFy: -16, aBx: 3, aBy: -16, lFx: 4, lFy: -8, lBx: 1, lBy: -2 });
+/** 팔로 밀어 몸을 끌어올리며 무릎을 당긴다 */
+const WR_PULL = P({ hx: 2, hy: -28, tl: 24, hd: -4, aFx: 6, aFy: 4, aBx: 4, aBy: 6, lFx: 6, lFy: -20, lBx: 3, lBy: -16 });
+/** 한 발을 윗면에 올리며 앞으로 넘어간다 */
+const WR_OVER = P({ hx: 3, hy: -22, tl: 20, hd: -2, aFx: 9, aFy: 2, aBx: -2, aBy: 6, lFx: 9, lFy: -12, lBx: -4, lBy: -4 });
+
+/**
+ * 벽 달리기: 벽 쪽으로 대시해 벽에 닿으면 벽을 바라보며 발을 번갈아 딛고 달려 오른다 (1~10프레임, sim은 달리는 동안 이 구간).
+ * 꼭대기가 닿으면 모서리를 잡고 끌어올려 윗면으로 넘어간다 (11~14프레임). 꼭대기에 못 닿으면 끝에서 벽 붙기로 이어진다.
+ */
+export const WALL_RUN: MotionData = {
+  name: 'base/wall_run',
+  label: '벽 달리기',
+  dur: [2, 2, 3, 2, 3, 2, 3, 2, 3, 3, 2, 2, 3, 3],
+  keys: [
+    { at: 0, pose: WR_PLANT },
+    { at: 1, pose: WR_A },
+    { at: 3, pose: WR_B },
+    { at: 5, pose: WR_A },
+    { at: 7, pose: WR_B },
+    { at: 9, pose: WR_A },
+    { at: 10, pose: WR_GRAB },
+    { at: 11, pose: WR_PULL, stop: true },
+    { at: 13, pose: WR_OVER },
+  ],
+};
+/** 벽 달리기에서 꼭대기를 넘어가는 프레임 (0부터): 이 앞까지가 달려 오르는 구간 */
+export const WALL_RUN_TOP_FROM = 10;
+
 /** 벽 기동 동작 (승인받은 순서대로 늘어난다) */
-export const WALL_MOTIONS: MotionData[] = [WALL_CLING, WALL_JUMP];
+export const WALL_MOTIONS: MotionData[] = [WALL_CLING, WALL_JUMP, WALL_RUN];

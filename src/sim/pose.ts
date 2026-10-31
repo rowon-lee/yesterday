@@ -1,5 +1,5 @@
 import type { Joints } from '../anim/pose';
-import { WALL_CLING_LOOP_FROM } from '../data/poses/wall';
+import { WALL_CLING_LOOP_FROM, WALL_RUN_TOP_FROM } from '../data/poses/wall';
 import { frameAtTick, frameStretched, motionFrames, MOVES, STATS } from './frames';
 import { GETUP_TICKS, KNOCKDOWN_TICKS } from './rules';
 import type { Fighter } from './types';
@@ -59,6 +59,12 @@ function pick(f: Fighter): [string, number] {
     case 'air':
       // 벽 점프는 그 그림이 끝날 때까지 (꼭대기를 지나 떨어지는 자세로 이어진다)
       if (f.jumpKind === 3 && f.t < motionFrames('base/wall_jump').total) return once('base/wall_jump', f.t);
+      // 벽 달리기로 꼭대기를 넘어가는 중: 벽 달리기 그림의 뒷부분 (모서리를 잡고 넘어감)
+      if (f.jumpKind === 4) {
+        const m = motionFrames('base/wall_run');
+        const from = m.cum[WALL_RUN_TOP_FROM - 1];
+        if (from + f.t < m.total) return once('base/wall_run', from + f.t);
+      }
       if (f.vy < 0) return f.jumpKind === 2 ? once('base/jump2', f.t) : once('base/jump', f.t + 2);
       return once('base/fall', Math.floor(f.vy / 64));
     case 'land':
@@ -85,5 +91,10 @@ function pick(f: Fighter): [string, number] {
       return once('base/win', f.t);
     case 'wallcling':
       return holdLoop('base/wall_cling', f.t, WALL_CLING_LOOP_FROM);
+    case 'wallrun': {
+      // 달려 오르는 구간만 (꼭대기 앞까지), 길게 달리면 마지막 걸음에 머문다
+      const m = motionFrames('base/wall_run');
+      return ['base/wall_run', Math.min(WALL_RUN_TOP_FROM - 1, frameAtTick(m, f.t))];
+    }
   }
 }
