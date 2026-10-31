@@ -84,7 +84,9 @@ export const hasShopWindow = (b: FrontBuildingPlace): boolean => b.kind === 'sho
 
 /** 가게 문 왼쪽 끝 */
 export const doorOf = (b: FrontBuildingPlace): number => (b.kind === 'apartment' ? b.x + Math.floor((b.w - 64) * 0.62) : b.x + Math.floor(b.w * 0.7));
-export const DOOR_W = 18;
+/** 가게 문 폭과 높이 (아트 규칙: 문 약 70px, 캐릭터 52px보다 크게. 차양 아래에 들어간다) */
+export const DOOR_W = 24;
+export const DOOR_H = 68;
 
 /** 쇼윈도 유리 (x ~ x+w, 바닥에서 GLASS_BOTTOM 위부터 glass.h 높이) */
 export function shopWindow(b: FrontBuildingPlace): { x: number; w: number } {

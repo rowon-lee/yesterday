@@ -16,7 +16,7 @@ import type { Cam } from './index';
  */
 const G = GROUND;
 /** 가로등 머리 높이 (바닥에서) */
-export const LAMP_TOP = G - 92;
+export const LAMP_TOP = G - 112;
 
 /** 물건마다 정해진 무늬 (잔해 모양이 늘 같게) */
 const rnd = (i: number, k: number) => hash(i * 7919 + k * 104729);
@@ -82,7 +82,7 @@ function car(g: CanvasRenderingContext2D, x: number, b: Breakable, p: PropState,
     smoke(g, x + w / 2, G - 20, tick, i, fire > 0 ? 5 : 3);
     return;
   }
-  sprite(g, `car:${i}:${p.stage}`, x - 3, G - 27, w + 6, 28, (sg) => carBody(sg, x, w, i, p.stage === 1));
+  sprite(g, `car:${i}:${p.stage}`, x - 3, G - 30, w + 6, 31, (sg) => carBody(sg, x, w, i, p.stage === 1));
   if (p.stage === 0) lights.point(x + 3, G - 13, 14, C.neonRed, 0.45);
   else {
     flames(g, x + w - 28, G - 16, 20, 8 + Math.min(6, sinceDamaged >> 5), tick, i);
@@ -120,24 +120,27 @@ function carBody(g: CanvasRenderingContext2D, x: number, w: number, i: number, d
   rect(g, x + w - 4, G - 11, 2, 1, dent ? C.iron : C.lampCore);
   rect(g, x + 2, G - 15, 2, 3, C.neonRed);
   // 객실: 크림색 낮은 지붕, 둘러싼 앞유리, 옆 창
-  const roof = dent ? G - 22 : G - 25;
-  rect(g, x + 26, roof, 30, 2, C.carCream);
-  line(g, x + 56, roof, x + 63, G - 16, C.carCream);
-  line(g, x + 26, roof, x + 18, G - 16, C.carCream);
+  // 객실은 차 길이에 비례 (뒤 31%~앞 67%)
+  const roof = dent ? G - 24 : G - 28;
+  const c0 = Math.round(w * 0.31);
+  const c1 = Math.round(w * 0.67);
+  rect(g, x + c0, roof, c1 - c0, 2, C.carCream);
+  line(g, x + c1, roof, x + c1 + 9, G - 16, C.carCream);
+  line(g, x + c0, roof, x + c0 - 10, G - 16, C.carCream);
   for (let y = roof + 2; y < G - 16; y++) {
     const t = (y - roof) / (G - 16 - roof);
-    const l = Math.round(x + 26 - 8 * t) + 1;
-    const r = Math.round(x + 56 + 7 * t) - 1;
+    const l = Math.round(x + c0 - 10 * t) + 1;
+    const r = Math.round(x + c1 + 9 * t) - 1;
     rect(g, l, y, r - l, 1, C.windowDark);
   }
-  rect(g, x + 40, roof + 2, 2, G - 16 - roof - 2, C.carCream);
+  rect(g, x + Math.round((c0 + c1) / 2), roof + 2, 2, G - 16 - roof - 2, C.carCream);
   if (dent) {
-    line(g, x + 44, roof + 2, x + 54, G - 17, C.skyDark);
-    line(g, x + 50, roof + 2, x + 46, G - 17, C.skyDark);
+    line(g, x + c1 - 12, roof + 2, x + c1 - 2, G - 17, C.skyDark);
+    line(g, x + c1 - 6, roof + 2, x + c1 - 10, G - 17, C.skyDark);
     for (let k = 0; k < 7; k++) rect(g, x + w - 26 + k * 3, G - 16 + (k % 2), 3, 2, C.iron);
   }
-  wheel(g, x + 16, G - 5, false);
-  wheel(g, x + w - 18, G - 5, false);
+  wheel(g, x + Math.round(w * 0.2), G - 5, false);
+  wheel(g, x + w - Math.round(w * 0.21), G - 5, false);
 }
 
 function wheel(g: CanvasRenderingContext2D, cx: number, cy: number, burnt: boolean) {
@@ -202,11 +205,11 @@ function lamp(g: CanvasRenderingContext2D, x: number, b: Breakable, p: PropState
   }
   const bend = p.stage === 1 ? (p.dir || 1) * 6 : 0;
   const flicker = p.stage === 1 ? hash((tick >> 2) * 31 + i * 7) < 0.45 : hash((tick >> 3) * 31 + i * 7) < 0.03;
-  sprite(g, `lamp:${i}:${p.stage}:${bend}:${flicker ? 1 : 0}`, cx - 32, G - 94, 64, 94, (sg) => lampBody(sg, cx, side, bend, flicker, p.stage === 1));
+  sprite(g, `lamp:${i}:${p.stage}:${bend}:${flicker ? 1 : 0}`, cx - 32, G - 114, 64, 114, (sg) => lampBody(sg, cx, side, bend, flicker, p.stage === 1));
   if (!flicker) {
     // 빛: 머리 둘레, 아래로 쏟아지는 빛줄기, 보도의 빛 웅덩이
     const lensX = Math.min(cx + bend + side * 14, cx + bend + side * 23);
-    const hy = G - 88;
+    const hy = G - 108;
     lights.point(lensX + 5, hy + 4, 56, C.sodium, 0.85);
     lights.cone(lensX + 5, hy + 5, Math.PI / 2, 112, 0.42, C.sodium, 0.32);
     lights.point(lensX + 5, G - 2, 46, C.sodium, 0.32);
@@ -228,15 +231,15 @@ function lampFallen(g: CanvasRenderingContext2D, cx: number, d: number, i: numbe
 /** 강철 기둥, 굽은 팔, 코브라 헤드 (렌즈가 켜졌는지) */
 function lampBody(g: CanvasRenderingContext2D, cx: number, side: number, bend: number, off: boolean, cracked: boolean) {
   rect(g, cx - 4, G - 4, 9, 4, C.iron);
-  rect(g, cx - 2, G - 50, 4, 46, C.iron);
-  rect(g, cx + 1, G - 50, 1, 46, C.ironLight);
-  line(g, cx - 1, G - 50, cx - 1 + bend, G - 84, C.iron);
-  line(g, cx, G - 50, cx + bend, G - 84, C.iron);
-  line(g, cx + 1, G - 50, cx + 1 + bend, G - 84, C.ironLight);
+  rect(g, cx - 2, G - 64, 4, 60, C.iron);
+  rect(g, cx + 1, G - 64, 1, 60, C.ironLight);
+  line(g, cx - 1, G - 64, cx - 1 + bend, G - 104, C.iron);
+  line(g, cx, G - 64, cx + bend, G - 104, C.iron);
+  line(g, cx + 1, G - 64, cx + 1 + bend, G - 104, C.ironLight);
   const tx = cx + bend;
   const hx = tx + side * 18;
-  const hy = G - 88;
-  for (let k = 0; k <= 18; k++) rect(g, tx + side * k, G - 84 - Math.round(Math.sin((k / 18) * Math.PI * 0.5) * 4), 1, 2, C.iron);
+  const hy = G - 108;
+  for (let k = 0; k <= 18; k++) rect(g, tx + side * k, G - 104 - Math.round(Math.sin((k / 18) * Math.PI * 0.5) * 4), 1, 2, C.iron);
   const headX = Math.min(hx - 6 * side, hx + 7 * side);
   rect(g, headX, hy - 1, 14, 4, C.chromeDark);
   rect(g, headX, hy - 1, 14, 1, C.chrome);

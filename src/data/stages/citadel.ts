@@ -9,7 +9,8 @@
  *   하늘과 바다 → 1구역 마천루 → 시타델 상층부 → 중간 건물 → 싸우는 거리(1) → 앞겹(카메라 앞을 스침)
  * 먼 겹일수록 매연 색을 디더링으로 덮어 흐리고 색이 빠지게 한다 (haze: 0~16).
  * 겹 안의 x는 그 겹의 좌표, 높이는 '바닥에서 위로 몇 px'로 적는다.
- * 축척: 캐릭터 키 52px ≈ 사람 한 명. 1층 80px, 위층 한 층 56px (3층 192px ~ 6층 360px).
+ * 축척 (아트 규칙): 캐릭터 키 52px ≈ 사람 한 명. 문 약 70px, 1층 110px(문 + 간판 띠), 위층 한 층 90px
+ * (2층 200px ~ 5층 470px), 1960년대 자동차 길이 120px, 가로등 110px.
  */
 export const CITADEL = {
   width: 3200,
@@ -58,27 +59,28 @@ export const CITADEL = {
    */
   front: {
     seed: 271,
-    floorH: 56,
-    shopH: 80,
+    floorH: 90,
+    shopH: 110,
+    /** 다이너는 2층(200px): 차양(76)에서 2단 점프(약 160)로 지붕에 오를 수 있게 */
     theater: {
       x0: 400,
       list: [
-        { kind: 'shop', w: 110, floors: 4, sign: 'BAKERY', poster: 'OBEY' },
-        { kind: 'theater', w: 170, floors: 5, sign: 'PALACE', poster: '' },
+        { kind: 'shop', w: 110, floors: 3, sign: 'BAKERY', poster: 'OBEY' },
+        { kind: 'theater', w: 170, floors: 4, sign: 'PALACE', poster: '' },
         { kind: 'alley', w: 22 },
-        { kind: 'diner', w: 130, floors: 3, sign: 'DINER', poster: '' },
+        { kind: 'diner', w: 130, floors: 2, sign: 'DINER', poster: '' },
         { kind: 'shop', w: 110, floors: 5, sign: 'HOTEL', poster: 'ORDER' },
       ],
     },
     apartments: {
       x0: 2200,
       list: [
-        { kind: 'apartment', w: 130, floors: 5, sign: 'LAUNDRY', poster: 'WORK' },
+        { kind: 'apartment', w: 130, floors: 4, sign: 'LAUNDRY', poster: 'WORK' },
         { kind: 'alley', w: 24 },
-        { kind: 'apartment', w: 140, floors: 6, sign: '', poster: 'UNITY' },
-        { kind: 'apartment', w: 120, floors: 4, sign: 'GROCER', poster: '' },
+        { kind: 'apartment', w: 140, floors: 5, sign: '', poster: 'UNITY' },
+        { kind: 'apartment', w: 120, floors: 3, sign: 'GROCER', poster: '' },
         { kind: 'alley', w: 22 },
-        { kind: 'apartment', w: 164, floors: 5, sign: 'RADIO', poster: 'OBEY' },
+        { kind: 'apartment', w: 164, floors: 4, sign: 'RADIO', poster: 'OBEY' },
       ],
     },
   },
@@ -193,15 +195,16 @@ export const CITADEL = {
    */
   breakables: {
     lamps: [116, 334, 474, 662, 884, 1062, 1290, 1910, 2128, 2262, 2512, 2742, 2880, 3080],
-    cars: [208, 488, 796, 2036, 2400],
-    hydrants: [300, 600, 1024, 2604],
-    newsstands: [688, 1996],
+    /** 차가 길어져(120) 가로등·소화전·가판대와 겹치지 않게 옮김 */
+    cars: [208, 482, 744, 2000, 2380],
+    hydrants: [352, 640, 1024, 2604],
+    newsstands: [688, 1922],
     /** 내구도와 판정 상자 (발밑 기준 폭·높이, px). 자동차는 1960년대 세단 (길고 낮다) */
-    car: { hp: 240, w: 84, h: 28 },
+    car: { hp: 240, w: 120, h: 36 },
     /** 네온 간판·전광판 (건물에 붙어 있어 판정 상자는 간판 자리, 높이 77~360). 큰 간판은 big */
     neon: { hp: 60, big: 110 },
-    lamp: { hp: 90, w: 10, h: 92 },
-    glass: { hp: 50, h: 50 },
+    lamp: { hp: 90, w: 10, h: 110 },
+    glass: { hp: 50, h: 56 },
     newsstand: { hp: 130, w: 36, h: 46 },
     hydrant: { hp: 70, w: 10, h: 18 },
     /** 내구도가 이 % 아래로 내려가면 '망가짐' 모습 */
