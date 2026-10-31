@@ -513,9 +513,9 @@ function wallChecks() {
   air(f, tower.x0 - 9, 170);
   f.airJumpUsed = true;
   f.airDashUsed = true;
-  run(s, hold(I.IN_RIGHT, 6));
+  run(s, hold(I.IN_RIGHT | I.IN_UP, 6));
   const towerWall = f.wallId;
-  results.push(['공중에서 벽 쪽을 누르면 벽을 등지고 붙는다', f.mode === 'wallcling' && f.x === (tower.x0 - reach) * 256 && f.facing === -1, `${f.mode} x=${f.x / 256} 바라봄 ${f.facing}`]);
+  results.push(['공중에서 벽 쪽 대각선 위(↗)를 누르면 벽을 등지고 붙는다', f.mode === 'wallcling' && f.x === (tower.x0 - reach) * 256 && f.facing === -1, `${f.mode} x=${f.x / 256} 바라봄 ${f.facing}`]);
   results.push(['벽을 디디면 2단 점프·공중 대시가 다시 생긴다', !f.airJumpUsed && !f.airDashUsed]);
   // 2) 천천히 미끄러진다 (30틱에 내려간 거리)
   const y0 = f.y;
@@ -529,17 +529,17 @@ function wallChecks() {
   air(f, tower.x0 - 9, 170);
   f.wallId = towerWall;
   f.wallCount = 2;
-  run(s, hold(I.IN_RIGHT, 6));
+  run(s, hold(I.IN_RIGHT | I.IN_UP, 6));
   const third = f.mode === 'wallcling';
   air(f, tower.x0 - 9, 170);
   f.wallId = towerWall;
   f.wallCount = 1;
-  run(s, hold(I.IN_RIGHT, 6));
+  run(s, hold(I.IN_RIGHT | I.IN_UP, 6));
   const second = f.mode === 'wallcling' && f.wallCount === 2;
   run(s, hold(0, 160));
   const reset = f.y === 0 && f.wallId === -1 && f.wallCount === 0;
   air(f, tower.x0 - 9, 170);
-  run(s, hold(I.IN_RIGHT, 6));
+  run(s, hold(I.IN_RIGHT | I.IN_UP, 6));
   results.push(['같은 벽은 연속 두 번까지 (내려서면 다시)', second && !third && reset && f.mode === 'wallcling' && f.wallCount === 1, `두 번째 ${second}, 세 번째 ${third}, 내려서 지움 ${reset}, 다시 ${f.mode}`]);
   // 5) 미끄러져 땅에 닿으면 착지한다
   run(s, hold(I.IN_RIGHT, 300));
@@ -550,14 +550,14 @@ function wallChecks() {
   f = s.fighters[0];
   air(f, 75, 60);
   run(s, hold(I.IN_LEFT, 6));
-  results.push(['맵 끝 벽(컨테이너 더미)에도 붙는다', f.mode === 'wallcling' && f.x === (66 + reach) * 256 && f.facing === 1, `${f.mode} x=${f.x / 256}`]);
+  results.push(['맵 끝 벽(컨테이너 더미)은 ↑ 없이 벽 쪽만 눌러도 붙는다', f.mode === 'wallcling' && f.x === (66 + reach) * 256 && f.facing === 1, `${f.mode} x=${f.x / 256}`]);
 
   // 7) 솟는 중에 닿아도 붙어서 벽을 타고 조금 오르다 미끄러진다
   s = fresh(tower.x0 - 30, tower.x0 + 200);
   f = s.fighters[0];
   air(f, tower.x0 - 9, 20);
   f.vy = -8 * 256;
-  run(s, hold(I.IN_RIGHT, 3));
+  run(s, hold(I.IN_RIGHT | I.IN_UP, 3));
   const rising = f.mode === 'wallcling' && f.vy < 0;
   run(s, hold(I.IN_RIGHT, 30));
   results.push(['솟는 중에 닿으면 벽을 타고 오르다 미끄러진다', rising && f.mode === 'wallcling' && f.vy > 0, `솟는 중 붙음 ${rising}, 30틱 뒤 ${f.mode} vy=${(f.vy / 256).toFixed(2)}`]);
@@ -568,7 +568,7 @@ function wallChecks() {
     s = fresh(tower.x0 - 20, tower.x0 + 200);
     f = s.fighters[0];
     air(f, tower.x0 - 9, 150);
-    run(s, hold(I.IN_RIGHT, 6));
+    run(s, hold(I.IN_RIGHT | I.IN_UP, 6));
     const clungJ = f.mode === 'wallcling';
     run(s, [inp | I.IN_JUMP]);
     // (그 틱에 중력이 한 번 더해진다)
@@ -587,22 +587,27 @@ function wallChecks() {
   // 벽 달리기: 지상 대시로 기둥탑 왼쪽 면에 닿으면 벽을 바라보며 달려 오르고, 꼭대기(296)에 못 닿으면 끝에서 벽에 붙는다
   s = fresh(tower.x0 - 40, tower.x0 - 140);
   f = s.fighters[0];
-  run(s, [I.IN_RIGHT | I.IN_DASH, ...hold(I.IN_RIGHT, 3)]);
+  run(s, [I.IN_RIGHT | I.IN_UP | I.IN_DASH, ...hold(I.IN_RIGHT, 3)]);
   const running = f.mode === 'wallrun' && f.facing === 1 && f.x === (tower.x0 - reach) * 256;
   run(s, hold(I.IN_RIGHT, st.wallRunTicks));
   const h = -f.y / 256;
-  results.push(['지상 대시로 벽에 닿으면 벽을 바라보며 달려 오르고, 다 달리면 벽에 붙는다', running && f.mode === 'wallcling' && f.facing === -1 && h > 120 && h < 145, `달림 ${running}, 끝 ${f.mode} 높이 ${h.toFixed(0)}px`]);
+  results.push(['↑+대시로 벽에 닿으면 벽을 바라보며 달려 오르고, 다 달리면 벽에 붙는다', running && f.mode === 'wallcling' && f.facing === -1 && h > 120 && h < 145, `달림 ${running}, 끝 ${f.mode} 높이 ${h.toFixed(0)}px`]);
+  // ↑ 없이 시작한 대시도 벽에 닿을 때 ↑를 누르고 있으면 달린다
+  s = fresh(tower.x0 - 40, tower.x0 - 140);
+  f = s.fighters[0];
+  run(s, [I.IN_RIGHT | I.IN_DASH, ...hold(I.IN_RIGHT | I.IN_UP, 3)]);
+  results.push(['↑ 없이 시작한 대시도 벽에 닿을 때 ↑를 누르고 있으면 달린다', f.mode === 'wallrun', f.mode]);
   // 컨테이너 더미 앞면(112): 꼭대기가 달리는 높이 안이라 모서리를 넘어 윗면에 선다
   s = fresh(120, 330);
   f = s.fighters[0];
   run(s, [I.IN_LEFT | I.IN_DASH, ...hold(I.IN_LEFT, 50)]);
-  results.push(['꼭대기가 닿으면 모서리를 넘어 윗면에 선다 (컨테이너 더미)', f.y === -sim.CONTAINER_TOP.h * 256 && f.x < 66 * 256 && !sim.isAirborne(f), `x=${(f.x / 256).toFixed(0)} 높이 ${-f.y / 256}`]);
+  results.push(['맵 끝 벽은 ↑ 없이 대시해도 달리고, 꼭대기가 닿으면 모서리를 넘어 윗면에 선다 (컨테이너 더미)', f.y === -sim.CONTAINER_TOP.h * 256 && f.x < 66 * 256 && !sim.isAirborne(f), `x=${(f.x / 256).toFixed(0)} 높이 ${-f.y / 256}`]);
   // 공중 대시로 벽에 닿아도 달려 오른다 (그 높이에서), 2단 점프·공중 대시가 다시 생긴다
   s = fresh(tower.x0 - 60, tower.x0 - 160);
   f = s.fighters[0];
   air(f, tower.x0 - 60, 60);
   f.airJumpUsed = true;
-  run(s, [I.IN_RIGHT | I.IN_DASH, ...hold(I.IN_RIGHT, 8)]);
+  run(s, [I.IN_RIGHT | I.IN_UP | I.IN_DASH, ...hold(I.IN_RIGHT, 8)]);
   results.push(['공중 대시로 벽에 닿아도 달려 오르고, 2단 점프·대시가 다시 생긴다', f.mode === 'wallrun' && -f.y / 256 > 60 && !f.airJumpUsed && !f.airDashUsed, `${f.mode} 높이 ${(-f.y / 256).toFixed(0)}`]);
   // 달리는 중에 점프하면 벽 점프 (벽 반대쪽으로)
   run(s, [I.IN_RIGHT | I.IN_JUMP]);
@@ -618,15 +623,34 @@ function wallChecks() {
   air(f, tower.x0 - 40, 30);
   f.wallId = towerWall;
   f.wallCount = 2;
-  run(s, [I.IN_RIGHT | I.IN_DASH, ...hold(0, 8)]);
+  run(s, [I.IN_RIGHT | I.IN_UP | I.IN_DASH, ...hold(0, 8)]);
   results.push(['같은 벽을 두 번 디뎠으면 대시해도 달리지 않는다', f.mode !== 'wallrun', f.mode]);
+
+  // ↑ 없이 벽 쪽을 누르면 구조물 앞을 지나간다: 왼쪽 기둥탑 앞에 선 상대에게 뛰어들기·대시
+  const right = tower.x1;
+  s = fresh(right + 64, right - 16);
+  f = s.fighters[0];
+  let caught = false;
+  for (const inp of [I.IN_JUMP | I.IN_LEFT, ...hold(I.IN_LEFT, 40)]) {
+    sim.step(s, [inp, 0]);
+    caught ||= f.mode === 'wallcling';
+  }
+  results.push(['↑ 없이 기둥탑 앞 상대에게 뛰어들면 붙지 않고 지나간다', !caught && f.x < (right - 10) * 256, `붙음 ${caught}, 끝 x=${(f.x / 256).toFixed(0)}`]);
+  s = fresh(right + 64, right - 16);
+  f = s.fighters[0];
+  caught = false;
+  for (const inp of [I.IN_LEFT | I.IN_DASH, ...hold(I.IN_LEFT, 20)]) {
+    sim.step(s, [inp, 0]);
+    caught ||= f.mode === 'wallrun';
+  }
+  results.push(['↑ 없이 대시하면 구조물 앞을 지나간다', !caught && f.x < (right - 4) * 256, `벽 달리기 ${caught}, 끝 x=${(f.x / 256).toFixed(0)}`]);
 
   // 8) 비상계단 바깥 기둥 (건물에 붙은 벽): 붙은 높이의 칸이 무너지면 떨어진다
   const esc = sim.WALLS.find((w) => w.b >= 0 && w.side === 1 && w.h1 - w.h0 > 200);
   s = fresh(esc.x + 30, esc.x + 200);
   f = s.fighters[0];
   air(f, esc.x + 9, 150);
-  run(s, hold(I.IN_LEFT, 6));
+  run(s, hold(I.IN_LEFT | I.IN_UP, 6));
   const clung = f.mode === 'wallcling';
   const g = sim.GRIDS[esc.b];
   const col = Math.floor((esc.x - 1 - g.x) / 16);

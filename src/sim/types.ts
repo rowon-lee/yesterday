@@ -79,6 +79,8 @@ export interface Fighter {
   wallSide: number;
   /** 벽 점프 직후 공중에서 좌우 조작이 듣지 않는 남은 틱 (튕겨 나간 쪽으로 날아가게) */
   driftLock: number;
+  /** 이번 대시를 ↑와 함께 시작했다 (구조물 벽에 닿으면 벽 달리기) */
+  dashUp: boolean;
 }
 
 /** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */

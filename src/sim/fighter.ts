@@ -170,6 +170,7 @@ function groundControl(s: SimState, f: Fighter, input: PlayerInput): void {
   if (take(f, B_DASH)) {
     setMode(f, 'dash', STATS.dashTicks);
     f.dir = input & back ? -1 : 1;
+    f.dashUp = (input & IN_UP) !== 0;
     return;
   }
   if (input & IN_DOWN) {
@@ -202,14 +203,15 @@ function airDrift(f: Fighter, input: PlayerInput): void {
 const grabH = (f: Fighter): number => Math.round(-f.y / 256) + WALL_GRAB_H;
 
 /**
- * 벽 붙기 (기획서 '벽 기동과 구조물'): 공중에서 벽 쪽 방향을 누른 채 벽에 닿으면 붙는다.
- * 벽은 길을 막지 않아서 솟는 중에 닿아도 붙는다 (솟는 힘이 다할 때까지 벽을 타고 오르다 미끄러진다).
+ * 벽 붙기 (기획서 '벽 기동과 구조물'): 공중에서 벽 쪽 대각선 위(↗·↖)를 누른 채 벽에 닿으면 붙는다.
+ * 맵 끝 벽은 벽 쪽만 눌러도 된다. ↑ 없이 벽 쪽을 누르면 구조물 앞을 그냥 지나간다 (벽은 길을 막지 않는다).
+ * 솟는 중에 닿아도 붙는다 (솟는 힘이 다할 때까지 벽을 타고 오르다 미끄러진다).
  * 같은 벽은 연속 SAME_WALL_MAX번까지 (땅·발판에 내려서면 처음부터). 벽을 디디면 2단 점프와 공중 대시가 한 번씩 다시 생긴다.
  */
 function tryCling(s: SimState, f: Fighter, input: PlayerInput): boolean {
   const dir = (input & IN_RIGHT ? 1 : 0) - (input & IN_LEFT ? 1 : 0);
   if (!dir) return false;
-  const w = findWall(s, f.x, grabH(f), dir);
+  const w = findWall(s, f.x, grabH(f), dir, 0, (input & IN_UP) !== 0);
   if (!w || (w.id === f.wallId && f.wallCount >= SAME_WALL_MAX)) return false;
   // 붙는 자리 바로 아래에 발판이 있으면 (발판 끝에서 걸어 나온 직후 등) 붙지 않는다: 붙자마자 그 발판에 서 버린다
   const cx = px(w.x) + w.side * WALL_REACH;
@@ -279,6 +281,7 @@ function clingControl(s: SimState, f: Fighter, input: PlayerInput): void {
     take(f, B_DASH);
     setMode(f, 'airdash', STATS.airDashTicks);
     f.dir = 1;
+    f.dashUp = (input & IN_UP) !== 0;
     f.airDashUsed = true;
     return;
   }
@@ -286,13 +289,15 @@ function clingControl(s: SimState, f: Fighter, input: PlayerInput): void {
 }
 
 /**
- * 벽 달리기 (기획서 '벽 기동과 구조물'): 지상·공중 대시로 벽 쪽으로 가다 벽에 닿으면 벽을 바라보며 달려 오른다 (prevX: 이번 틱 움직이기 전 x).
+ * 벽 달리기 (기획서 '벽 기동과 구조물'): ↑를 누른 채 지상·공중 대시로 벽 쪽으로 가다 벽에 닿으면 벽을 바라보며 달려 오른다
+ * (prevX: 이번 틱 움직이기 전 x). 맵 끝 벽은 ↑ 없이 대시만 해도 된다. ↑ 없이 대시하면 구조물 앞을 그냥 지나간다.
  * 벽을 디딘 것으로 친다 (같은 벽 연속 두 번까지, 2단 점프·공중 대시가 다시 생긴다).
  */
 function tryWallRun(s: SimState, f: Fighter, prevX: number): boolean {
   const dir = Math.sign(f.x - prevX);
   if (!dir) return false;
-  const w = findWallCross(s, prevX, f.x, grabH(f), dir);
+  // ↑와 함께 대시를 시작했거나, 지금 ↑를 누르고 있으면 구조물 벽도 달린다 (prevInput: readButtons가 적어 둔 이번 틱 입력)
+  const w = findWallCross(s, prevX, f.x, grabH(f), dir, f.dashUp || (f.prevInput & IN_UP) !== 0);
   if (!w || (w.id === f.wallId && f.wallCount >= SAME_WALL_MAX)) return false;
   setMode(f, 'wallrun', STATS.wallRunTicks);
   f.wallCount = w.id === f.wallId ? f.wallCount + 1 : 1;
@@ -364,6 +369,7 @@ function airControl(s: SimState, f: Fighter, input: PlayerInput): void {
     const back = f.facing > 0 ? IN_LEFT : IN_RIGHT;
     setMode(f, 'airdash', STATS.airDashTicks);
     f.dir = input & back ? -1 : 1;
+    f.dashUp = (input & IN_UP) !== 0;
     f.airDashUsed = true;
   }
 }
