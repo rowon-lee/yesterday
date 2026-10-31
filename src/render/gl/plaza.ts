@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
-import { BIG } from '../../stage/citadel';
+import { BIG, BREAK_RULES } from '../../stage/citadel';
 import type { PropState } from '../../sim';
 import { textWidth } from '../font';
 import { COLORS as C } from '../palette';
@@ -285,7 +285,8 @@ export class Plaza {
     for (const b of this.floods) b.mesh.visible = on > 0;
     this.signMesh.visible = since < 0;
     this.signMat.uniforms.emissiveStrength.value = sign?.stage === 1 && hash(Math.floor(tick / 4) * 7 + 3) < 0.3 ? 0.4 : 1.8;
-    const crushed = since >= 0 && since >= 44;
+    // 간판이 바닥에 닿는 틱 (sim이 쓰러진 간판 발판을 놓는 틱)에 분수가 깔린다
+    const crushed = since >= BREAK_RULES.settle;
     for (const o of this.fountainTop) o.visible = !crushed;
     if (this.booth) lightPool.add(this.booth.x, this.booth.y, this.booth.z, this.booth.range, this.booth.color, this.booth.power);
     this.beams.forEach((b, i) => {

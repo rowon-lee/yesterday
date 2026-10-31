@@ -588,9 +588,9 @@ const SG = D.plaza.sign;
 const SIGN_Z = KEEP_Z + 3.5;
 const REST_Z = -14;
 const LEAN = Math.acos(SG.lyingH / SG.h);
-/** 떨어지기 시작하는 틱과 바닥에 닿는 틱 (닿는 틱 = sim이 발판을 놓는 틱) */
-const DROP_AT = 8;
-const LAND_AT = BREAK_RULES.settle + DROP_AT;
+/** 걸쇠가 끊어져 떨어지기 시작하는 틱과 바닥에 닿는 틱 (닿는 틱 = sim이 발판을 놓는 틱) */
+const DROP_AT = 6;
+const LAND_AT = BREAK_RULES.settle;
 const DROP_G = (2 * SG.bottom) / (LAND_AT - DROP_AT) ** 2;
 
 class SignFallView implements BigView {

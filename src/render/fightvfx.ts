@@ -10,7 +10,7 @@ import powerUp from '../vfx/power-up';
 import slash from '../vfx/slash';
 import type { Effects } from './effects';
 import type { ColorName } from './palette';
-import { GROUND as GROUND_Y } from '../stage/citadel';
+import { BREAK_RULES, GROUND as GROUND_Y } from '../stage/citadel';
 import { facadeAtlas } from './gl/buildings';
 import { fxColor, fxHex, fxRamp, FX_PX, type VfxLayer } from './vfx';
 import { lights } from './light';
@@ -323,7 +323,7 @@ export class FightVfx {
 
   /**
    * 큰 물건 (wx, wy: 부서진 자리, 화면 월드 좌표). 망가질 때는 큰 충격만, 크게 무너질 때는 물건마다:
-   * 노면전차는 탈선하는 순간 폭발·불꽃·유리, 넘어져 눕는 순간 긴 먼지. 급수탑은 지붕 위 폭발·물보라, 지붕에 닿아 터지는 순간 물과 먼지.
+   * 노면전차는 탈선하는 순간 폭발·불꽃·유리, 굴러 뒤집혀 떨어지는 순간 긴 먼지. 급수탑은 지붕 위 폭발·물보라, 지붕에 닿아 터지는 순간 물과 먼지.
    * 등대는 꺾이는 자리 폭발·등실 유리, 밑동 먼지. 시타델 간판은 걸쇠의 번개 불꽃·네온 유리관, 바닥에 닿는 순간 폭발과 먼지.
    */
   private bigProp(i: number, broken: boolean, wx: number, wy: number, dir: number, at: number): void {
@@ -349,8 +349,8 @@ export class FightVfx {
         this.debris.burst('glass', x0 + b.w / 2, GROUND_Y - 40, dir, 24);
         this.debris.burst('metal', x0 + b.w / 2, GROUND_Y - 20, dir, 12);
         this.glow(x0 + b.w / 2, GROUND_Y - 30, 180, COLORS.fxOrange, 1, 50);
-        // 넘어져 눕는 순간: 차체 길이만큼 먼지와 흔들림
-        this.after(26, () => {
+        // 굴러 뒤집혀 떨어지는 순간: 차체 길이만큼 먼지와 흔들림
+        this.after(30, () => {
           this.debris.dustCloud(rest - 10, rest + b.w + 10, 1.6);
           this.debris.burst('metal', rest + b.w / 2, GROUND_Y - 10, -dir, 8);
           this.fx.shake(0.6);
@@ -392,8 +392,8 @@ export class FightVfx {
         this.debris.burst('glass', S.x + S.w / 2, top + 20, dir, 30);
         this.debris.burst('metal', S.x + S.w / 2, top + 10, dir, 8);
         this.glow(S.x + S.w / 2, top, 220, COLORS.skyLight, 1, 24);
-        // 바닥(분수)에 닿는 순간 폭발과 먼지
-        this.after(44, () => {
+        // 바닥(분수)에 닿는 순간 (sim이 쓰러진 간판 발판을 놓는 틱) 폭발과 먼지
+        this.after(BREAK_RULES.settle, () => {
           boom(S.x + S.w / 2, GROUND_Y, 0.7, 0.4);
           this.debris.dustCloud(S.x - 20, S.x + S.w + 20, 2);
           this.debris.burst('water', S.x + S.w / 2, GROUND_Y - 20, 1, 24);
