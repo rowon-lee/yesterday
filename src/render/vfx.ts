@@ -78,17 +78,18 @@ export class VfxLayer {
   }
 
   /** 1틱 진행 (히트스톱 중에도 이펙트는 움직인다) */
-  tick(): void {
-    for (const fx of this.list) fx.update(DT);
+  /** dt: 한 틱의 몇 배만큼 진행할지 (슬로모션이면 0.5) */
+  tick(dt = 1): void {
+    for (const fx of this.list) fx.update(DT * dt);
     this.list = this.list.filter((fx) => !fx.done());
   }
 
-  /** camX: 카메라 왼쪽 끝 (px). 화면 흔들림은 ctx의 이동으로 이미 들어가 있다 */
-  draw(ctx: CanvasRenderingContext2D, camX: number, layer: Layer): void {
+  /** cam: 화면 왼쪽 위의 월드 좌표 (px). 화면 흔들림은 ctx의 이동으로 이미 들어가 있다 */
+  draw(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, layer: Layer): void {
     if (!this.list.length) return;
     this.color.fill(0);
     this.light.fill(0);
-    const frame: Frame = { w: SCREEN_W, h: SCREEN_H, ox: camX, oy: 0, color: this.color, light: this.light };
+    const frame: Frame = { w: SCREEN_W, h: SCREEN_H, ox: cam.x, oy: cam.y, color: this.color, light: this.light };
     for (const fx of this.list) fx.draw(frame, layer);
     if (!this.canvas) {
       this.canvas = document.createElement('canvas');
@@ -105,7 +106,7 @@ export class VfxLayer {
         const c = this.color[i];
         const a = c >>> 24;
         // 무늬는 월드 좌표에 고정해 카메라가 움직여도 지글거리지 않게
-        const th = threshold(x + camX, y);
+        const th = threshold(x + cam.x, y + cam.y);
         if (a && a / 255 > th) {
           px[i] = snap(c & 255, (c >>> 8) & 255, (c >>> 16) & 255);
           any = true;

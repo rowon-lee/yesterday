@@ -11,10 +11,10 @@ import type { Scene } from './scene';
 const SPEEDS = [4, 2, 1] as const;
 const SPEED_LABEL: Record<number, string> = { 4: '1배속', 2: '0.5배속', 1: '0.25배속' };
 
-const ZOOM = 2;
-const VIEW_X = 36;
-const VIEW_Y = 26;
-const PANEL_X = 210;
+const ZOOM = 3;
+const VIEW_X = 40;
+const VIEW_Y = 20;
+const PANEL_X = 260;
 
 /**
  * 개발용 모션 뷰어 (?scene=viewer).

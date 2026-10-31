@@ -1,6 +1,6 @@
 /** 내부 해상도. 모든 그림은 이 크기에 그리고 정수배로 키운다. */
-export const SCREEN_W = 320;
-export const SCREEN_H = 180;
+export const SCREEN_W = 480;
+export const SCREEN_H = 270;
 
 /**
  * 캔버스를 담는 칸(#stage)에 들어가는 가장 큰 정수배로 키운다.

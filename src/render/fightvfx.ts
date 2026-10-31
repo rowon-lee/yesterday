@@ -1,6 +1,7 @@
 import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
-import { fighterPose, MOVES, RULES, STATS, type Fighter, type SimState } from '../sim';
+import { BREAKABLES, GRIDS, fighterPose, MOVES, RULES, STATS, type Fighter, type SimState } from '../sim';
+import { Debris } from './debris';
 import dashBlink from '../vfx/dash-blink';
 import explosion from '../vfx/explosion';
 import impact from '../vfx/impact';
@@ -8,7 +9,7 @@ import powerUp from '../vfx/power-up';
 import slash from '../vfx/slash';
 import type { Effects } from './effects';
 import type { ColorName } from './palette';
-import { GROUND_Y } from './stage';
+import { frontImage, GROUND_Y } from './stage';
 import { fxColor, fxHex, fxRamp, FX_PX, type VfxLayer } from './vfx';
 
 /**
@@ -77,11 +78,17 @@ export class FightVfx {
   private prevMoveT = [-1, -1];
   private seed = 1;
 
+  /** 부서질 때 튀는 조각 */
+  readonly debris = new Debris();
+  private round = 0;
+
   constructor(private layer: VfxLayer, private fx: Effects) {}
 
   /** 새 경기: 남은 이펙트를 지운다 */
   reset(s: SimState): void {
     this.layer.clear();
+    this.debris.clear();
+    this.round = s.round;
     this.since = [99, 99];
     this.prevMeter = s.fighters.map((f) => f.meter);
     this.prevMode = s.fighters.map((f) => f.mode);
@@ -112,6 +119,27 @@ export class FightVfx {
         this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.3, surface: fxColor('street'), seed: this.seed++, fire: 0.1 }));
         this.since[1 - e.who] = 0;
         this.heavy[1 - e.who] = true;
+      } else if (e.type === 'prop') {
+        this.prop(e.who, e.text === 'broken', !!e.heavy, s.props[e.who].dir);
+      } else if (e.type === 'city') {
+        // 깎인 벽에서 벽돌 조각이 튄다
+        const n = Math.min(12, 3 + (e.combo ?? 1) * 2);
+        this.debris.burst('brick', e.x / 256, GROUND_Y + e.y / 256, e.x > (att?.x ?? 0) ? 1 : -1, n);
+      } else if (e.type === 'collapse') {
+        // 건물이 무너짐: 위 덩어리가 잔해로 떨어지고 큰 먼지 구름, 화면 흔들림
+        const g = GRIDS[e.who];
+        const [c0, c1] = (e.text ?? '0,0').split(',').map(Number);
+        this.debris.collapse(g.x + c0 * 16, Math.min(g.x + g.w, g.x + (c1 + 1) * 16), g.h, frontImage());
+        // 넓게 무너질수록 크게 흔들린다 (기둥 한 줄 0.45 ~ 여섯 줄 이상 0.85)
+        this.fx.shake(Math.min(0.85, 0.35 + (e.combo ?? 16) / 16 * 0.08));
+        if ((e.combo ?? 0) >= 48) this.fx.flashFor(1);
+      } else if (e.type === 'wallsplat') {
+        // 벽꽝: 정면에 박히는 큰 충격
+        this.layer.add(impact({ kind: 'hit', x, y, angle: -Math.PI / 2, size: 0.9, ramp: fxRamp(WARM), seed: this.seed++ }));
+        this.debris.burst('brick', e.x / 256, GROUND_Y + e.y / 256, 1, 10);
+        this.debris.burst('brick', e.x / 256, GROUND_Y + e.y / 256, -1, 10);
+        this.debris.dustCloud(e.x / 256 - 16, e.x / 256 + 16, 0.6);
+        this.fx.shake(0.5);
       } else if (e.type === 'ko') {
         this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.45, surface: fxColor('street'), seed: this.seed++, shake: shake(0.2) }));
       }
@@ -169,7 +197,59 @@ export class FightVfx {
       this.prevMode[i] = f.mode;
       if (this.since[i] < 99) this.since[i]++;
     });
-    this.layer.tick();
+    // 새 라운드: 날던 조각만 지운다 (부서진 자리와 잔해 더미는 sim 상태라 그대로 남는다)
+    if (s.round !== this.round) {
+      this.round = s.round;
+      this.debris.clear();
+    }
+    // 건물이 무너지는 슬로모션 동안은 연출도 반 속도
+    const dt = s.slow > 0 ? 0.5 : 1;
+    this.debris.tick(dt);
+    this.layer.tick(dt);
+  }
+
+  /** 부서지는 물건: 망가질 때 작은 충격, 부서질 때 물건마다 다른 연출 */
+  private prop(i: number, broken: boolean, crash: boolean, dir: number): void {
+    const b = BREAKABLES[i];
+    const cx = b.x + b.w / 2;
+    const cy = GROUND_Y - b.h / 2;
+    const ramp = b.kind === 'glass' || b.kind === 'hydrant' ? COOL : WARM;
+    const angle = dir > 0 ? 0 : Math.PI;
+    if (crash) this.fx.shake(0.3);
+    if (!broken) {
+      this.layer.add(impact({ kind: 'hit', x: cx * FX_PX, y: cy * FX_PX, angle, size: 0.35, ramp: fxRamp(ramp), seed: this.seed++ }));
+      if (b.kind === 'glass') this.debris.burst('glass', cx, cy, dir, 4);
+      return;
+    }
+    switch (b.kind) {
+      case 'car':
+        // 찌그러짐 → 불붙음 → 폭발
+        this.layer.add(explosion({ x: cx * FX_PX, ground: GROUND_Y * FX_PX, size: 0.45, surface: fxColor('street'), seed: this.seed++, shake: (t) => this.fx.shake(t * 0.4) }));
+        this.debris.burst('metal', cx, GROUND_Y - 14, dir, 14);
+        this.fx.flashFor(2);
+        break;
+      case 'lamp':
+        // 쓰러지며 불꽃과 전기
+        this.layer.add(impact({ kind: 'ricochet', x: cx * FX_PX, y: (GROUND_Y - 6) * FX_PX, angle, normal: -Math.PI / 2, surface: fxColor('iron'), ground: GROUND_Y * FX_PX, size: 0.6, ramp: fxRamp(WARM), seed: this.seed++ }));
+        this.debris.burst('glass', cx + dir * 40, GROUND_Y - 4, dir, 8);
+        break;
+      case 'glass':
+        // 금 → 산산조각
+        this.layer.add(impact({ kind: 'hit', x: cx * FX_PX, y: cy * FX_PX, angle, size: 0.55, ramp: fxRamp(COOL), seed: this.seed++ }));
+        this.debris.burst('glass', cx, cy, dir, 26);
+        break;
+      case 'newsstand':
+        this.layer.add(impact({ kind: 'hit', x: cx * FX_PX, y: cy * FX_PX, angle, size: 0.6, ramp: fxRamp(WARM), seed: this.seed++ }));
+        this.debris.burst('paper', cx, cy - 6, dir, 18);
+        this.debris.burst('metal', cx, cy, dir, 6);
+        break;
+      case 'hydrant':
+        // 부러지면 물기둥 (물기둥 자체는 물건 그림이 라운드 끝까지 그린다)
+        this.layer.add(impact({ kind: 'hit', x: cx * FX_PX, y: (GROUND_Y - 6) * FX_PX, angle, size: 0.45, ramp: fxRamp(COOL), seed: this.seed++ }));
+        this.debris.burst('water', cx, GROUND_Y - 8, dir, 20);
+        this.debris.burst('metal', cx, GROUND_Y - 8, dir, 4);
+        break;
+    }
   }
 
   /** 맞은 쪽을 하얗게 그릴 틱인가 */

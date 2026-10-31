@@ -1,6 +1,8 @@
 import { hurtBox, type Box } from '../anim/boxes';
 import type { MoveId } from '../data/moves/base';
 import { MOVES, moveHitBox } from './frames';
+import { damageCity, wallBehind, wallSplat } from './city';
+import { CITY_RULES as CITY } from '../stage/downtown';
 import { isAirborne, setMode } from './fighter';
 import { fighterPose } from './pose';
 import {
@@ -10,7 +12,7 @@ import {
 import type { Fighter, SimState } from './types';
 
 /** 월드 상자 (1/256px). 관절은 발밑 기준 px이므로 방향을 반영해 옮긴다. */
-interface WBox {
+export interface WBox {
   x0: number;
   y0: number;
   x1: number;
@@ -26,11 +28,18 @@ const overlap = (a: WBox, b: WBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y
 
 /** 피격 상자: 지금 프레임의 몸 관절을 감싼 상자. 무적이면 null */
 export function hurtOf(f: Fighter): WBox | null {
-  if (f.invuln > 0 || f.mode === 'knockdown' || f.mode === 'getup' || f.mode === 'ko') return null;
+  if (f.invuln > 0 || f.mode === 'knockdown' || f.mode === 'getup' || f.mode === 'ko' || f.mode === 'wallsplat') return null;
   return toWorld(f, hurtBox(fighterPose(f).joints));
 }
 
 /** 공격 상자: 기술의 판정 프레임에서 팔꿈치→주먹 / 무릎→발 구간. 이미 냈으면 null */
+/** 지금 기술의 판정 상자 (이미 맞혔어도). 부서지는 물건 판정용 */
+export function activeHitOf(f: Fighter): WBox | null {
+  if (f.mode !== 'attack' || !f.move) return null;
+  const b = moveHitBox(MOVES[f.move], f.t);
+  return b && toWorld(f, b);
+}
+
 export function hitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || f.moveHit || !f.move) return null;
   const b = moveHitBox(MOVES[f.move], f.t);
@@ -71,6 +80,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   const ey = Math.trunc((hb.y0 + hb.y1) / 2);
   att.moveHit = true;
   const gainer = !d.meterCost;
+  // 센 타격은 맞은 자리 뒤 건물 정면을 깎는다 (막혀도)
+  if (d.heavy) damageCity(s, Math.round(ex / 256), Math.round(-ey / 256), CITY.hit.radius, CITY.hit.amount, 'hit');
 
   if (blocks(def, att)) {
     def.guard -= d.guardDamage;
@@ -105,34 +116,43 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   def.meter = Math.min(METER_MAX, def.meter + METER_HURT);
   def.facing = -dir as 1 | -1;
   def.bounce = false;
-  if (d.airFollow !== undefined && isAirborne(att)) att.vy = Math.min(att.vy, px(d.airFollow));
   s.events.push({ type: 'hit', who, x: ex, y: ey, heavy: d.heavy ?? false, combo: def.comboHits, move: mv.id });
 
   const airborne = isAirborne(def) || def.mode === 'airhit';
   if (def.hp <= 0) {
-    setMode(def, 'ko');
-    def.vx = dir * px(2.8);
-    def.vy = px(-4.3);
-    def.y = Math.min(def.y, -1);
-    def.invuln = 1;
-    s.events.push({ type: 'ko', who, x: def.x, y: def.y });
+    knockOut(s, def, dir, who);
+    return;
+  }
+  // 벽꽝: '벽 쪽으로 날림' 기술이고 뒤에 건물 정면이 서 있으면 정면에 박힌다
+  if (d.wall && wallBehind(s, Math.round(def.x / 256), Math.round(-def.y / 256) + 22)) {
+    def.hp = Math.max(0, def.hp - CITY.wallsplat.damage);
+    if (def.hp <= 0) {
+      knockOut(s, def, dir, who);
+      return;
+    }
+    setMode(def, 'wallsplat', CITY.wallsplat.ticks);
+    def.vx = 0;
+    def.vy = 0;
+    wallSplat(s, def, who);
     return;
   }
   if (d.spike && airborne) {
     setMode(def, 'airhit', d.hitstun);
-    def.vx = dir * px(0.6);
+    def.vx = dir * px(0.8);
     def.vy = SPIKE_VY;
     def.bounce = true;
     return;
   }
   if (airborne || mv.launch || d.knockdown || d.spike) {
     const v = mv.launch ?? (d.knockdown || d.spike
-      ? { vx: px(1.3), vy: px(-2.6) }
+      ? { vx: px(1.8), vy: px(-3.6) }
       : { vx: px(AIR_HIT_DEFAULT.vx), vy: px(AIR_HIT_DEFAULT.vy) });
     setMode(def, 'airhit', d.hitstun);
     def.vx = dir * v.vx;
     def.vy = v.vy;
     def.y = Math.min(def.y, -1);
+    // 공중에서 맞히면 때린 쪽도 함께 떠올라 다음 타가 이어지게 한다
+    if (d.airFollow !== undefined && isAirborne(att)) att.vy = def.vy + px(d.airFollow);
     if (!airborne && mv.launch && mv.id === 'launcher') s.events.push({ type: 'launch', who, x: def.x, y: def.y });
     return;
   }
@@ -141,6 +161,16 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   def.heavyHit = d.hitstun >= 24;
   def.vx = dir * mv.push;
   pushOffWall(att, def, mv.push);
+}
+
+/** 체력이 0이 된 쪽을 날려 쓰러뜨린다 */
+export function knockOut(s: SimState, def: Fighter, dir: number, who: number): void {
+  setMode(def, 'ko');
+  def.vx = dir * px(6);
+  def.vy = px(-7);
+  def.y = Math.min(def.y, -1);
+  def.invuln = 1;
+  s.events.push({ type: 'ko', who, x: def.x, y: def.y });
 }
 
 /** 맞은 쪽이 벽에 붙어 더 밀릴 수 없으면 때린 쪽이 대신 밀린다 */
