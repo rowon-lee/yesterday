@@ -109,9 +109,34 @@ export function paint(img: Indexed, m: Mask, s: Shade, lightDx: 1 | -1 = 1): voi
   }
 }
 
-/** 칠해진 모양 전체의 바깥 둘레 1px(상하좌우로 맞닿은 빈 칸)에 외곽선 */
+/**
+ * 칠해진 모양 전체의 바깥 둘레 1px(상하좌우로 맞닿은 빈 칸)에 외곽선.
+ * 부위 사이에 갇힌 빈 칸(바깥과 이어지지 않은 구멍)은 외곽선 대신 옆 색으로 메운다.
+ */
 export function outlineSilhouette(img: Indexed, outline: number): void {
   const { w, h } = img;
+  // 그림 테두리에서 빈 칸을 따라 퍼져 나가 바깥 공간을 표시한다.
+  const outside = new Uint8Array(w * h);
+  const stack: number[] = [];
+  for (let x = 0; x < w; x++) stack.push(x, (h - 1) * w + x);
+  for (let y = 0; y < h; y++) stack.push(y * w, y * w + w - 1);
+  while (stack.length) {
+    const i = stack.pop()!;
+    if (outside[i] || img.a[i] !== 0) continue;
+    outside[i] = 1;
+    const x = i % w;
+    if (x > 0) stack.push(i - 1);
+    if (x < w - 1) stack.push(i + 1);
+    if (i >= w) stack.push(i - w);
+    if (i < (h - 1) * w) stack.push(i + w);
+  }
+  for (let i = 0; i < w * h; i++) {
+    if (img.a[i] !== 0 || outside[i]) continue;
+    const x = i % w;
+    const y = (i - x) / w;
+    img.a[i] = img.get(x - 1, y) || img.get(x + 1, y) || img.get(x, y - 1) || img.get(x, y + 1);
+  }
+
   const filled = (x: number, y: number) => img.get(x, y) !== 0 && img.get(x, y) !== outline;
   const ring: number[] = [];
   for (let y = 0; y < h; y++) {

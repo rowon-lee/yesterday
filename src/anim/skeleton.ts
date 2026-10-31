@@ -31,7 +31,7 @@ export type LookName = keyof typeof LOOKS;
  * 앞 부위가 뒤 부위를 가리는 경계선. 검은 외곽선은 바깥 둘레에만 두르고,
  * 안쪽 경계는 이 색으로 긋는다 (0이면 긋지 않음).
  */
-const INNER_LINE: number = SLOT.shadow;
+const INNER_LINE: number = 0;
 
 /** 앞쪽 부위와 몸통: 빛 받는 쪽 한 단계 밝게 */
 const FRONT: Shade = { base: SLOT.base, light: SLOT.light, inner: INNER_LINE };
