@@ -1,8 +1,8 @@
 import { COLORS, type ColorName } from '../render/palette';
 import type { Joints, Point } from './pose';
-import { Indexed, Mask, paint, stampDisc, stampLine, type Shade } from './raster';
+import { Indexed, Mask, outlineSilhouette, paint, stampDisc, stampLine, type Shade } from './raster';
 
-/** 굵기 (외곽선 제외). 외곽선이 둘레에 1px씩 더 붙는다. */
+/** 굵기 (외곽선 제외). 전체 모양 바깥 둘레에 1px 외곽선이 붙는다. */
 export const LIMB_W = 4;
 export const TORSO_W = 5;
 const HEAD_R = 5;
@@ -27,14 +27,20 @@ export const LOOKS = {
 } as const satisfies Record<string, Look>;
 export type LookName = keyof typeof LOOKS;
 
+/**
+ * 앞 부위가 뒤 부위를 가리는 경계선. 검은 외곽선은 바깥 둘레에만 두르고,
+ * 안쪽 경계는 이 색으로 긋는다 (0이면 긋지 않음).
+ */
+const INNER_LINE: number = SLOT.shadow;
+
 /** 앞쪽 부위와 몸통: 빛 받는 쪽 한 단계 밝게 */
-const FRONT: Shade = { outline: SLOT.outline, base: SLOT.base, light: SLOT.light };
+const FRONT: Shade = { base: SLOT.base, light: SLOT.light, inner: INNER_LINE };
 /** 뒤쪽 팔다리: 전체를 한 단계 어둡게 */
-const BACK: Shade = { outline: SLOT.outline, base: SLOT.shadow, light: SLOT.base };
+const BACK: Shade = { base: SLOT.shadow, light: SLOT.base, inner: INNER_LINE };
 
 /**
  * 뼈대 하나를 색 번호 그림에 그린다. (ox, oy)는 발밑 기준점 위치, 오른쪽을 보는 모습.
- * 그리는 순서: 뒷다리, 뒷팔, 몸통·머리, 앞다리, 앞팔. 덩어리마다 외곽선을 따로 둘러서 겹친 부위가 구분된다.
+ * 그리는 순서: 뒷다리, 뒷팔, 몸통·머리, 앞다리, 앞팔. 검은 외곽선은 다 그린 뒤 전체 모양의 바깥 둘레에만 두른다.
  */
 export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number): void {
   const P = (q: Point): Point => [ox + q[0], oy + q[1]];
@@ -79,6 +85,7 @@ export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number): v
     seg(m, j.eF, j.hF, LIMB_W);
     seg(m, j.hF, j.hF, FIST_W);
   }, FRONT);
+  outlineSilhouette(img, SLOT.outline);
 }
 
 /** 색 번호 그림 → 캔버스 픽셀 */

@@ -24,6 +24,9 @@ export class Indexed {
   set(x: number, y: number, c: number): void {
     if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.a[y * this.w + x] = c;
   }
+  get(x: number, y: number): number {
+    return x >= 0 && y >= 0 && x < this.w && y < this.h ? this.a[y * this.w + x] : 0;
+  }
 }
 
 const brushes = new Map<number, Array<[number, number]>>();
@@ -81,17 +84,16 @@ export function stampDisc(m: Mask, cx: number, cy: number, r: number): void {
   }
 }
 
-/** 칠할 색 번호: 외곽선, 바탕, 빛 받는 가장자리 */
+/** 칠할 색 번호: 바탕, 빛 받는 가장자리, 앞 부위가 뒤 부위를 가리는 경계선(0이면 긋지 않음) */
 export interface Shade {
-  outline: number;
   base: number;
   light: number;
+  inner: number;
 }
 
 /**
- * 마스크 한 덩어리를 그림에 찍는다.
- * 둘레 1px(상하좌우로 맞닿은 칸)은 외곽선, 빛이 오는 쪽(위·앞)이 비어 있는 칸은 밝게.
- * 앞쪽 덩어리의 외곽선이 뒤쪽 덩어리를 덮으므로 겹친 부위가 구분된다.
+ * 마스크 한 덩어리를 그림에 찍는다. 빛이 오는 쪽(위·앞)이 비어 있는 칸은 밝게.
+ * 이미 칠해진 부위 위에 겹치면 그 경계 1px에 inner 색을 긋는다 (바깥 윤곽선은 outlineSilhouette가 따로 두른다).
  */
 export function paint(img: Indexed, m: Mask, s: Shade, lightDx: 1 | -1 = 1): void {
   const { w, h } = m;
@@ -100,9 +102,24 @@ export function paint(img: Indexed, m: Mask, s: Shade, lightDx: 1 | -1 = 1): voi
       if (m.get(x, y)) {
         const lit = !m.get(x, y - 1) || !m.get(x + lightDx, y);
         img.set(x, y, lit ? s.light : s.base);
-      } else if (m.get(x - 1, y) || m.get(x + 1, y) || m.get(x, y - 1) || m.get(x, y + 1)) {
-        img.set(x, y, s.outline);
+      } else if (s.inner && img.get(x, y) && (m.get(x - 1, y) || m.get(x + 1, y) || m.get(x, y - 1) || m.get(x, y + 1))) {
+        img.set(x, y, s.inner);
       }
     }
   }
+}
+
+/** 칠해진 모양 전체의 바깥 둘레 1px(상하좌우로 맞닿은 빈 칸)에 외곽선 */
+export function outlineSilhouette(img: Indexed, outline: number): void {
+  const { w, h } = img;
+  const filled = (x: number, y: number) => img.get(x, y) !== 0 && img.get(x, y) !== outline;
+  const ring: number[] = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (img.get(x, y) === 0 && (filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1))) {
+        ring.push(y * w + x);
+      }
+    }
+  }
+  for (const i of ring) img.a[i] = outline;
 }
