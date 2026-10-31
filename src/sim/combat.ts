@@ -2,7 +2,8 @@ import { hurtBox, type Box } from '../anim/boxes';
 import type { MoveId } from '../data/moves/base';
 import { MOVES, moveHitBox } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
-import { CITY_RULES as CITY } from '../stage/citadel';
+import { CITY_RULES as CITY, KEEP_RULES } from '../stage/citadel';
+import { damageCitadel, towerBehind } from './citadel';
 import { isAirborne, setMode } from './fighter';
 import { wallLeft } from './platforms';
 import { fighterPose } from './pose';
@@ -81,10 +82,14 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   const ey = Math.trunc((hb.y0 + hb.y1) / 2);
   att.moveHit = true;
   const gainer = !d.meterCost;
-  // 센 타격은 맞은 자리 뒤 건물 정면을 깎는다 (막혀도)
-  if (d.heavy) damageCity(s, Math.round(ex / 256), Math.round(-ey / 256), CITY.hit.radius, CITY.hit.amount, 'hit');
+  // 센 타격은 맞은 자리 뒤 건물 정면을 깎는다 (막혀도). 시타델 구역이면 본관도 (필살기는 hitCitadel이 따로)
+  const blocked = blocks(def, att);
+  if (d.heavy) {
+    damageCity(s, Math.round(ex / 256), Math.round(-ey / 256), CITY.hit.radius, CITY.hit.amount, 'hit');
+    if (!d.cutin) damageCitadel(s, Math.round(ex / 256), blocked ? KEEP_RULES.damage.blocked : KEEP_RULES.damage.heavy, who);
+  }
 
-  if (blocks(def, att)) {
+  if (blocked) {
     def.guard -= d.guardDamage;
     const stop = Math.max(4, d.hitstop - BLOCK_HITSTOP_CUT);
     att.hitstop = stop;
@@ -126,9 +131,13 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
     knockOut(s, def, dir, who);
     return;
   }
-  // 벽꽝: '벽 쪽으로 날림' 기술이고 뒤에 건물 정면이 서 있으면 정면에 박힌다
+  // 벽꽝: '벽 쪽으로 날림' 기술이고 뒤에 건물 정면이나 시타델 기둥탑이 서 있으면 박힌다 (기둥탑이면 본관 내구도도 깎인다)
   // (추가 피해는 벽 낙법 구간이 지나 정말 박힌 뒤에: splatLands)
-  if (d.wall && wallBehind(s, Math.round(def.x / 256), Math.round(-def.y / 256) + 22)) {
+  const sx = Math.round(def.x / 256);
+  const sh = Math.round(-def.y / 256) + 22;
+  const tower = d.wall === true && towerBehind(s, sx, sh);
+  if (d.wall && (tower || wallBehind(s, sx, sh))) {
+    if (tower) damageCitadel(s, sx, KEEP_RULES.damage.splat, who);
     setMode(def, 'wallsplat', CITY.wallsplat.ticks);
     def.vx = 0;
     def.vy = 0;

@@ -37,6 +37,8 @@ function pick(f: Fighter): [string, number] {
   switch (f.mode) {
     case 'idle':
       return loop('base/idle', f.t);
+    case 'intro':
+      return once('base/intro', f.t);
     case 'run': {
       // 뛴 거리로 프레임을 넘긴다 (발이 미끄러지지 않게)
       const fwd = f.dir > 0;

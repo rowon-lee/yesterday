@@ -26,7 +26,7 @@ const sim = await vite.ssrLoadModule('/src/sim/index.ts');
 const R = sim.RULES;
 const HP = sim.createState(0).fighters[0].hp;
 
-const total = { wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
+const total = { keepStage: [0, 0, 0, 0, 0], keepFall: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
 const t0 = Date.now();
 for (let m = 0; m < args.matches; m++) {
   const seed = args.seed + m;
@@ -37,12 +37,13 @@ for (let m = 0; m < args.matches; m++) {
     const ok = a.hash === b && a.hash === c && a.ended && a.problems.length === 0;
     if (!ok) failed++;
     const w = a.winner < 0 ? '무승부' : `${a.winner + 1}P 승`;
-    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 벽달리기 ${a.stats.wallrun} 박차기 ${a.stats.wallkick} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat}(벽낙법 ${a.stats.walltech}) 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
+    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 벽달리기 ${a.stats.wallrun} 박차기 ${a.stats.wallkick} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat}(벽낙법 ${a.stats.walltech}) 시타델 ${a.keep.stage}단계${a.keep.stage === 4 ? `(${a.keep.round}라운드에 붕괴)` : ''} ${a.keep.hp} 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
     for (const p of a.problems.slice(0, 5)) console.log(`      ${p}`);
     for (const k of Object.keys(a.stats)) if (k !== 'maxCombo' && k !== 'maxPerch') total[k] += a.stats[k];
     total.maxCombo = Math.max(total.maxCombo, a.stats.maxCombo);
     total.maxPerch = Math.max(total.maxPerch, a.stats.maxPerch);
     total.wins[a.winner < 0 ? 2 : a.winner]++;
+    total.keepStage[a.keep.stage]++;
     total.rounds += a.rounds;
     total.ticks += a.log.length;
   } catch (e) {
@@ -66,6 +67,55 @@ for (const [name, ok, note] of structureChecks()) {
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 구조물 시험: ${name}${note ? ` (${note})` : ''}`);
 }
+// 5-1) 등장: 경기 첫 라운드 시작 연출 동안 등장 동작, 끝나면 대기. 두 번째 라운드는 등장 없이
+{
+  const s = sim.createState(1);
+  const first = s.fighters.every((f) => f.mode === 'intro');
+  let idleBeforeFight = false;
+  while (s.phase === 'intro') {
+    sim.step(s, [0, 0]);
+    if (s.phase === 'intro') idleBeforeFight = s.fighters.every((f) => f.mode === 'idle');
+  }
+  const fightIdle = s.fighters.every((f) => f.mode === 'idle');
+  s.fighters[1].hp = 0;
+  const round = s.round;
+  while (s.round === round && s.tick < 2000) sim.step(s, [0, 0]);
+  const second = s.round === round + 1 && s.fighters.every((f) => f.mode === 'idle');
+  const ok = first && idleBeforeFight && fightIdle && second;
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 등장 시험: 첫 라운드 시작 연출 동안 등장 동작, 싸움 전에 대기로, 두 번째 라운드는 등장 없음 (처음 ${first}, 싸움 전 대기 ${idleBeforeFight}, 둘째 라운드 ${second})`);
+}
+// 6) 시타델 붕괴 (정해진 입력으로)
+for (const [name, ok, note] of keepChecks()) {
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 시타델 시험: ${name}${note ? ` (${note})` : ''}`);
+}
+// 7) 시타델을 3단계로 놓고(기력 가득) 시작하는 CPU 대전: 필살기로 무너뜨리고 잔해 언덕 위에서 싸운다 (예외·규칙 범위·결정론)
+const keepSetup = (st) => {
+  const c = st.citadel;
+  c.hp = sim.KEEP_RULES.stages[2];
+  c.stage = 3;
+  c.stageAt = [0, 0, 0, -1];
+  const p = st.props[sim.BIG.bigsign];
+  Object.assign(p, { hp: 0, stage: 2, damagedAt: 0, brokenAt: 0 });
+  st.fighters.forEach((f) => (f.meter = R.METER_MAX));
+};
+for (let m = 0; m < 6; m++) {
+  const seed = 200 + m;
+  try {
+    const a = runCpuMatch(seed, args.ticks, keepSetup);
+    const b = replay(seed, a.log, null, keepSetup);
+    const c = replay(seed, a.log, Math.floor(a.log.length / 2), keepSetup);
+    const ok = a.hash === b && a.hash === c && a.ended && a.problems.length === 0 && a.keep.stage === 4;
+    if (!ok) failed++;
+    total.keepFall += a.keep.stage === 4 ? 1 : 0;
+    console.log(`${ok ? 'OK ' : 'NG '} 시타델 3단계로 시작 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${a.keep.stage === 4 ? `${a.keep.round}라운드에 붕괴` : `${a.keep.stage}단계 (안 무너짐)`}, 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) 벽붙기 ${a.stats.wallcling} 벽달리기 ${a.stats.wallrun} | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
+    for (const p of a.problems.slice(0, 5)) console.log(`      ${p}`);
+  } catch (e) {
+    failed++;
+    console.log(`NG  시타델 3단계로 시작 시드 ${seed}: 예외 ${e?.stack ?? e}`);
+  }
+}
 await vite.close();
 
 console.log(`\n합계 ${args.matches}판 ${total.rounds}라운드 (${(total.ticks / 60 / 60).toFixed(1)}분 분량), ${Date.now() - t0}ms`);
@@ -75,13 +125,16 @@ console.log(`  건물: 깎인 덩어리 ${total.cityChunks}, 붕괴 ${total.coll
 console.log(`  부서지는 물건: 망가짐 ${total.propDamaged}, 파괴 ${total.propBroken} (그중 날아온 캐릭터에 부딪혀서 ${total.propCrash}, 네온 간판 꺼짐 ${total.neon})`);
 console.log(`  발판: 올라선 횟수 ${total.perch}, 발판 위 ${(total.perchTicks / 60).toFixed(0)}초 (그중 새 구조물 위 ${(total.structTicks / 60).toFixed(0)}초), ↓+점프로 내려옴 ${total.drop}, 가장 높이 선 곳 ${total.maxPerch}px`);
 console.log(`  큰 물건: 망가짐 ${total.bigDamaged}, 크게 무너짐 ${total.bigBroken}`);
+console.log(`  시타델: CPU 대전 ${args.matches}판이 끝났을 때 단계 0~4 = ${total.keepStage.join(' / ')}, 3단계로 시작한 6판 중 붕괴 ${total.keepFall}판`);
 console.log(`  벽 기동: 벽 붙기 ${total.wallcling}, 벽 점프 ${total.walljump}, 벽 달리기 ${total.wallrun}, 벽 박차기 공격 ${total.wallkick}, 벽 낙법 ${total.walltech} (벽꽝 ${total.wallsplat}번 중)`);
 console.log(failed ? `실패 ${failed}건` : '모두 통과');
 process.exit(failed ? 1 : 0);
 
 /** CPU 둘이 싸우고, 틱마다 넣은 입력을 기록한다. 틱마다 규칙 범위를 검사한다. */
-function runCpuMatch(seed, ticks) {
+function runCpuMatch(seed, ticks, setup = null) {
   const state = sim.createState(seed);
+  if (setup) setup(state);
+  let keepRound = -1;
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
   const log = [];
   const problems = [];
@@ -92,6 +145,7 @@ function runCpuMatch(seed, ticks) {
     log.push(inputs);
     sim.step(state, inputs);
     for (const e of state.events) {
+      if (e.type === 'citadel' && e.text === 'collapse') keepRound = state.round;
       if (e.type in stats) stats[e.type]++;
       if (e.type === 'hit') stats.maxCombo = Math.max(stats.maxCombo, e.combo);
       if (e.type === 'city') stats.cityChunks += e.combo;
@@ -119,7 +173,8 @@ function runCpuMatch(seed, ticks) {
     });
     if (problems.length < 20) check(state, problems);
   }
-  return { log, hash: sim.hashState(state), stats, problems, ended: state.phase === 'matchEnd', winner: state.matchWinner, rounds: state.round };
+  const keep = { stage: state.citadel.stage, hp: state.citadel.hp, round: keepRound };
+  return { log, hash: sim.hashState(state), stats, problems, ended: state.phase === 'matchEnd', winner: state.matchWinner, rounds: state.round, keep };
 }
 
 function check(s, problems) {
@@ -174,13 +229,179 @@ function check(s, problems) {
 }
 
 /** 기록한 입력만으로 다시 돌린다. saveAt이 있으면 그 틱에 상태를 직렬화했다가 복원해서 이어 간다. */
-function replay(seed, log, saveAt) {
+function replay(seed, log, saveAt, setup = null) {
   let state = sim.createState(seed);
+  if (setup) setup(state);
   log.forEach((inputs, i) => {
     if (i === saveAt) state = JSON.parse(JSON.stringify(state));
     sim.step(state, inputs);
   });
   return sim.hashState(state);
+}
+
+/**
+ * 시타델 붕괴 시험. 1P만 정해진 입력으로 움직이고 2P는 가만히 있다 (막는 시험만 ↓).
+ * 깎는 원인(강한 타격·막힘·구역 밖·기둥탑 벽꽝·필살기), 단계 문턱과 2단계 간판 낙하, 3단계 바닥(1),
+ * 3단계 필살기로 붕괴(슬로모션, 기둥탑 위 사람 떨어짐), 잔해 언덕(다 쌓인 뒤 발판·벽, 벽 붙기·벽 달리기),
+ * 다음 라운드 유지·한 번만·새 경기 멀쩡, 붕괴 장면 결정론.
+ */
+function keepChecks() {
+  const I = sim;
+  const K = sim.KEEP_RULES;
+  const results = [];
+  const fresh = (x0, x1) => {
+    const s = sim.createState(1);
+    while (s.phase !== 'fight') sim.step(s, [0, 0]);
+    const [a, b] = s.fighters;
+    a.x = x0 * 256;
+    b.x = x1 * 256;
+    a.facing = x1 > x0 ? 1 : -1;
+    b.facing = x1 > x0 ? -1 : 1;
+    return s;
+  };
+  const run = (s, inputs, p2 = 0) => {
+    const ev = [];
+    for (const inp of inputs) {
+      sim.step(s, [inp, p2]);
+      ev.push(...s.events);
+    }
+    return ev;
+  };
+  const hold = (inp, n) => Array(n).fill(inp);
+  const cit = (ev, text) => ev.filter((e) => e.type === 'citadel' && e.text === text);
+  const stage3 = (s) => {
+    Object.assign(s.citadel, { hp: K.stages[2], stage: 3, stageAt: [0, 0, 0, -1] });
+    Object.assign(s.props[sim.BIG.bigsign], { hp: 0, stage: 2, damagedAt: 0, brokenAt: 0 });
+  };
+  const towerTop = sim.SURFACES.find((x) => x.kind === 'tower');
+  const tx = Math.round((towerTop.x0 + towerTop.x1) / 2);
+  const solidAt = (s, x, h) => sim.floorBelow(s, x * 256, -(h + 400) * 256) === -h * 256;
+
+  // 1) 구역 안 강한 타격(기술 A)은 40, 막히면 20, 구역 밖은 그대로
+  for (const [label, x, p2, want] of [['구역 안 강한 타격(기술 A)은 본관 내구도를 깎는다', 1580, 0, K.damage.heavy], ['막힌 강한 타격은 절반만 깎는다', 1580, I.IN_DOWN, K.damage.blocked], ['구역 밖 강한 타격은 깎지 않는다', 900, 0, 0]]) {
+    const s = fresh(x, x + 30);
+    s.fighters[0].meter = R.METER_MAX;
+    const ev = run(s, [I.IN_SKILL_A, ...hold(0, 40)], p2);
+    const landed = ev.some((e) => (e.type === 'hit' || e.type === 'block') && e.move === 'skillA');
+    results.push([label, landed && K.hp - s.citadel.hp === want, `${landed ? '닿음' : '안 닿음'}, 깎인 양 ${K.hp - s.citadel.hp}`]);
+  }
+  // 2) 기둥탑 앞에서 벽 쪽으로 날리면 기둥탑에 박히고(벽꽝) 본관이 깎인다 (기술 B는 강한 타격이기도 하다)
+  {
+    const s = fresh(tx + 30, tx);
+    s.fighters[0].meter = R.METER_MAX;
+    const ev = run(s, [I.IN_SKILL_B, ...hold(0, 30)]);
+    const splat = ev.some((e) => e.type === 'wallsplat');
+    results.push(['기둥탑 앞에서 벽 쪽으로 날리면 기둥탑에 박히고(벽꽝) 본관이 깎인다', splat && K.hp - s.citadel.hp === K.damage.heavy + K.damage.splat, `벽꽝 ${splat}, 깎인 양 ${K.hp - s.citadel.hp}`]);
+  }
+  // 3) 단계 문턱: 금 → 유리 깨짐·간판 떨어짐 → 갈라짐·불. 3단계에서는 1 아래로 안 내려간다
+  {
+    const s = fresh(1580, 1640);
+    const seen = [];
+    const hit = (n) => {
+      sim.damageCitadel(s, 1600, n, 0);
+      seen.push(...cit(s.events, 'stage').map((e) => e.combo));
+      s.events = [];
+    };
+    hit(K.hp - K.stages[0] - 1);
+    const s0 = s.citadel.stage;
+    hit(1);
+    const s1 = s.citadel.stage;
+    hit(s.citadel.hp - K.stages[1]);
+    const sign = s.props[sim.BIG.bigsign].stage;
+    hit(s.citadel.hp - K.stages[2]);
+    const s3 = s.citadel.stage;
+    hit(5000);
+    results.push(['내구도가 문턱을 넘을 때마다 단계가 오른다 (금 → 유리 깨짐 → 갈라짐·불)', s0 === 0 && s1 === 1 && s3 === 3 && seen.join(',') === '1,2,3', `단계 ${s0} → ${s1} → ${s3}, 이벤트 ${seen.join(',')}`]);
+    results.push(['2단계가 되면 정면 대형 간판이 떨어진다', sign === 2, `간판 단계 ${sign}`]);
+    results.push(['3단계에서는 강한 타격으로 아무리 깎아도 1에서 멈추고 무너지지 않는다', s.citadel.hp === 1 && s.citadel.stage === 3, `내구도 ${s.citadel.hp}, 단계 ${s.citadel.stage}`]);
+  }
+  // 4) 3단계 전의 필살기는 크게 깎기만 한다
+  {
+    const s = fresh(1580, 1640);
+    s.fighters[0].meter = R.METER_MAX;
+    run(s, [I.IN_SUPER, ...hold(0, 90)]);
+    results.push(['3단계 전 필살기는 본관을 크게 깎기만 한다', K.hp - s.citadel.hp === K.damage.super && s.citadel.stage < 4, `깎인 양 ${K.hp - s.citadel.hp}, 단계 ${s.citadel.stage}`]);
+  }
+  // 5) 3단계에서 필살기가 구역에 닿으면 무너진다: 슬로모션, 기둥탑 위에 서 있던 사람은 떨어진다
+  const collapseScene = () => {
+    const s = fresh(1600, tx);
+    stage3(s);
+    s.fighters[0].meter = R.METER_MAX;
+    const b = s.fighters[1];
+    b.y = -towerTop.h * 256;
+    b.floor = b.y;
+    return s;
+  };
+  {
+    const s = collapseScene();
+    const b = s.fighters[1];
+    let at = -1;
+    let slow = 0;
+    for (let k = 0; k < 120 && at < 0; k++) {
+      sim.step(s, [k === 0 ? I.IN_SUPER : 0, 0]);
+      if (cit(s.events, 'collapse').length) {
+        at = s.tick;
+        slow = s.slow;
+      }
+    }
+    const towerGone = !solidAt(s, tx, towerTop.h);
+    run(s, hold(0, 3));
+    const falling = sim.isAirborne(b) || b.y === 0;
+    results.push(['3단계에서 필살기가 구역에 닿으면 무너진다 (슬로모션)', at > 0 && s.citadel.stage === 4 && slow > 0, `무너진 틱 ${at}, 슬로모션 ${slow}`]);
+    results.push(['무너지면 기둥탑 꼭대기 발판이 사라지고 그 위에 서 있던 사람은 떨어진다', towerGone && falling, `기둥탑 발판 ${!towerGone}, 2P ${b.mode} 높이 ${-b.y / 256}`]);
+    const before = solidAt(s, tx, K.hill[5].h);
+    run(s, hold(0, K.settle + 10));
+    const after = sim.surfacesOf(s).filter((x) => x.kind === 'hill').length;
+    results.push(['잔해 언덕은 다 쌓인 뒤에야 발판이 된다', !before && after === K.hill.length && solidAt(s, tx, K.hill[5].h), `쌓이기 전 ${before}, 쌓인 뒤 발판 ${after}개`]);
+    // 잔해 위에 내려선다
+    const a = s.fighters[0];
+    const blk = K.hill[7];
+    Object.assign(a, { x: Math.round((blk.x0 + blk.x1) / 2) * 256, y: -(blk.h + 30) * 256, floor: 0, vx: 0, vy: 0, mode: 'air', t: 0 });
+    run(s, hold(0, 30));
+    results.push(['잔해 언덕 위에 내려선다', a.y === -blk.h * 256 && !sim.isAirborne(a), `높이 ${-a.y / 256} (덩어리 ${blk.h})`]);
+    // 기둥탑 밑동 오른쪽 면에 ↖로 붙는다 (구조물 벽)
+    const stump = K.hill[5];
+    Object.assign(a, { x: (stump.x1 + 8) * 256, y: -(K.hill[6].h + 14) * 256, floor: 0, vx: 0, vy: 0, mode: 'air', t: 0 });
+    run(s, hold(I.IN_LEFT | I.IN_UP, 6));
+    results.push(['잔해 언덕 벽(기둥탑 밑동)에 ↖로 붙는다', a.mode === 'wallcling' && a.wallX === stump.x1, `${a.mode} 벽 ${a.wallX}`]);
+    // 잔해 위에서 ↑+대시로 밑동을 달려 올라 윗면에 선다
+    Object.assign(a, { x: (stump.x1 + 26) * 256, y: -K.hill[6].h * 256, floor: -K.hill[6].h * 256, vx: 0, vy: 0, mode: 'idle', t: 0, wallId: -1, wallCount: 0 });
+    run(s, [I.IN_LEFT | I.IN_UP | I.IN_DASH, ...hold(I.IN_LEFT, 12), ...hold(0, 30)]);
+    results.push(['잔해 위에서 ↑+대시로 밑동을 달려 올라 윗면에 선다', a.y === -stump.h * 256 && !sim.isAirborne(a), `높이 ${-a.y / 256} (밑동 ${stump.h})`]);
+    // 한 경기에 한 번: 무너진 뒤에는 깎이지도, 다시 무너지지도 않는다
+    s.fighters[0].meter = R.METER_MAX;
+    Object.assign(a, { x: 1600 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0 });
+    const again = run(s, [I.IN_SUPER, ...hold(0, 90)]);
+    sim.damageCitadel(s, 1600, 100, 0);
+    results.push(['무너진 뒤에는 다시 깎이거나 무너지지 않는다 (한 경기에 한 번)', cit(again, 'collapse').length === 0 && cit(s.events, 'damage').length === 0 && s.citadel.hp === 0, `다시 무너짐 ${cit(again, 'collapse').length}, 내구도 ${s.citadel.hp}`]);
+    // 다음 라운드까지 유지
+    const round = s.round;
+    s.fighters[1].hp = 0;
+    for (let k = 0; k < 600 && s.round === round; k++) sim.step(s, [0, 0]);
+    results.push(['붕괴와 잔해 언덕은 다음 라운드에도 남는다', s.round === round + 1 && s.citadel.stage === 4 && solidAt(s, tx, K.hill[5].h), `라운드 ${round} → ${s.round}, 단계 ${s.citadel.stage}`]);
+  }
+  // 6) 새 경기는 멀쩡한 시타델에서
+  {
+    const s = sim.createState(1);
+    results.push(['새 경기는 멀쩡한 시타델에서 시작한다', s.citadel.stage === 0 && s.citadel.hp === K.hp && solidAt(s, tx, towerTop.h), `단계 ${s.citadel.stage}, 내구도 ${s.citadel.hp}`]);
+  }
+  // 7) 붕괴 장면: 같은 입력이면 같은 해시 (두 번, 중간 저장·복원)
+  {
+    const inputs = [I.IN_SUPER, ...hold(0, 60), ...hold(I.IN_RIGHT, 40), I.IN_JUMP | I.IN_LEFT, ...hold(I.IN_LEFT | I.IN_UP, 30), ...hold(0, 100)];
+    const play = (cut) => {
+      let s = collapseScene();
+      inputs.forEach((inp, k) => {
+        if (k === cut) s = JSON.parse(JSON.stringify(s));
+        sim.step(s, [inp, 0]);
+      });
+      return sim.hashState(s);
+    };
+    const h1 = play(-1);
+    const h2 = play(-1);
+    const h3 = play(Math.floor(inputs.length / 2));
+    results.push(['붕괴 장면: 같은 입력·저장·복원이면 같은 해시', h1 === h2 && h1 === h3, `${h1} ${h2} ${h3}`]);
+  }
+  return results;
 }
 
 function* walk(dir) {

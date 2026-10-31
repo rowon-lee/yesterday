@@ -267,6 +267,33 @@ export const BIG = {
 
 export const BREAK_RULES = { damagedAt: B.damagedAt, crashSpeed: B.crashSpeed, crashDamage: B.crashDamage, settle: B.settle };
 
+// ---------------------------------------------------------------- 시타델 붕괴
+/** 시타델 붕괴 규칙 (기획서 '시타델 붕괴') */
+export const KEEP_RULES = D.keepCollapse;
+/** 시타델 광장 배치 (본관·기둥탑·정면 간판 자리) */
+export const D_PLAZA = D.plaza;
+/** 시타델 구역: 본관 정면 앞 (두 기둥탑 포함). 이 안의 강한 타격·벽꽝·필살기가 본관 내구도를 깎는다 */
+export const KEEP_ZONE = { x0: D.plaza.keep.x0, x1: D.plaza.keep.x1, h: D.plaza.keep.h };
+/** 잔해 언덕 덩어리 하나: x0 ~ x1, 윗면 높이 h */
+export interface HillBlock {
+  x0: number;
+  x1: number;
+  h: number;
+}
+/** 잔해 언덕 벽 번호의 시작 (뒤집힌 전차·잔해 더미 번호와 겹치지 않게) */
+export const HILL_WALL_ID = 1900;
+/** 잔해 언덕의 벽: 이웃(끝은 땅)보다 wallMin 이상 높은 옆면. 아래 끝은 이웃 윗면 높이 */
+export function hillWalls(hill: readonly HillBlock[]): Array<{ x: number; side: -1 | 1; h0: number; h1: number; id: number }> {
+  const out: Array<{ x: number; side: -1 | 1; h0: number; h1: number; id: number }> = [];
+  hill.forEach((b, i) => {
+    const left = i > 0 && hill[i - 1].x1 === b.x0 ? hill[i - 1].h : 0;
+    const right = i < hill.length - 1 && hill[i + 1].x0 === b.x1 ? hill[i + 1].h : 0;
+    if (b.h - left >= KEEP_RULES.wallMin) out.push({ x: b.x0, side: -1, h0: left, h1: b.h, id: HILL_WALL_ID + i * 2 });
+    if (b.h - right >= KEEP_RULES.wallMin) out.push({ x: b.x1, side: 1, h0: right, h1: b.h, id: HILL_WALL_ID + i * 2 + 1 });
+  });
+  return out;
+}
+
 // ---------------------------------------------------------------- 건물 파괴 격자
 const CITY = D.city;
 export const CITY_RULES = CITY;
@@ -331,7 +358,7 @@ export function chunkStage(hp: number): 0 | 1 | 2 | 3 | 4 {
 export type SurfaceTier = 'mid' | 'roof';
 export type SurfaceKind =
   | 'awning' | 'marquee' | 'escape' | 'landing' | 'roof' | 'terrace' | 'tower' | 'gallery'
-  | 'containers' | 'stump' | 'watertower' | 'sign' | 'tram' | 'rubble';
+  | 'containers' | 'stump' | 'watertower' | 'sign' | 'tram' | 'rubble' | 'hill';
 
 /**
  * 구조물이 있는 때: 늘 / 큰 물건이 서 있는 동안 / 큰 물건이 무너진 바로 뒤부터 /
@@ -339,11 +366,15 @@ export type SurfaceKind =
  */
 export type Presence = 'always' | 'standing' | 'broken' | 'settled';
 
-/** 구조물이 무엇에 딸려 있는가: 부서지는 건물 b (-1 없음), 큰 물건 prop (-1 없음)과 있는 때 */
+/**
+ * 구조물이 무엇에 딸려 있는가: 부서지는 건물 b (-1 없음), 큰 물건 prop (-1 없음)과 있는 때.
+ * keep이면 시타델 본관이 서 있는 동안만 있다 (무너지면 잔해 언덕에 묻힌다: 계단참·기둥탑·테라스·쓰러진 간판)
+ */
 export interface Holder {
   b: number;
   prop: number;
   when: Presence;
+  keep?: boolean;
 }
 
 /**
@@ -378,6 +409,8 @@ export interface Wall extends Holder {
 }
 
 const ALWAYS: Holder = { b: -1, prop: -1, when: 'always' };
+/** 시타델 본관이 서 있는 동안 */
+const WITH_KEEP: Holder = { b: -1, prop: -1, when: 'always', keep: true };
 const LH = D.pier.lighthouse;
 const SG = D.plaza.sign;
 
@@ -397,11 +430,11 @@ export const SURFACES: readonly Surface[] = (() => {
   const CT = D.pier.containers;
   out.push({ x0: CT.x0, x1: CT.x1, h: CONTAINER_TOP.h, tier: 'mid', kind: 'containers', ...ALWAYS, solid: true });
   const P = D.plaza;
-  out.push({ x0: P.landing.x0, x1: P.landing.x1, h: P.landing.h, tier: 'mid', kind: 'landing', ...ALWAYS });
+  out.push({ x0: P.landing.x0, x1: P.landing.x1, h: P.landing.h, tier: 'mid', kind: 'landing', ...WITH_KEEP });
   for (const t of P.towers) {
     const T = P.tower;
-    out.push({ x0: t.x - T.terraceOver, x1: t.x + T.w + T.terraceOver, h: T.terrace, tier: 'roof', kind: 'terrace', ...ALWAYS });
-    out.push({ x0: t.x, x1: t.x + T.w, h: T.h, tier: 'roof', kind: 'tower', ...ALWAYS });
+    out.push({ x0: t.x - T.terraceOver, x1: t.x + T.w + T.terraceOver, h: T.terrace, tier: 'roof', kind: 'terrace', ...WITH_KEEP });
+    out.push({ x0: t.x, x1: t.x + T.w, h: T.h, tier: 'roof', kind: 'tower', ...WITH_KEEP });
   }
   // 등대: 중간 발코니는 늘, 꼭대기 둘레는 서 있는 동안, 꺾인 밑동 윗면은 무너진 뒤
   const cx = LH.x + LH.w / 2;
@@ -412,7 +445,7 @@ export const SURFACES: readonly Surface[] = (() => {
   const wt = BREAKABLES[BIG.watertower];
   out.push({ x0: wt.x, x1: wt.x + wt.w, h: wt.bottom + wt.h, tier: 'roof', kind: 'watertower', b: -1, prop: BIG.watertower, when: 'standing' });
   // 떨어져 분수에 기대 쓰러진 시타델 간판 (윗변)
-  out.push({ x0: SG.x + 4, x1: SG.x + SG.w - 4, h: SG.lyingH, tier: 'mid', kind: 'sign', b: -1, prop: BIG.bigsign, when: 'settled' });
+  out.push({ x0: SG.x + 4, x1: SG.x + SG.w - 4, h: SG.lyingH, tier: 'mid', kind: 'sign', b: -1, prop: BIG.bigsign, when: 'settled', keep: true });
   return out;
 })();
 
@@ -441,13 +474,13 @@ export const WALLS: readonly Wall[] = (() => {
     const e = escapeOf(b);
     if (e) faces(e.x0, e.x1, e.landings[0] - L.ladder, e.landings[e.landings.length - 1] + L.rail, on);
   });
-  // 시타델 정문 기둥탑 둘
-  for (const t of D.plaza.towers) faces(t.x, t.x + D.plaza.tower.w, 0, D.plaza.tower.h, ALWAYS);
+  // 시타델 정문 기둥탑 둘 (본관이 무너지면 부러져 잔해 언덕이 된다)
+  for (const t of D.plaza.towers) faces(t.x, t.x + D.plaza.tower.w, 0, D.plaza.tower.h, WITH_KEEP);
   // 급수탑 (지붕 위, 서 있는 동안)
   const wt = BREAKABLES[BIG.watertower];
   faces(wt.x, wt.x + wt.w, wt.bottom, wt.bottom + wt.h, { b: -1, prop: BIG.watertower, when: 'standing' });
   // 쓰러진 시타델 간판 양 끝
-  faces(SG.x, SG.x + SG.w, 0, SG.lyingH, { b: -1, prop: BIG.bigsign, when: 'settled' });
+  faces(SG.x, SG.x + SG.w, 0, SG.lyingH, { b: -1, prop: BIG.bigsign, when: 'settled', keep: true });
   return out;
 })();
 

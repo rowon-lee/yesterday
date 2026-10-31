@@ -303,7 +303,7 @@ export class Life {
    * camX: 화면 왼쪽 끝 월드 x, focusX: 싸움이 벌어지는 월드 x (없으면 행인이 그냥 걷는다).
    * clock: 도시 시계 (노면전차가 이 시계로 다닌다). props: 부서지는 물건 상태 (무너진 전차는 더 다니지 않고, 간판이 떨어지면 분수가 부서진다)
    */
-  update(tick: number, camX: number, focusX: number | null, clock = tick, props: readonly PropState[] | null = null): void {
+  update(tick: number, camX: number, focusX: number | null, clock = tick, props: readonly PropState[] | null = null, keepGone = false): void {
     this.sparks.begin();
     const tram = props?.[BIG.tram];
     this.updateTram(tick, tram && tram.stage === 2 ? null : tramAt(clock), tram?.stage === 1);
@@ -318,9 +318,13 @@ export class Life {
     this.walkerSprites.end();
     this.farSmoke(tick);
     // 왕관 서치라이트: 먼 하늘을 천천히 쓴다. 경고등: 천천히 깜빡인다. 먼 등대: 몇 초마다 두 번 깜빡인다
-    this.crown.forEach((b, i) => b.aim(-0.9 * Math.sin(tick * 0.009 + i * 2.4)));
+    // (시타델이 무너지면 탑과 함께 사라진다)
+    this.crown.forEach((b, i) => {
+      b.pivot.visible = !keepGone;
+      b.aim(-0.9 * Math.sin(tick * 0.009 + i * 2.4));
+    });
     this.beacons.begin();
-    if (tick % 90 < 45) {
+    if (tick % 90 < 45 && !keepGone) {
       const ks = D.keep.speed;
       for (const p of keepBeacons()) {
         const [x, y] = layerToWorld(ks, p.x, p.y);

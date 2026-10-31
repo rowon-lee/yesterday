@@ -1,5 +1,6 @@
 import {
-  BREAKABLES, cpuInput, createCity, createCpu, createState, damageCity, RULES, step, type CityState, type PropState, type SimState,
+  BIG, BREAKABLES, cpuInput, createCity, createCpu, createState, damageCity, KEEP_RULES, RULES, step, type CitadelState, type CityState,
+  type PropState, type SimState,
 } from '../sim';
 import { MAP_H } from '../stage/citadel';
 import { drawText } from '../render/font';
@@ -51,6 +52,23 @@ export function stageScene(): Scene {
     props = BREAKABLES.map((k, i) => (k.big ? propAt(i, b === 'd' ? 1 : 2, Number(b) | 0) : propAt(i, 0, 0)));
   }
   let city = params.get('ruin') === '1' ? ruinedCity() : null;
+  // 시타델 미리보기: ?keep=1~3 금·유리 깨짐·갈라짐과 불, 4 무너짐 (?keepT=무너진 뒤 틱, 없으면 다 쌓인 잔해 언덕)
+  const keepStage = Math.max(0, Math.min(4, Number(params.get('keep') ?? 0) | 0)) as CitadelState['stage'];
+  const keepT = params.has('keepT') ? Number(params.get('keepT')) | 0 : 4000;
+  const citadelAt = (now: number): CitadelState | null => keepStage === 0 ? null : {
+    hp: keepStage === 4 ? 0 : KEEP_RULES.stages[keepStage - 1],
+    stage: keepStage,
+    stageAt: [0, 1, 2, 3].map((i) => (i >= keepStage ? -1 : i === 3 ? now - keepT : -9999)),
+    by: 0,
+    hill: keepStage === 4 ? KEEP_RULES.hill.map((b) => ({ ...b })) : [],
+  };
+  // 2단계부터는 정면 간판이 떨어져 있다
+  const withKeep = (list: PropState[]): PropState[] => {
+    if (keepStage < 2) return list;
+    const out = [...list];
+    out[BIG.bigsign] = { ...out[BIG.bigsign], hp: 0, stage: 2, damagedAt: -9999, brokenAt: -9999 };
+    return out;
+  };
   // 경기 뒤 거리: 잔해 더미가 다 쌓인 모습이 되게 시각을 경기 끝 뒤로 둔다
   let base = 0;
   if (params.has('match')) {
@@ -81,7 +99,7 @@ export function stageScene(): Scene {
       lights2d.clear();
       g.world.foreground.visible = params.get('fg') !== '0';
       const placed = g.view.begin({ x: cam, y: camY }, base + tick);
-      g.world.update(g.view, base + tick, props, city);
+      g.world.update(g.view, base + tick, withKeep(props), city, null, base + tick, citadelAt(base + tick));
       g.view.commitLights();
       g.view.render();
       ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);

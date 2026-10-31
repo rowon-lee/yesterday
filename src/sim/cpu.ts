@@ -4,7 +4,7 @@ import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP,
   type PlayerInput,
 } from './input';
-import { MAP_ENDS, type Surface } from '../stage/citadel';
+import { KEEP_ZONE, MAP_ENDS, type Surface } from '../stage/citadel';
 import { isAirborne } from './fighter';
 import { findWall, surfaceSolid, surfacesOf } from './platforms';
 import { METER_BAR, METER_MAX, px, SUBPX, TECH_HITS, WALL_GRAB_H } from './rules';
@@ -141,6 +141,11 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
     for (const dir of [1, -1]) {
       if (findWall(s, me.x, Math.round(-me.y / SUBPX) + WALL_GRAB_H, dir, 50)) return IN_DASH | IN_UP | (dir > 0 ? IN_RIGHT : IN_LEFT);
     }
+  }
+  // 시타델이 3단계(금 가고 불붙음)이고 본관 앞이면 필살기로 무너뜨린다 (상대가 멀어도)
+  if (s.citadel.stage === 3 && me.meter >= METER_MAX && NEUTRAL_GROUND.has(me.mode) && me.mode !== 'land') {
+    const x = me.x / SUBPX;
+    if (x > KEEP_ZONE.x0 + 30 && x < KEEP_ZONE.x1 - 30 && roll(cpu, 4) === 0) return IN_SUPER;
   }
   // 높이가 다르면 발판을 오르내린다
   const pm = platformMove(cpu, s, me, op);

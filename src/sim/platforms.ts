@@ -1,7 +1,8 @@
 import {
-  BIG, BREAK_RULES, CHUNK, chunkIndex, CITY_RULES, CONTAINER_TOP, DYNAMIC_WALL_ID, GRIDS, rubbleOf, SURFACES, tramLying, tramRestX, WALLS,
-  type Holder, type Surface, type Wall,
+  BIG, BREAK_RULES, CHUNK, chunkIndex, CITY_RULES, CONTAINER_TOP, DYNAMIC_WALL_ID, GRIDS, hillWalls, rubbleOf, SURFACES, tramLying, tramRestX,
+  WALLS, type Holder, type Surface, type Wall,
 } from '../stage/citadel';
+import { settledHill } from './citadel';
 import { px, WALL_L, WALL_REACH } from './rules';
 import type { SimState } from './types';
 
@@ -16,6 +17,8 @@ import type { SimState } from './types';
 
 /** 이 구조물이 지금 있는가 (건물 덩어리는 따로 본다) */
 function present(s: SimState, h: Holder): boolean {
+  // 시타델 본관에 딸린 구조물은 본관이 무너지면 잔해 언덕에 묻힌다
+  if (h.keep && s.citadel.stage === 4) return false;
   if (h.prop < 0 || h.when === 'always') return true;
   const p = s.props[h.prop];
   if (h.when === 'standing') return p.stage < 2;
@@ -56,10 +59,13 @@ const NOTHING: Holder = { b: -1, prop: -1, when: 'always' };
 /** 지금 상태의 발판 전부 (늘 있는 것 + 뒤집힌 전차·다 쌓인 잔해 더미). 있는지는 surfaceSolid로 본다 */
 export function surfacesOf(s: SimState): readonly Surface[] {
   const t = lyingTram(s);
-  if (!t && !s.city.collapses.length) return SURFACES;
+  const hill = settledHill(s);
+  if (!t && !s.city.collapses.length && !hill.length) return SURFACES;
   const out = [...SURFACES];
   if (t) out.push({ x0: t.x0 + 4, x1: t.x1 - 4, h: t.h, tier: 'mid', kind: 'tram', ...NOTHING });
   forEachRubble(s, (r) => out.push({ x0: r.tx0, x1: r.tx1, h: r.h, tier: 'mid', kind: 'rubble', ...NOTHING }));
+  // 시타델 잔해 언덕 윗면 (다 쌓인 뒤)
+  for (const b of hill) out.push({ x0: b.x0, x1: b.x1, h: b.h, tier: 'mid', kind: 'hill', ...NOTHING });
   return out;
 }
 
@@ -77,6 +83,9 @@ export function wallsOf(s: SimState): Wall[] {
     const id = DYNAMIC_WALL_ID + 2 + k * 2;
     out.push({ x: r.x0, side: -1, h0: 0, h1: r.h, id, ...NOTHING }, { x: r.x1, side: 1, h0: 0, h1: r.h, id: id + 1, ...NOTHING });
   });
+  // 시타델 잔해 언덕 옆면 (다 쌓인 뒤, 이웃보다 높은 쪽)
+  const hill = settledHill(s);
+  if (hill.length) for (const w of hillWalls(hill)) out.push({ ...w, ...NOTHING });
   return out;
 }
 

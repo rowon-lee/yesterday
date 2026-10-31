@@ -27,6 +27,8 @@ const FLYING = new Set(['airhit', 'ko', 'hitstun', 'crush']);
 export const SMASH_SUPER = 1;
 export const SMASH_WALL = 2;
 export const SMASH_COLLAPSE = 3;
+/** 시타델 본관이 금 가서 (2단계) 떨어짐 */
+export const SMASH_KEEP = 4;
 
 /** 물건의 판정 상자 (월드, 1/256px). 지금 없는 물건(다니지 않는 노면전차)이면 null */
 function boxOf(s: SimState, i: number): WBox | null {
