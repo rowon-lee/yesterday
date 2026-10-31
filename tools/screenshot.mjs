@@ -70,6 +70,10 @@ async function shoot(scene, v) {
   const notes = [];
   try {
     await page.waitForFunction(() => window.__debug?.tick >= 1, null, { timeout: 15000 });
+    // 첫 프레임(무대 미리 그리기 등)이 끝난 뒤부터 잰다: 밀린 틱을 한꺼번에 따라잡는 구간을 빼려고
+    const warm = fast ? 0 : Math.min(10, stopAt - 1);
+    await page.waitForFunction((n) => window.__debug.tick >= n, warm, { timeout: 15000 });
+    const startTick = await page.evaluate(() => window.__debug.tick);
     const start = Date.now();
     // 틱이 도는 동안 키를 눌러 입력이 모이는지 본다 (멈추기 전에 시간이 있을 때만).
     let held = null;
@@ -80,7 +84,7 @@ async function shoot(scene, v) {
       await page.keyboard.up('KeyJ');
     }
     await page.waitForFunction((n) => window.__debug.tick >= n, stopAt, { timeout: stopAt * 50 + 5000 });
-    const rate = ((stopAt - 1) * 1000) / (Date.now() - start);
+    const rate = ((stopAt - startTick) * 1000) / (Date.now() - start);
     const size = await page.evaluate(() => {
       const r = document.getElementById('screen').getBoundingClientRect();
       return { w: r.width * devicePixelRatio, h: r.height * devicePixelRatio };
