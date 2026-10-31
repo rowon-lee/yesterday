@@ -8,7 +8,8 @@ import { VfxLayer } from '../render/vfx';
 import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
-import { drawStage, GROUND_Y } from '../render/stage';
+import { drawStage, GROUND_Y, type Cam } from '../render/stage';
+import { MAP_H } from '../stage/downtown';
 import { drawText, textWidth } from '../render/font';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT,
@@ -46,6 +47,9 @@ export function keyboardToInput(input: TickInput): PlayerInput {
 const motionByName = new Map(MOTIONS.map((m) => [m.name, m]));
 /** 캐릭터가 화면 끝에 붙지 않게 두는 여백 (px) */
 const CAMERA_MARGIN = 20;
+/** 위로 솟은 사람의 발에서 이만큼 위까지 (머리와 여유), 아래 사람의 발에서 이만큼 아래까지 보이게 */
+const CAMERA_HEAD = 90;
+const CAMERA_FEET = 24;
 
 /**
  * 대련 (연습: 1P 키보드 대 CPU). 주소 옵션:
@@ -69,8 +73,8 @@ export function fightScene(): Scene {
   let fightVfx: FightVfx;
   let hud: Hud;
   let cutin: { who: number; text: string; t: number } | null = null;
-  /** 카메라 왼쪽 끝 (px, 렌더 전용). -1이면 아직 안 정함 */
-  let camX = -1;
+  /** 카메라: 화면 왼쪽 위의 월드 좌표 (px, 렌더 전용). x가 -1이면 아직 안 정함 */
+  let cam: Cam = { x: -1, y: 0 };
   // 렌더 전용: 잔상용 지난 모습, 흙먼지, 직전 상태
   let trails: Snapshot[][] = [[], []];
   let dust: Dust[] = [];
@@ -86,7 +90,7 @@ export function fightScene(): Scene {
     hud = new Hud();
     hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', 'CPU'];
     cutin = null;
-    camX = -1;
+    cam = { x: -1, y: 0 };
     trails = [[], []];
     dust = [];
     prev = s.fighters.map((f) => ({ mode: f.mode, air: f.y < 0, step: 0 }));
@@ -115,16 +119,30 @@ export function fightScene(): Scene {
     dust = dust.filter((d) => d.t < d.life);
   };
 
-  // 카메라: 두 사람의 가운데를 부드럽게 따라가되, 둘 다 화면 안에 있게 한다 (렌더 전용)
+  /**
+   * 카메라 (렌더 전용): 두 사람의 가운데를 부드럽게 따라가되 둘 다 화면 안에 있게 한다.
+   * 위아래로도 따라간다: 둘 다 땅에 있으면 바닥이 보이게 내려오고, 높이 솟으면 위 사람의 머리가 보이게 올라간다.
+   */
   const followCamera = () => {
     const [a, b] = s.fighters;
+    const first = cam.x < 0;
     const mid = (a.x + b.x) / 2 / 256;
-    const target = mid - SCREEN_W / 2;
-    camX = camX < 0 ? target : camX + (target - camX) * 0.18;
+    const tx = mid - SCREEN_W / 2;
+    let x = first ? tx : cam.x + (tx - cam.x) * 0.18;
     const lo = Math.max(a.x, b.x) / 256 - SCREEN_W + CAMERA_MARGIN;
     const hi = Math.min(a.x, b.x) / 256 - CAMERA_MARGIN;
-    camX = Math.max(lo, Math.min(hi, camX));
-    camX = Math.max(0, Math.min(RULES.STAGE_W - SCREEN_W, camX));
+    x = Math.max(lo, Math.min(hi, x));
+    x = Math.max(0, Math.min(RULES.STAGE_W - SCREEN_W, x));
+    // 세로: 기본은 바닥이 화면 아래쪽에 오는 자리
+    const bottom = MAP_H - SCREEN_H;
+    const topHead = GROUND_Y + Math.min(a.y, b.y) / 256 - CAMERA_HEAD;
+    const lowFeet = GROUND_Y + Math.max(a.y, b.y) / 256 + CAMERA_FEET;
+    let ty = Math.min(bottom, topHead);
+    // 아래 사람의 발까지 담지 못하면 둘의 가운데를 비춘다
+    if (lowFeet - ty > SCREEN_H) ty = (topHead + lowFeet) / 2 - SCREEN_H / 2;
+    ty = Math.max(0, Math.min(bottom, ty));
+    const y = first ? ty : cam.y + (ty - cam.y) * 0.15;
+    cam = { x, y };
   };
 
   return {
@@ -153,20 +171,20 @@ export function fightScene(): Scene {
     },
 
     render(ctx) {
-      if (camX < 0) followCamera();
-      const cam = Math.round(camX);
+      if (cam.x < 0) followCamera();
+      const view: Cam = { x: Math.round(cam.x), y: Math.round(cam.y) };
       const [ox, oy] = fx.offset();
       ctx.save();
       ctx.translate(ox, oy);
-      drawStage(ctx, cam, s.tick, s.props);
-      const toScreen = (x: number, y: number): [number, number] => [Math.round(x - cam), Math.round(GROUND_Y + y)];
+      drawStage(ctx, view, s.tick, s.props);
+      const toScreen = (x: number, y: number): [number, number] => [Math.round(x - view.x), Math.round(GROUND_Y + y - view.y)];
 
-      // 그림자
+      // 그림자 (높이 뜰수록 작아진다)
       for (const f of s.fighters) {
-        const [sx] = toScreen(f.x / 256, 0);
-        const w = Math.max(6, 14 + Math.round(f.y / 256 / 6));
+        const [sx, sy] = toScreen(f.x / 256, 0);
+        const w = Math.max(4, 14 + Math.round(f.y / 256 / 10));
         ctx.fillStyle = COLORS.ink;
-        ctx.fillRect(sx - (w >> 1), GROUND_Y, w, 2);
+        ctx.fillRect(sx - (w >> 1), sy, w, 2);
       }
       drawDust(ctx, dust, toScreen);
       // 빠르게 움직이면 지난 모습 두 개를 잔상으로 (디더링)
@@ -176,16 +194,16 @@ export function fightScene(): Scene {
           if (g && tr[tr.length - 1].fast && g.fast) drawGhost(ctx, g, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6);
         }
       });
-      vfx.draw(ctx, cam, 'back');
+      vfx.draw(ctx, view, 'back');
       // 맞고 있는 쪽을 뒤에, 공격하는 쪽을 앞에
       const order = [...s.fighters].sort((a, b) => Number(a.mode === 'attack') - Number(b.mode === 'attack'));
       for (const f of order) {
         const i = s.fighters.indexOf(f);
         drawFighter(ctx, f, i, toScreen, s.tick, fightVfx.white(i));
       }
-      vfx.draw(ctx, cam, 'front');
-      fightVfx.debris.draw(ctx, cam);
-      if (showBoxes) drawBoxes(ctx, s, cam);
+      vfx.draw(ctx, view, 'front');
+      fightVfx.debris.draw(ctx, view);
+      if (showBoxes) drawBoxes(ctx, s, view);
       ctx.restore();
 
       // 강한 타격: 화면 번쩍임 (디더링)
@@ -197,7 +215,7 @@ export function fightScene(): Scene {
       hud.draw(ctx, s);
       if (s.phase === 'matchEnd' && s.phaseT > 120 && !p1Cpu) {
         const t = 'PRESS J';
-        if ((s.tick >> 5) % 2 === 0) drawText(ctx, t, Math.floor((SCREEN_W - textWidth(t, 2)) / 2), 100, COLORS.white, 2);
+        if ((s.tick >> 5) % 2 === 0) drawText(ctx, t, Math.floor((SCREEN_W - textWidth(t, 2)) / 2), Math.floor(SCREEN_H * 0.55), COLORS.white, 2);
       }
     },
   };
@@ -272,10 +290,10 @@ function drawFighter(
   m.draw(ctx, pose.frame, sx - FOOT_X + jitter, sy - FOOT_Y, { look, flip: f.facing < 0 });
 }
 
-function drawBoxes(ctx: CanvasRenderingContext2D, s: SimState, camX: number) {
+function drawBoxes(ctx: CanvasRenderingContext2D, s: SimState, cam: Cam) {
   const rect = (b: { x0: number; y0: number; x1: number; y1: number }, color: string) => {
-    const x = Math.round(b.x0 / 256 - camX);
-    const y = Math.round(GROUND_Y + b.y0 / 256);
+    const x = Math.round(b.x0 / 256 - cam.x);
+    const y = Math.round(GROUND_Y + b.y0 / 256 - cam.y);
     const w = Math.max(1, Math.round((b.x1 - b.x0) / 256));
     const h = Math.max(1, Math.round((b.y1 - b.y0) / 256));
     ctx.fillStyle = color;

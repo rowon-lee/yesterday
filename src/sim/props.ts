@@ -22,7 +22,7 @@ const FLYING = new Set(['airhit', 'ko', 'hitstun', 'crush']);
 /** 물건의 판정 상자 (월드, 1/256px) */
 function boxOf(i: number): WBox {
   const b = BREAKABLES[i];
-  return { x0: px(b.x), x1: px(b.x + b.w), y0: -px(b.h), y1: 0 };
+  return { x0: px(b.x), x1: px(b.x + b.w), y0: -px(b.bottom + b.h), y1: -px(b.bottom) };
 }
 
 const overlap = (a: WBox, b: WBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
@@ -34,7 +34,7 @@ function damage(s: SimState, i: number, amount: number, dir: number, crash: bool
   p.hp = Math.max(0, p.hp - amount);
   p.dir = dir;
   const x = px(b.x + b.w / 2);
-  const y = -px(b.h / 2);
+  const y = -px(b.bottom + b.h / 2);
   if (p.hp === 0) {
     p.stage = 2;
     p.brokenAt = s.tick;
@@ -55,9 +55,9 @@ export function hitProps(s: SimState): void {
     if (!hb) continue;
     const dmg = MOVES[f.move!].data.damage;
     for (let i = 0; i < s.props.length; i++) {
-      if (s.props[i].stage === 2 || f.propMask & (1 << i)) continue;
+      if (s.props[i].stage === 2 || f.propHits.includes(i)) continue;
       if (!overlap(hb, boxOf(i))) continue;
-      f.propMask |= 1 << i;
+      f.propHits.push(i);
       damage(s, i, dmg, f.facing, false);
     }
   }

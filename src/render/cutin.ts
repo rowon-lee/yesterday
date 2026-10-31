@@ -36,7 +36,7 @@ function defaultCutin(ctx: CanvasRenderingContext2D, info: CutinInfo): void {
     for (let x = y & 1; x < SCREEN_W; x += 2) ctx.fillRect(x, y, 1, 1);
   }
   // 띠가 쓴 사람 쪽에서 밀려 들어온다
-  const bandY = 70;
+  const bandY = Math.floor(SCREEN_H / 2) - 17;
   const bandH = 34;
   const slide = Math.min(1, info.t / 8);
   const from = info.who === 0 ? -SCREEN_W : SCREEN_W;

@@ -63,7 +63,7 @@ function startMove(s: SimState, f: Fighter, id: MoveId): void {
   f.move = id;
   f.moveHit = false;
   f.moveConnected = false;
-  f.propMask = 0;
+  f.propHits = [];
   f.queued = null;
   if (!isAirborne(f)) f.vx = 0;
   if (mv.data.cutin) {

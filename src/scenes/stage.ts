@@ -1,13 +1,15 @@
 import { BREAKABLES, RULES, type PropState } from '../sim';
+import { MAP_H } from '../stage/downtown';
 import { drawText } from '../render/font';
 import { COLORS } from '../render/palette';
-import { SCREEN_W } from '../render/screen';
+import { SCREEN_H, SCREEN_W } from '../render/screen';
 import { drawStage } from '../render/stage';
 import type { Scene } from './scene';
 
 /**
  * 무대만 보는 개발용 화면 (?scene=stage). 카메라가 맵 끝에서 끝까지 천천히 오간다.
- * ?cam=숫자 로 카메라 위치(왼쪽 끝 px)를 고정할 수 있다. ← → 키로 직접 움직여도 된다.
+ * ?cam=숫자 로 카메라 가로 위치(왼쪽 끝 px)를, ?camy=숫자 로 세로 위치(위 끝 px, 0이 맵 맨 위)를 고정할 수 있다.
+ * ← → ↑ ↓ 키로 직접 움직여도 된다. 세로 기본값은 바닥이 보이는 맨 아래.
  * ?props=1 (망가짐) / 2 (파괴) 로 부서지는 물건을 모두 그 단계로 보여 준다. 1~3 키로 바꿔도 된다.
  */
 export function stageScene(): Scene {
@@ -15,6 +17,8 @@ export function stageScene(): Scene {
   const max = RULES.STAGE_W - SCREEN_W;
   const fixed = params.has('cam');
   let cam = fixed ? Math.max(0, Math.min(max, Number(params.get('cam')))) : 0;
+  const maxY = MAP_H - SCREEN_H;
+  let camY = params.has('camy') ? Math.max(0, Math.min(maxY, Number(params.get('camy')))) : maxY;
   let dir = 1;
   let manual = fixed;
   let tick = 0;
@@ -35,6 +39,9 @@ export function stageScene(): Scene {
       const left = input.held.has('ArrowLeft') || input.held.has('KeyA');
       const right = input.held.has('ArrowRight') || input.held.has('KeyD');
       if (left || right) manual = true;
+      const up = input.held.has('ArrowUp') || input.held.has('KeyW');
+      const down = input.held.has('ArrowDown') || input.held.has('KeyS');
+      camY = Math.max(0, Math.min(maxY, camY + (down ? 3 : 0) - (up ? 3 : 0)));
       if (manual) cam = Math.max(0, Math.min(max, cam + (right ? 3 : 0) - (left ? 3 : 0)));
       else {
         cam += dir;
@@ -42,8 +49,8 @@ export function stageScene(): Scene {
       }
     },
     render(ctx) {
-      drawStage(ctx, Math.round(cam), tick, props);
-      drawText(ctx, `CAM ${Math.round(cam)}`, 4, 4, COLORS.white);
+      drawStage(ctx, { x: Math.round(cam), y: Math.round(camY) }, tick, props);
+      drawText(ctx, `CAM ${Math.round(cam)} ${Math.round(camY)}`, 4, 4, COLORS.white);
     },
   };
 }

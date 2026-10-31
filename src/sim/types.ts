@@ -55,8 +55,8 @@ export interface Fighter {
   /** 버튼별 남은 버퍼 틱 [공격, 점프, 대시, 기술A, 기술B, 필살] */
   buf: number[];
   prevInput: number;
-  /** 지금 기술이 이미 친 부서지는 물건 (비트, 물건 번호) */
-  propMask: number;
+  /** 지금 기술이 이미 친 부서지는 물건 번호들 */
+  propHits: number[];
 }
 
 /** 부서지는 물건 하나의 상태. 위치·크기는 stage/downtown.ts의 BREAKABLES[번호] */

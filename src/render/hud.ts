@@ -3,7 +3,7 @@ import { drawText, textWidth } from './font';
 import { COLORS } from './palette';
 import { SCREEN_H, SCREEN_W } from './screen';
 
-const BAR_W = 120;
+const BAR_W = 180;
 const BAR_H = 6;
 
 /** 체력이 깎일 때 빨간 잔상이 천천히 따라온다 (렌더 전용) */
@@ -104,8 +104,9 @@ export class Hud {
       const scale = this.banner.length > 6 ? 3 : 4;
       const w = textWidth(this.banner, scale);
       const bx = Math.floor((SCREEN_W - w) / 2);
-      drawText(ctx, this.banner, bx + 1, 61, COLORS.ink, scale);
-      drawText(ctx, this.banner, bx, 60, COLORS.white, scale);
+      const by = Math.floor(SCREEN_H * 0.3);
+      drawText(ctx, this.banner, bx + 1, by + 1, COLORS.ink, scale);
+      drawText(ctx, this.banner, bx, by, COLORS.white, scale);
     }
   }
 }

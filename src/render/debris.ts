@@ -68,10 +68,10 @@ export class Debris {
     this.bits = [];
   }
 
-  draw(ctx: CanvasRenderingContext2D, camX: number): void {
+  draw(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }): void {
     for (const b of this.bits) {
       ctx.fillStyle = b.color;
-      ctx.fillRect(Math.round(b.x - camX), Math.round(b.y), b.flutter ? 2 : 1, 1);
+      ctx.fillRect(Math.round(b.x - cam.x), Math.round(b.y - cam.y), b.flutter ? 2 : 1, 1);
     }
   }
 }

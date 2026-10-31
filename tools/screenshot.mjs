@@ -86,13 +86,15 @@ async function shoot(scene, v) {
     await page.waitForFunction((n) => window.__debug.tick >= n, stopAt, { timeout: stopAt * 50 + 5000 });
     const rate = ((stopAt - startTick) * 1000) / (Date.now() - start);
     const size = await page.evaluate(() => {
-      const r = document.getElementById('screen').getBoundingClientRect();
-      return { w: r.width * devicePixelRatio, h: r.height * devicePixelRatio };
+      const c = document.getElementById('screen');
+      const r = c.getBoundingClientRect();
+      return { w: r.width * devicePixelRatio, h: r.height * devicePixelRatio, iw: c.width, ih: c.height };
     });
     // 브라우저는 CSS 크기를 1/64px 단위로 저장하므로 dpr이 3 같은 값이면 끝자리가 조금 어긋난다.
     // 그릴 때는 물리 픽셀에 맞춰지므로 0.1 물리 픽셀까지는 정수배로 본다.
-    const scale = Math.round(size.w / 320);
-    if (Math.abs(size.w - 320 * scale) > 0.1 || Math.abs(size.h - 180 * scale) > 0.1) {
+    // 내부 해상도(캔버스 크기)의 정수배인지
+    const scale = Math.round(size.w / size.iw);
+    if (scale < 1 || Math.abs(size.w - size.iw * scale) > 0.1 || Math.abs(size.h - size.ih * scale) > 0.1) {
       errors.push(`정수배 아님 (${size.w}×${size.h})`);
     }
     notes.push(`배율 ${scale}배`);

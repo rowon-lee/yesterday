@@ -93,7 +93,7 @@ function check(s, problems) {
     if (f.guard < 0 || f.guard > R.GUARD_MAX) bad(`${n} 방어 내구도 범위 밖 ${f.guard}`);
     if (f.x < R.WALL_L || f.x > R.WALL_R) bad(`${n} 벽 밖 x=${f.x / 256}`);
     if (f.y > 0) bad(`${n} 바닥 아래 y=${f.y / 256}`);
-    if (f.y < -256 * 200) bad(`${n} 너무 높이 y=${f.y / 256}`);
+    if (f.y < -256 * 490) bad(`${n} 맵 위로 나감 y=${f.y / 256}`);
     if (f.mode === 'attack' && !f.move) bad(`${n} 기술 없이 공격 상태`);
     if (!Number.isInteger(f.x) || !Number.isInteger(f.y) || !Number.isInteger(f.vx) || !Number.isInteger(f.vy)) bad(`${n} 위치·속도가 정수가 아님`);
     try {

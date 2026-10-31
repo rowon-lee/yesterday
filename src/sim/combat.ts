@@ -112,7 +112,6 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   def.meter = Math.min(METER_MAX, def.meter + METER_HURT);
   def.facing = -dir as 1 | -1;
   def.bounce = false;
-  if (d.airFollow !== undefined && isAirborne(att)) att.vy = Math.min(att.vy, px(d.airFollow));
   s.events.push({ type: 'hit', who, x: ex, y: ey, heavy: d.heavy ?? false, combo: def.comboHits, move: mv.id });
 
   const airborne = isAirborne(def) || def.mode === 'airhit';
@@ -122,19 +121,21 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   }
   if (d.spike && airborne) {
     setMode(def, 'airhit', d.hitstun);
-    def.vx = dir * px(0.6);
+    def.vx = dir * px(0.8);
     def.vy = SPIKE_VY;
     def.bounce = true;
     return;
   }
   if (airborne || mv.launch || d.knockdown || d.spike) {
     const v = mv.launch ?? (d.knockdown || d.spike
-      ? { vx: px(1.3), vy: px(-2.6) }
+      ? { vx: px(1.8), vy: px(-3.6) }
       : { vx: px(AIR_HIT_DEFAULT.vx), vy: px(AIR_HIT_DEFAULT.vy) });
     setMode(def, 'airhit', d.hitstun);
     def.vx = dir * v.vx;
     def.vy = v.vy;
     def.y = Math.min(def.y, -1);
+    // 공중에서 맞히면 때린 쪽도 함께 떠올라 다음 타가 이어지게 한다
+    if (d.airFollow !== undefined && isAirborne(att)) att.vy = def.vy + px(d.airFollow);
     if (!airborne && mv.launch && mv.id === 'launcher') s.events.push({ type: 'launch', who, x: def.x, y: def.y });
     return;
   }
@@ -148,8 +149,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
 /** 체력이 0이 된 쪽을 날려 쓰러뜨린다 */
 export function knockOut(s: SimState, def: Fighter, dir: number, who: number): void {
   setMode(def, 'ko');
-  def.vx = dir * px(2.8);
-  def.vy = px(-4.3);
+  def.vx = dir * px(6);
+  def.vy = px(-7);
   def.y = Math.min(def.y, -1);
   def.invuln = 1;
   s.events.push({ type: 'ko', who, x: def.x, y: def.y });
