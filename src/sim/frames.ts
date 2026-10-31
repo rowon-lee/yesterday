@@ -116,4 +116,6 @@ export const STATS = {
   airAttackLandTicks: BASE_STATS.airAttackLandTicks,
   wallSlide: px(BASE_STATS.wallSlide),
   wallSlideAccel: px(BASE_STATS.wallSlideAccel),
+  wallJumpVx: px(BASE_STATS.wallJumpVx),
+  wallJumpVy: -px(BASE_STATS.wallJumpVy),
 };

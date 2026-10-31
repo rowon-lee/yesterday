@@ -34,8 +34,8 @@ export interface Fighter {
   queued: MoveId | null;
   /** 대시 방향 (1 앞, -1 뒤), 지상 점프 방향 */
   dir: number;
-  /** 띄우기 뒤 쫓아가는 점프였는지, 2단 점프인지 (그림용) */
-  jumpKind: 0 | 1 | 2;
+  /** 띄우기 뒤 쫓아가는 점프였는지, 2단 점프인지, 벽 점프인지 (그림용) */
+  jumpKind: 0 | 1 | 2 | 3;
   hp: number;
   meter: number;
   guard: number;
@@ -75,6 +75,8 @@ export interface Fighter {
   /** 붙어 있는 벽의 x (월드 px)와 붙은 쪽 (-1 벽 왼쪽, 1 벽 오른쪽, 0 없음) */
   wallX: number;
   wallSide: number;
+  /** 벽 점프 직후 공중에서 좌우 조작이 듣지 않는 남은 틱 (튕겨 나간 쪽으로 날아가게) */
+  driftLock: number;
 }
 
 /** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */
@@ -118,7 +120,9 @@ export interface SimEvent {
     /** 벽꽝: who = 때린 쪽 */
     | 'wallsplat'
     /** 벽 붙기: who = 붙은 사람, combo = 그 벽을 연속으로 디딘 횟수 */
-    | 'wallcling';
+    | 'wallcling'
+    /** 벽 점프: who = 뛴 사람, x = 찬 벽 */
+    | 'walljump';
   /** 한 사람 (때린 쪽, 기술 쓴 쪽, 이긴 쪽) */
   who: number;
   x: number;
