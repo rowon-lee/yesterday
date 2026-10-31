@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "spritefusion": {
+      "type": "http",
+      "url": "https://www.spritefusion.com/mcp"
+    }
+  }
+}
