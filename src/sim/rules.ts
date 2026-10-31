@@ -2,15 +2,16 @@
  * 전투 규칙 수치. 시간은 틱, 거리는 1/256px 정수 (px(…)로 바꿔 쓴다).
  * 기획서: 방어 내구도, 기력 3칸, 낙법, 콤보 보정(최소 35%), 히트스톱 7~12틱.
  */
-import { MAP_W } from '../stage/downtown';
+import { MAP_W, WALLS } from '../stage/citadel';
 
 export const SUBPX = 256;
 export const px = (v: number): number => Math.round(v * SUBPX);
 
 // 무대
 export const STAGE_W = MAP_W;
-export const WALL_L = px(16);
-export const WALL_R = px(STAGE_W - 16);
+/** 맵 끝 벽 (서쪽 컨테이너 더미, 동쪽 철책) */
+export const WALL_L = px(WALLS.left);
+export const WALL_R = px(WALLS.right);
 /** 두 사람은 화면 한 칸 안에서 벗어날 수 없다 */
 export const MAX_SEPARATION = px(440);
 /** 몸끼리 겹치지 않는 폭 */
@@ -24,7 +25,12 @@ export const WINS_NEEDED = 2;
 export const MAX_ROUNDS = 5;
 export const INTRO_TICKS = 70;
 export const ROUND_END_TICKS = 150;
-export const START_GAP = px(90);
+/** 시작 위치: 광장 가운데 분수 양쪽 (맵 가운데 ± 이만큼) */
+export const START_GAP = px(120);
+
+// 발판 (한 방향)
+/** ↓+점프로 발판에서 내려온 뒤 이 틱 동안은 발판을 지나친다 (바닥에는 선다) */
+export const DROP_TICKS = 10;
 
 // 방어
 export const GUARD_MAX = 100;

@@ -1,4 +1,4 @@
-import { BREAK_RULES, BREAKABLES, CITY_RULES } from '../stage/downtown';
+import { BREAK_RULES, BREAKABLES, CITY_RULES } from '../stage/citadel';
 import { damageCity } from './city';
 import { activeHitOf, knockOut, type WBox } from './combat';
 import { MOVES } from './frames';

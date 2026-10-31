@@ -19,7 +19,7 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
     move: null, moveHit: false, moveConnected: false, queued: null, dir: 1, jumpKind: 0,
     hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
-    runDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [],
+    runDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
   };
 }
 
@@ -89,6 +89,8 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
 }
 
 function stepFighter(s: SimState, f: Fighter, input: PlayerInput, controllable: boolean): void {
+  // 맞아서 떠오르기 시작했으면 (히트스톱으로 멈춰 있어도) 서 있던 바닥을 떠난다
+  if (f.vy < 0) f.floor = 0;
   // 히트스톱 동안 멈춤 (버튼 눌림은 기억)
   if (f.hitstop > 0) {
     f.hitstop--;

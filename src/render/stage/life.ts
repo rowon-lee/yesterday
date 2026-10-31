@@ -1,14 +1,15 @@
-import { DOWNTOWN as D } from '../../data/stages/downtown';
-import { GROUND } from '../../stage/downtown';
-import { drawText } from '../font';
+import type { CityState } from '../../sim';
+import { CITADEL as D } from '../../data/stages/citadel';
+import { CHUNK, chunkIndex, FRONT, GRIDS, GROUND } from '../../stage/citadel';
+import { drawText, glyphRows } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_W } from '../screen';
 import { disc, dither, hash, line, rect } from './dither';
-import { midGround } from './layers';
+import { midGround, midSeaX } from './layers';
 
 /**
- * 움직이는 도시 (모두 렌더 전용, sim과 무관): 노면전차, 도망치는 행인, 증기.
- * 전차와 증기는 틱만 보고 그려서 같은 틱이면 늘 같은 그림이다.
+ * 움직이는 도시 (모두 렌더 전용, sim과 무관): 노면전차, 도망치는 행인, 증기, 분수, 옥상 전광판.
+ * 전차·증기·분수·전광판은 틱만 보고 그려서 같은 틱이면 늘 같은 그림이다.
  */
 
 // ---------------------------------------------------------------- 노면전차
@@ -148,8 +149,9 @@ export class Walkers {
     // 싸움 자리를 가운데 겹 좌표로: 화면에서 같은 자리에 보이는 x
     const focus = focusX === null ? null : focusX - camX + camX * s;
     for (let n = 0; n < steps; n++) {
-      if (this.list.length < 18 && hash(this.seed * 7919) < (focus === null ? 0.05 : 0.12)) {
-        const x = view0 + hash(this.seed * 131 + 1) * (view1 - view0);
+      const x = view0 + hash(this.seed * 131 + 1) * (view1 - view0);
+      // 부두 뒤(바다)에는 길이 없으니 나오지 않는다
+      if (this.list.length < 18 && x > midSeaX() + 4 && hash(this.seed * 7919) < (focus === null ? 0.05 : 0.12)) {
         const dir = focus === null ? (hash(this.seed * 17) < 0.5 ? -1 : 1) : x < focus ? -1 : 1;
         this.list.push({ x, dir, speed: focus === null ? 0.25 + hash(this.seed * 3) * 0.2 : 0.9 + hash(this.seed * 5) * 0.8, phase: hash(this.seed * 11) * 8, age: 0 });
       }
@@ -160,7 +162,7 @@ export class Walkers {
         w.age++;
       }
     }
-    this.list = this.list.filter((w) => w.age < 900 && w.x > view0 - 120 && w.x < view1 + 120);
+    this.list = this.list.filter((w) => w.age < 900 && w.x > Math.max(view0 - 120, midSeaX()) && w.x < view1 + 120);
   }
 
   /** 가운데 겹 바로 앞에 그린다 (cam은 월드 카메라) */
@@ -189,4 +191,96 @@ function walker(g: CanvasRenderingContext2D, x: number, foot: number, dir: numbe
   disc(g, x + lean, neck - 2, 2, col);
   rect(g, x + lean - 2, neck - 5, 5, 1, col);
   rect(g, x + lean - 1, neck - 6, 3, 1, col);
+}
+
+// ---------------------------------------------------------------- 분수
+/**
+ * 광장 분수 물줄기: 가운데 그릇에서 솟는 물기둥(높이가 천천히 오르내림)과 양옆으로 휘어 떨어지는 물줄기,
+ * 수반에 떨어지는 물보라. 물방울은 틱마다 자리가 바뀐다.
+ */
+export function drawFountain(g: CanvasRenderingContext2D, tick: number): void {
+  const F = D.plaza.fountain;
+  const base = GROUND - 50;
+  const height = 46 + Math.round(Math.sin(tick * 0.03) * 14);
+  // 가운데 물기둥
+  for (let i = 0; i < 26; i++) {
+    const t = ((tick * 0.9 + i * 7) % 40) / 40;
+    const y = base - Math.round(height * Math.sin(Math.PI * t));
+    const x = F.x + Math.round((hash(i * 17 + Math.floor(tick / 3)) - 0.5) * 4 * t);
+    rect(g, x - 1, y, 2, 2, i % 3 ? C.skyLight : C.white);
+  }
+  // 양옆으로 휘어 떨어지는 물줄기
+  for (const dir of [-1, 1]) {
+    for (let i = 0; i < 18; i++) {
+      const t = ((tick * 1.1 + i * 5 + (dir > 0 ? 9 : 0)) % 36) / 36;
+      const x = F.x + dir * Math.round(8 + t * 44);
+      const y = base - Math.round(28 * Math.sin(Math.PI * Math.min(1, t * 0.9))) + Math.round(t * 36);
+      if (y < GROUND - 16) rect(g, x, y, 1, 2, i % 2 ? C.skyLight : C.sky);
+    }
+  }
+  // 물보라
+  for (let i = 0; i < 12; i++) {
+    const r = hash(i * 31 + Math.floor(tick / 4) * 7);
+    const x = F.x - F.w / 2 + 6 + Math.round(r * (F.w - 12));
+    if (dither(x, tick, 8)) rect(g, x, GROUND - 18 - Math.round(hash(i + tick) * 3), 1, 1, C.white);
+  }
+}
+
+// ---------------------------------------------------------------- 옥상 전광판
+let boardBits: boolean[][] | null = null;
+
+/** 글씨를 전구 한 칸씩의 점 그림으로 (5줄 × 글자마다 4칸) */
+function boardText(): boolean[][] {
+  if (boardBits) return boardBits;
+  const rows: boolean[][] = [[], [], [], [], []];
+  for (const ch of D.billboard.text) {
+    const glyph = glyphRows(ch);
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 3; c++) rows[r].push((glyph[r] & (4 >> c)) !== 0);
+      rows[r].push(false);
+    }
+  }
+  boardBits = rows;
+  return rows;
+}
+
+/**
+ * 비상계단 아파트 옥상 전광판: 쇠다리 위 판에 전구로 된 글씨가 흘러간다.
+ * 아래 지붕 덩어리가 무너져 사라지면 그리지 않는다.
+ */
+export function drawBillboard(g: CanvasRenderingContext2D, tick: number, city: CityState | null): void {
+  const B = D.billboard;
+  const b = FRONT.filter((f) => f.section === 'apartments')[B.building];
+  if (!b) return;
+  const gi = FRONT.indexOf(b);
+  const grid = GRIDS[gi];
+  const x = b.x + Math.floor((b.w - B.w) / 2);
+  if (city) {
+    const col = Math.floor((x + B.w / 2 - grid.x) / CHUNK);
+    if (city.hp[chunkIndex(grid, Math.max(0, Math.min(grid.cols - 1, col)), grid.rows - 1)] < 0) return;
+  }
+  const roof = GROUND - b.h;
+  const y = roof - B.h - 12;
+  // 쇠다리와 판
+  for (const lx of [x + 10, x + B.w - 14]) {
+    rect(g, lx, y + B.h, 4, 12, C.iron);
+    line(g, lx, roof, lx + 14, y + B.h, C.iron);
+  }
+  rect(g, x - 2, y - 2, B.w + 4, B.h + 4, C.iron);
+  rect(g, x, y, B.w, B.h, C.smog0);
+  // 흘러가는 글씨 (전구 3px 간격), 위아래 테두리 전구는 차례로 깜빡
+  const bits = boardText();
+  const cols = Math.floor((B.w - 6) / 3);
+  const len = bits[0].length;
+  const shift = Math.floor(tick / 5);
+  const ty = y + Math.floor((B.h - 15) / 2);
+  for (let c = 0; c < cols; c++) {
+    const src = (c + shift) % len;
+    for (let r = 0; r < 5; r++) rect(g, x + 3 + c * 3, ty + r * 3, 2, 2, bits[r][src] ? C.lampGlow : C.awning);
+  }
+  for (let bx = x + 1; bx < x + B.w - 1; bx += 3) {
+    const on = (Math.floor(bx / 3) + Math.floor(tick / 6)) % 3 === 0;
+    rect(g, bx, y + 1, 2, 1, on ? C.lampCore : C.lampWarm);
+    rect(g, bx, y + B.h - 2, 2, 1, on ? C.lampWarm : C.lampCore);
+  }
 }

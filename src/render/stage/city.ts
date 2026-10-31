@@ -1,5 +1,5 @@
 import type { CityState } from '../../sim';
-import { CHUNKS, chunkIndex, chunkStage, FRONT, GRIDS, GROUND, MAP_H, MAP_W, type FrontBuildingPlace } from '../../stage/downtown';
+import { CHUNKS, chunkIndex, chunkStage, FRONT, GRIDS, GROUND, hasShopWindow, MAP_H, MAP_W, type FrontBuildingPlace } from '../../stage/citadel';
 import { COLORS as C } from '../palette';
 import { canvas, disc, dither, ditherRect, hash, line, paint, rect } from './dither';
 import { floorsOf } from './layers';
@@ -139,8 +139,8 @@ export class CityLayer {
 
 /**
  * 실내 그림 (맵 전체 크기, 건물 정면 자리마다). 건물 종류마다 다르다:
- * 상가·공동주택은 층마다 벽지·가구·계단, 1층 가게는 진열장, 창고는 나무 기둥과 상자,
- * 청사는 돌 벽·책상·서류장·붉은 깃발, 공장은 층 없이 높은 공간에 보일러·톱니바퀴·통로·기중기.
+ * 상가·아파트는 층마다 벽지·가구·계단, 1층 가게는 진열장, 다이너 1층은 계산대와 의자·칸막이 자리,
+ * 극장은 층 없이 높은 객석(층층이 좌석, 붉은 막 무대, 발코니, 샹들리에).
  */
 function buildInterior(): HTMLCanvasElement {
   const [c, g] = canvas(MAP_W, MAP_H);
@@ -149,16 +149,15 @@ function buildInterior(): HTMLCanvasElement {
     g.beginPath();
     g.rect(b.x, GROUND - b.h, b.w, b.h);
     g.clip();
-    if (b.kind === 'factory') factoryInside(g, b);
+    if (b.kind === 'theater') theaterInside(g, b);
     else {
       floorsOf(b).forEach(([y0, y1], fi) => {
         const seed = b.seed * 31 + fi * 7;
-        if (b.kind === 'warehouse') storeroom(g, b, y0, y1, seed);
-        else if (b.kind === 'hall' || b.kind === 'wing') office(g, b, y0, y1, seed);
-        else if (fi === 0 && b.kind === 'shop') shopFloor(g, b, y0, y1, seed);
+        if (fi === 0 && b.kind === 'diner') dinerFloor(g, b, y0, y1, seed);
+        else if (fi === 0 && hasShopWindow(b)) shopFloor(g, b, y0, y1, seed);
         else room(g, b, y0, y1, seed);
       });
-      if (b.kind !== 'warehouse') stairs(g, b, bi);
+      stairs(g, b, bi);
     }
     g.restore();
   });
@@ -246,107 +245,57 @@ function shopFloor(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: numbe
   rect(g, cx + 6, y1 - 30, 10, 8, C.ironLight);
 }
 
-/** 창고: 나무 기둥과 들보, 쌓인 상자와 자루 */
-function storeroom(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: number, y1: number, seed: number): void {
+
+
+
+/** 다이너 1층: 긴 계산대와 둥근 의자, 창가 칸막이 자리, 주방 창 */
+function dinerFloor(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: number, y1: number, seed: number): void {
   rect(g, b.x, y0, b.w, y1 - y0, C.windowDark);
-  ditherRect(g, b.x, y0, b.w, y1 - y0, C.brickDark, 7);
-  rect(g, b.x, y0, b.w, 4, C.awning);
-  rect(g, b.x, y1 - 4, b.w, 4, C.awning);
-  for (let px = b.x + 20; px < b.x + b.w; px += 44) rect(g, px, y0, 5, y1 - y0, C.awning);
-  let x = b.x + 4;
-  let k = seed;
-  while (x < b.x + b.w - 16) {
-    const stack = 1 + Math.floor(hash(k++) * 3);
-    const s = 14 + Math.floor(hash(k++) * 6);
-    for (let i = 0; i < stack; i++) {
-      const by = y1 - 4 - (i + 1) * s;
-      if (by < y0 + 6) break;
-      rect(g, x, by, s, s, C.awningStripe);
-      rect(g, x, by, s, 1, C.paintOchre);
-      rect(g, x, by, 1, s, C.awning);
-      line(g, x + 1, by + 1, x + s - 2, by + s - 2, C.awning);
-    }
-    x += s + 4 + Math.floor(hash(k++) * 10);
-  }
-  // 매달린 쇠사슬과 갈고리
-  const hx = b.x + Math.floor(hash(seed + 9) * (b.w - 20)) + 10;
-  for (let y = y0 + 4; y < y0 + 26; y += 2) rect(g, hx, y, 1, 1, C.ironLight);
-  rect(g, hx - 1, y0 + 26, 3, 3, C.ironLight);
-}
-
-/** 청사 사무실: 돌 벽 판, 책상과 갓등, 서류장, 붉은 깃발 */
-function office(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: number, y1: number, seed: number): void {
-  rect(g, b.x, y0, b.w, y1 - y0, C.stoneDark);
-  ditherRect(g, b.x, y0, b.w, y1 - y0, C.windowDark, 8);
-  for (let px = b.x + 6; px < b.x + b.w; px += 30) rect(g, px, y0 + 6, 1, y1 - y0 - 12, C.stone);
+  ditherRect(g, b.x, y0, b.w, y1 - y0, C.paintTeal, 5);
   shell(g, b, y0, y1, seed);
+  rect(g, b.x + 6, y0 + 14, b.w - 12, 10, C.iron);
+  rect(g, b.x + 8, y0 + 16, b.w - 16, 6, C.windowLit);
   const floor = y1 - 4;
-  let x = b.x + 6;
-  let k = seed;
-  while (x < b.x + b.w - 20) {
-    const kind = Math.floor(hash(k++) * 4);
-    if (kind === 0) {
-      rect(g, x, floor - 14, 26, 3, C.awning);
-      rect(g, x + 2, floor - 11, 2, 11, C.awning);
-      rect(g, x + 22, floor - 11, 2, 11, C.awning);
-      rect(g, x + 16, floor - 20, 1, 6, C.iron);
-      rect(g, x + 13, floor - 22, 7, 3, C.paintTeal);
-      rect(g, x + 4, floor - 16, 8, 2, C.paintCream);
-      x += 32;
-    } else if (kind === 1) {
-      rect(g, x, floor - 30, 14, 30, C.ironLight);
-      for (let dy = floor - 27; dy < floor; dy += 8) rect(g, x + 2, dy, 10, 1, C.iron);
-      x += 20;
-    } else if (kind === 2 && y1 - y0 > 50) {
-      rect(g, x + 4, y0 + 12, 12, 26, C.posterRed);
-      rect(g, x + 4, y0 + 10, 12, 2, C.iron);
-      x += 22;
-    } else {
-      x += 12;
-    }
+  rect(g, b.x + 10, floor - 18, b.w - 20, 4, C.paintCream);
+  rect(g, b.x + 10, floor - 14, b.w - 20, 14, C.awning);
+  for (let x = b.x + 14; x < b.x + b.w - 14; x += 14) {
+    rect(g, x, floor - 10, 2, 10, C.ironLight);
+    rect(g, x - 3, floor - 12, 8, 3, C.posterRed);
+  }
+  for (let x = b.x + 8; x < b.x + b.w - 30; x += 40) {
+    rect(g, x, floor - 30, 6, 30, C.posterRedDark);
+    rect(g, x + 22, floor - 30, 6, 30, C.posterRedDark);
+    rect(g, x + 6, floor - 14, 16, 3, C.paintCream);
   }
 }
 
-/** 공장 안: 층 없이 높은 공간. 보일러(불구멍), 톱니바퀴, 가운데 높이의 철제 통로, 천장 기중기 */
-function factoryInside(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
+/** 극장 안: 층 없이 높은 객석. 층층이 좌석 줄, 붉은 막 무대, 가운데 높이 발코니, 샹들리에 */
+function theaterInside(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
   const top = GROUND - b.h;
   rect(g, b.x, top, b.w, b.h, C.windowDark);
-  ditherRect(g, b.x, top, b.w, b.h, C.brickRedDark, 7);
-  // 천장 기중기 들보와 갈고리
-  rect(g, b.x, top + 18, b.w, 5, C.iron);
-  const hx = b.x + Math.floor(hash(b.seed) * (b.w - 30)) + 15;
-  rect(g, hx - 6, top + 23, 12, 5, C.ironLight);
-  for (let y = top + 28; y < top + 70; y += 2) rect(g, hx, y, 1, 1, C.ironLight);
-  rect(g, hx - 2, top + 70, 5, 4, C.ironLight);
-  // 가운데 높이 철제 통로
-  const cy = GROUND - Math.floor(b.h * 0.55);
-  rect(g, b.x, cy, b.w, 3, C.iron);
-  for (let rx = b.x; rx < b.x + b.w; rx += 6) rect(g, rx, cy - 10, 1, 10, C.iron);
-  rect(g, b.x, cy - 10, b.w, 1, C.ironLight);
-  // 바닥: 보일러, 톱니바퀴, 벨트
-  let x = b.x + 8;
-  let k = b.seed;
-  while (x < b.x + b.w - 30) {
-    if (hash(k++) < 0.5) {
-      rect(g, x, GROUND - 52, 30, 52, C.ironLight);
-      rect(g, x, GROUND - 52, 30, 3, C.iron);
-      for (let ry = GROUND - 46; ry < GROUND; ry += 8) rect(g, x + 2, ry, 26, 1, C.iron);
-      rect(g, x + 9, GROUND - 22, 12, 10, C.fxFlame);
-      rect(g, x + 11, GROUND - 20, 8, 6, C.fxOrange);
-      rect(g, x + 12, GROUND - 80, 6, 28, C.iron);
-      x += 40;
-    } else {
-      disc(g, x + 16, GROUND - 30, 15, C.iron);
-      disc(g, x + 16, GROUND - 30, 11, C.ironLight);
-      for (let a = 0; a < 8; a++) {
-        const ang = (a / 8) * Math.PI * 2;
-        rect(g, Math.round(x + 16 + Math.cos(ang) * 14) - 1, Math.round(GROUND - 30 + Math.sin(ang) * 14) - 1, 3, 3, C.iron);
-      }
-      disc(g, x + 16, GROUND - 30, 3, C.iron);
-      line(g, x + 16, GROUND - 45, x + 40, cy + 3, C.awning);
-      x += 38;
+  ditherRect(g, b.x, top, b.w, b.h, C.posterRedDark, 6);
+  // 무대와 붉은 막 (건물 왼쪽)
+  const sx = b.x + 8;
+  rect(g, sx, GROUND - 120, 50, 120, C.iron);
+  rect(g, sx + 2, GROUND - 116, 46, 90, C.posterRed);
+  for (let x = sx + 4; x < sx + 48; x += 5) rect(g, x, GROUND - 116, 1, 90, C.posterRedDark);
+  rect(g, sx, GROUND - 26, 50, 4, C.awningStripe);
+  // 좌석 줄: 오른쪽으로 갈수록 높아지는 층층이
+  for (let r = 0; r < 6; r++) {
+    const y = GROUND - 8 - r * 8;
+    for (let x = sx + 60 + r * 10; x < b.x + b.w - 6; x += 6) {
+      rect(g, x, y - 6, 4, 6, C.posterRedDark);
+      rect(g, x, y - 6, 4, 1, C.posterRed);
     }
   }
+  // 발코니와 샹들리에
+  const by = GROUND - Math.floor(b.h * 0.55);
+  rect(g, b.x + b.w / 2, by, b.w / 2, 6, C.paintOchre);
+  for (let x = b.x + b.w / 2; x < b.x + b.w; x += 6) rect(g, x, by - 6, 4, 6, C.posterRedDark);
+  const cx = b.x + Math.floor(b.w * 0.45);
+  rect(g, cx, top + 10, 1, 30, C.iron);
+  disc(g, cx, top + 44, 8, C.lampWarm, 10);
+  disc(g, cx, top + 44, 4, C.lampGlow);
 }
 
 /** 계단: 건물 한쪽에 층을 잇는 비스듬한 계단 */

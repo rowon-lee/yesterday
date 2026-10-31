@@ -1,18 +1,20 @@
-import { DOWNTOWN as D } from '../data/stages/downtown';
+import { CITADEL as D } from '../data/stages/citadel';
 
 /**
- * 도심의 배치 계산 (구간 4개). sim(부서지는 물건 판정)과 render(그리기)가 같은 결과를 쓴다.
+ * 시타델 1구역의 배치 계산. sim(부서지는 물건·건물·발판 판정)과 render(그리기)가 같은 결과를 쓴다.
  * 숫자만 다루고, 그림이나 DOM은 모른다.
  * 월드 좌표: x 0 ~ MAP_W, y 0(맵 위) ~ MAP_H(맵 아래). 바닥은 y = GROUND. sim의 높이 0이 바닥이다.
  */
 export const MAP_W = D.width;
 export const MAP_H = D.height;
 export const GROUND = D.height - D.groundFromBottom;
+/** 캐릭터가 넘지 못하는 서쪽·동쪽 끝 (px) */
+export const WALLS = D.walls;
 
 export type SectionId = (typeof D.sections)[number]['id'];
-export type BuildingKind = 'shop' | 'flat' | 'warehouse' | 'hall' | 'wing' | 'factory';
-export type GapKind = 'alley' | 'lot' | 'open' | 'yard';
+export type BuildingKind = 'shop' | 'theater' | 'diner' | 'apartment';
 
+/** 부서지는 길가 건물 하나 */
 export interface FrontBuildingPlace {
   kind: BuildingKind;
   section: SectionId;
@@ -22,15 +24,15 @@ export interface FrontBuildingPlace {
   h: number;
   /** 1층을 포함한 층수 */
   floors: number;
+  /** 가게 이름 (없으면 1층이 현관) */
   sign: string;
-  escape: boolean;
   poster: string;
   seed: number;
 }
 
-/** 건물 사이 빈자리 (부서지지 않는다. 뒤 겹이 보인다) */
+/** 건물 사이 골목 (부서지지 않는다. 뒤 겹이 보인다) */
 export interface FrontGap {
-  kind: GapKind;
+  kind: 'alley';
   section: SectionId;
   x: number;
   w: number;
@@ -44,22 +46,17 @@ export const FLOOR_H = D.front.floorH;
 /** 층수 → 바닥에서 지붕까지 높이 */
 export const heightOf = (floors: number): number => SHOP_H + (floors - 1) * FLOOR_H;
 
-/** 길가 건물과 빈자리를 구간마다 왼쪽부터 이어 놓는다 */
+/** 길가 건물과 골목을 구간마다 x0부터 이어 놓는다 */
 function layout(): { buildings: FrontBuildingPlace[]; gaps: FrontGap[] } {
   const buildings: FrontBuildingPlace[] = [];
   const gaps: FrontGap[] = [];
   let k = D.front.seed;
-  for (const sec of D.sections) {
+  for (const id of ['theater', 'apartments'] as const) {
+    const sec = D.front[id];
     let x: number = sec.x0;
-    for (const b of D.front[sec.id]) {
-      if (b.kind === 'alley' || b.kind === 'lot' || b.kind === 'open' || b.kind === 'yard') {
-        gaps.push({ kind: b.kind, section: sec.id, x, w: b.w });
-      } else {
-        buildings.push({
-          kind: b.kind, section: sec.id, x, w: b.w, h: heightOf(b.floors), floors: b.floors,
-          sign: b.sign, escape: b.escape, poster: b.poster, seed: k,
-        });
-      }
+    for (const b of sec.list) {
+      if (b.kind === 'alley') gaps.push({ kind: 'alley', section: id, x, w: b.w });
+      else buildings.push({ kind: b.kind, section: id, x, w: b.w, h: heightOf(b.floors), floors: b.floors, sign: b.sign, poster: b.poster, seed: k });
       x += b.w;
       k += 97;
     }
@@ -79,8 +76,14 @@ export function sectionAt(x: number): SectionId {
   return D.sections[D.sections.length - 1].id;
 }
 
+// ---------------------------------------------------------------- 1층과 발판 자리 (그림과 판정이 같은 숫자를 쓴다)
+const L = D.ledges;
+
+/** 1층에 쇼윈도가 있는 건물 (상가, 다이너, 가게가 있는 아파트) */
+export const hasShopWindow = (b: FrontBuildingPlace): boolean => b.kind === 'shop' || b.kind === 'diner' || (b.kind === 'apartment' && b.sign !== '');
+
 /** 가게 문 왼쪽 끝 */
-export const doorOf = (b: FrontBuildingPlace): number => b.x + Math.floor(b.w * 0.7);
+export const doorOf = (b: FrontBuildingPlace): number => (b.kind === 'apartment' ? b.x + Math.floor((b.w - 64) * 0.62) : b.x + Math.floor(b.w * 0.7));
 export const DOOR_W = 18;
 
 /** 쇼윈도 유리 (x ~ x+w, 바닥에서 GLASS_BOTTOM 위부터 glass.h 높이) */
@@ -88,6 +91,27 @@ export function shopWindow(b: FrontBuildingPlace): { x: number; w: number } {
   return { x: b.x + 10, w: doorOf(b) - b.x - 18 };
 }
 export const GLASS_BOTTOM = 8;
+
+/** 가게 차양 (윗면이 중층 발판). 아파트는 비상계단과 겹치지 않게 왼쪽만 */
+export function awningOf(b: FrontBuildingPlace): { x0: number; x1: number; h: number } | null {
+  if (b.kind === 'shop' || b.kind === 'diner') return { x0: b.x + 4, x1: b.x + b.w - 4, h: L.awning };
+  if (b.kind === 'apartment' && b.sign) return { x0: b.x + 4, x1: b.x + b.w - L.escapeW - 16, h: L.awning };
+  return null;
+}
+
+/** 극장 전구 차양 (윗면이 중층 발판) */
+export function marqueeOf(b: FrontBuildingPlace): { x0: number; x1: number; h: number } | null {
+  return b.kind === 'theater' ? { x0: b.x + 10, x1: b.x + b.w - 10, h: L.marquee } : null;
+}
+
+/** 아파트 비상계단: 오른쪽 기둥 하나, 2층부터 층마다 발판 높이 */
+export function escapeOf(b: FrontBuildingPlace): { x0: number; x1: number; landings: number[] } | null {
+  if (b.kind !== 'apartment') return null;
+  const x0 = b.x + b.w - L.escapeW - 8;
+  const landings: number[] = [];
+  for (let f = 2; f <= b.floors; f++) landings.push(SHOP_H + (f - 2) * FLOOR_H + L.escapeAbove);
+  return { x0, x1: x0 + L.escapeW, landings };
+}
 
 export type BreakableKind = 'car' | 'lamp' | 'glass' | 'newsstand' | 'hydrant';
 
@@ -112,7 +136,7 @@ export const BREAKABLES: readonly Breakable[] = (() => {
   for (const x of B.cars) list.push({ kind: 'car', x, w: B.car.w, h: B.car.h, bottom: 0, hp: B.car.hp });
   for (const x of LAMPS) list.push({ kind: 'lamp', x: x - B.lamp.w / 2, w: B.lamp.w, h: B.lamp.h, bottom: 0, hp: B.lamp.hp });
   for (const b of frontBuildings()) {
-    if (b.kind !== 'shop') continue;
+    if (!hasShopWindow(b)) continue;
     const g = shopWindow(b);
     list.push({ kind: 'glass', x: g.x, w: g.w, h: B.glass.h, bottom: GLASS_BOTTOM, hp: B.glass.hp });
   }
@@ -182,3 +206,46 @@ export function chunkStage(hp: number): 0 | 1 | 2 | 3 | 4 {
   if (hp <= CITY.crackAt) return 1;
   return 0;
 }
+
+// ---------------------------------------------------------------- 발판 (한 방향: 위에서 내려올 때만 선다)
+export type SurfaceTier = 'mid' | 'roof';
+export type SurfaceKind = 'awning' | 'marquee' | 'escape' | 'landing' | 'roof' | 'terrace' | 'tower' | 'gallery';
+
+/**
+ * 발판 하나: x0 ~ x1 (px), 바닥에서 높이 h. b는 붙어 있는 부서지는 건물 번호 (그 자리 덩어리가 무너지면 발판도 없다).
+ * b가 -1이면 부서지지 않는 것 (시타델 본관 계단참, 기둥탑, 등대).
+ * 높이 세 층: 지상(0), 중층(차양·비상계단·계단참), 옥상(지붕·테라스·기둥탑 꼭대기·등대 둘레).
+ */
+export interface Surface {
+  x0: number;
+  x1: number;
+  h: number;
+  tier: SurfaceTier;
+  kind: SurfaceKind;
+  b: number;
+}
+
+export const SURFACES: readonly Surface[] = (() => {
+  const out: Surface[] = [];
+  FRONT.forEach((b, bi) => {
+    const a = awningOf(b);
+    if (a) out.push({ ...a, tier: 'mid', kind: 'awning', b: bi });
+    const m = marqueeOf(b);
+    if (m) out.push({ ...m, tier: 'mid', kind: 'marquee', b: bi });
+    const e = escapeOf(b);
+    if (e) for (const h of e.landings) out.push({ x0: e.x0, x1: e.x1, h, tier: 'mid', kind: 'escape', b: bi });
+    out.push({ x0: b.x, x1: b.x + b.w, h: b.h, tier: 'roof', kind: 'roof', b: bi });
+  });
+  const P = D.plaza;
+  out.push({ x0: P.landing.x0, x1: P.landing.x1, h: P.landing.h, tier: 'mid', kind: 'landing', b: -1 });
+  for (const t of P.towers) {
+    const T = P.tower;
+    out.push({ x0: t.x - T.terraceOver, x1: t.x + T.w + T.terraceOver, h: T.terrace, tier: 'roof', kind: 'terrace', b: -1 });
+    out.push({ x0: t.x, x1: t.x + T.w, h: T.h, tier: 'roof', kind: 'tower', b: -1 });
+  }
+  const H = D.pier.lighthouse;
+  const cx = H.x + H.w / 2;
+  out.push({ x0: cx - H.balconyW / 2, x1: cx + H.balconyW / 2, h: H.balcony, tier: 'mid', kind: 'gallery', b: -1 });
+  out.push({ x0: cx - H.galleryW / 2, x1: cx + H.galleryW / 2, h: H.gallery, tier: 'roof', kind: 'gallery', b: -1 });
+  return out;
+})();

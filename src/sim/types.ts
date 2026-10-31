@@ -61,6 +61,10 @@ export interface Fighter {
   propHits: number[];
   /** 이번에 날아가는 동안 이미 깎은 건물 덩어리 번호들 */
   cityHits: number[];
+  /** 서 있는 바닥의 y (0 땅, 음수면 발판 위). 떠 있는 동안은 0 */
+  floor: number;
+  /** ↓+점프로 발판에서 내려온 뒤 발판을 지나치는 남은 틱 */
+  dropT: number;
 }
 
 /** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */
@@ -70,7 +74,7 @@ export interface CityState {
   collapses: Array<{ b: number; c0: number; c1: number; tick: number }>;
 }
 
-/** 부서지는 물건 하나의 상태. 위치·크기는 stage/downtown.ts의 BREAKABLES[번호] */
+/** 부서지는 물건 하나의 상태. 위치·크기는 stage/citadel.ts의 BREAKABLES[번호] */
 export interface PropState {
   hp: number;
   /** 0 멀쩡, 1 망가짐, 2 파괴 */
