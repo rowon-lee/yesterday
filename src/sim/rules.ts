@@ -55,14 +55,14 @@ export const STUN_DECAY_MIN = 50;
 export const TECH_HITS = 5;
 export const TECH_TICKS = 14;
 /** 낙법: 뒤로 몸을 돌려 빠져나가는 속도 */
-export const TECH_VX = px(1.5);
-export const TECH_VY = px(-3);
+export const TECH_VX = px(1.8);
+export const TECH_VY = px(-3.6);
 /** 공중에서 맞을 때마다 더 빨리 떨어진다 (맞은 횟수당 중력 추가, 상한) */
 export const JUGGLE_GRAVITY_PER_HIT = px(0.02);
 export const JUGGLE_GRAVITY_MAX = px(0.2);
-export const AIR_HIT_DEFAULT = { vx: 1.0, vy: -2.4 };
-export const SPIKE_VY = px(6);
-export const BOUNCE_VY = px(-2.8);
+export const AIR_HIT_DEFAULT = { vx: 1.2, vy: -2.9 };
+export const SPIKE_VY = px(7.5);
+export const BOUNCE_VY = px(-3.4);
 
 export const KNOCKDOWN_TICKS = 40;
 export const GETUP_TICKS = 26;

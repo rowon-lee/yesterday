@@ -34,7 +34,7 @@ function roll(cpu: CpuState, n: number): number {
   return r.value % n;
 }
 
-const NEUTRAL_GROUND = new Set(['idle', 'walk', 'guard', 'land', 'getup']);
+const NEUTRAL_GROUND = new Set(['idle', 'run', 'guard', 'land', 'getup']);
 
 export function cpuInput(cpu: CpuState, s: SimState, side: 0 | 1): PlayerInput {
   const me = s.fighters[side];

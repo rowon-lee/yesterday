@@ -2,7 +2,7 @@ import type { MoveId } from '../data/moves/base';
 
 /** 싸우는 사람의 상태 이름 */
 export type Mode =
-  | 'idle' | 'walk' | 'guard' | 'blockstun' | 'crush'
+  | 'idle' | 'run' | 'guard' | 'blockstun' | 'crush'
   | 'jumpsquat' | 'air' | 'land' | 'dash' | 'airdash'
   | 'attack' | 'hitstun' | 'airhit' | 'knockdown' | 'getup' | 'tech'
   | 'ko' | 'win';
@@ -47,8 +47,8 @@ export interface Fighter {
   bounce: boolean;
   /** 세게 맞은 경직 (그림 선택용) */
   heavyHit: boolean;
-  /** 걷기 그림을 넘기는 누적 거리 */
-  walkDist: number;
+  /** 뛰기 그림을 넘기는 누적 거리 */
+  runDist: number;
   wins: number;
   /** 공격 버튼을 누른 순간의 위·아래 방향 (미리 눌러 둔 공격이 나중에 나가도 방향을 지킨다) */
   atkDir: number;

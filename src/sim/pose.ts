@@ -27,13 +27,13 @@ function pick(f: Fighter): [string, number] {
   switch (f.mode) {
     case 'idle':
       return loop('base/idle', f.t);
-    case 'walk': {
-      // 걸은 거리로 프레임을 넘긴다 (발이 미끄러지지 않게)
+    case 'run': {
+      // 뛴 거리로 프레임을 넘긴다 (발이 미끄러지지 않게)
       const fwd = f.dir > 0;
-      const cycle = fwd ? STATS.walkCycle : STATS.walkBackCycle;
-      const n = motionFrames('base/walk_f').dur.length;
-      const i = Math.floor(((f.walkDist % cycle) * n) / cycle);
-      return [fwd ? 'base/walk_f' : 'base/walk_b', i];
+      const cycle = fwd ? STATS.runCycle : STATS.runBackCycle;
+      const n = motionFrames('base/run_f').dur.length;
+      const i = Math.floor(((f.runDist % cycle) * n) / cycle);
+      return [fwd ? 'base/run_f' : 'base/run_b', i];
     }
     case 'guard':
       return once('base/guard', f.t);

@@ -45,41 +45,41 @@ export interface MoveData {
   cutin?: string;
 }
 
-const LIGHT = { guardDamage: 10, hitstun: 16, blockstun: 12, hitstop: 7, push: 1.0 };
+const LIGHT = { guardDamage: 10, hitstun: 16, blockstun: 12, hitstop: 7, push: 1.3 };
 
 /** 기본 스틱맨의 기술. 기술 A·B·필살은 캐릭터를 얹기 전까지 쓸 임시 기술이다. */
 export const BASE_MOVES = {
   atk1: { motion: 'base/atk1', active: [4, 5], limb: ['eF', 'hF'], damage: 40, ...LIGHT },
-  atk2: { motion: 'base/atk2', active: [4, 5], limb: ['eB', 'hB'], damage: 45, ...LIGHT, step: { from: 2, to: 4, speed: 1.4 } },
+  atk2: { motion: 'base/atk2', active: [4, 5], limb: ['eB', 'hB'], damage: 45, ...LIGHT, step: { from: 2, to: 4, speed: 2.0 } },
   atk3: {
-    motion: 'base/atk3', active: [5, 6], limb: ['kF', 'fF'], damage: 55, ...LIGHT, hitstun: 19, hitstop: 8, push: 1.2,
-    step: { from: 2, to: 5, speed: 1.6 },
+    motion: 'base/atk3', active: [5, 6], limb: ['kF', 'fF'], damage: 55, ...LIGHT, hitstun: 19, hitstop: 8, push: 1.5,
+    step: { from: 2, to: 5, speed: 2.2 },
   },
   atk4: {
     motion: 'base/atk4', active: [6, 7], limb: ['eF', 'hF'], damage: 80, guardDamage: 22,
-    hitstun: 26, blockstun: 16, hitstop: 11, push: 3.4, heavy: true, step: { from: 4, to: 7, speed: 2.2 },
-    launch: { vx: 3.2, vy: -2.4 },
+    hitstun: 26, blockstun: 16, hitstop: 11, push: 4.2, heavy: true, step: { from: 4, to: 7, speed: 3.2 },
+    launch: { vx: 4.0, vy: -2.9 },
   },
   launcher: {
     motion: 'base/launcher', active: [4, 5, 6], limb: ['eF', 'hF'], damage: 60, guardDamage: 16,
-    hitstun: 30, blockstun: 14, hitstop: 9, push: 1.2, launch: { vx: 0.6, vy: -6.2 }, jumpCancel: true,
-    step: { from: 2, to: 5, speed: 1.6 },
+    hitstun: 30, blockstun: 14, hitstop: 9, push: 1.5, launch: { vx: 0.6, vy: -7.4 }, jumpCancel: true,
+    step: { from: 2, to: 5, speed: 2.2 },
   },
   sweep: {
     motion: 'base/sweep', active: [4, 5, 6], limb: ['kF', 'fF'], damage: 60, guardDamage: 16,
-    hitstun: 20, blockstun: 14, hitstop: 9, push: 1.6, knockdown: true, step: { from: 2, to: 5, speed: 1.2 },
+    hitstun: 20, blockstun: 14, hitstop: 9, push: 2.0, knockdown: true, step: { from: 2, to: 5, speed: 1.8 },
   },
   air1: {
     motion: 'base/air1', active: [3, 4], limb: ['eF', 'hF'], damage: 35, guardDamage: 10,
-    hitstun: 22, blockstun: 12, hitstop: 7, push: 1.0, launch: { vx: 0.6, vy: -2.4 }, air: true, jumpCancel: true, airFollow: -1.6,
+    hitstun: 22, blockstun: 12, hitstop: 7, push: 1.0, launch: { vx: 0.7, vy: -2.9 }, air: true, jumpCancel: true, airFollow: -1.9,
   },
   air2: {
     motion: 'base/air2', active: [3, 4], limb: ['kF', 'fF'], damage: 40, guardDamage: 10,
-    hitstun: 22, blockstun: 12, hitstop: 7, push: 1.0, launch: { vx: 0.6, vy: -2.4 }, air: true, jumpCancel: true, airFollow: -1.6,
+    hitstun: 22, blockstun: 12, hitstop: 7, push: 1.0, launch: { vx: 0.7, vy: -2.9 }, air: true, jumpCancel: true, airFollow: -1.9,
   },
   air3: {
     motion: 'base/air3', active: [4, 5], limb: ['kF', 'fF'], damage: 55, guardDamage: 14,
-    hitstun: 26, blockstun: 14, hitstop: 9, push: 1.4, launch: { vx: 2.2, vy: -2.0 }, air: true, airFollow: -1.0,
+    hitstun: 26, blockstun: 14, hitstop: 9, push: 1.8, launch: { vx: 3.0, vy: -2.4 }, air: true, airFollow: -1.2,
   },
   slam: {
     motion: 'base/slam', active: [5, 6, 7], limb: ['eF', 'hF'], damage: 70, guardDamage: 18,
@@ -87,17 +87,17 @@ export const BASE_MOVES = {
   },
   skillA: {
     motion: 'base/skill_a', active: [4, 5, 6, 7, 8], limb: ['eF', 'hF'], damage: 90, guardDamage: 25,
-    hitstun: 28, blockstun: 16, hitstop: 10, push: 2.6, launch: { vx: 2.6, vy: -3.6 },
-    step: { from: 2, to: 8, speed: 5.5 }, meterCost: 1, alsoAir: true, heavy: true,
+    hitstun: 28, blockstun: 16, hitstop: 10, push: 3.2, launch: { vx: 3.4, vy: -4.3 },
+    step: { from: 2, to: 8, speed: 7.0 }, meterCost: 1, alsoAir: true, heavy: true,
   },
   skillB: {
     motion: 'base/skill_b', active: [5, 6], damage: 50, guardDamage: 30,
-    hitstun: 24, blockstun: 20, hitstop: 10, push: 5.0, launch: { vx: 4.0, vy: -2.4 }, meterCost: 1, fromGuard: true, heavy: true,
+    hitstun: 24, blockstun: 20, hitstop: 10, push: 6.0, launch: { vx: 5.0, vy: -2.9 }, meterCost: 1, fromGuard: true, heavy: true,
   },
   super: {
     motion: 'base/super', active: [6, 7, 8], limb: ['eF', 'hF'], damage: 280, guardDamage: 60,
-    hitstun: 40, blockstun: 24, hitstop: 12, push: 3.0, launch: { vx: 4.4, vy: -4.4 },
-    step: { from: 4, to: 8, speed: 3.0 }, meterCost: 3, heavy: true, cutin: 'SUPER',
+    hitstun: 40, blockstun: 24, hitstop: 12, push: 3.6, launch: { vx: 5.6, vy: -5.2 },
+    step: { from: 4, to: 8, speed: 4.0 }, meterCost: 3, heavy: true, cutin: 'SUPER',
   },
 } as const satisfies Record<string, MoveData>;
 

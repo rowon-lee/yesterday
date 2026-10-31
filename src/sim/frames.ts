@@ -91,10 +91,10 @@ export function moveHitBox(mv: Move, t: number): Box | null {
 /** 능력치 (1/256px 정수) */
 export const STATS = {
   hp: BASE_STATS.hp,
-  walkForward: px(BASE_STATS.walkForward),
-  walkBack: px(BASE_STATS.walkBack),
-  walkCycle: px(BASE_STATS.walkCycle),
-  walkBackCycle: px(BASE_STATS.walkBackCycle),
+  runForward: px(BASE_STATS.runForward),
+  runBack: px(BASE_STATS.runBack),
+  runCycle: px(BASE_STATS.runCycle),
+  runBackCycle: px(BASE_STATS.runBackCycle),
   jumpSquat: BASE_STATS.jumpSquat,
   jumpVy: -px(BASE_STATS.jumpVy),
   jumpVx: px(BASE_STATS.jumpVx),

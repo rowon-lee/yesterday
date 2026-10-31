@@ -2,7 +2,7 @@ import type { TickInput } from '../core/input';
 import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import { drawCutin } from '../render/cutin';
-import { Effects } from '../render/effects';
+import { drawDust, Effects, type Dust } from '../render/effects';
 import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
@@ -10,8 +10,10 @@ import { drawStage, GROUND_Y } from '../render/stage';
 import { drawText, textWidth } from '../render/font';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT,
-  IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, RULES, step, type CpuState, type Fighter, type PlayerInput, type SimState,
+  IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
+  type SimState,
 } from '../sim';
+import type { LookName } from '../anim/skeleton';
 import type { Scene } from './scene';
 
 /**
@@ -60,6 +62,10 @@ export function fightScene(): Scene {
   let fx: Effects;
   let hud: Hud;
   let cutin: { who: number; text: string; t: number } | null = null;
+  // 렌더 전용: 잔상용 지난 모습, 흙먼지, 직전 상태
+  let trails: Snapshot[][] = [[], []];
+  let dust: Dust[] = [];
+  let prev: Array<{ mode: Mode; air: boolean; step: number }> = [];
 
   const reset = () => {
     s = createState(seed);
@@ -68,10 +74,34 @@ export function fightScene(): Scene {
     hud = new Hud();
     hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', 'CPU'];
     cutin = null;
+    trails = [[], []];
+    dust = [];
+    prev = s.fighters.map((f) => ({ mode: f.mode, air: f.y < 0, step: 0 }));
   };
   reset();
   // 확인 도구가 읽는 값
   (window as unknown as { __fight: () => SimState }).__fight = () => s;
+
+  /** 잔상을 남기고, 착지·대시·박차고 뛰는 순간에 흙먼지를 일으킨다 */
+  const watchMotion = () => {
+    s.fighters.forEach((f, i) => {
+      const p = fighterPose(f);
+      trails[i].push({ motion: p.motion, frame: p.frame, x: f.x, y: f.y, facing: f.facing, fast: isFast(f) });
+      if (trails[i].length > 8) trails[i].shift();
+      const was = prev[i];
+      const x = f.x / 256;
+      const air = f.y < 0;
+      if (was.air && !air) dust.push({ x, y: 0, dir: 0, t: 0, life: 14 });
+      if (f.mode === 'dash' && was.mode !== 'dash') dust.push({ x, y: 0, dir: -f.facing * f.dir, t: 0, life: 12 });
+      // 뛰는 중에는 발이 땅을 박찰 때마다 (반 바퀴마다) 뒤로 먼지
+      const half = (f.dir > 0 ? STATS.runCycle : STATS.runBackCycle) / 2;
+      const stepNo = Math.floor(f.runDist / half);
+      if (f.mode === 'run' && stepNo !== was.step) dust.push({ x, y: 0, dir: -f.facing * f.dir, t: 0, life: 10 });
+      prev[i] = { mode: f.mode, air, step: stepNo };
+    });
+    for (const d of dust) d.t++;
+    dust = dust.filter((d) => d.t < d.life);
+  };
 
   const camera = () => {
     const mid = (s.fighters[0].x + s.fighters[1].x) / 2 / 256;
@@ -94,6 +124,7 @@ export function fightScene(): Scene {
       fx.tick();
       hud.tick(s);
       for (const e of s.events) if (e.type === 'cutin') cutin = { who: e.who, text: e.text ?? '', t: 0 };
+      watchMotion();
       if (cutin) {
         cutin.t++;
         if (s.freeze === 0) cutin = null;
@@ -115,6 +146,14 @@ export function fightScene(): Scene {
         ctx.fillStyle = COLORS.ink;
         ctx.fillRect(sx - (w >> 1), GROUND_Y, w, 2);
       }
+      drawDust(ctx, dust, toScreen);
+      // 빠르게 움직이면 지난 모습 두 개를 잔상으로 (디더링)
+      trails.forEach((tr, i) => {
+        for (const back of [6, 3]) {
+          const g = tr[tr.length - 1 - back];
+          if (g && tr[tr.length - 1].fast && g.fast) drawGhost(ctx, g, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6);
+        }
+      });
       // 맞고 있는 쪽을 뒤에, 공격하는 쪽을 앞에
       const order = [...s.fighters].sort((a, b) => Number(a.mode === 'attack') - Number(b.mode === 'attack'));
       for (const f of order) drawFighter(ctx, f, s.fighters.indexOf(f), toScreen, s.tick);
@@ -135,6 +174,54 @@ export function fightScene(): Scene {
       }
     },
   };
+}
+
+interface Snapshot {
+  motion: string;
+  frame: number;
+  x: number;
+  y: number;
+  facing: 1 | -1;
+  fast: boolean;
+}
+
+/** 잔상을 남길 만큼 빠른가: 대시, 공중 대시, 3px/틱 이상으로 움직일 때 */
+function isFast(f: Fighter): boolean {
+  return f.mode === 'dash' || f.mode === 'airdash' || Math.abs(f.vx) >= 3 * 256;
+}
+
+const ghostCanvas = document.createElement('canvas');
+ghostCanvas.width = 64;
+ghostCanvas.height = 64;
+/** 바둑판 무늬 (반투명 대신 디더링) */
+const checker = (() => {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d')!;
+  for (let y = 0; y < 64; y++) for (let x = y & 1; x < 64; x += 2) g.fillRect(x, y, 1, 1);
+  return c;
+})();
+
+function drawGhost(
+  ctx: CanvasRenderingContext2D,
+  g: Snapshot,
+  look: LookName,
+  toScreen: (x: number, y: number) => [number, number],
+  faint: boolean,
+) {
+  const m = motionByName.get(g.motion)!;
+  const gc = ghostCanvas.getContext('2d')!;
+  gc.globalCompositeOperation = 'source-over';
+  gc.clearRect(0, 0, 64, 64);
+  m.draw(gc, g.frame, 0, 0, { look, flip: g.facing < 0 });
+  gc.globalCompositeOperation = 'destination-in';
+  gc.drawImage(checker, 0, 0);
+  gc.globalCompositeOperation = 'source-over';
+  // 더 오래된 잔상은 한 줄 걸러 지워 더 옅게
+  if (faint) for (let y = 0; y < 64; y += 2) gc.clearRect(0, y, 64, 1);
+  const [sx, sy] = toScreen(g.x / 256, g.y / 256);
+  ctx.drawImage(ghostCanvas, sx - FOOT_X, sy - FOOT_Y);
 }
 
 function drawFighter(

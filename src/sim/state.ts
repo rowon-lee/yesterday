@@ -17,7 +17,7 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
     move: null, moveHit: false, moveConnected: false, queued: null, dir: 1, jumpKind: 0,
     hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
-    walkDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0,
+    runDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0,
   };
 }
 
@@ -158,7 +158,7 @@ function roundFlow(s: SimState): void {
       const w = s.roundWinner;
       if (w >= 0 && s.phaseT >= 60) {
         const f = s.fighters[w];
-        if (f.mode !== 'win' && !isAirborne(f) && ['idle', 'walk', 'guard', 'land', 'attack', 'blockstun', 'hitstun', 'dash'].includes(f.mode)) {
+        if (f.mode !== 'win' && !isAirborne(f) && ['idle', 'run', 'guard', 'land', 'attack', 'blockstun', 'hitstun', 'dash'].includes(f.mode)) {
           setMode(f, 'win');
           f.vx = 0;
         }

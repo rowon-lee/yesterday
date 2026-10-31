@@ -24,6 +24,9 @@ export interface Look {
 export const LOOKS = {
   p1: { outline: 'ink', shadow: 'goldDark', base: 'gold', light: 'goldLight' },
   p2: { outline: 'ink', shadow: 'skyDark', base: 'sky', light: 'skyLight' },
+  /** 잔상 (대시·돌진할 때 뒤에 남는 그림자) */
+  ghost1: { outline: 'goldDark', shadow: 'goldDark', base: 'goldDark', light: 'goldDark' },
+  ghost2: { outline: 'skyDark', shadow: 'skyDark', base: 'skyDark', light: 'skyDark' },
   /** 맞은 순간 하얗게 번쩍임 */
   flash: { outline: 'ink', shadow: 'white', base: 'white', light: 'white' },
 } as const satisfies Record<string, Look>;

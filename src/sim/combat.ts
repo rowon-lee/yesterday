@@ -111,8 +111,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   const airborne = isAirborne(def) || def.mode === 'airhit';
   if (def.hp <= 0) {
     setMode(def, 'ko');
-    def.vx = dir * px(2.2);
-    def.vy = px(-3.6);
+    def.vx = dir * px(2.8);
+    def.vy = px(-4.3);
     def.y = Math.min(def.y, -1);
     def.invuln = 1;
     s.events.push({ type: 'ko', who, x: def.x, y: def.y });
@@ -120,14 +120,14 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   }
   if (d.spike && airborne) {
     setMode(def, 'airhit', d.hitstun);
-    def.vx = dir * px(0.5);
+    def.vx = dir * px(0.6);
     def.vy = SPIKE_VY;
     def.bounce = true;
     return;
   }
   if (airborne || mv.launch || d.knockdown || d.spike) {
     const v = mv.launch ?? (d.knockdown || d.spike
-      ? { vx: px(1.0), vy: px(-2.2) }
+      ? { vx: px(1.3), vy: px(-2.6) }
       : { vx: px(AIR_HIT_DEFAULT.vx), vy: px(AIR_HIT_DEFAULT.vy) });
     setMode(def, 'airhit', d.hitstun);
     def.vx = dir * v.vx;

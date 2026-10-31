@@ -74,3 +74,30 @@ export class Effects {
     }
   }
 }
+
+/** 흙먼지: 착지·대시·박차고 뛸 때 발밑에서 퍼지는 작은 점들 (렌더 전용) */
+export interface Dust {
+  x: number;
+  y: number;
+  /** 퍼지는 방향 (-1 왼쪽, 1 오른쪽, 0 양쪽) */
+  dir: number;
+  t: number;
+  life: number;
+}
+
+export function drawDust(ctx: CanvasRenderingContext2D, list: readonly Dust[], toScreen: (x: number, y: number) => [number, number]): void {
+  ctx.fillStyle = COLORS.smog3;
+  for (const d of list) {
+    const [sx, sy] = toScreen(d.x, d.y);
+    const k = d.t / d.life;
+    const spread = Math.round(3 + k * 10);
+    const rise = Math.round(k * 4);
+    const size = k < 0.6 ? 2 : 1;
+    const dirs = d.dir === 0 ? [-1, 1] : [d.dir];
+    for (const s of dirs) {
+      ctx.fillRect(sx + s * spread, sy - 1 - rise, size, size);
+      ctx.fillRect(sx + s * Math.round(spread * 0.6), sy - 2 - Math.round(rise * 1.5), size, size);
+      ctx.fillRect(sx + s * Math.round(spread * 0.3), sy - 1 - Math.round(rise * 0.5), 1, 1);
+    }
+  }
+}

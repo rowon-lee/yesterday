@@ -2,22 +2,22 @@ import type { MotionData } from '../../anim/motion';
 import type { Pose } from '../../anim/pose';
 import { STANCE } from './stance';
 
-/** 숨을 내쉰 자세: 엉덩이가 내려가고 몸통이 숙여지고 팔이 처진다. */
-const EXHALE: Pose = {
+/** 내려앉은 자세: 무릎을 더 굽히고 팔이 따라 내려간다 */
+const DIP: Pose = {
   ...STANCE,
-  hy: -20.1, tl: 7.2, hd: 3,
-  aFx: 7.6, aFy: -3.2, aBy: -1,
+  hy: -17.5, tl: 13, hd: 3,
+  aFx: 10.5, aFy: 8.5, aBy: 14,
 };
 
-/** 대기. 12프레임 × 5틱 = 1초에 한 번 숨쉬기. */
+/** 대기. 제자리에서 가볍게 들썩인다. 12프레임 × 4틱 = 0.8초에 한 번. */
 export const IDLE: MotionData = {
   name: 'base/idle',
   label: '대기',
   loop: true,
-  dur: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+  dur: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
   keys: [
     { at: 0, pose: STANCE },
-    { at: 6, pose: EXHALE },
+    { at: 6, pose: DIP },
     { at: 12, pose: STANCE },
   ],
 };
