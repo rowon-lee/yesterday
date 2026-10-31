@@ -32,6 +32,16 @@ export const START_GAP = px(120);
 /** ↓+점프로 발판에서 내려온 뒤 이 틱 동안은 발판을 지나친다 (바닥에는 선다) */
 export const DROP_TICKS = 10;
 
+// 벽 기동 (기획서 '벽 기동과 구조물')
+/** 벽에 붙었을 때 몸 가운데와 벽 면 사이 (벽 기동 그림의 벽 면 자리와 같다) */
+export const WALL_REACH = px(7);
+/** 벽을 잡는 높이: 발밑에서 이만큼 위 (손이 벽에 닿아야 붙는다. 벽 아래 끝보다 발이 이만큼 내려가면 떨어진다) */
+export const WALL_GRAB_H = 30;
+/** 같은 벽은 연속 이만큼까지만 딛는다 */
+export const SAME_WALL_MAX = 2;
+/** 벽에서 손을 놓을 때 벽 반대쪽으로 밀려나는 속도 */
+export const WALL_PUSH = px(1.2);
+
 // 방어
 export const GUARD_MAX = 100;
 /** 막지 않은 채 이만큼 지나면 내구도가 차기 시작 */

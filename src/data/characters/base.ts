@@ -32,4 +32,7 @@ export const BASE_STATS = {
   landTicks: 3,
   /** 공중 공격 중 착지했을 때 */
   airAttackLandTicks: 5,
+  /** 벽 붙기: 미끄러지는 최고 속도와 가속 (붙는 순간 멈췄다가 천천히 빨라진다) */
+  wallSlide: 1.2,
+  wallSlideAccel: 0.06,
 } as const;

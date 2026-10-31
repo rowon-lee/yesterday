@@ -2,7 +2,7 @@ import {
   BIG, BREAK_RULES, CHUNK, chunkIndex, CITY_RULES, CONTAINER_TOP, DYNAMIC_WALL_ID, GRIDS, rubbleOf, SURFACES, tramLying, tramRestX, WALLS,
   type Holder, type Surface, type Wall,
 } from '../stage/citadel';
-import { px, WALL_L } from './rules';
+import { px, WALL_L, WALL_REACH } from './rules';
 import type { SimState } from './types';
 
 /**
@@ -84,6 +84,33 @@ export function wallsOf(s: SimState): Wall[] {
 export function wallSolid(s: SimState, w: Wall, hgt: number): boolean {
   if (hgt < w.h0 || hgt >= w.h1 || !present(s, w)) return false;
   return w.b < 0 || chunkStanding(s, w.b, w.side < 0 ? w.x : w.x - 1, hgt);
+}
+
+/**
+ * 공중에서 dir 쪽(1 오른쪽, -1 왼쪽)을 누를 때 붙을 수 있는 벽 (x: 1/256px, grab: 손이 닿는 높이 px). 없으면 null.
+ * 벽을 누르는 쪽에서 몸 가운데가 벽 면에서 WALL_REACH(+slack) 안에 들어와 있고(벽 안으로 깊이 들어가 있지는 않고),
+ * 손 높이에 벽이 서 있어야 한다. 가까운 벽부터. slack은 미리 보기용 (CPU가 벽 가까이 왔는지 본다)
+ */
+export function findWall(s: SimState, x: number, grab: number, dir: number, slack = 0): Wall | null {
+  let best: Wall | null = null;
+  let bestD = Infinity;
+  for (const w of wallsOf(s)) {
+    if (w.side !== -dir || !wallSolid(s, w, grab)) continue;
+    const wx = px(w.x);
+    // 벽 앞 붙는 자리까지 남은 거리 (벽 쪽으로 + 방향)
+    const d = (wx - x) * dir - WALL_REACH;
+    if (d > px(2 + slack) || d < -WALL_REACH - px(2)) continue;
+    if (Math.abs(d) < bestD) {
+      bestD = Math.abs(d);
+      best = w;
+    }
+  }
+  return best;
+}
+
+/** 붙어 있는 벽(번호·붙은 쪽·x px)이 높이 grab(px)에서 아직 서 있는가 (무너지거나 끝나면 false) */
+export function wallHolds(s: SimState, id: number, side: number, x: number, grab: number): boolean {
+  return wallsOf(s).some((w) => w.id === id && w.side === side && w.x === x && wallSolid(s, w, grab));
 }
 
 /** 서쪽 끝 (1/256px): 컨테이너 더미 높이 위에서는 더미 위까지 갈 수 있다 */

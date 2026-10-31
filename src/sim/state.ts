@@ -21,7 +21,7 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
     hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
     runDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
-    wallFly: false,
+    wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0,
   };
 }
 

@@ -3,11 +3,11 @@ import { MOVES, STATS } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
-import { canDropThrough, floorBelow, landingY } from './platforms';
+import { canDropThrough, findWall, floorBelow, landingY, wallHolds } from './platforms';
 import {
   BOUNCE_VY, BUFFER_TICKS, DROP_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
-  JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
-  px,
+  JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SAME_WALL_MAX, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
+  WALL_GRAB_H, WALL_PUSH, WALL_REACH, px,
 } from './rules';
 import type { Fighter, Mode, SimState } from './types';
 
@@ -61,7 +61,7 @@ function fallOff(f: Fighter): void {
 }
 
 /** 조작을 받는 상태 (콤보가 끝난 것으로 본다) */
-const NEUTRAL: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'air', 'land', 'dash', 'airdash', 'jumpsquat', 'attack']);
+const NEUTRAL: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'air', 'land', 'dash', 'airdash', 'jumpsquat', 'attack', 'wallcling']);
 
 /** 눌린 버튼을 버퍼에 담는다 (멈춰 있는 동안에도 눌림은 기억). */
 export function readButtons(f: Fighter, input: PlayerInput): void {
@@ -196,7 +196,83 @@ function airDrift(f: Fighter, input: PlayerInput): void {
   if (h) f.vx = Math.max(-STATS.airMaxVx, Math.min(STATS.airMaxVx, f.vx + h * STATS.airAccel));
 }
 
+/** 손이 닿는 높이 (발밑에서 WALL_GRAB_H 위, px) */
+const grabH = (f: Fighter): number => Math.round(-f.y / 256) + WALL_GRAB_H;
+
+/**
+ * 벽 붙기 (기획서 '벽 기동과 구조물'): 공중에서 벽 쪽 방향을 누른 채 벽에 닿으면 붙는다.
+ * 벽은 길을 막지 않아서 솟는 중에 닿아도 붙는다 (솟는 힘이 다할 때까지 벽을 타고 오르다 미끄러진다).
+ * 같은 벽은 연속 SAME_WALL_MAX번까지 (땅·발판에 내려서면 처음부터). 벽을 디디면 2단 점프와 공중 대시가 한 번씩 다시 생긴다.
+ */
+function tryCling(s: SimState, f: Fighter, input: PlayerInput): boolean {
+  const dir = (input & IN_RIGHT ? 1 : 0) - (input & IN_LEFT ? 1 : 0);
+  if (!dir) return false;
+  const w = findWall(s, f.x, grabH(f), dir);
+  if (!w || (w.id === f.wallId && f.wallCount >= SAME_WALL_MAX)) return false;
+  // 붙는 자리 바로 아래에 발판이 있으면 (발판 끝에서 걸어 나온 직후 등) 붙지 않는다: 붙자마자 그 발판에 서 버린다
+  const cx = px(w.x) + w.side * WALL_REACH;
+  if (floorBelow(s, cx, f.y) - f.y < px(4)) return false;
+  setMode(f, 'wallcling');
+  f.wallCount = w.id === f.wallId ? f.wallCount + 1 : 1;
+  f.wallId = w.id;
+  f.wallX = w.x;
+  f.wallSide = w.side;
+  f.x = cx;
+  f.vx = 0;
+  // 떨어지던 중이면 멈추고, 솟던 중이면 그 힘이 다할 때까지 벽을 타고 오른다
+  if (f.vy > 0) f.vy = 0;
+  // 벽을 등지고 바깥을 본다
+  f.facing = w.side as 1 | -1;
+  f.airJumpUsed = false;
+  f.airDashUsed = false;
+  s.events.push({ type: 'wallcling', who: s.fighters.indexOf(f), x: px(w.x), y: f.y - px(WALL_GRAB_H), combo: f.wallCount });
+  return true;
+}
+
+/** 벽에서 손을 놓는다: 벽 반대쪽으로 살짝 밀려나며 떨어진다 */
+function letGo(f: Fighter): void {
+  setMode(f, 'air');
+  f.vx = f.wallSide * WALL_PUSH;
+  f.jumpKind = 0;
+}
+
+/**
+ * 벽에 붙은 동안: 솟던 힘이 다하면 멈췄다가 천천히 빨라지며 미끄러진다 (발판·땅에 닿으면 착지).
+ * 벽 쪽 방향을 놓거나 ↓를 누르면, 또는 벽이 끝나거나 무너지면 떨어진다.
+ * 점프·공격·대시는 벽 반대쪽(바라보는 쪽)으로: 지금은 2단 점프·공중 공격·공중 대시를 쓴다 (벽 점프·벽 박차기 공격 동작이 생기면 바뀐다)
+ */
+function clingControl(s: SimState, f: Fighter, input: PlayerInput): void {
+  const toward = f.wallSide < 0 ? IN_RIGHT : IN_LEFT;
+  f.x = px(f.wallX) + f.wallSide * WALL_REACH;
+  f.vx = 0;
+  f.vy = f.vy < 0 ? Math.min(0, f.vy + STATS.gravity) : Math.min(STATS.wallSlide, f.vy + STATS.wallSlideAccel);
+  if (!(input & toward) || input & IN_DOWN || !wallHolds(s, f.wallId, f.wallSide, f.wallX, grabH(f))) {
+    letGo(f);
+    return;
+  }
+  if (trySkills(s, f, true)) return;
+  if (take(f, B_ATTACK)) {
+    letGo(f);
+    startMove(s, f, atkDir(f) & IN_DOWN ? 'slam' : AIR_CHAIN[0]);
+    return;
+  }
+  if (has(f, B_JUMP) && !f.airJumpUsed) {
+    take(f, B_JUMP);
+    letGo(f);
+    doubleJump(f, 0);
+    f.vx = f.facing * STATS.jumpVx;
+    return;
+  }
+  if (has(f, B_DASH) && !f.airDashUsed) {
+    take(f, B_DASH);
+    setMode(f, 'airdash', STATS.airDashTicks);
+    f.dir = 1;
+    f.airDashUsed = true;
+  }
+}
+
 function airControl(s: SimState, f: Fighter, input: PlayerInput): void {
+  if (tryCling(s, f, input)) return;
   airDrift(f, input);
   if (trySkills(s, f, true)) return;
   if (take(f, B_ATTACK)) return startMove(s, f, atkDir(f) & IN_DOWN ? 'slam' : AIR_CHAIN[0]);
@@ -304,6 +380,9 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
     case 'air':
       airControl(s, f, input);
       break;
+    case 'wallcling':
+      clingControl(s, f, input);
+      break;
     case 'airdash':
       if (f.t < STATS.airDashMoveTo) {
         f.vx = f.facing * f.dir * STATS.airDashSpeed;
@@ -407,7 +486,8 @@ export function physics(s: SimState, f: Fighter): void {
   if (f.vy < 0) f.floor = 0;
   const airborne = isAirborne(f);
   if (!airborne && f.vy > 0) f.vy = 0;
-  if (airborne && f.mode !== 'airdash') {
+  // 공중 대시는 높이를 지키고, 벽에 붙은 동안은 미끄러지는 속도를 clingControl이 정한다
+  if (airborne && f.mode !== 'airdash' && f.mode !== 'wallcling') {
     let g = STATS.gravity;
     if (f.mode === 'airhit') g += Math.min(JUGGLE_GRAVITY_MAX, f.comboHits * JUGGLE_GRAVITY_PER_HIT);
     f.vy = Math.min(STATS.maxFall + (f.mode === 'airhit' ? 4 * 256 : 0), f.vy + g);
@@ -434,10 +514,15 @@ export function physics(s: SimState, f: Fighter): void {
 }
 
 function land(s: SimState, f: Fighter): void {
+  // 땅·발판에 내려서면 같은 벽을 다시 처음부터 디딜 수 있다
+  f.wallId = -1;
+  f.wallCount = 0;
+  f.wallSide = 0;
   switch (f.mode) {
     case 'air':
     case 'airdash':
     case 'tech':
+    case 'wallcling':
       setMode(f, 'land', STATS.landTicks);
       f.vx = 0;
       break;

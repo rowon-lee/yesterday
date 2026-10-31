@@ -114,4 +114,6 @@ export const STATS = {
   airDashSpeed: px(BASE_STATS.airDashSpeed),
   landTicks: BASE_STATS.landTicks,
   airAttackLandTicks: BASE_STATS.airAttackLandTicks,
+  wallSlide: px(BASE_STATS.wallSlide),
+  wallSlideAccel: px(BASE_STATS.wallSlideAccel),
 };
