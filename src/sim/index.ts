@@ -6,5 +6,6 @@ export { boxesOf } from './combat';
 export { fighterPose } from './pose';
 export { MOVES, STATS } from './frames';
 export * as RULES from './rules';
-export { BREAKABLES } from '../stage/downtown';
-export type { PropState } from './types';
+export { BREAKABLES, CHUNKS, GRIDS, chunkStage } from '../stage/downtown';
+export type { CityState, PropState } from './types';
+export { createCity, damageCity } from './city';

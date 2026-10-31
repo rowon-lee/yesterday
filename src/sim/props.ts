@@ -1,4 +1,5 @@
-import { BREAK_RULES, BREAKABLES } from '../stage/downtown';
+import { BREAK_RULES, BREAKABLES, CITY_RULES } from '../stage/downtown';
+import { damageCity } from './city';
 import { activeHitOf, knockOut, type WBox } from './combat';
 import { MOVES } from './frames';
 import { px } from './rules';
@@ -41,6 +42,8 @@ function damage(s: SimState, i: number, amount: number, dir: number, crash: bool
     p.crashed = crash;
     if (p.damagedAt < 0) p.damagedAt = s.tick;
     s.events.push({ type: 'prop', who: i, x, y, text: 'broken', heavy: crash });
+    // 자동차는 폭발하며 둘레 건물 정면을 크게 깎는다
+    if (b.kind === 'car') damageCity(s, b.x + b.w / 2, b.h / 2, CITY_RULES.explosion.radius, CITY_RULES.explosion.amount, 'explosion');
   } else if (p.stage === 0 && p.hp * 100 < b.hp * BREAK_RULES.damagedAt) {
     p.stage = 1;
     p.damagedAt = s.tick;

@@ -41,6 +41,8 @@ export interface MoveData {
   fromGuard?: boolean;
   /** 공중에서 맞히면 때린 쪽도 맞은 쪽과 함께 떠오른다: 맞은 쪽 속도보다 이만큼 느리게 (px/틱) */
   airFollow?: number;
+  /** 벽 쪽으로 날림: 맞은 쪽 뒤에 건물 정면이 있으면 정면에 박힌다 (벽꽝) */
+  wall?: boolean;
   /** 화면을 어둡게 하고 컷인을 띄운 뒤 발동 */
   cutin?: string;
 }
@@ -58,7 +60,7 @@ export const BASE_MOVES = {
   atk4: {
     motion: 'base/atk4', active: [6, 7], limb: ['eF', 'hF'], damage: 80, guardDamage: 22,
     hitstun: 26, blockstun: 16, hitstop: 11, push: 4.2, heavy: true, step: { from: 4, to: 7, speed: 3.2 },
-    launch: { vx: 8.0, vy: -4.5 },
+    launch: { vx: 8.0, vy: -4.5 }, wall: true,
   },
   launcher: {
     motion: 'base/launcher', active: [4, 5, 6], limb: ['eF', 'hF'], damage: 60, guardDamage: 16,
@@ -92,12 +94,12 @@ export const BASE_MOVES = {
   },
   skillB: {
     motion: 'base/skill_b', active: [5, 6], damage: 50, guardDamage: 30,
-    hitstun: 24, blockstun: 20, hitstop: 10, push: 6.0, launch: { vx: 9.0, vy: -4.5 }, meterCost: 1, fromGuard: true, heavy: true,
+    hitstun: 24, blockstun: 20, hitstop: 10, push: 6.0, launch: { vx: 9.0, vy: -4.5 }, wall: true, meterCost: 1, fromGuard: true, heavy: true,
   },
   super: {
     motion: 'base/super', active: [6, 7, 8], limb: ['eF', 'hF'], damage: 280, guardDamage: 60,
     hitstun: 40, blockstun: 24, hitstop: 12, push: 3.6, launch: { vx: 11.0, vy: -8.0 },
-    step: { from: 4, to: 8, speed: 5.0 }, meterCost: 3, heavy: true, cutin: 'SUPER',
+    step: { from: 4, to: 8, speed: 5.0 }, meterCost: 3, heavy: true, wall: true, cutin: 'SUPER',
   },
 } as const satisfies Record<string, MoveData>;
 

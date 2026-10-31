@@ -41,6 +41,9 @@ function pick(f: Fighter): [string, number] {
       return stretch('base/guard_hit', f.t, f.len);
     case 'crush':
       return stretch('base/guard_crush', f.t, f.len);
+    case 'wallsplat':
+      // 정면에 박혀 팔다리를 벌린 모습 (가드 크러시의 젖혀진 프레임)
+      return ['base/guard_crush', 5];
     case 'jumpsquat':
       return ['base/jump', 0];
     case 'air':

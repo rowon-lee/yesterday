@@ -5,7 +5,9 @@ export type Mode =
   | 'idle' | 'run' | 'guard' | 'blockstun' | 'crush'
   | 'jumpsquat' | 'air' | 'land' | 'dash' | 'airdash'
   | 'attack' | 'hitstun' | 'airhit' | 'knockdown' | 'getup' | 'tech'
-  | 'ko' | 'win';
+  | 'ko' | 'win'
+  /** 벽꽝: 건물 정면에 박혀 잠깐 갇힘 */
+  | 'wallsplat';
 
 /** 직렬화 가능한 평범한 객체. 위치·속도는 1/256px 정수. */
 export interface Fighter {
@@ -57,6 +59,15 @@ export interface Fighter {
   prevInput: number;
   /** 지금 기술이 이미 친 부서지는 물건 번호들 */
   propHits: number[];
+  /** 이번에 날아가는 동안 이미 깎은 건물 덩어리 번호들 */
+  cityHits: number[];
+}
+
+/** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */
+export interface CityState {
+  hp: number[];
+  /** 무너진 기록: 건물 번호, 무너진 칸 범위, 틱 */
+  collapses: Array<{ b: number; c0: number; c1: number; tick: number }>;
 }
 
 /** 부서지는 물건 하나의 상태. 위치·크기는 stage/downtown.ts의 BREAKABLES[번호] */
@@ -80,7 +91,13 @@ export interface SimEvent {
   type:
     | 'hit' | 'block' | 'crush' | 'tech' | 'ko' | 'cutin' | 'round' | 'fight' | 'timeup' | 'winner' | 'launch' | 'knockdown'
     /** 부서지는 물건: who = 물건 번호, text = 'damaged' | 'broken', heavy = 캐릭터가 부딪혀 부서짐 */
-    | 'prop';
+    | 'prop'
+    /** 건물 덩어리가 깎임: text = 원인('hit' | 'fly' | 'explosion' | 'wallsplat'), combo = 깎인 덩어리 수 */
+    | 'city'
+    /** 건물이 무너짐: who = 건물 번호, combo = 무너진 폭(px), text = '첫 칸,끝 칸' */
+    | 'collapse'
+    /** 벽꽝: who = 때린 쪽 */
+    | 'wallsplat';
   /** 한 사람 (때린 쪽, 기술 쓴 쪽, 이긴 쪽) */
   who: number;
   x: number;
@@ -111,4 +128,8 @@ export interface SimState {
   events: SimEvent[];
   /** 부서지는 물건 (라운드마다 새로). 어느 물건이 언제 부서졌는지 양쪽 화면이 같게 보이도록 sim에 둔다 */
   props: PropState[];
+  /** 건물 파괴: 덩어리 내구도와 무너진 기록. 라운드가 넘어가도 유지 */
+  city: CityState;
+  /** 무너질 때 게임 시간이 반 속도로 가는 남은 틱 */
+  slow: number;
 }

@@ -6,6 +6,7 @@ import {
 import {
   BOUNCE_VY, BUFFER_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
   JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
+  px,
 } from './rules';
 import type { Fighter, Mode, SimState } from './types';
 
@@ -316,6 +317,17 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
     case 'tech':
       if (f.t >= f.len) setMode(f, 'air');
       break;
+    case 'wallsplat':
+      // 정면에 박혀 있다가 튕겨 나와 떨어진다
+      f.vx = 0;
+      f.vy = 0;
+      if (f.t >= f.len) {
+        setMode(f, 'airhit', 30);
+        f.vx = f.facing * px(1.6);
+        f.vy = px(-3.5);
+        f.y = Math.min(f.y, -1);
+      }
+      break;
     case 'knockdown':
       f.vx = friction(f.vx);
       f.invuln = Math.max(f.invuln, 1);
@@ -346,6 +358,7 @@ export function frameOf(mv: (typeof MOVES)[MoveId], t: number): number {
 
 /** 이동, 중력, 착지 */
 export function physics(s: SimState, f: Fighter): void {
+  if (f.mode === 'wallsplat') return;
   const airborne = isAirborne(f);
   if (airborne && f.mode !== 'airdash') {
     let g = STATS.gravity;

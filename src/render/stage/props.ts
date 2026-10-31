@@ -1,5 +1,5 @@
-import type { PropState } from '../../sim';
-import { BREAKABLES, GLASS_BOTTOM, GROUND, type Breakable } from '../../stage/downtown';
+import type { CityState, PropState } from '../../sim';
+import { BREAKABLES, CHUNK, chunkIndex, GLASS_BOTTOM, GRIDS, GROUND, type Breakable } from '../../stage/downtown';
 import { drawText } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_W } from '../screen';
@@ -24,9 +24,21 @@ const ORDERED = DRAW_ORDER.flatMap((kind) => BREAKABLES.map((b, i) => [b, i] as 
 
 const INTACT: PropState = { hp: 1, stage: 0, damagedAt: -1, brokenAt: -1, crashed: false, dir: 1 };
 
-export function drawProps(ctx: CanvasRenderingContext2D, cam: Cam, tick: number, props: readonly PropState[] | null): void {
+/** 이 쇼윈도가 붙어 있던 1층 벽이 무너져 사라졌는가 */
+function wallGone(b: Breakable, city: CityState | null): boolean {
+  if (!city) return false;
+  const cx = b.x + b.w / 2;
+  const g = GRIDS.find((gr) => cx >= gr.x && cx < gr.x + gr.w);
+  if (!g) return false;
+  return city.hp[chunkIndex(g, Math.floor((cx - g.x) / CHUNK), 0)] < 0;
+}
+
+export function drawProps(
+  ctx: CanvasRenderingContext2D, cam: Cam, tick: number, props: readonly PropState[] | null, city: CityState | null = null,
+): void {
   ORDERED.forEach(([b, i]) => {
     if (b.x + b.w < cam.x - 60 || b.x > cam.x + SCREEN_W + 60) return;
+    if (b.kind === 'glass' && wallGone(b, city)) return;
     const p = props?.[i] ?? INTACT;
     const since = p.brokenAt >= 0 ? tick - p.brokenAt : 0;
     const sinceDamaged = p.damagedAt >= 0 ? tick - p.damagedAt : 0;

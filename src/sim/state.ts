@@ -2,6 +2,7 @@ import { STATS } from './frames';
 import { faceOpponent, physics, readButtons, setMode, updateFighter, isAirborne } from './fighter';
 import { resolveHits } from './combat';
 import { crashProps, createProps, hitProps } from './props';
+import { createCity, flyThroughCity } from './city';
 import type { PlayerInput } from './input';
 import {
   GUARD_MAX, INTRO_TICKS, MAX_SEPARATION, px, PUSH_H, PUSH_W, ROUND_END_TICKS, ROUND_TICKS, START_GAP,
@@ -18,7 +19,7 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
     move: null, moveHit: false, moveConnected: false, queued: null, dir: 1, jumpKind: 0,
     hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
-    runDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [],
+    runDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [],
   };
 }
 
@@ -28,7 +29,10 @@ export function createState(seed: number): SimState {
     roundWinner: -1, matchWinner: -1,
     fighters: [newFighter(0, 1), newFighter(0, -1)],
     events: [],
-    props: [],
+    // 부서지는 물건과 건물은 라운드가 넘어가도 남는다 (3라운드쯤이면 거리가 폐허). 새 경기에만 새로
+    props: createProps(),
+    city: createCity(),
+    slow: 0,
   };
   resetRound(s);
   return s;
@@ -44,8 +48,6 @@ function resetRound(s: SimState): void {
   s.phaseT = 0;
   s.timer = ROUND_TICKS;
   s.roundWinner = -1;
-  // 잔해는 라운드가 끝날 때까지 남고, 새 라운드에 도시가 다시 멀쩡해진다
-  s.props = createProps();
 }
 
 /** 한 틱 진행. 입력 두 개 → 상태 갱신. 같은 입력이면 언제나 같은 결과. */
@@ -67,6 +69,11 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
     s.freeze--;
     return;
   }
+  // 건물이 무너질 때: 게임 시간이 반 속도 (한 틱 걸러 한 번만 진행)
+  if (s.slow > 0) {
+    s.slow--;
+    if (s.slow % 2 === 1) return;
+  }
 
   const fighting = s.phase === 'fight';
   stepFighter(s, a, inputs[0], fighting);
@@ -75,6 +82,7 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   resolveHits(s);
   crashProps(s);
   hitProps(s);
+  flyThroughCity(s);
   faceOpponent(a, b);
   faceOpponent(b, a);
   roundFlow(s);

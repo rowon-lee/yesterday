@@ -78,8 +78,9 @@ export class VfxLayer {
   }
 
   /** 1틱 진행 (히트스톱 중에도 이펙트는 움직인다) */
-  tick(): void {
-    for (const fx of this.list) fx.update(DT);
+  /** dt: 한 틱의 몇 배만큼 진행할지 (슬로모션이면 0.5) */
+  tick(dt = 1): void {
+    for (const fx of this.list) fx.update(DT * dt);
     this.list = this.list.filter((fx) => !fx.done());
   }
 

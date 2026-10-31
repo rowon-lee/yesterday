@@ -78,6 +78,32 @@ export const DOWNTOWN = {
   },
 
   /**
+   * 건물 파괴 (게임 기획서 '건물 파괴'). 길가 건물 정면을 chunk×chunk px 덩어리로 나눈다.
+   * 내구도 hp에서 crackAt 이하면 금, holeAt 이하면 구멍, 0이면 뚫림. 무너지면 사라진다.
+   */
+  city: {
+    chunk: 16,
+    hp: 100,
+    crackAt: 70,
+    holeAt: 35,
+    /** 센 타격(강타·기술·필살)이 맞은 자리 둘레 */
+    hit: { radius: 12, amount: 35 },
+    /** 날아가는 캐릭터: 이 속도(px/틱) 이상이면 몸이 지나간 덩어리를 깎는다. 깎는 양 = (속도 - min + 1) × per, 최대 max */
+    fly: { minSpeed: 4, per: 8, max: 40 },
+    /** 자동차 폭발 */
+    explosion: { radius: 40, amount: 80 },
+    /** 벽꽝: 정면에 박힌 자리, 추가 피해, 박혀 있는 틱 */
+    wallsplat: { radius: 20, amount: 100, damage: 60, ticks: 40 },
+    /**
+     * 붕괴: 1층(아래 groundRows줄)에서 덩어리가 brokenPerColumn개 이상 뚫린 기둥이 minColumns개 이상 이어지면 그 위가 무너진다.
+     * 한 번에 slowColumns줄 이상 무너질 때만 슬로모션 (옆 기둥이 따라 무너지는 것은 흔들림만)
+     */
+    collapse: { groundRows: 4, brokenPerColumn: 3, minColumns: 4, slowColumns: 3 },
+    /** 무너질 때 게임 시간이 반 속도로 가는 틱 */
+    slowTicks: 40,
+  },
+
+  /**
    * 부서지는 물건 (게임 기획서 '부서지는 것' 표). x는 왼쪽 끝 px.
    * 가스등은 lampEvery 간격으로, 쇼윈도는 길가 건물 1층마다 하나씩 생긴다.
    */

@@ -24,7 +24,7 @@ const sim = await vite.ssrLoadModule('/src/sim/index.ts');
 const R = sim.RULES;
 const HP = sim.createState(0).fighters[0].hp;
 
-const total = { propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
+const total = { cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
 const t0 = Date.now();
 for (let m = 0; m < args.matches; m++) {
   const seed = args.seed + m;
@@ -35,7 +35,7 @@ for (let m = 0; m < args.matches; m++) {
     const ok = a.hash === b && a.hash === c && a.ended && a.problems.length === 0;
     if (!ok) failed++;
     const w = a.winner < 0 ? '무승부' : `${a.winner + 1}P 승`;
-    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
+    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat} | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
     for (const p of a.problems.slice(0, 5)) console.log(`      ${p}`);
     for (const k of Object.keys(a.stats)) if (k !== 'maxCombo') total[k] += a.stats[k];
     total.maxCombo = Math.max(total.maxCombo, a.stats.maxCombo);
@@ -52,6 +52,7 @@ await vite.close();
 console.log(`\n합계 ${args.matches}판 ${total.rounds}라운드 (${(total.ticks / 60 / 60).toFixed(1)}분 분량), ${Date.now() - t0}ms`);
 console.log(`  1P 승 ${total.wins[0]}, 2P 승 ${total.wins[1]}, 무승부 ${total.wins[2]}`);
 console.log(`  히트 ${total.hit}, 방어 ${total.block}, 가드 크러시 ${total.crush}, 띄우기 ${total.launch}, 낙법 ${total.tech}, 다운 ${total.knockdown}, KO ${total.ko}, 시간 초과 ${total.timeup}, 필살 ${total.cutin}, 최대 콤보 ${total.maxCombo}`);
+console.log(`  건물: 깎인 덩어리 ${total.cityChunks}, 붕괴 ${total.collapse}, 벽꽝 ${total.wallsplat}`);
 console.log(`  부서지는 물건: 망가짐 ${total.propDamaged}, 파괴 ${total.propBroken} (그중 날아온 캐릭터에 부딪혀서 ${total.propCrash})`);
 console.log(failed ? `실패 ${failed}건` : '모두 통과');
 process.exit(failed ? 1 : 0);
@@ -62,7 +63,7 @@ function runCpuMatch(seed, ticks) {
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
   const log = [];
   const problems = [];
-  const stats = { propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0 };
+  const stats = { cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0 };
   while (log.length < ticks && state.phase !== 'matchEnd') {
     const inputs = [sim.cpuInput(cpus[0], state, 0), sim.cpuInput(cpus[1], state, 1)];
     log.push(inputs);
@@ -70,6 +71,7 @@ function runCpuMatch(seed, ticks) {
     for (const e of state.events) {
       if (e.type in stats) stats[e.type]++;
       if (e.type === 'hit') stats.maxCombo = Math.max(stats.maxCombo, e.combo);
+      if (e.type === 'city') stats.cityChunks += e.combo;
       if (e.type === 'prop') {
         if (e.text === 'damaged') stats.propDamaged++;
         else {
@@ -103,6 +105,20 @@ function check(s, problems) {
     }
   }
   if (Math.abs(a.x - b.x) > R.MAX_SEPARATION + 256) bad(`둘 사이가 화면 밖 ${Math.abs(a.x - b.x) / 256}px`);
+  if (s.city.hp.length !== sim.CHUNKS.length) bad(`건물 덩어리 수가 다름 ${s.city.hp.length}`);
+  for (let i = 0; i < s.city.hp.length; i++) {
+    const v = s.city.hp[i];
+    if (!Number.isInteger(v) || v < -1 || v > 100) {
+      bad(`덩어리 ${i} 내구도 범위 밖 ${v}`);
+      break;
+    }
+  }
+  for (const c of s.city.collapses) {
+    for (let cc = c.c0; cc <= c.c1; cc++) {
+      const g = sim.GRIDS[c.b];
+      if (s.city.hp[g.first + (g.rows - 1) * g.cols + cc] !== -1) bad(`무너진 기둥 꼭대기가 남아 있음 (건물 ${c.b}, 칸 ${cc})`);
+    }
+  }
   if (s.props.length !== sim.BREAKABLES.length) bad(`부서지는 물건 수가 다름 ${s.props.length}`);
   s.props.forEach((p, i) => {
     const max = sim.BREAKABLES[i].hp;

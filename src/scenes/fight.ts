@@ -176,7 +176,7 @@ export function fightScene(): Scene {
       const [ox, oy] = fx.offset();
       ctx.save();
       ctx.translate(ox, oy);
-      drawStage(ctx, view, s.tick, s.props);
+      drawStage(ctx, view, s.tick, s.props, s.city);
       const toScreen = (x: number, y: number): [number, number] => [Math.round(x - view.x), Math.round(GROUND_Y + y - view.y)];
 
       // 그림자 (높이 뜰수록 작아진다)
@@ -195,6 +195,9 @@ export function fightScene(): Scene {
         }
       });
       vfx.draw(ctx, view, 'back');
+      // 무너지는 건물 조각과 먼지 구름은 캐릭터 뒤에 (앞에는 옅은 먼지만)
+      fightVfx.debris.drawDust(ctx, view, 'back');
+      fightVfx.debris.draw(ctx, view);
       // 맞고 있는 쪽을 뒤에, 공격하는 쪽을 앞에
       const order = [...s.fighters].sort((a, b) => Number(a.mode === 'attack') - Number(b.mode === 'attack'));
       for (const f of order) {
@@ -202,7 +205,7 @@ export function fightScene(): Scene {
         drawFighter(ctx, f, i, toScreen, s.tick, fightVfx.white(i));
       }
       vfx.draw(ctx, view, 'front');
-      fightVfx.debris.draw(ctx, view);
+      fightVfx.debris.drawDust(ctx, view, 'front');
       if (showBoxes) drawBoxes(ctx, s, view);
       ctx.restore();
 

@@ -43,6 +43,8 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 - 맵 2560×540px, 화면 480×270. 카메라가 두 사람을 가로·세로로 따라간다.
 - 부서지는 물건 44개 (자동차 5, 가스등 13, 쇼윈도 20, 신문 가판대 2, 소화전 4): 위치·판정은 `src/stage/downtown.ts`, 상태(내구도·단계·부서진 틱)는 sim(`src/sim/props.ts`), 그림은 `src/render/stage/props.ts`.
   `?scene=stage&props=1`(망가짐)·`props=2`(파괴), 또는 1~3 키로 세 단계를 볼 수 있다.
+- 건물 파괴: 길가 건물 정면 20채를 16×16 덩어리 1978개로 나눠 덩어리마다 내구도(금 → 구멍 → 뚫림, 무너지면 사라짐). 규칙 숫자는 `src/data/stages/downtown.ts`의 `city`, 상태·붕괴·벽꽝은 sim(`src/sim/city.ts`), 그림(실내·잔해 더미)은 `src/render/stage/city.ts`, 떨어지는 조각·먼지 구름은 `src/render/debris.ts`(렌더 전용).
+  `?scene=stage&ruin=1`은 단계별로 몇 군데를 부순 모습, `?scene=stage&match=1`은 시드 1로 CPU끼리 한 경기를 끝까지 돌린 뒤의 거리(파괴는 라운드가 넘어가도 남는다).
 - 그리기: `src/render/stage/` (여러 겹 시차 배경, 매연·서치라이트·가스등 불빛은 매 틱)
 
 ## 이펙트

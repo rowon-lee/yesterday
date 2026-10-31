@@ -92,3 +92,63 @@ export const BREAKABLES: readonly Breakable[] = (() => {
 })();
 
 export const BREAK_RULES = { damagedAt: B.damagedAt, crashSpeed: B.crashSpeed, crashDamage: B.crashDamage };
+
+// ---------------------------------------------------------------- 건물 파괴 격자
+const CITY = D.city;
+export const CITY_RULES = CITY;
+export const CHUNK = CITY.chunk;
+
+/** 덩어리 하나: 건물 번호, 칸·줄(줄 0이 바닥), 월드 x, 폭, 바닥에서 아래 끝 높이, 높이 */
+export interface Chunk {
+  b: number;
+  c: number;
+  r: number;
+  x: number;
+  w: number;
+  y0: number;
+  h: number;
+}
+
+/** 건물 하나의 격자: 덩어리 번호는 first + r × cols + c */
+export interface BuildingGrid {
+  x: number;
+  w: number;
+  h: number;
+  cols: number;
+  rows: number;
+  first: number;
+}
+
+export const FRONT: readonly FrontBuildingPlace[] = frontBuildings();
+
+export const GRIDS: readonly BuildingGrid[] = (() => {
+  let first = 0;
+  return FRONT.map((b) => {
+    const cols = Math.ceil(b.w / CHUNK);
+    const rows = Math.ceil(b.h / CHUNK);
+    const g = { x: b.x, w: b.w, h: b.h, cols, rows, first };
+    first += cols * rows;
+    return g;
+  });
+})();
+
+export const CHUNKS: readonly Chunk[] = GRIDS.flatMap((g, b) => {
+  const out: Chunk[] = [];
+  for (let r = 0; r < g.rows; r++) {
+    for (let c = 0; c < g.cols; c++) {
+      out.push({ b, c, r, x: g.x + c * CHUNK, w: Math.min(CHUNK, g.w - c * CHUNK), y0: r * CHUNK, h: Math.min(CHUNK, g.h - r * CHUNK) });
+    }
+  }
+  return out;
+});
+
+export const chunkIndex = (g: BuildingGrid, c: number, r: number): number => g.first + r * g.cols + c;
+
+/** 덩어리 단계: 0 멀쩡, 1 금, 2 구멍, 3 뚫림, 4 무너져 사라짐 */
+export function chunkStage(hp: number): 0 | 1 | 2 | 3 | 4 {
+  if (hp < 0) return 4;
+  if (hp === 0) return 3;
+  if (hp <= CITY.holeAt) return 2;
+  if (hp <= CITY.crackAt) return 1;
+  return 0;
+}

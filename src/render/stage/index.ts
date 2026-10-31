@@ -1,4 +1,5 @@
-import type { PropState } from '../../sim';
+import type { CityState, PropState } from '../../sim';
+import { CityLayer, drawRubble } from './city';
 import { GROUND } from '../../stage/downtown';
 import { COLORS as C } from '../palette';
 import { SCREEN_H, SCREEN_W } from '../screen';
@@ -23,6 +24,7 @@ export interface Cam {
  * 고정된 겹은 처음 한 번 그려 두고, 매연·서치라이트·물건(가스등 불빛 등)은 매 틱 덧그린다. 모두 렌더 전용.
  */
 let built: { sky: Layer; factories: Layer; skyline: Layer; mid: Layer; front: Layer; street: Layer } | null = null;
+let city: CityLayer | null = null;
 let chimneys: ReturnType<typeof factoryChimneys> = [];
 let lights: ReturnType<typeof searchlights> = [];
 
@@ -36,10 +38,16 @@ function layers() {
       front: buildFront(),
       street: buildStreet(),
     };
+    city = new CityLayer(built.front.canvas);
     chimneys = factoryChimneys();
     lights = searchlights();
   }
   return built;
+}
+
+/** 무너지기 전 길가 건물 정면 그림 (월드 좌표). 무너질 때 떨어지는 조각을 여기서 잘라 간다 */
+export function frontImage(): HTMLCanvasElement {
+  return layers().front.canvas;
 }
 
 /** 겹 좌표 → 화면 좌표의 이동량 */
@@ -50,8 +58,12 @@ const place = (ctx: CanvasRenderingContext2D, l: Layer, cam: Cam) => {
   ctx.drawImage(l.canvas, -ox, -oy);
 };
 
-/** 캐릭터 뒤에 그리는 무대 전부. props는 sim의 부서지는 물건 상태 (없으면 모두 멀쩡) */
-export function drawStage(ctx: CanvasRenderingContext2D, cam: Cam, tick: number, props: readonly PropState[] | null = null): void {
+/**
+ * 캐릭터 뒤에 그리는 무대 전부. props는 sim의 부서지는 물건 상태, cityState는 건물 덩어리 상태 (없으면 모두 멀쩡)
+ */
+export function drawStage(
+  ctx: CanvasRenderingContext2D, cam: Cam, tick: number, props: readonly PropState[] | null = null, cityState: CityState | null = null,
+): void {
   const L = layers();
   place(ctx, L.sky, cam);
   place(ctx, L.factories, cam);
@@ -59,11 +71,14 @@ export function drawStage(ctx: CanvasRenderingContext2D, cam: Cam, tick: number,
   place(ctx, L.skyline, cam);
   drawSearchlights(ctx, cam, tick);
   place(ctx, L.mid, cam);
-  place(ctx, L.front, cam);
+  // 길가 건물 정면: 부서진 덩어리만 고쳐 그린 그림
+  city!.update(cityState);
+  ctx.drawImage(city!.canvas, -Math.round(cam.x), -Math.round(cam.y));
   place(ctx, L.street, cam);
   ctx.save();
   ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
-  drawProps(ctx, cam, tick, props);
+  drawRubble(ctx, cityState, tick);
+  drawProps(ctx, cam, tick, props, cityState);
   ctx.restore();
 }
 

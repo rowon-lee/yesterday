@@ -1,6 +1,8 @@
 import { hurtBox, type Box } from '../anim/boxes';
 import type { MoveId } from '../data/moves/base';
 import { MOVES, moveHitBox } from './frames';
+import { damageCity, wallBehind, wallSplat } from './city';
+import { CITY_RULES as CITY } from '../stage/downtown';
 import { isAirborne, setMode } from './fighter';
 import { fighterPose } from './pose';
 import {
@@ -26,7 +28,7 @@ const overlap = (a: WBox, b: WBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y
 
 /** 피격 상자: 지금 프레임의 몸 관절을 감싼 상자. 무적이면 null */
 export function hurtOf(f: Fighter): WBox | null {
-  if (f.invuln > 0 || f.mode === 'knockdown' || f.mode === 'getup' || f.mode === 'ko') return null;
+  if (f.invuln > 0 || f.mode === 'knockdown' || f.mode === 'getup' || f.mode === 'ko' || f.mode === 'wallsplat') return null;
   return toWorld(f, hurtBox(fighterPose(f).joints));
 }
 
@@ -78,6 +80,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   const ey = Math.trunc((hb.y0 + hb.y1) / 2);
   att.moveHit = true;
   const gainer = !d.meterCost;
+  // 센 타격은 맞은 자리 뒤 건물 정면을 깎는다 (막혀도)
+  if (d.heavy) damageCity(s, Math.round(ex / 256), Math.round(-ey / 256), CITY.hit.radius, CITY.hit.amount, 'hit');
 
   if (blocks(def, att)) {
     def.guard -= d.guardDamage;
@@ -117,6 +121,19 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   const airborne = isAirborne(def) || def.mode === 'airhit';
   if (def.hp <= 0) {
     knockOut(s, def, dir, who);
+    return;
+  }
+  // 벽꽝: '벽 쪽으로 날림' 기술이고 뒤에 건물 정면이 서 있으면 정면에 박힌다
+  if (d.wall && wallBehind(s, Math.round(def.x / 256), Math.round(-def.y / 256) + 22)) {
+    def.hp = Math.max(0, def.hp - CITY.wallsplat.damage);
+    if (def.hp <= 0) {
+      knockOut(s, def, dir, who);
+      return;
+    }
+    setMode(def, 'wallsplat', CITY.wallsplat.ticks);
+    def.vx = 0;
+    def.vy = 0;
+    wallSplat(s, def, who);
     return;
   }
   if (d.spike && airborne) {
