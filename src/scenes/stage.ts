@@ -6,6 +6,8 @@ import { drawText } from '../render/font';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
 import { drawForeground, drawPlatforms, drawStage } from '../render/stage';
+import { drawLights } from '../render/light';
+import { drawAir, drawRain, drawReflection } from '../render/weather';
 import type { Scene } from './scene';
 
 /**
@@ -65,6 +67,10 @@ export function stageScene(): Scene {
     render(ctx) {
       const view = { x: Math.round(cam), y: Math.round(camY) };
       drawStage(ctx, view, base + tick, props, city);
+      drawLights(ctx, view);
+      drawAir(ctx, view, base + tick);
+      drawReflection(ctx, view, base + tick);
+      drawRain(ctx, view, base + tick);
       if (params.get('fg') !== '0') drawForeground(ctx, view);
       if (params.get('plat') === '1') drawPlatforms(ctx, view, city);
       drawText(ctx, `CAM ${Math.round(cam)} ${Math.round(camY)}`, 4, 4, COLORS.white);

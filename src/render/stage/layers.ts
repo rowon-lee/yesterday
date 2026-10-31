@@ -104,8 +104,28 @@ export function buildFar(): Layer {
     for (let wy = top + 4; wy < gl - 4; wy += 6) for (let wx = x + 2; wx < x + bw - 2; wx += 4) if (hash(k++) < 0.05) rect(g, wx, wy, 1, 3, C.skylineLit);
     x += bw + 2 + Math.floor(hash(k++) * 8);
   }
+  // 공장 지대: 톱니 지붕 공장과 굴뚝 (매연은 매 틱 따로 그린다)
+  const fx0 = F.chimneys[0].x - 30;
+  const fx1 = F.chimneys[F.chimneys.length - 1].x + 40;
+  for (let x2 = fx0; x2 < fx1; x2 += 26) {
+    const bh = 50 + Math.floor(hash(x2) * 30);
+    rect(g, x2, gl - bh, 24, h - gl + bh, C.factory);
+    for (let t = 0; t < 20; t += 8) for (let k = 0; k < 6; k++) rect(g, x2 + t + k, gl - bh - 6 + k, 1, 6 - k, C.factory);
+  }
+  for (const ch of farChimneys()) {
+    rect(g, ch.x, ch.top, ch.w, gl - ch.top, C.factory);
+    rect(g, ch.x - 1, ch.top, ch.w + 2, 3, C.factory);
+    rect(g, ch.x + 1, ch.top + 12, ch.w - 2, 1, C.smog2);
+    rect(g, ch.x + Math.floor(ch.w / 2), ch.top - 2, 1, 2, C.posterRed);
+  }
   haze(c, C.smog3, F.haze);
   return { canvas: c, speed: F.speed };
+}
+
+/** 먼 겹 공장 굴뚝 (먼 겹 좌표). 매연을 매 틱 그린다 */
+export function farChimneys(): Array<{ x: number; w: number; top: number }> {
+  const gl = layerGround(D.far.speed) - 30;
+  return D.far.chimneys.map((ch) => ({ x: ch.x, w: ch.w, top: gl - ch.h }));
 }
 
 // ---------------------------------------------------------------- 3. 시타델 상층부 (광장 뒤로 솟은 탑과 성벽)
@@ -243,9 +263,15 @@ function waterTower(g: CanvasRenderingContext2D, x: number, top: number, color: 
 }
 
 // ---------------------------------------------------------------- 5. 싸우는 거리: 부서지는 건물 (월드 좌표)
+/** 불 켜진 창 (월드 좌표, 붙은 건물 번호). 빛 레이어가 창마다 은은한 빛을 더한다 */
+export const LIT_WINDOWS: Array<{ x: number; y: number; bi: number }> = [];
+let drawingBuilding = -1;
+
 export function buildFront(): Layer {
   const [c, g] = canvas(MAP_W, MAP_H);
-  for (const b of frontBuildings()) {
+  LIT_WINDOWS.length = 0;
+  for (const [bi, b] of frontBuildings().entries()) {
+    drawingBuilding = bi;
     g.save();
     g.beginPath();
     g.rect(b.x, GROUND - b.h, b.w, b.h);
@@ -264,6 +290,7 @@ export function buildFront(): Layer {
     }
     g.restore();
   }
+  drawingBuilding = -1;
   for (const gap of FRONT_GAPS) drawGap(g, gap);
   return { canvas: c, speed: 1 };
 }
@@ -299,6 +326,7 @@ function window1(g: CanvasRenderingContext2D, wx: number, wy: number, ww: number
   rect(g, wx - 2, wy - 3, ww + 4, 3, frame);
   rect(g, wx, wy, ww, wh, C.windowDark);
   if (r < 0.16) {
+    if (drawingBuilding >= 0) LIT_WINDOWS.push({ x: wx + ww / 2, y: wy + wh / 2 + 4, bi: drawingBuilding });
     rect(g, wx, wy + 8, ww, wh - 8, C.windowLit);
     ditherRect(g, wx, wy + 8, ww, 5, C.windowLight, 4);
     rect(g, wx, wy, ww, 8, C.awning);
@@ -317,19 +345,12 @@ function cornice(g: CanvasRenderingContext2D, x: number, top: number, w: number)
   for (let dx = x + 2; dx < x + w - 2; dx += 6) rect(g, dx, top + 8, 3, 2, C.stoneDark);
 }
 
-/** 가게 차양: 윗면(발판 높이 h)에서 아래로 12px, 줄무늬와 물결 끝. 그 위에 가게 이름 판 */
-function awning(g: CanvasRenderingContext2D, x0: number, x1: number, h: number, sign: string, seed: number): void {
+/** 가게 차양: 윗면(발판 높이 h)에서 아래로 12px, 줄무늬와 물결 끝. 가게 이름은 네온 간판(부서지는 물건)이 그 위에 단다 */
+function awning(g: CanvasRenderingContext2D, x0: number, x1: number, h: number): void {
   const top = GROUND - h;
   for (let ax = x0; ax < x1; ax++) rect(g, ax, top + 1, 1, 9, Math.floor((ax - x0) / 6) % 2 ? C.awningStripe : C.awning);
   for (let ax = x0; ax < x1; ax += 6) rect(g, ax, top + 10, 3, 2, C.awning);
   rect(g, x0, top, x1 - x0, 1, C.iron);
-  if (sign) {
-    const tw = textWidth(sign, 2);
-    const sx = Math.round((x0 + x1 - tw - 10) / 2);
-    rect(g, sx, top - 15, tw + 10, 14, C.iron);
-    rect(g, sx + 1, top - 14, tw + 8, 12, seed % 3 ? C.paintTeal : C.paintOchre);
-    drawText(g, sign, sx + 5, top - 13, C.paintCream, 2);
-  }
 }
 
 /** 1층 가게 앞면: 쇼윈도 틀(유리는 부서지는 물건이라 props.ts가 그린다)과 문 */
@@ -367,7 +388,7 @@ function tenement(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
   if (hasShopWindow(b)) {
     shopfront(g, b, shopEnd);
     const a = awningOf(b);
-    if (a) awning(g, a.x0, a.x1, a.h, b.sign, b.seed);
+    if (a) awning(g, a.x0, a.x1, a.h);
   } else {
     // 현관: 계단 세 단, 두 짝 문, 채광창, 반지하 창
     const dx = x + Math.floor((shopEnd - x) / 2) - 14;
@@ -443,20 +464,8 @@ function theater(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
     if (hash(b.seed + cx) < 0.6) ditherRect(g, cx - ww / 2, winBottom - 40, ww, 40, C.windowLit, 5);
     rect(g, cx - ww / 2 - 3, winBottom, ww + 6, 3, C.stoneDark);
   }
-  // 세로 전구 간판: 긴 판에 글자를 세로로, 양 가장자리 전구
-  const sw = 22;
-  const sx = x + Math.floor(b.w / 2) - sw / 2;
-  const sTop = top + 30;
-  const sBottom = GROUND - mq.h - 6;
-  rect(g, sx, sTop, sw, sBottom - sTop, C.iron);
-  rect(g, sx + 2, sTop + 2, sw - 4, sBottom - sTop - 4, C.posterRedDark);
-  const letters = b.sign.split('');
-  const step = Math.min(24, Math.floor((sBottom - sTop - 10) / letters.length));
-  letters.forEach((ch, i) => drawText(g, ch, sx + 6, sTop + 6 + i * step, C.paintCream, 3));
-  for (let y = sTop + 3; y < sBottom - 2; y += 5) {
-    rect(g, sx + 1, y, 1, 1, C.lampGlow);
-    rect(g, sx + sw - 2, y, 1, 1, C.lampGlow);
-  }
+  // 세로 간판 자리 (네온 간판은 부서지는 물건이라 props.ts가 그린다): 받침 쇠붙이만
+  for (let y = top + 40; y < GROUND - mq.h - 10; y += 40) rect(g, x + Math.floor(b.w / 2) - 14, y, 28, 2, C.iron);
   // 1층 로비: 문 넷, 포스터 틀
   rect(g, x + 12, GROUND - SHOP_H + 10, b.w - 24, SHOP_H - 10, C.brickDark);
   for (let i = 0; i < 4; i++) {
@@ -470,15 +479,10 @@ function theater(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
     rect(g, px + 2, GROUND - 50, 16, 28, C.posterRed);
     star(g, px + 10, GROUND - 42, 1);
   }
-  // 전구 차양: 윗면(발판)에서 아래로 22px, 위·아래 가장자리 전구, 글씨
+  // 차양 몸체: 윗면(발판)에서 아래로 22px, 크림색 글씨판 (전구와 글씨는 네온 간판이 얹는다)
   const my = GROUND - mq.h;
   rect(g, mq.x0, my, mq.x1 - mq.x0, 22, C.iron);
   rect(g, mq.x0 + 2, my + 4, mq.x1 - mq.x0 - 4, 14, C.paintCream);
-  drawText(g, 'TONIGHT', Math.round((mq.x0 + mq.x1 - textWidth('TONIGHT', 2)) / 2), my + 6, C.posterRedDark, 2);
-  for (let bx = mq.x0 + 2; bx < mq.x1 - 1; bx += 4) {
-    rect(g, bx, my + 1, 2, 2, C.lampGlow);
-    rect(g, bx, my + 19, 2, 2, C.lampGlow);
-  }
   rect(g, mq.x0, my, mq.x1 - mq.x0, 1, C.ironLight);
 }
 
@@ -497,21 +501,17 @@ function diner(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
   }
   shopfront(g, b, x + b.w);
   const a = awningOf(b)!;
-  awning(g, a.x0, a.x1, a.h, '', b.seed);
-  // 2층 간판: 전구 테두리 판에 큰 글씨, 차양 위에 받침
-  const tw = textWidth(b.sign, 3);
-  const sw = tw + 20;
-  const sx = x + Math.floor((b.w - sw) / 2);
-  const sy = GROUND - a.h - 40;
-  rect(g, sx, sy, sw, 30, C.iron);
-  rect(g, sx + 2, sy + 2, sw - 4, 26, C.paintTeal);
-  drawText(g, b.sign, sx + 10, sy + 8, C.paintCream, 3);
-  for (let bx = sx + 2; bx < sx + sw - 2; bx += 4) {
-    rect(g, bx, sy + 1, 2, 1, C.lampGlow);
-    rect(g, bx, sy + 28, 2, 1, C.lampGlow);
+  awning(g, a.x0, a.x1, a.h);
+  // 1960년대 다이너: 1층 둘레 스테인리스 띠, 둥근 모서리, 창 아래 크롬 판
+  for (const y of [GROUND - SHOP_H + 6, GROUND - SHOP_H + 10, GROUND - 8]) {
+    rect(g, x + 2, y, b.w - 4, 2, C.chrome);
+    rect(g, x + 2, y + 2, b.w - 4, 1, C.chromeDark);
   }
-  rect(g, sx + 6, sy + 30, 2, GROUND - a.h - sy - 30, C.iron);
-  rect(g, sx + sw - 8, sy + 30, 2, GROUND - a.h - sy - 30, C.iron);
+  for (let k = 0; k < 4; k++) {
+    rect(g, x + 2 + k, GROUND - SHOP_H + 6 + k, 1, SHOP_H - 14 - k * 2, C.chromeDark);
+    rect(g, x + b.w - 3 - k, GROUND - SHOP_H + 6 + k, 1, SHOP_H - 14 - k * 2, C.chromeDark);
+  }
+  for (let px = x + 6; px < x + b.w - 6; px += 8) rect(g, px, GROUND - 6, 1, 6, C.chromeDark);
 }
 
 /** 선전 포스터: 붉은 종이, 별 문장과 구호, 찢어진 귀퉁이 */
@@ -846,6 +846,27 @@ export function buildStreet(): Layer {
     rect(g, px + 10, y0 - 136, 12, 12, C.lampWarm);
     rect(g, px + 12, y0 - 134, 8, 8, C.lampGlow);
   }
+  // 광장 동쪽 입구 검문소: 모래주머니, 초소(불 켜진 창, 줄무늬 띠, 글씨), 들어 올린 차단봉
+  const CP = D.plaza.checkpoint;
+  for (let row = 0; row < 2; row++) for (let k = 0; k < 3 - row; k++) {
+    const bx = CP.x - 34 + k * 11 + row * 5;
+    rect(g, bx, y0 - 8 - row * 7, 11, 7, C.sandbag);
+    rect(g, bx, y0 - 2 - row * 7, 11, 1, C.awning);
+  }
+  rect(g, CP.x, y0 - CP.h, CP.w, CP.h, C.ironLight);
+  rect(g, CP.x - 2, y0 - CP.h - 4, CP.w + 4, 4, C.iron);
+  rect(g, CP.x + 4, y0 - CP.h + 8, CP.w - 8, 12, C.windowLit);
+  rect(g, CP.x + 4, y0 - CP.h + 8, CP.w - 8, 3, C.windowLight);
+  rect(g, CP.x + CP.w / 2, y0 - CP.h + 8, 1, 12, C.iron);
+  for (let k = 0; k < CP.w; k += 6) rect(g, CP.x + k, y0 - CP.h + 24, 3, 3, C.posterRed);
+  drawText(g, 'HALT', CP.x + Math.floor((CP.w - textWidth('HALT', 1)) / 2), y0 - CP.h + 30, C.paintCream, 1);
+  rect(g, CP.x + CP.w / 2 - 2, y0 - CP.h - 8, 4, 4, C.neonRed);
+  for (let k = 0; k < 40; k++) {
+    const ax = CP.x + CP.w + Math.round(k * Math.cos(-1.1));
+    const ay = y0 - 30 + Math.round(k * Math.sin(-1.1));
+    rect(g, ax, ay, 2, 2, Math.floor(k / 5) % 2 ? C.posterRed : C.paintCream);
+  }
+  rect(g, CP.x + CP.w - 2, y0 - 34, 6, 34, C.iron);
   // 동쪽 끝 철책 (벽)
   const FN = D.park.fence;
   rect(g, FN.x0, y0 - 14, MAP_W - FN.x0, 14, C.stoneDark);

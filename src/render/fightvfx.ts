@@ -11,6 +11,8 @@ import type { Effects } from './effects';
 import type { ColorName } from './palette';
 import { frontImage, GROUND_Y } from './stage';
 import { fxColor, fxHex, fxRamp, FX_PX, type VfxLayer } from './vfx';
+import { lights } from './light';
+import { COLORS } from './palette';
 
 /**
  * 전투 이벤트 → Sprite Fusion 이펙트 (렌더 전용, 게임 기획서 '이펙트 배치' 표대로).
@@ -81,6 +83,33 @@ export class FightVfx {
   /** 부서질 때 튀는 조각 */
   readonly debris = new Debris();
   private round = 0;
+  /** 이펙트가 내는 빛 (월드 좌표): 타격 불꽃, 폭발, 필살, 네온 불꽃. 틱마다 줄어든다 */
+  private glows: Array<{ x: number; y: number; r: number; color: string; a: number; life: number; t: number }> = [];
+
+  private glow(x: number, y: number, r: number, color: string, a: number, life: number): void {
+    this.glows.push({ x, y, r, color, a, life, t: 0 });
+  }
+
+  /**
+   * 이번 프레임의 빛 목록에 이펙트 빛을 더한다 (drawStage 뒤, drawLights 앞에 부른다).
+   * 기력 3칸이 찬 동안은 몸 둘레에 오라 빛, 필살 컷인 동안은 쓴 사람에게서 큰 빛.
+   */
+  emitLights(s: SimState): void {
+    for (const g of this.glows) {
+      const k = 1 - g.t / g.life;
+      lights.point(g.x, g.y, g.r * (0.7 + 0.3 * k), g.color, g.a * k * k);
+    }
+    s.fighters.forEach((f, i) => {
+      if (f.meter >= RULES.METER_MAX) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 54, i === 0 ? COLORS.gold : COLORS.sky, 0.45);
+    });
+    if (s.freeze > 0) {
+      const who = s.events.find((e) => e.type === 'cutin')?.who ?? this.lastCutin;
+      const f = s.fighters[who];
+      if (f) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 150, who === 0 ? COLORS.goldLight : COLORS.skyLight, 0.8);
+    }
+  }
+
+  private lastCutin = 0;
 
   constructor(private layer: VfxLayer, private fx: Effects) {}
 
@@ -97,9 +126,22 @@ export class FightVfx {
   /** sim 한 틱 뒤에 부른다 */
   tick(s: SimState): void {
     const shake = (k: number) => (t: number) => this.fx.shake(t * k);
+    for (const g of this.glows) g.t++;
+    this.glows = this.glows.filter((g) => g.t < g.life);
     for (const e of s.events) {
       const x = (e.x / 256) * FX_PX;
       const y = (GROUND_Y + e.y / 256) * FX_PX;
+      const wx = e.x / 256;
+      const wy = GROUND_Y + e.y / 256;
+      if (e.type === 'hit') this.glow(wx, wy, e.heavy ? 90 : 56, e.move === 'super' ? COLORS.fxWhite : COLORS.fxOrange, e.heavy ? 1 : 0.8, e.heavy ? 18 : 10);
+      else if (e.type === 'block') this.glow(wx, wy, 44, COLORS.fxBlue, 0.7, 10);
+      else if (e.type === 'crush') this.glow(wx, wy, 90, COLORS.fxYellow, 1, 20);
+      else if (e.type === 'ko') this.glow(wx, wy, 130, COLORS.fxOrange, 1, 40);
+      else if (e.type === 'wallsplat') this.glow(wx, wy, 80, COLORS.fxOrange, 0.9, 16);
+      else if (e.type === 'cutin') {
+        this.lastCutin = e.who;
+        this.glow(wx, wy - 26, 200, e.who === 0 ? COLORS.goldLight : COLORS.skyLight, 1, 50);
+      }
       const att = s.fighters[e.who];
       const def = s.fighters[1 - e.who];
       const angle = att && att.facing > 0 ? 0 : Math.PI;
@@ -212,7 +254,7 @@ export class FightVfx {
   private prop(i: number, broken: boolean, crash: boolean, dir: number): void {
     const b = BREAKABLES[i];
     const cx = b.x + b.w / 2;
-    const cy = GROUND_Y - b.h / 2;
+    const cy = GROUND_Y - b.bottom - b.h / 2;
     const ramp = b.kind === 'glass' || b.kind === 'hydrant' ? COOL : WARM;
     const angle = dir > 0 ? 0 : Math.PI;
     if (crash) this.fx.shake(0.3);
@@ -222,8 +264,16 @@ export class FightVfx {
       return;
     }
     switch (b.kind) {
+      case 'neon':
+        // 네온관이 깨지며 불꽃과 유리관 조각, 빛이 번쩍 했다가 꺼진다
+        this.layer.add(impact({ kind: 'hit', x: cx * FX_PX, y: cy * FX_PX, angle, size: 0.5, ramp: fxRamp(COOL), seed: this.seed++ }));
+        this.debris.burst('glass', cx, cy, dir, 16);
+        this.debris.burst('metal', cx, cy, dir, 5);
+        this.glow(cx, cy, 80, COLORS.skyLight, 1, 14);
+        break;
       case 'car':
         // 찌그러짐 → 불붙음 → 폭발
+        this.glow(cx, GROUND_Y - 20, 170, COLORS.fxOrange, 1, 50);
         this.layer.add(explosion({ x: cx * FX_PX, ground: GROUND_Y * FX_PX, size: 0.45, surface: fxColor('street'), seed: this.seed++, shake: (t) => this.fx.shake(t * 0.4) }));
         this.debris.burst('metal', cx, GROUND_Y - 14, dir, 14);
         this.fx.flashFor(2);

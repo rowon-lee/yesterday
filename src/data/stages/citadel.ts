@@ -32,7 +32,11 @@ export const CITADEL = {
   sky: { speed: 0.03, moon: { x: 120, fromTop: 60, r: 20 }, seaTop: 96, farLight: { x: 58, every: 90 } },
 
   /** 2. 1구역 마천루 실루엣 (아르데코: 층층이 들어간 지붕, 첨탑). from 앞쪽은 바다 */
-  far: { speed: 0.12, haze: 10, seed: 7, from: 200, min: 120, max: 250 },
+  far: {
+    speed: 0.12, haze: 10, seed: 7, from: 200, min: 120, max: 250,
+    /** 공장 매연: 공원 쪽 먼 하늘에 선 굴뚝 (먼 겹 x, 높이). 매연은 매 틱 그린다 */
+    chimneys: [{ x: 512, w: 10, h: 176 }, { x: 540, w: 8, h: 150 }, { x: 586, w: 12, h: 196 }, { x: 620, w: 8, h: 160 }],
+  },
 
   /** 3. 시타델 상층부: 광장 뒤로 솟은 거대한 탑과 성벽, 꼭대기 서치라이트 (x는 광장 가운데 월드 x) */
   keep: { speed: 0.3, haze: 6, worldX: 1600, w: 210, h: 270, wallW: 640, wallH: 110 },
@@ -99,6 +103,8 @@ export const CITADEL = {
     fountain: { x: 1600, w: 128 },
     statue: { x: 1110 },
     gatePiers: [984, 2184],
+    /** 광장 동쪽 입구 검문소: 초소 왼쪽 끝, 폭과 높이 */
+    checkpoint: { x: 2138, w: 38, h: 46 },
   },
 
   /** 비상계단 아파트 옥상 전광판 (아파트 구간의 몇 번째 건물인지, 글씨) */

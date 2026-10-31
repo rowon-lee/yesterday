@@ -21,7 +21,7 @@ export function ditherRect(
   g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, level: number, ox = 0, oy = 0,
 ): void {
   // 넓은 사각형은 픽셀 버퍼로 한 번에 (putImageData는 클립을 무시하므로 사각형이 그릴 자리 안에 있을 때만 쓴다)
-  if (w * h > 4000 && x >= 0 && y >= 0 && x + w <= g.canvas.width && y + h <= g.canvas.height) {
+  if (w * h > 4000 && x >= 0 && y >= 0 && x + w <= g.canvas.width && y + h <= g.canvas.height && g.getTransform().isIdentity) {
     paint(g, x, y, w, h, (px, py) => (dither(px + ox, py + oy, level) ? color : null));
     return;
   }
@@ -31,7 +31,7 @@ export function ditherRect(
   }
 }
 
-/** 원. level을 주면 디더링 */
+/** 원. level을 주면 디더링 (꽉 찬 원은 줄마다 한 번에 칠한다) */
 export function disc(g: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string, level = 16, ox = 0): void {
   g.fillStyle = color;
   cx = Math.round(cx);
@@ -39,8 +39,73 @@ export function disc(g: CanvasRenderingContext2D, cx: number, cy: number, r: num
   const rr = Math.max(0, Math.round(r));
   for (let y = -rr; y <= rr; y++) {
     const w = Math.floor(Math.sqrt(rr * rr - y * y) + 0.5);
-    for (let x = -w; x <= w; x++) if (level >= 16 || dither(cx + x + ox, cy + y, level)) g.fillRect(cx + x, cy + y, 1, 1);
+    if (level >= 16) {
+      g.fillRect(cx - w, cy + y, w * 2 + 1, 1);
+      continue;
+    }
+    for (let x = -w; x <= w; x++) if (dither(cx + x + ox, cy + y, level)) g.fillRect(cx + x, cy + y, 1, 1);
   }
+}
+
+const discCache = new Map<string, HTMLCanvasElement>();
+
+/**
+ * 매 프레임 움직이는 연기·증기 뭉치용 디더링 원: 반지름·농도·색마다 한 번 그려 두고 이미지로 얹는다.
+ * 무늬가 원과 함께 움직인다 (겹 좌표에 고정되지 않음). 매 프레임 점을 하나씩 찍는 것보다 훨씬 빠르다.
+ */
+export function discFast(g: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string, level = 16): void {
+  const rr = Math.max(1, Math.round(r));
+  const lv = Math.max(0, Math.min(16, Math.round(level)));
+  if (lv <= 0) return;
+  const key = `${rr}|${lv}|${color}`;
+  let c = discCache.get(key);
+  if (!c) {
+    [c] = canvas(rr * 2 + 1, rr * 2 + 1);
+    disc(c.getContext('2d')!, rr, rr, rr, color, lv);
+    discCache.set(key, c);
+  }
+  g.drawImage(c, Math.round(cx) - rr, Math.round(cy) - rr);
+}
+
+const spriteCache = new Map<string, { c: HTMLCanvasElement; x: number; y: number }>();
+
+/**
+ * 모습이 같으면 다시 그리지 않는 그림 조각: (x, y, w, h) 자리(월드나 겹 좌표)에 draw가 그리는 그림을 key마다 한 번만 그려 두고 얹는다.
+ * draw는 같은 좌표계로 그대로 그리면 된다 (조각 캔버스가 그 자리로 옮겨져 있다).
+ */
+export function sprite(g: CanvasRenderingContext2D, key: string, x: number, y: number, w: number, h: number, draw: (sg: CanvasRenderingContext2D) => void): void {
+  let s = spriteCache.get(key);
+  if (!s) {
+    const [c, sg] = canvas(Math.max(1, Math.ceil(w)), Math.max(1, Math.ceil(h)));
+    sg.translate(-Math.floor(x), -Math.floor(y));
+    draw(sg);
+    s = { c, x: Math.floor(x), y: Math.floor(y) };
+    spriteCache.set(key, s);
+    if (spriteCache.size > 600) spriteCache.delete(spriteCache.keys().next().value!);
+  }
+  g.drawImage(s.c, s.x, s.y);
+}
+
+const stampCache = new Map<string, HTMLCanvasElement>();
+
+/**
+ * 움직이는 그림 조각 (행인·물기둥처럼 자리만 바뀌는 것): key마다 w×h 캔버스에 한 번 그려 두고 (x, y)에 얹는다.
+ * draw는 기준점 (ax, ay)를 원점으로 그린다. 놓을 때는 기준점이 (x, y)에 온다.
+ */
+export function stamp(
+  g: CanvasRenderingContext2D, key: string, x: number, y: number, w: number, h: number, ax: number, ay: number,
+  draw: (sg: CanvasRenderingContext2D) => void,
+): void {
+  let c = stampCache.get(key);
+  if (!c) {
+    let sg: CanvasRenderingContext2D;
+    [c, sg] = canvas(Math.max(1, Math.ceil(w)), Math.max(1, Math.ceil(h)));
+    sg.translate(ax, ay);
+    draw(sg);
+    stampCache.set(key, c);
+    if (stampCache.size > 400) stampCache.delete(stampCache.keys().next().value!);
+  }
+  g.drawImage(c, Math.round(x) - ax, Math.round(y) - ay);
 }
 
 /** 1px 선 (브레젠험) */

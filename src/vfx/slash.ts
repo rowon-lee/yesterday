@@ -2,7 +2,7 @@
 // MIT License
 // Copyright (c) 2026 Hugo Duprez
 // YESTERDAY: 파일은 그대로 두고, 색(ramp)·크기(size)·위치는 부르는 쪽(src/render/vfx.ts)에서 우리 화면에 맞춰 넘긴다.
-export interface Frame { w: number; h: number; ox: number; oy: number; color: Uint32Array; light: Uint32Array }
+export interface Frame { w: number; h: number; ox: number; oy: number; color: Uint32Array; light: Uint32Array; box?: number[] }
 export type Layer = "back" | "front";
 export interface Options {
   x?: number;
@@ -164,9 +164,16 @@ const STEEL = ["#ffffff", "#e8f1ff", "#b8c9e8", "#62c8f4", "#3a8bd8", "#2c58aa",
 const HOT = ["#fff3a6", "#ffe26b", "#ff8a2a", "#f2561d"].map(hex);
 const PX = 2;
 class Px {
-  w: number; h: number; ox: number; oy: number; data: Uint32Array;
-  constructor(f: Frame, data: Uint32Array) { this.w = f.w; this.h = f.h; this.ox = f.ox; this.oy = f.oy; this.data = data; }
-  at(x: number, y: number) { x = (x - this.ox) | 0; y = (y - this.oy) | 0; return x < 0 || y < 0 || x >= this.w || y >= this.h ? -1 : y * this.w + x; }
+  w: number; h: number; ox: number; oy: number; data: Uint32Array; box?: number[];
+  constructor(f: Frame, data: Uint32Array) { this.w = f.w; this.h = f.h; this.ox = f.ox; this.oy = f.oy; this.data = data; this.box = f.box; }
+  // YESTERDAY: 칠할 수 있는 칸을 감싼 사각형(box: x0, y0, x1, y1)을 기록한다 (부르는 쪽이 화면 전체를 훑지 않게)
+  at(x: number, y: number) {
+    x = (x - this.ox) | 0; y = (y - this.oy) | 0;
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return -1;
+    const b = this.box;
+    if (b) { if (x < b[0]!) b[0] = x; if (y < b[1]!) b[1] = y; if (x > b[2]!) b[2] = x; if (y > b[3]!) b[3] = y; }
+    return y * this.w + x;
+  }
   set(x: number, y: number, c: number) { const i = this.at(x, y); if (i >= 0) this.data[i] = c; }
   add(x: number, y: number, c: number, k: number) {
     const i = this.at(x, y);

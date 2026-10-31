@@ -68,6 +68,27 @@ export const COLORS = {
   sandbag: '#4f4639',
   rust: '#5a3424',
   wire: '#55504c',
+  // 1960년대 거리: 크롬, 두 가지 색 차체
+  chrome: '#b9c0c6',
+  chromeDark: '#6f767d',
+  carCream: '#c9bea3',
+  carMint: '#5f8f88',
+  carCoral: '#a04e48',
+  // 네온관 (밝은 관, 어두운 관). 꺼지면 어두운 관만 남는다
+  neonPink: '#ff5fb4',
+  neonPinkDark: '#6e2a4e',
+  neonCyan: '#59f1ff',
+  neonCyanDark: '#1f5560',
+  neonAmber: '#ffbb4a',
+  neonAmberDark: '#6a4520',
+  neonGreen: '#7dff8e',
+  neonGreenDark: '#2a5a33',
+  neonRed: '#ff4b4b',
+  neonRedDark: '#5e2222',
+  // 가로등 (나트륨 주황), 빗방울
+  sodium: '#ffb15e',
+  rain: '#7f93ad',
+  rainLight: '#c7d8ef',
   // 불빛 (밝은 색은 여기만)
   lampGlow: '#ffcf7a',
   lampCore: '#fff1c4',
