@@ -35,6 +35,11 @@ export const isAirborne = (f: Fighter): boolean => f.y < f.floor || f.vy < 0;
 /** 땅에서만 있을 수 있는 상태 (발밑 바닥이 없어지면 떨어지는 상태로 바꾼다) */
 const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown']);
 
+/** 밀려나는 등 위치가 바뀐 뒤: 서 있던 발판이 발밑에 그대로 있는지 다시 본다 */
+export function settle(s: SimState, f: Fighter): void {
+  if (f.floor < 0 && !isAirborne(f) && floorBelow(s, f.x, f.y, f.dropT > 0) !== f.y) fallOff(f);
+}
+
 /** 서 있던 발판이 발밑에서 없어졌다 (끝을 넘었거나 무너졌다): 떨어지기 시작한다 */
 function fallOff(f: Fighter): void {
   f.floor = 0;
