@@ -85,21 +85,30 @@ export const CITADEL = {
     },
   },
 
-  /** 발판 높이: 가게 차양, 극장 차양, 비상계단 발판(층 바닥에서 위로), 발판 폭 */
-  /** (점프 한 번이면 약 95px, 2단 점프까지 약 160px 오른다) */
-  ledges: { awning: 76, marquee: 92, escapeW: 56, escapeAbove: 4 },
+  /**
+   * 발판 높이: 가게 차양, 극장 차양(과 전구 판 높이 marqueeH), 비상계단 발판(층 바닥에서 위로), 발판 폭,
+   * 비상계단 난간 높이(rail)와 맨 아래 발판에서 접힌 사다리 끝까지(ladder). 비상계단 바깥 기둥은 사다리 끝부터 맨 위 난간까지 벽이다.
+   * (점프 한 번이면 약 95px, 2단 점프까지 약 160px 오른다)
+   */
+  ledges: { awning: 76, marquee: 92, marqueeH: 22, escapeW: 56, escapeAbove: 4, rail: 12, ladder: 33 },
 
-  /** 해안 부두: 서쪽 끝 컨테이너 더미(벽), 방파제 난간, 등대(중간 발코니·꼭대기 둘레가 발판, 꼭대기 서치라이트) */
+  /**
+   * 해안 부두: 서쪽 끝 컨테이너 더미(벽), 방파제 난간, 등대(중간 발코니·꼭대기 둘레가 발판, 꼭대기 서치라이트).
+   * 컨테이너 더미는 rows단 × rowH (윗면이 발판). 그 높이 위에서는 standFrom까지 더미 위를 걸을 수 있다 (아래에서는 x1이 벽).
+   * 등대는 큰 물건: 내구도 hp, 무너지면 snap 높이에서 꺾여 바다 쪽으로 쓰러지고 밑동 윗면이 발판으로 남는다.
+   */
   pier: {
-    containers: { x0: 0, x1: 66, rows: 4 },
+    containers: { x0: 0, x1: 66, rows: 4, rowH: 28, standFrom: 14 },
     railing: { x0: 66, x1: 400, h: 26 },
-    lighthouse: { x: 150, w: 36, h: 226, gallery: 196, galleryW: 60, balcony: 92, balconyW: 52 },
+    lighthouse: { x: 150, w: 36, h: 226, gallery: 196, galleryW: 60, balcony: 92, balconyW: 52, hp: 450, snap: 120 },
     bollards: [124, 380],
   },
 
   /**
-   * 시타델 광장: 본관(1960년대 마천루 아랫부분, 무너지지 않음), 정문 계단과 계단참(중층 발판), 정문 양옆 콘크리트 기둥
+   * 시타델 광장: 본관(1960년대 마천루 아랫부분), 정문 계단과 계단참(중층 발판), 정문 양옆 콘크리트 기둥
    * (중간 테라스·꼭대기는 옥상 발판), 정면 대형 간판, 옥상 서치라이트, 분수, 히어로 동상, 광장 입구 문기둥.
+   * 정면 대형 간판은 큰 물건: 판 x ~ x+w, 바닥에서 bottom ~ bottom+h. 무너지면 불꽃을 튀며 떨어져 분수에 기대 쓰러진다
+   * (쓰러진 간판 윗변 높이 lyingH가 발판, 양 끝이 벽).
    * 본관 커튼월: 굵은 기둥 간격(pier), 유리 칸 폭(pane), 층 높이(floor), 로비 높이(lobby), 가운데 높은 유리 홀 꼭대기(atrium)
    */
   plaza: {
@@ -108,7 +117,7 @@ export const CITADEL = {
     gate: { w: 80, h: 120 },
     towers: [{ x: 1440 }, { x: 1704 }],
     tower: { w: 56, h: 296, terrace: 200, terraceOver: 12 },
-    sign: { text: 'CITADEL', sub: 'DISTRICT 1', h: 300 },
+    sign: { text: 'CITADEL', sub: 'DISTRICT 1', x: 1528, w: 144, bottom: 274, h: 56, hp: 300, lyingH: 50 },
     fountain: { x: 1600, w: 128 },
     statue: { x: 1110 },
     gatePiers: [984, 2184],
@@ -126,8 +135,12 @@ export const CITADEL = {
     fence: { x0: 3156, h: 150 },
   },
 
-  /** 노면전차 (렌더 전용): 선로 구간(월드 x, 양 끝은 컨테이너와 광장 문기둥에 가려진다), 가공선 높이, 주기, 속도(px/틱) */
-  tram: { x0: 0, x1: 1000, wire: 104, every: 1500, speed: 3.2, first: 200, length: 156 },
+  /**
+   * 노면전차: 선로 구간(월드 x, 양 끝은 컨테이너와 광장 문기둥에 가려진다), 가공선 높이, 주기(틱), 속도(px/틱), 첫 출발 틱, 길이.
+   * 다니는 자리는 틱만으로 정해진다 (sim과 렌더가 같은 계산). 큰 물건: 판정 상자 높이 h, 내구도 hp.
+   * 무너지면 탈선해 굴러 뒤집힌다 (뒤집힌 차체 높이 lyingH가 발판, 양 끝이 벽). 그 경기 동안 전차는 더 다니지 않는다.
+   */
+  tram: { x0: 0, x1: 1000, wire: 104, every: 1500, speed: 3.2, first: 200, length: 156, h: 60, hp: 400, lyingH: 60 },
 
   /** 거리 (캐릭터와 같은 속도): 보도, 부서지지 않는 소품 */
   street: {
@@ -186,6 +199,11 @@ export const CITADEL = {
     collapse: { groundRows: 4, brokenPerColumn: 3, minColumns: 4, slowColumns: 3 },
     /** 무너질 때 게임 시간이 반 속도로 가는 틱 */
     slowTicks: 40,
+    /**
+     * 무너진 자리의 잔해 더미: settle틱 동안 쌓인 뒤 윗면(가운데 top 비율)이 발판, 양옆이 벽이 된다.
+     * 높이 = min(max, base + 건물 높이 / per)
+     */
+    rubble: { settle: 40, max: 60, base: 10, per: 6, top: 0.6 },
   },
 
   /**
@@ -213,5 +231,13 @@ export const CITADEL = {
     crashSpeed: 4,
     /** 부딪힌 쪽 추가 피해 */
     crashDamage: 50,
+    /**
+     * 큰 물건 (노면전차·급수탑·등대·시타델 간판. 전차·등대·간판의 자리와 내구도는 tram·pier·plaza에 있다).
+     * 평타·기술로는 망가짐까지만 가고, 필살기가 닿거나 벽 쪽으로 날린 상대가 부딪히면 크게 무너진다.
+     * 급수탑: 비상계단 아파트 구간 building번째 건물(식료품점) 지붕 위, 건물 왼쪽 끝에서 dx. 다리·통·지붕을 합친 높이 h (윗면이 발판).
+     */
+    watertower: { building: 2, dx: 16, w: 36, h: 54, hp: 300 },
+    /** 무너진 큰 물건(뒤집힌 전차·쓰러진 간판)이 자리를 잡아 새 발판과 벽이 되기까지 틱 */
+    settle: 36,
   },
 } as const;

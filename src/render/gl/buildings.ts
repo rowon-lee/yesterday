@@ -2,11 +2,13 @@ import * as THREE from 'three';
 import type { CityState } from '../../sim';
 import { CITADEL as D } from '../../data/stages/citadel';
 import {
-  awningOf, CHUNKS, chunkIndex, chunkStage, escapeOf, FLOOR_H, FRONT, FRONT_GAPS, GRIDS, GROUND, MAP_H, MAP_W, SHOP_H, type FrontBuildingPlace,
+  awningOf, BIG, BREAKABLES, CHUNKS, chunkIndex, chunkStage, CITY_RULES, escapeOf, FLOOR_H, FRONT, FRONT_GAPS, GRIDS, GROUND, MAP_H, MAP_W,
+  rubbleOf, SHOP_H, type FrontBuildingPlace,
 } from '../../stage/citadel';
 import { COLORS as C } from '../palette';
 import { canvas, hash, line, rect } from '../dither';
 import { scaleAt } from './core';
+import { Flame } from './fx';
 import { paintInterior } from './interior';
 import { Details, Geo, plane, type UvFn } from './kit';
 import { lightPool, shared } from './lights';
@@ -239,7 +241,8 @@ export class Buildings {
       det.addAttached(bi, ax, ax + 16, ay, ay + 11, FRONT_Z, FRONT_Z + 10, C.chromeDark);
       det.addAttached(bi, ax + 1, ax + 15, ay + 9, ay + 11, FRONT_Z, FRONT_Z + 10, C.ironLight);
     }
-    const tank = b.sign === 'HOTEL' || (b.kind === 'apartment' && hash(b.seed * 5) < 0.6 && b.sign !== 'RADIO');
+    // 큰 급수탑이 선 지붕(식료품점)에는 작은 물탱크를 두지 않는다 (급수탑은 bigprops.ts)
+    const tank = b.sign === 'HOTEL' || (b.kind === 'apartment' && hash(b.seed * 5) < 0.6 && b.sign !== 'RADIO' && bi !== BREAKABLES[BIG.watertower].b);
     if (tank) {
       // 물탱크 (다리 넷, 나무 통, 원뿔 지붕)
       const tx = b.kind === 'apartment' ? b.x + 18 : b.x + b.w - 44;
@@ -549,8 +552,13 @@ function patchInner(f: Face, i: number, gone: boolean): void {
  * 무너진 자리의 잔해 더미 (정면 앞 보도): 무너진 직후부터 40틱 동안 차오른다. 벽돌·돌 조각, 삐져나온 철골과 판자.
  * 차오르는 동안만 몇 번 다시 그리고, 다 쌓이면 그대로 둔다.
  */
+/**
+ * 무너진 자리의 잔해 더미와 타는 불: 무너진 뒤 15초 동안 더미 위에서 불길이 줄어들며 타고, 그 뒤로는 잉걸불 빛만 남는다
+ * (어둠 속에서 더미와 그 위에 선 사람을 비추는 실제 광원).
+ */
 class Rubble {
   private readonly piles: Array<{ mesh: THREE.Mesh; c: HTMLCanvasElement; tex: THREE.CanvasTexture; step: number; key: string }> = [];
+  private readonly flames: Flame[] = [];
 
   constructor(private readonly group: THREE.Group) {}
 
@@ -563,10 +571,10 @@ class Rubble {
       (p.mesh.material as THREE.Material).dispose();
       p.mesh.geometry.dispose();
     }
+    this.fires(list, tick);
     list.forEach((col, k) => {
-      const gr = GRIDS[col.b];
-      const x0 = gr.x + col.c0 * 16 - 6;
-      const x1 = Math.min(gr.x + gr.w, gr.x + (col.c1 + 1) * 16) + 6;
+      const r = rubbleOf(col.b, col.c0, col.c1);
+      const { x0, x1 } = r;
       const key = `${col.b}:${col.c0}:${col.c1}:${col.tick}`;
       let p = this.piles[k];
       if (p && p.key !== key) {
@@ -583,35 +591,84 @@ class Rubble {
         p = { mesh, c, tex, step: -1, key };
         this.piles[k] = p;
       }
-      const step = Math.min(8, Math.max(0, Math.floor(((tick - col.tick) / 40) * 8)));
+      const step = Math.min(8, Math.max(0, Math.floor(((tick - col.tick) / CITY_RULES.rubble.settle) * 8)));
       if (step === p.step) return;
       p.step = step;
-      paintRubble(p.c, gr.h, step / 8, col.b * 977 + col.c0 * 31);
+      paintRubble(p.c, r, step / 8, col.b * 977 + col.c0 * 31);
       p.tex.needsUpdate = true;
+    });
+  }
+
+  /** 최근 더미부터 FIRES개까지 불길과 잉걸불 빛 */
+  private fires(list: CityState['collapses'], tick: number): void {
+    while (this.flames.length < FIRES) {
+      const f = new Flame(22, 18, 70 + this.flames.length);
+      this.flames.push(f);
+      this.group.add(f.mesh);
+    }
+    this.flames.forEach((f, k) => {
+      const col = list[list.length - 1 - k];
+      if (!col) return f.set(0, 0, 0, 0);
+      const r = rubbleOf(col.b, col.c0, col.c1);
+      const age = tick - col.tick;
+      const settled = age >= CITY_RULES.rubble.settle;
+      const burn = settled ? Math.max(0, 1 - age / BURN) : 0;
+      const cx = Math.round((r.tx0 + r.tx1) / 2 + (k % 2 ? 9 : -12));
+      if (burn > 0) {
+        const h = Math.round(5 + 13 * burn);
+        f.set(cx - 11, r.h - 3, FRONT_Z + 11, h);
+        lightPool.add(cx, r.h + h / 2, -10, 60 + h * 4, C.fxOrange, (0.7 + 0.4 * hash((tick >> 2) * 7 + k)) * (0.4 + 0.6 * burn));
+      } else {
+        f.set(0, 0, 0, 0);
+        if (settled) lightPool.add(cx, r.h, -10, 54, C.fxOrange, 0.3 + 0.1 * hash((tick >> 3) * 11 + k));
+      }
     });
   }
 }
 
-function paintRubble(c: HTMLCanvasElement, h: number, grow: number, seed: number): void {
+/** 불길을 붙이는 더미 수 (최근 것부터)와 불이 타는 틱 (그 뒤로는 잉걸불 빛만) */
+const FIRES = 6;
+const BURN = 900;
+
+/**
+ * 잔해 더미 (sim의 잔해 더미와 같은 자리·높이): 양 끝은 거의 서 있는 벽 조각(벽 기동에 쓰는 벽), 가운데 윗면은 고른 돌무더기(발판).
+ * 다 쌓이면 윗면이 r.h에 닿는다. grow: 쌓인 정도 0~1.
+ */
+function paintRubble(c: HTMLCanvasElement, r: { x0: number; x1: number; h: number; tx0: number; tx1: number }, grow: number, seed: number): void {
   const g = c.getContext('2d')!;
   const w = c.width;
   const H = c.height;
   g.clearRect(0, 0, w, H);
   if (grow <= 0) return;
-  const peak = Math.min(60, 10 + h / 6) * grow;
+  const top = r.h * grow;
+  const tx0 = r.tx0 - r.x0;
+  const tx1 = r.tx1 - r.x0;
   for (let x = 0; x < w; x++) {
-    const u = x / w;
-    const hgt = Math.round(peak * Math.sin(Math.PI * u) * (0.75 + 0.25 * hash(seed + x)));
+    // 양 끝 6px은 선 벽 조각, 그 안쪽은 윗면까지 가파르게 오른다
+    const edge = Math.min(x, w - 1 - x);
+    const ramp = x < tx0 ? (x - 6) / Math.max(1, tx0 - 6) : x > tx1 ? (w - 7 - x) / Math.max(1, w - 7 - tx1) : 1;
+    const k = edge < 6 ? 0.92 - (edge % 3) * 0.04 : Math.max(0.55, Math.min(1, 0.55 + 0.45 * ramp));
+    const bump = x >= tx0 && x <= tx1 ? (hash(seed + x) < 0.25 ? 1 : 0) : Math.floor(hash(seed + x * 3) * 4);
+    const hgt = Math.max(0, Math.round(top * k) - bump);
     for (let y = 0; y < hgt; y++) {
       const n = hash(seed + x * 131 + y * 17);
-      rect(g, x, H - 1 - y, 1, 1, n < 0.45 ? C.brickRedDark : n < 0.75 ? C.brickDark : n < 0.9 ? C.stoneDark : C.brickLight);
+      const wall = edge < 6;
+      // 위쪽 몇 줄은 빛을 받는 돌 조각 (어둠 속에서도 더미 윤곽이 읽히게)
+      const lit = hgt - y <= 3;
+      const c = wall
+        ? (y % 8 === 7 ? C.stoneDark : edge === 0 || edge === 5 ? C.stoneDark : n < 0.5 ? C.stone : C.brickRed)
+        : lit ? (n < 0.5 ? C.stone : n < 0.8 ? C.brickLight : C.paintCream)
+        : n < 0.4 ? C.brickRedDark : n < 0.7 ? C.brickRed : n < 0.88 ? C.stoneDark : C.brickLight;
+      rect(g, x, H - 1 - y, 1, 1, c);
     }
+    // 윗면 가장자리를 한 줄 밝게 (발판이 읽히게)
+    if (hgt > 2 && x >= tx0 && x <= tx1) rect(g, x, H - hgt, 1, 1, C.paintCream);
   }
   // 삐져나온 철골과 판자
   for (let j = 0; j < 4; j++) {
     const bx = Math.floor(hash(seed + j * 3) * w);
     const len = 8 + Math.floor(hash(seed + j * 5) * 14);
     const dir = hash(seed + j * 7) < 0.5 ? -1 : 1;
-    line(g, bx, H - Math.round(peak * 0.6), bx + dir * len, H - Math.round(peak * 0.6) - len, j % 2 ? C.iron : C.awning);
+    line(g, bx, H - Math.round(top * 0.6), bx + dir * len, H - Math.round(top * 0.6) - len, j % 2 ? C.iron : C.awning);
   }
 }

@@ -3,10 +3,11 @@ import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isA
 import { resolveHits } from './combat';
 import { crashProps, createProps, hitProps } from './props';
 import { createCity, flyThroughCity } from './city';
+import { wallLeft } from './platforms';
 import type { PlayerInput } from './input';
 import {
   GUARD_MAX, INTRO_TICKS, MAX_SEPARATION, px, PUSH_H, PUSH_W, ROUND_END_TICKS, ROUND_TICKS, START_GAP,
-  MAX_ROUNDS, STAGE_W, WALL_L, WALL_R, WINS_NEEDED,
+  MAX_ROUNDS, STAGE_W, WALL_R, WINS_NEEDED,
 } from './rules';
 import type { Fighter, SimState } from './types';
 
@@ -20,12 +21,13 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
     hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
     runDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
+    wallFly: false,
   };
 }
 
 export function createState(seed: number): SimState {
   const s: SimState = {
-    tick: 0, rng: seed | 0, phase: 'intro', phaseT: 0, round: 1, timer: ROUND_TICKS, freeze: 0,
+    tick: 0, clock: 0, rng: seed | 0, phase: 'intro', phaseT: 0, round: 1, timer: ROUND_TICKS, freeze: 0,
     roundWinner: -1, matchWinner: -1,
     fighters: [newFighter(0, 1), newFighter(0, -1)],
     events: [],
@@ -60,6 +62,7 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   readButtons(b, inputs[1]);
 
   if (s.phase === 'matchEnd') {
+    s.clock++;
     for (const f of s.fighters) stepFighter(s, f, 0, false);
     return;
   }
@@ -74,6 +77,7 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
     s.slow--;
     if (s.slow % 2 === 1) return;
   }
+  s.clock++;
 
   const fighting = s.phase === 'fight';
   stepFighter(s, a, inputs[0], fighting);
@@ -103,9 +107,15 @@ function stepFighter(s: SimState, f: Fighter, input: PlayerInput, controllable: 
   physics(s, f);
 }
 
+/** 맵 끝 벽 안으로 (서쪽은 컨테이너 더미 높이 위면 더미 위까지) */
+const clampX = (f: Fighter): void => {
+  f.x = Math.max(wallLeft(f.y), Math.min(WALL_R, f.x));
+};
+
 /** 몸이 겹치지 않게, 벽 밖으로 나가지 않게, 둘이 화면 한 칸 안에 있게 */
 function separate(a: Fighter, b: Fighter): void {
-  for (const f of [a, b]) f.x = Math.max(WALL_L, Math.min(WALL_R, f.x));
+  clampX(a);
+  clampX(b);
   const dx = b.x - a.x;
   if (Math.abs(dx) < PUSH_W && Math.abs(a.y - b.y) < PUSH_H && a.mode !== 'ko' && b.mode !== 'ko') {
     const sign = dx !== 0 ? Math.sign(dx) : a.facing;
@@ -115,9 +125,10 @@ function separate(a: Fighter, b: Fighter): void {
     b.x += sign * (over - half);
     // 벽에 막히면 남은 만큼 반대쪽이 밀린다
     for (const [f, o] of [[a, b], [b, a]] as const) {
-      if (f.x < WALL_L) {
-        o.x += WALL_L - f.x;
-        f.x = WALL_L;
+      const left = wallLeft(f.y);
+      if (f.x < left) {
+        o.x += left - f.x;
+        f.x = left;
       }
       if (f.x > WALL_R) {
         o.x -= f.x - WALL_R;
@@ -140,7 +151,8 @@ function separate(a: Fighter, b: Fighter): void {
       b.x -= sign * (excess - h);
     }
   }
-  for (const f of [a, b]) f.x = Math.max(WALL_L, Math.min(WALL_R, f.x));
+  clampX(a);
+  clampX(b);
 }
 
 function roundFlow(s: SimState): void {

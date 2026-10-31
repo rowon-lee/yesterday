@@ -2,7 +2,7 @@
  * 전투 규칙 수치. 시간은 틱, 거리는 1/256px 정수 (px(…)로 바꿔 쓴다).
  * 기획서: 방어 내구도, 기력 3칸, 낙법, 콤보 보정(최소 35%), 히트스톱 7~12틱.
  */
-import { MAP_W, WALLS } from '../stage/citadel';
+import { MAP_ENDS, MAP_W } from '../stage/citadel';
 
 export const SUBPX = 256;
 export const px = (v: number): number => Math.round(v * SUBPX);
@@ -10,8 +10,8 @@ export const px = (v: number): number => Math.round(v * SUBPX);
 // 무대
 export const STAGE_W = MAP_W;
 /** 맵 끝 벽 (서쪽 컨테이너 더미, 동쪽 철책) */
-export const WALL_L = px(WALLS.left);
-export const WALL_R = px(WALLS.right);
+export const WALL_L = px(MAP_ENDS.left);
+export const WALL_R = px(MAP_ENDS.right);
 /** 두 사람은 화면 한 칸 안에서 벗어날 수 없다 */
 export const MAX_SEPARATION = px(440);
 /** 몸끼리 겹치지 않는 폭 */

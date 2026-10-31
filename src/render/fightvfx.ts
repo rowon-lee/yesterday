@@ -1,6 +1,7 @@
 import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
-import { BREAKABLES, GRIDS, fighterPose, MOVES, RULES, STATS, type Fighter, type SimState } from '../sim';
+import { BREAKABLES, GRIDS, fighterPose, MOVES, RULES, STATS, tramRestX, type Fighter, type SimState } from '../sim';
+import { CITADEL as D } from '../data/stages/citadel';
 import { Debris } from './debris';
 import dashBlink from '../vfx/dash-blink';
 import explosion from '../vfx/explosion';
@@ -9,7 +10,7 @@ import powerUp from '../vfx/power-up';
 import slash from '../vfx/slash';
 import type { Effects } from './effects';
 import type { ColorName } from './palette';
-import { GROUND as GROUND_Y } from '../stage/citadel';
+import { BREAK_RULES, GROUND as GROUND_Y } from '../stage/citadel';
 import { facadeAtlas } from './gl/buildings';
 import { fxColor, fxHex, fxRamp, FX_PX, type VfxLayer } from './vfx';
 import { lights } from './light';
@@ -22,6 +23,7 @@ import { COLORS } from './palette';
  * - 대시·공중 대시: Dash & Blink (잔상, 박차는 먼지)
  * - 기력 3칸이 찬 동안: Power Up (몸 윤곽을 따라 도는 오라)
  * - 필살 적중·가드 크러시·KO: Explosion
+ * - 큰 물건이 크게 무너질 때: Explosion·먼지·화면 흔들림 (부서지는 순간, 그리고 쓰러져 땅·지붕에 닿는 순간)
  * 맞은 쪽 하얀 번쩍임과 히트스톱 중 떨림도 여기서 정한다.
  */
 
@@ -111,6 +113,9 @@ export class FightVfx {
   }
 
   private lastCutin = 0;
+  /** 나중 틱에 낼 연출 (큰 물건이 쓰러져 땅에 닿는 순간 등). at은 sim 틱 */
+  private later: Array<{ at: number; run: () => void }> = [];
+  private now = 0;
 
   constructor(private layer: VfxLayer, private fx: Effects) {}
 
@@ -118,6 +123,7 @@ export class FightVfx {
   reset(s: SimState): void {
     this.layer.clear();
     this.debris.clear();
+    this.later = [];
     this.round = s.round;
     this.since = [99, 99];
     this.prevMeter = s.fighters.map((f) => f.meter);
@@ -129,6 +135,12 @@ export class FightVfx {
     const shake = (k: number) => (t: number) => this.fx.shake(t * k);
     for (const g of this.glows) g.t++;
     this.glows = this.glows.filter((g) => g.t < g.life);
+    this.now = s.tick;
+    if (this.later.length) {
+      const due = this.later.filter((l) => l.at <= s.tick);
+      this.later = this.later.filter((l) => l.at > s.tick);
+      for (const l of due) l.run();
+    }
     for (const e of s.events) {
       const x = (e.x / 256) * FX_PX;
       const y = (GROUND_Y + e.y / 256) * FX_PX;
@@ -163,7 +175,8 @@ export class FightVfx {
         this.since[1 - e.who] = 0;
         this.heavy[1 - e.who] = true;
       } else if (e.type === 'prop') {
-        this.prop(e.who, e.text === 'broken', !!e.heavy, s.props[e.who].dir);
+        if (BREAKABLES[e.who].big) this.bigProp(e.who, e.text === 'broken', wx, wy, s.props[e.who].dir, s.props[e.who].at);
+        else this.prop(e.who, e.text === 'broken', !!e.heavy, s.props[e.who].dir);
       } else if (e.type === 'city') {
         // 깎인 벽에서 벽돌 조각이 튄다
         const n = Math.min(12, 3 + (e.combo ?? 1) * 2);
@@ -300,6 +313,97 @@ export class FightVfx {
         this.debris.burst('water', cx, GROUND_Y - 8, dir, 20);
         this.debris.burst('metal', cx, GROUND_Y - 8, dir, 4);
         break;
+    }
+  }
+
+  /** 틱 뒤에 연출을 낸다 (sim 틱 기준) */
+  private after(ticks: number, run: () => void): void {
+    this.later.push({ at: this.now + ticks, run });
+  }
+
+  /**
+   * 큰 물건 (wx, wy: 부서진 자리, 화면 월드 좌표). 망가질 때는 큰 충격만, 크게 무너질 때는 물건마다:
+   * 노면전차는 탈선하는 순간 폭발·불꽃·유리, 굴러 뒤집혀 떨어지는 순간 긴 먼지. 급수탑은 지붕 위 폭발·물보라, 지붕에 닿아 터지는 순간 물과 먼지.
+   * 등대는 꺾이는 자리 폭발·등실 유리, 밑동 먼지. 시타델 간판은 걸쇠의 번개 불꽃·네온 유리관, 바닥에 닿는 순간 폭발과 먼지.
+   */
+  private bigProp(i: number, broken: boolean, wx: number, wy: number, dir: number, at: number): void {
+    const b = BREAKABLES[i];
+    const angle = dir > 0 ? 0 : Math.PI;
+    const G = GROUND_Y * FX_PX;
+    if (!broken) {
+      this.layer.add(impact({ kind: 'hit', x: wx * FX_PX, y: wy * FX_PX, angle, size: 0.6, ramp: fxRamp(WARM), seed: this.seed++ }));
+      this.debris.burst(b.kind === 'watertower' ? 'water' : b.kind === 'bigsign' ? 'glass' : 'metal', wx, wy, dir, 8);
+      this.fx.shake(0.35);
+      return;
+    }
+    const boom = (x: number, ground: number, size: number, fire: number, y?: number) =>
+      this.layer.add(explosion({ x: x * FX_PX, y: y === undefined ? undefined : y * FX_PX, ground: ground * FX_PX, size, fire, surface: fxColor('street'), seed: this.seed++, shake: (t) => this.fx.shake(t * 0.5) }));
+    this.fx.shake(0.8);
+    this.fx.flashFor(2);
+    switch (b.kind) {
+      case 'tram': {
+        const x0 = at;
+        const rest = tramRestX(at);
+        boom(x0 + b.w / 2, GROUND_Y, 0.55, 0.25);
+        this.layer.add(impact({ kind: 'ricochet', x: (x0 + b.w / 2) * FX_PX, y: (GROUND_Y - 30) * FX_PX, angle, normal: -Math.PI / 2, surface: fxColor('iron'), ground: G, size: 0.8, ramp: fxRamp(WARM), seed: this.seed++ }));
+        this.debris.burst('glass', x0 + b.w / 2, GROUND_Y - 40, dir, 24);
+        this.debris.burst('metal', x0 + b.w / 2, GROUND_Y - 20, dir, 12);
+        this.glow(x0 + b.w / 2, GROUND_Y - 30, 180, COLORS.fxOrange, 1, 50);
+        // 굴러 뒤집혀 떨어지는 순간: 차체 길이만큼 먼지와 흔들림
+        this.after(30, () => {
+          this.debris.dustCloud(rest - 10, rest + b.w + 10, 1.6);
+          this.debris.burst('metal', rest + b.w / 2, GROUND_Y - 10, -dir, 8);
+          this.fx.shake(0.6);
+        });
+        break;
+      }
+      case 'watertower': {
+        const roof = GROUND_Y - b.bottom;
+        boom(b.x + b.w / 2, roof, 0.4, 0);
+        this.debris.burst('water', b.x + b.w / 2, roof - 30, dir, 30);
+        this.debris.burst('brick', b.x + b.w / 2, roof - 20, dir, 10);
+        // 지붕에 닿아 터지는 순간: 물이 사방으로, 지붕 위 먼지
+        this.after(22, () => {
+          this.debris.burst('water', b.x + b.w + 20, roof - 8, 1, 40);
+          this.debris.burst('water', b.x + b.w + 20, roof - 8, -1, 20);
+          this.debris.dustCloud(b.x + b.w, b.x + b.w + 60, 1, roof);
+          this.fx.shake(0.5);
+        });
+        break;
+      }
+      case 'lighthouse': {
+        const L = D.pier.lighthouse;
+        const cx = L.x + L.w / 2;
+        boom(cx, GROUND_Y, 0.6, 0.2, GROUND_Y - L.snap);
+        this.debris.burst('glass', cx, GROUND_Y - L.h + 12, dir, 26);
+        this.debris.burst('brick', cx, GROUND_Y - L.snap, dir, 18);
+        this.debris.dustCloud(cx - 30, cx + 30, 1.2);
+        this.glow(cx, GROUND_Y - L.snap, 160, COLORS.fxOrange, 1, 40);
+        this.after(44, () => this.fx.shake(0.4));
+        break;
+      }
+      case 'bigsign': {
+        const S = D.plaza.sign;
+        const top = GROUND_Y - S.bottom - S.h;
+        // 걸쇠가 끊어지며 번개 불꽃, 네온 유리관 조각
+        for (const mx of [S.x + 12, S.x + S.w - 12]) {
+          this.layer.add(impact({ kind: 'ricochet', x: mx * FX_PX, y: top * FX_PX, angle, normal: Math.PI / 2, surface: fxColor('iron'), ground: G, size: 0.7, ramp: fxRamp(COOL), seed: this.seed++ }));
+        }
+        this.debris.burst('glass', S.x + S.w / 2, top + 20, dir, 30);
+        this.debris.burst('metal', S.x + S.w / 2, top + 10, dir, 8);
+        this.glow(S.x + S.w / 2, top, 220, COLORS.skyLight, 1, 24);
+        // 바닥(분수)에 닿는 순간 (sim이 쓰러진 간판 발판을 놓는 틱) 폭발과 먼지
+        this.after(BREAK_RULES.settle, () => {
+          boom(S.x + S.w / 2, GROUND_Y, 0.7, 0.4);
+          this.debris.dustCloud(S.x - 20, S.x + S.w + 20, 2);
+          this.debris.burst('water', S.x + S.w / 2, GROUND_Y - 20, 1, 24);
+          this.debris.burst('water', S.x + S.w / 2, GROUND_Y - 20, -1, 24);
+          this.glow(S.x + S.w / 2, GROUND_Y - 20, 200, COLORS.fxOrange, 1, 60);
+          this.fx.shake(0.85);
+          this.fx.flashFor(2);
+        });
+        break;
+      }
     }
   }
 

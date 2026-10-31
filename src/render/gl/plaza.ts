@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
+import { BIG, BREAK_RULES } from '../../stage/citadel';
+import type { PropState } from '../../sim';
 import { textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { canvas, disc, ditherRect, hash, line, rect } from '../dither';
@@ -44,8 +46,20 @@ interface Glow {
 
 export class Plaza {
   readonly group = new THREE.Group();
+  /** 광장 전기로 켜진 빛 (간판이 떨어지면 꺼진다) */
   private readonly fixed: Glow[] = [];
+  /** 검문소 초소 불빛 (따로 발전기를 쓴다) */
+  private booth: Glow | null = null;
+  /** 옥상 서치라이트 (간판이 떨어져도 남는다) */
   private readonly beams: Beam[] = [];
+  /** 기둥 발치·본관 날개 밑 투광등 (광장 전기) */
+  private readonly floods: Beam[] = [];
+  /** 광장 전기로 빛나는 면: 재질과 켜졌을 때 세기 */
+  private readonly glows: Array<{ mat: THREE.ShaderMaterial; k: number }> = [];
+  private signMesh!: THREE.Mesh;
+  private signMat!: THREE.ShaderMaterial;
+  /** 분수 가운데 받침과 그릇 (간판에 깔리면 사라진다) */
+  private readonly fountainTop: THREE.Object3D[] = [];
   private readonly beacons: Array<{ mat: THREE.ShaderMaterial; x: number; y: number; z: number; phase: number }> = [];
   private readonly checkLight: THREE.ShaderMaterial;
 
@@ -55,7 +69,7 @@ export class Plaza {
     this.pylons(det);
     this.stairs(det);
     this.sign();
-    this.fountain(det);
+    this.fountain();
     this.walls(det);
     statue(this.group, det);
     this.gatePiers(det);
@@ -69,6 +83,7 @@ export class Plaza {
     const side = litMaterial(pixelTexture(paintKeepSide()), { tint: 0.7 });
     const roof = litMaterial(pixelTexture(solidTex(C.smog1)));
     const front = litMaterial(pixelTexture(f.map), { emissive: pixelTexture(f.glow), emissiveStrength: 0.7 });
+    this.glows.push({ mat: front, k: 0.7 });
     this.group.add(facedBox(K.x0, K.x1, 0, K.h, KEEP_Z - 400, KEEP_Z, { px: side, nx: side, py: roof, pz: front }));
     // 옥상 처마 띠와 서치라이트 받침
     det.add(K.x0 - 4, K.x1 + 4, K.h, K.h + 8, KEEP_Z - 6, KEEP_Z + 4, C.stone);
@@ -94,6 +109,7 @@ export class Plaza {
   /** 정문 양옆 콘크리트 기둥: 거푸집 줄눈, 가운데 빛 홈, 얇게 튀어나온 테라스와 쇠 난간, 꼭대기 덮개와 항공 경고등, 발치 투광등 */
   private pylons(det: Details): void {
     const mat = litMaterial(pixelTexture(paintPylon()), { emissive: pixelTexture(paintPylon(true)), emissiveStrength: 0.45 });
+    this.glows.push({ mat, k: 0.45 });
     const side = litMaterial(pixelTexture(solidTex(C.stoneDark)), { tint: 0.8 });
     // 기둥 둘을 한 기하로 (옆면 한 번, 앞면 한 번)
     const geo = new Geo();
@@ -123,6 +139,7 @@ export class Plaza {
       const up = new Beam(300, 26, C.beam, 0.32, 2);
       up.pivot.position.set(t.x + T.w / 2, 2, -10);
       this.group.add(up.pivot);
+      this.floods.push(up);
       this.fixed.push({ x: t.x + T.w / 2, y: 30, z: -4, range: 90, color: C.beam, power: 0.5 });
     });
     // 본관 양 날개 밑 투광등
@@ -130,6 +147,7 @@ export class Plaza {
       const up = new Beam(240, 30, C.skyLight, 0.18, 2);
       up.pivot.position.set(x, 2, KEEP_Z + 8);
       this.group.add(up.pivot);
+      this.floods.push(up);
       this.fixed.push({ x, y: 40, z: KEEP_Z + 30, range: 110, color: C.skyLight, power: 0.35 });
     }
   }
@@ -156,30 +174,16 @@ export class Plaza {
   /** 정면 대형 간판: 어두운 띠에 빛나는 글자 CITADEL, 아래 DISTRICT 1, 양옆 붉은 별 (광장의 주인공 빛) */
   private sign(): void {
     const S = P.sign;
-    const tw = textWidth(S.text, 4);
-    const sw = tw + 28;
-    const scx = (P.towers[0].x + P.towers[1].x + T.w) / 2;
-    const w = sw + 8 + 72;
-    const h = 56;
-    const [mc, g] = canvas(w, h);
-    const [ec, e] = canvas(w, h);
-    e.fillStyle = '#000';
-    e.fillRect(0, 0, w, h);
-    const x0 = 36;
-    rect(g, x0, 0, sw + 8, h, C.iron);
-    rect(g, x0, 0, sw + 8, 1, C.ironLight);
-    neonText(g, e, S.text, x0 + 4 + Math.round((sw - tw) / 2), 10, 4, C.lampCore, C.chromeDark);
-    const sub = S.sub;
-    neonText(g, e, sub, x0 + 4 + Math.round((sw - textWidth(sub, 2)) / 2), 36, 2, C.beam, C.chromeDark);
-    for (const cx of [18, w - 18]) star(g, cx, 26, 3, C.posterRed);
-    const mat = litMaterial(pixelTexture(mc), { emissive: pixelTexture(ec), emissiveStrength: 1.8 });
-    const top = S.h + 30;
-    this.group.add(box(scx - w / 2, scx + w / 2, top - h, top, KEEP_Z + 1, KEEP_Z + 6, mat));
-    this.fixed.push({ x: scx, y: top - h / 2, z: KEEP_Z + 60, range: 200, color: C.beam, power: 1.6 });
+    const t = paintCitadelSign();
+    this.signMat = litMaterial(pixelTexture(t.map), { emissive: pixelTexture(t.glow), emissiveStrength: 1.8 });
+    const x0 = S.x - t.plateX0;
+    this.signMesh = box(x0, x0 + t.w, S.bottom, S.bottom + S.h, KEEP_Z + 1, KEEP_Z + 6, this.signMat);
+    this.group.add(this.signMesh);
+    this.fixed.push({ x: S.x + S.w / 2, y: S.bottom + S.h / 2, z: KEEP_Z + 60, range: 200, color: C.beam, power: 1.6 });
   }
 
   /** 분수: 둥근 돌 수반(물 위에 비친 빛), 가운데 받침과 그릇 (물줄기는 움직이는 도시가 매 틱 그린다) */
-  private fountain(det: Details): void {
+  private fountain(): void {
     const F = P.fountain;
     const stone = litMaterial(pixelTexture(paintBasin()));
     const basin = new THREE.Mesh(new THREE.CylinderGeometry(F.w / 2, F.w / 2, 18, 28, 1, true), stone);
@@ -191,11 +195,12 @@ export class Plaza {
     water.scale.y = 0.45;
     water.position.set(F.x, 14, FOUNTAIN_Z);
     this.group.add(water);
-    det.add(F.x - 5, F.x + 5, 14, 46, FOUNTAIN_Z - 5, FOUNTAIN_Z + 5, C.stone);
+    const column = box(F.x - 5, F.x + 5, 14, 46, FOUNTAIN_Z - 5, FOUNTAIN_Z + 5, litMaterial(pixelTexture(solidTex(C.stone))));
     const bowl = new THREE.Mesh(new THREE.CylinderGeometry(20, 14, 5, 20, 1, false), stone);
     bowl.position.set(F.x, 47.5, FOUNTAIN_Z);
     bowl.scale.z = 0.5;
-    this.group.add(bowl);
+    this.group.add(column, bowl);
+    this.fountainTop.push(column, bowl);
     this.fixed.push({ x: F.x, y: 26, z: FOUNTAIN_Z + 34, range: 80, color: C.sky, power: 0.3 });
   }
 
@@ -217,6 +222,7 @@ export class Plaza {
       det.add(px - 3, px + 35, 120, 126, -37, -0.5, C.stone);
       det.add(px - 3, px + 35, 125, 126, -37, -0.5, C.paintCream);
       const lan = litMaterial(pixelTexture(solidTex(C.lampWarm)), { emissive: pixelTexture(solidTex(C.lampGlow)), emissiveStrength: 1.6 });
+      this.glows.push({ mat: lan, k: 1.6 });
       this.group.add(box(px + 10, px + 22, 126, 138, -24, -12, lan));
       det.add(px + 9, px + 23, 138, 140, -25, -11, C.iron);
       this.fixed.push({ x: px + 16, y: 132, z: -4, range: 60, color: C.lampGlow, power: 0.9 });
@@ -260,13 +266,29 @@ export class Plaza {
     // 경광등
     const red = litMaterial(pixelTexture(solidTex(C.neonRedDark)), { emissive: pixelTexture(solidTex(C.neonRed)), emissiveStrength: 0 });
     this.group.add(box(CP.x + CP.w / 2 - 2, CP.x + CP.w / 2 + 2, CP.h + 4, CP.h + 8, -32, -28, red));
-    this.fixed.push({ x: CP.x + CP.w / 2, y: CP.h - 14, z: -6, range: 40, color: C.windowLit, power: 0.6 });
+    this.booth = { x: CP.x + CP.w / 2, y: CP.h - 14, z: -6, range: 40, color: C.windowLit, power: 0.6 };
     return red;
   }
 
-  /** 붙박이 빛과 깜빡이는 경고등, 쓸고 지나가는 서치라이트 */
-  update(tick: number): void {
-    for (const f of this.fixed) lightPool.add(f.x, f.y, f.z, f.range, f.color, f.power);
+  /**
+   * 붙박이 빛과 깜빡이는 경고등, 쓸고 지나가는 서치라이트.
+   * 시타델 간판이 떨어지면 (sign: 간판 상태) 광장 전기가 몇 번 깜빡이다 나간다: 본관 창·기둥 빛 홈·투광등·문기둥 등롱·분수 빛이 꺼지고
+   * 옥상 서치라이트와 경고등, 검문소 불빛만 남는다. 간판이 망가지면 간판 글씨가 깜빡인다.
+   */
+  update(tick: number, props: readonly PropState[] | null = null): void {
+    const sign = props?.[BIG.bigsign];
+    const since = sign && sign.stage === 2 ? tick - sign.brokenAt : -1;
+    // 광장 전기: 떨어진 뒤 30틱 동안 깜빡이다 나간다
+    const on = since < 0 ? 1 : since < 30 && hash(Math.floor(since / 3) * 17 + 5) < 0.55 - since / 60 ? 0.8 : 0;
+    if (on > 0) for (const f of this.fixed) lightPool.add(f.x, f.y, f.z, f.range, f.color, f.power * on);
+    for (const g of this.glows) g.mat.uniforms.emissiveStrength.value = g.k * on;
+    for (const b of this.floods) b.mesh.visible = on > 0;
+    this.signMesh.visible = since < 0;
+    this.signMat.uniforms.emissiveStrength.value = sign?.stage === 1 && hash(Math.floor(tick / 4) * 7 + 3) < 0.3 ? 0.4 : 1.8;
+    // 간판이 바닥에 닿는 틱 (sim이 쓰러진 간판 발판을 놓는 틱)에 분수가 깔린다
+    const crushed = since >= BREAK_RULES.settle;
+    for (const o of this.fountainTop) o.visible = !crushed;
+    if (this.booth) lightPool.add(this.booth.x, this.booth.y, this.booth.z, this.booth.range, this.booth.color, this.booth.power);
     this.beams.forEach((b, i) => {
       if (i < 2) b.aim(0.7 * Math.sin(tick * 0.013 + i * 1.7));
     });
@@ -276,9 +298,9 @@ export class Plaza {
       if (on) lightPool.add(b.x, b.y, b.z, 30, C.neonRed, 0.9);
     }
     const CP = P.checkpoint;
-    const on = tick % 40 < 20;
-    this.checkLight.uniforms.emissiveStrength.value = on ? 2 : 0;
-    if (on) lightPool.add(CP.x + CP.w / 2, CP.h + 8, -20, 40, C.neonRed, 0.9);
+    const blink = tick % 40 < 20;
+    this.checkLight.uniforms.emissiveStrength.value = blink ? 2 : 0;
+    if (blink) lightPool.add(CP.x + CP.w / 2, CP.h + 8, -20, 40, C.neonRed, 0.9);
   }
 }
 
@@ -286,6 +308,28 @@ function solidTex(color: string): HTMLCanvasElement {
   const [c, g] = canvas(4, 4);
   rect(g, 0, 0, 4, 4, color);
   return c;
+}
+
+/**
+ * 시타델 정면 대형 간판 그림: 쇠판(plateX0부터 판 폭 D.plaza.sign.w)에 빛나는 글자 CITADEL과 DISTRICT 1, 양옆에 붉은 별.
+ * glow는 빛나는 부분만. 본관에 걸린 간판과 떨어지는 간판이 같이 쓴다.
+ */
+export function paintCitadelSign(): { map: HTMLCanvasElement; glow: HTMLCanvasElement; w: number; plateX0: number } {
+  const S = P.sign;
+  const tw = textWidth(S.text, 4);
+  const plateX0 = 36;
+  const w = S.w + plateX0 * 2;
+  const h = S.h;
+  const [map, g] = canvas(w, h);
+  const [glow, e] = canvas(w, h);
+  e.fillStyle = '#000';
+  e.fillRect(0, 0, w, h);
+  rect(g, plateX0, 0, S.w, h, C.iron);
+  rect(g, plateX0, 0, S.w, 1, C.ironLight);
+  neonText(g, e, S.text, plateX0 + Math.round((S.w - tw) / 2), 10, 4, C.lampCore, C.chromeDark);
+  neonText(g, e, S.sub, plateX0 + Math.round((S.w - textWidth(S.sub, 2)) / 2), 36, 2, C.beam, C.chromeDark);
+  for (const cx of [18, w - 18]) star(g, cx, 26, 3, C.posterRed);
+  return { map, glow, w, plateX0 };
 }
 
 /** 돌 벽 (블록 줄눈) */

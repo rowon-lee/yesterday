@@ -4,9 +4,9 @@ import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP,
   type PlayerInput,
 } from './input';
-import { SURFACES, type Surface } from '../stage/citadel';
+import { MAP_ENDS, type Surface } from '../stage/citadel';
 import { isAirborne } from './fighter';
-import { surfaceSolid } from './platforms';
+import { surfaceSolid, surfacesOf } from './platforms';
 import { METER_BAR, METER_MAX, px, SUBPX, TECH_HITS } from './rules';
 import type { Fighter, SimState } from './types';
 
@@ -153,7 +153,7 @@ function choosePlan(cpu: CpuState, s: SimState, me: Fighter, op: Fighter, dist: 
     if (sf) {
       cpu.plan = 'perch';
       cpu.planT = 50 + roll(cpu, 50);
-      cpu.tx = px(Math.max(sf.x0 + 12, Math.min(sf.x1 - 12, Math.round(me.x / SUBPX))));
+      cpu.tx = px(aimX(sf, Math.round(me.x / SUBPX)));
       cpu.ty = -px(sf.h);
       return;
     }
@@ -165,6 +165,16 @@ function choosePlan(cpu: CpuState, s: SimState, me: Fighter, op: Fighter, dist: 
   if (op.mode === 'knockdown' || op.mode === 'getup') plan = r < 60 ? 'wait' : 'approach';
   cpu.plan = plan;
   cpu.planT = 20 + roll(cpu, 40);
+}
+
+/**
+ * 발판에서 노릴 x (px): 지금 x에서 가장 가까운 발판 위 자리. 땅에서 걸어갈 수 없는 곳(서쪽 끝 벽 너머의 컨테이너 더미 위)이면
+ * 걸어갈 수 있는 가장 가까운 끝 (거기서 뛰어 넘어간다)
+ */
+function aimX(sf: Surface, mx: number): number {
+  const lo = Math.max(sf.x0 + 12, MAP_ENDS.left + 2);
+  const hi = sf.x1 - 12;
+  return lo > hi ? sf.x1 - 4 : Math.max(lo, Math.min(hi, mx));
 }
 
 /** 노린 x 쪽 방향 입력 (가까우면 0) */
@@ -194,7 +204,7 @@ function platformMove(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): Pla
       cpu.tx = 0;
       return null;
     }
-    cpu.tx = step ? px((step.x0 + step.x1) / 2) : op.x;
+    cpu.tx = step ? px(aimX(step, (step.x0 + step.x1) / 2)) : op.x;
     cpu.ty = step ? -px(step.h) : op.y;
     const dx = cpu.tx - me.x;
     const under = step ? Math.abs(dx) < px(Math.max(6, (step.x1 - step.x0) / 2 - 8)) : Math.abs(dx) < px(90);
@@ -210,9 +220,9 @@ function stepToward(s: SimState, me: Fighter, op: Fighter): Surface | null {
   const myH = -me.y / SUBPX;
   let best: Surface | null = null;
   let bestScore = Infinity;
-  for (const sf of SURFACES) {
+  for (const sf of surfacesOf(s)) {
     if (sf.h < myH + 30 || sf.h > myH + REACH) continue;
-    const cx = (sf.x0 + sf.x1) / 2;
+    const cx = aimX(sf, (sf.x0 + sf.x1) / 2);
     if (!surfaceSolid(s, sf, px(cx))) continue;
     const score = Math.abs(cx - op.x / SUBPX) + Math.abs(cx - me.x / SUBPX) * 0.5 - sf.h * 0.3;
     if (score < bestScore) {
@@ -227,8 +237,8 @@ function stepToward(s: SimState, me: Fighter, op: Fighter): Surface | null {
 function perchNear(s: SimState, me: Fighter): Surface | null {
   const myH = -me.y / SUBPX;
   const mx = Math.round(me.x / SUBPX);
-  for (const sf of SURFACES) {
-    const nx = Math.max(sf.x0 + 12, Math.min(sf.x1 - 12, mx));
+  for (const sf of surfacesOf(s)) {
+    const nx = aimX(sf, mx);
     if (Math.abs(nx - mx) > 90 || sf.h < myH + 50 || sf.h > myH + REACH) continue;
     if (surfaceSolid(s, sf, px(nx))) return sf;
   }

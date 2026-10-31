@@ -3,7 +3,7 @@ import { MOVES, STATS } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
-import { floorBelow, landingY } from './platforms';
+import { canDropThrough, floorBelow, landingY } from './platforms';
 import {
   BOUNCE_VY, BUFFER_TICKS, DROP_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
   JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
@@ -157,8 +157,8 @@ function groundControl(s: SimState, f: Fighter, input: PlayerInput): void {
   const back = f.facing > 0 ? IN_LEFT : IN_RIGHT;
   if (trySkills(s, f, false)) return;
   if (take(f, B_ATTACK)) return startMove(s, f, groundAttack(f));
-  // 발판 위에서 ↓+점프: 발판을 뚫고 내려온다 (땅에서는 그냥 점프)
-  if (f.floor < 0 && input & IN_DOWN && has(f, B_JUMP)) {
+  // 발판 위에서 ↓+점프: 발판을 뚫고 내려온다 (땅과 아래가 꽉 찬 윗면에서는 그냥 점프)
+  if (f.floor < 0 && input & IN_DOWN && has(f, B_JUMP) && canDropThrough(s, f.x, f.y)) {
     take(f, B_JUMP);
     f.dropT = DROP_TICKS;
     fallOff(f);

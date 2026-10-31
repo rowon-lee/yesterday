@@ -65,6 +65,8 @@ export interface Fighter {
   floor: number;
   /** ↓+점프로 발판에서 내려온 뒤 발판을 지나치는 남은 틱 */
   dropT: number;
+  /** '벽 쪽으로 날림' 기술에 맞아 날아가는 중 (큰 물건에 부딪히면 크게 무너뜨린다) */
+  wallFly: boolean;
 }
 
 /** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */
@@ -86,6 +88,8 @@ export interface PropState {
   crashed: boolean;
   /** 부서질 때 맞은 방향 (1 오른쪽으로, -1 왼쪽으로). 잔해가 날아가는 쪽 */
   dir: number;
+  /** 노면전차만: 탈선한 자리 (차체 왼쪽 끝 월드 px). 뒤집혀 놓이는 자리는 tramRestX(at) (맵 안쪽으로 미끄러진다). 다른 물건은 0 */
+  at: number;
 }
 
 export type Phase = 'intro' | 'fight' | 'roundEnd' | 'matchEnd';
@@ -94,7 +98,10 @@ export type Phase = 'intro' | 'fight' | 'roundEnd' | 'matchEnd';
 export interface SimEvent {
   type:
     | 'hit' | 'block' | 'crush' | 'tech' | 'ko' | 'cutin' | 'round' | 'fight' | 'timeup' | 'winner' | 'launch' | 'knockdown'
-    /** 부서지는 물건: who = 물건 번호, text = 'damaged' | 'broken', heavy = 캐릭터가 부딪혀 부서짐 */
+    /**
+     * 부서지는 물건: who = 물건 번호, text = 'damaged' | 'broken', heavy = 캐릭터가 부딪혀 부서짐.
+     * 큰 물건이 크게 무너지면 combo = 1 (필살기), 2 (벽 쪽으로 날린 상대가 부딪힘), 3 (받치던 건물이 무너짐)
+     */
     | 'prop'
     /** 건물 덩어리가 깎임: text = 원인('hit' | 'fly' | 'explosion' | 'wallsplat'), combo = 깎인 덩어리 수 */
     | 'city'
@@ -114,6 +121,8 @@ export interface SimEvent {
 
 export interface SimState {
   tick: number;
+  /** 도시 시계: 게임이 실제로 흐른 틱 (필살 컷인 동안 멈추고, 슬로모션이면 두 틱에 한 번). 노면전차가 이 시계로 다닌다 */
+  clock: number;
   /** 시드 난수 상태 (core/rng). 지금 규칙에는 무작위가 없지만 자리를 둔다. */
   rng: number;
   phase: Phase;
