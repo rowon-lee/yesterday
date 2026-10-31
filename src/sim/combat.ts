@@ -2,7 +2,7 @@ import { hurtBox, type Box } from '../anim/boxes';
 import type { MoveId } from '../data/moves/base';
 import { MOVES, moveHitBox } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
-import { CITY_RULES as CITY } from '../stage/downtown';
+import { CITY_RULES as CITY } from '../stage/citadel';
 import { isAirborne, setMode } from './fighter';
 import { fighterPose } from './pose';
 import {
@@ -151,6 +151,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
     def.vx = dir * v.vx;
     def.vy = v.vy;
     def.y = Math.min(def.y, -1);
+    // 떠오르면 서 있던 바닥(발판)을 떠난다
+    if (def.vy < 0) def.floor = 0;
     // 공중에서 맞히면 때린 쪽도 함께 떠올라 다음 타가 이어지게 한다
     if (d.airFollow !== undefined && isAirborne(att)) att.vy = def.vy + px(d.airFollow);
     if (!airborne && mv.launch && mv.id === 'launcher') s.events.push({ type: 'launch', who, x: def.x, y: def.y });
@@ -169,6 +171,7 @@ export function knockOut(s: SimState, def: Fighter, dir: number, who: number): v
   def.vx = dir * px(6);
   def.vy = px(-7);
   def.y = Math.min(def.y, -1);
+  def.floor = 0;
   def.invuln = 1;
   s.events.push({ type: 'ko', who, x: def.x, y: def.y });
 }

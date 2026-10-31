@@ -8,11 +8,11 @@ import { VfxLayer } from '../render/vfx';
 import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
-import { drawForeground, drawStage, GROUND_Y, type Cam } from '../render/stage';
-import { MAP_H } from '../stage/downtown';
+import { drawForeground, drawPlatforms, drawStage, GROUND_Y, type Cam } from '../render/stage';
+import { MAP_H } from '../stage/citadel';
 import { drawText, textWidth } from '../render/font';
 import {
-  boxesOf, cpuInput, createCpu, createState, fighterPose, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT,
+  boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
   IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
@@ -65,7 +65,7 @@ const CAMERA_DAMP = 0.35;
  * 대련 (연습: 1P 키보드 대 CPU). 주소 옵션:
  *   ?p1=cpu  1P도 CPU (구경·캡처용)
  *   ?p2=idle 상대가 가만히 서 있음 (연습용)
- *   ?boxes=1 판정 상자 표시 (B 키로도 켜고 끔)
+ *   ?boxes=1 판정 상자와 발판 표시 (B 키로도 켜고 끔)
  *   ?seed=n  CPU 시드
  */
 export function fightScene(): Scene {
@@ -118,12 +118,12 @@ export function fightScene(): Scene {
       if (trails[i].length > 8) trails[i].shift();
       const was = prev[i];
       const x = f.x / 256;
-      const air = f.y < 0;
-      if (was.air && !air) dust.push({ x, y: 0, dir: 0, t: 0, life: 14 });
+      const air = isAirborne(f);
+      if (was.air && !air) dust.push({ x, y: f.y / 256, dir: 0, t: 0, life: 14 });
       // 뛰는 중에는 발이 땅을 박찰 때마다 (반 바퀴마다) 뒤로 먼지
       const half = (f.dir > 0 ? STATS.runCycle : STATS.runBackCycle) / 2;
       const stepNo = Math.floor(f.runDist / half);
-      if (f.mode === 'run' && stepNo !== was.step) dust.push({ x, y: 0, dir: -f.facing * f.dir, t: 0, life: 10 });
+      if (f.mode === 'run' && stepNo !== was.step) dust.push({ x, y: f.y / 256, dir: -f.facing * f.dir, t: 0, life: 10 });
       prev[i] = { mode: f.mode, air, step: stepNo };
     });
     for (const d of dust) d.t++;
@@ -211,10 +211,11 @@ export function fightScene(): Scene {
       drawStage(ctx, view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256);
       const toScreen = (x: number, y: number): [number, number] => [Math.round(x - view.x), Math.round(GROUND_Y + y - view.y)];
 
-      // 그림자 (높이 뜰수록 작아진다)
+      // 그림자: 발밑 바닥(땅이나 발판)에, 높이 뜰수록 작게
       for (const f of s.fighters) {
-        const [sx, sy] = toScreen(f.x / 256, 0);
-        const w = Math.max(4, 14 + Math.round(f.y / 256 / 10));
+        const under = floorBelow(s, f.x, f.y);
+        const [sx, sy] = toScreen(f.x / 256, under / 256);
+        const w = Math.max(4, 14 + Math.round((f.y - under) / 256 / 10));
         ctx.fillStyle = COLORS.ink;
         ctx.fillRect(sx - (w >> 1), sy, w, 2);
       }
@@ -243,7 +244,10 @@ export function fightScene(): Scene {
         const [fx, fy] = toScreen(f.x / 256, f.y / 256);
         return { x: fx - 20, y: fy - 60, w: 40, h: 66 };
       }));
-      if (showBoxes) drawBoxes(ctx, s, view);
+      if (showBoxes) {
+        drawPlatforms(ctx, view, s.city);
+        drawBoxes(ctx, s, view);
+      }
       ctx.restore();
 
       // 강한 타격: 화면 번쩍임 (디더링)

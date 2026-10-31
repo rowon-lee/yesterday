@@ -76,3 +76,8 @@ export function drawText(
 export function textWidth(text: string, scale = 1): number {
   return text.length === 0 ? 0 : (text.length * (GLYPH_W + 1) - 1) * scale;
 }
+
+/** 글자 하나의 도트 (5줄, 줄마다 3비트). 없는 글자는 빈칸 */
+export function glyphRows(ch: string): readonly number[] {
+  return GLYPHS[ch] ?? GLYPHS[' '];
+}

@@ -1,5 +1,5 @@
 import type { CityState, PropState } from '../../sim';
-import { BREAKABLES, CHUNK, chunkIndex, GLASS_BOTTOM, GRIDS, GROUND, type Breakable } from '../../stage/downtown';
+import { BREAKABLES, CHUNK, chunkIndex, GLASS_BOTTOM, GRIDS, GROUND, type Breakable } from '../../stage/citadel';
 import { drawText } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_W } from '../screen';

@@ -3,8 +3,9 @@ import { MOVES, STATS } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
+import { floorBelow, landingY } from './platforms';
 import {
-  BOUNCE_VY, BUFFER_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
+  BOUNCE_VY, BUFFER_TICKS, DROP_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
   JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
   px,
 } from './rules';
@@ -28,7 +29,31 @@ export function setMode(f: Fighter, mode: Mode, len = 0): void {
   }
 }
 
-export const isAirborne = (f: Fighter): boolean => f.y < 0 || f.vy < 0;
+/** 떠 있는가: 서 있는 바닥(땅이나 발판)보다 위에 있거나 떠오르는 중 */
+export const isAirborne = (f: Fighter): boolean => f.y < f.floor || f.vy < 0;
+
+/** 땅에서만 있을 수 있는 상태 (발밑 바닥이 없어지면 떨어지는 상태로 바꾼다) */
+const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown']);
+
+/** 서 있던 발판이 발밑에서 없어졌다 (끝을 넘었거나 무너졌다): 떨어지기 시작한다 */
+function fallOff(f: Fighter): void {
+  f.floor = 0;
+  switch (f.mode) {
+    case 'hitstun':
+    case 'knockdown':
+      // 맞고 있거나 누운 채 떨어지면 떨어져 넘어진다
+      setMode(f, 'airhit', 0);
+      break;
+    default:
+      if (GROUND_ONLY.has(f.mode)) {
+        setMode(f, 'air');
+        f.airJumpUsed = false;
+        f.airDashUsed = false;
+        f.jumpKind = 0;
+      }
+      break;
+  }
+}
 
 /** 조작을 받는 상태 (콤보가 끝난 것으로 본다) */
 const NEUTRAL: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'air', 'land', 'dash', 'airdash', 'jumpsquat', 'attack']);
@@ -127,6 +152,15 @@ function groundControl(s: SimState, f: Fighter, input: PlayerInput): void {
   const back = f.facing > 0 ? IN_LEFT : IN_RIGHT;
   if (trySkills(s, f, false)) return;
   if (take(f, B_ATTACK)) return startMove(s, f, groundAttack(f));
+  // 발판 위에서 ↓+점프: 발판을 뚫고 내려온다 (땅에서는 그냥 점프)
+  if (f.floor < 0 && input & IN_DOWN && has(f, B_JUMP)) {
+    take(f, B_JUMP);
+    f.dropT = DROP_TICKS;
+    fallOff(f);
+    setMode(f, 'air');
+    f.vy = Math.max(f.vy, px(1));
+    return;
+  }
   if (take(f, B_JUMP)) return setMode(f, 'jumpsquat', STATS.jumpSquat);
   if (take(f, B_DASH)) {
     setMode(f, 'dash', STATS.dashTicks);
@@ -226,6 +260,8 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
   const input = controllable ? rawInput : 0;
   if (!controllable) f.buf.fill(0);
   f.t++;
+  // 발밑이 없는데 땅 상태면 (발판이 무너진 직후 등) 떨어지는 상태로
+  if (isAirborne(f) && GROUND_ONLY.has(f.mode)) fallOff(f);
   if (f.invuln > 0) f.invuln--;
   if (f.flash > 0) f.flash--;
 
@@ -356,23 +392,40 @@ export function frameOf(mv: (typeof MOVES)[MoveId], t: number): number {
   return cum.length - 1;
 }
 
-/** 이동, 중력, 착지 */
+/**
+ * 이동, 중력, 착지. 바닥은 땅과 한 방향 발판: 떨어지면서 위에서 지나친 가장 높은 바닥에 선다.
+ * 서 있는 동안 발밑 발판이 없어지면 (끝을 넘거나 무너지면) 떨어진다.
+ */
 export function physics(s: SimState, f: Fighter): void {
   if (f.mode === 'wallsplat') return;
+  // 떠오르면 서 있던 바닥을 떠난다
+  if (f.vy < 0) f.floor = 0;
   const airborne = isAirborne(f);
+  if (!airborne && f.vy > 0) f.vy = 0;
   if (airborne && f.mode !== 'airdash') {
     let g = STATS.gravity;
     if (f.mode === 'airhit') g += Math.min(JUGGLE_GRAVITY_MAX, f.comboHits * JUGGLE_GRAVITY_PER_HIT);
     f.vy = Math.min(STATS.maxFall + (f.mode === 'airhit' ? 4 * 256 : 0), f.vy + g);
   }
+  const prevY = f.y;
   f.x += f.vx;
   f.y += f.vy;
-  if (f.y >= 0 && airborne) {
-    f.y = 0;
-    f.vy = 0;
-    land(s, f);
+  if (f.dropT > 0) f.dropT--;
+  if (airborne) {
+    if (f.vy >= 0) {
+      const top = landingY(s, f.x, prevY, f.y, f.dropT > 0);
+      if (top !== null) {
+        f.y = top;
+        f.floor = top;
+        f.vy = 0;
+        land(s, f);
+      }
+    }
+    return;
   }
-  if (!isAirborne(f)) f.y = 0;
+  const under = floorBelow(s, f.x, f.y, f.dropT > 0);
+  if (under !== f.y) fallOff(f);
+  else f.floor = under;
 }
 
 function land(s: SimState, f: Fighter): void {
@@ -391,12 +444,12 @@ function land(s: SimState, f: Fighter): void {
       if (f.bounce) {
         f.bounce = false;
         f.vy = BOUNCE_VY;
-        f.y = -1;
+        f.y -= 1;
         f.vx = Math.trunc(f.vx / 2);
       } else {
         setMode(f, 'knockdown', KNOCKDOWN_TICKS);
         f.invuln = KNOCKDOWN_TICKS;
-        s.events.push({ type: 'knockdown', who: s.fighters.indexOf(f), x: f.x, y: 0 });
+        s.events.push({ type: 'knockdown', who: s.fighters.indexOf(f), x: f.x, y: f.y });
       }
       break;
     case 'ko':

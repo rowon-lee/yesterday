@@ -1,4 +1,4 @@
-import { BREAKABLES, CHUNK, CHUNKS, CITY_RULES as R, chunkIndex, GRIDS, type BuildingGrid } from '../stage/downtown';
+import { BREAKABLES, CHUNK, CHUNKS, CITY_RULES as R, chunkIndex, GRIDS, type BuildingGrid } from '../stage/citadel';
 import { px } from './rules';
 import type { CityState, Fighter, SimState } from './types';
 
