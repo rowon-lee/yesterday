@@ -6,8 +6,11 @@ export { boxesOf } from './combat';
 export { fighterPose } from './pose';
 export { MOVES, STATS } from './frames';
 export * as RULES from './rules';
-export { BREAKABLES, CHUNKS, GRIDS, chunkStage, SURFACES, type Surface } from '../stage/citadel';
-export { floorBelow, onPlatform, surfaceSolid } from './platforms';
+export {
+  BIG, BREAKABLES, CHUNKS, GRIDS, chunkStage, CONTAINER_TOP, rubbleOf, SURFACES, tramAt, tramLying, tramRestX, WALLS,
+  type Surface, type Wall,
+} from '../stage/citadel';
+export { canDropThrough, floorBelow, onPlatform, surfaceSolid, surfacesOf, wallLeft, wallsOf, wallSolid } from './platforms';
 export { isAirborne } from './fighter';
 export type { CityState, PropState } from './types';
 export { createCity, damageCity } from './city';

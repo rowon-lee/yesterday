@@ -1,7 +1,7 @@
 import {
   BREAKABLES, cpuInput, createCity, createCpu, createState, damageCity, RULES, step, type CityState, type PropState, type SimState,
 } from '../sim';
-import { MAP_H } from '../stage/citadel';
+import { MAP_H, tramRestX } from '../stage/citadel';
 import { drawText } from '../render/font';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
@@ -37,6 +37,7 @@ export function stageScene(): Scene {
       brokenAt: stage === 2 ? 0 : -1,
       crashed: false,
       dir: i % 2 ? -1 : 1,
+      at: tramRestX(560),
     }));
   let props = propsAt(Number(params.get('props') ?? 0));
   let city = params.get('ruin') === '1' ? ruinedCity() : null;

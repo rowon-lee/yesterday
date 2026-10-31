@@ -39,7 +39,7 @@ const SIGN_ROLE: Record<string, SignRole> = {
 };
 const roleOf = (b: Breakable): SignRole => (b.style === 'billboard' ? 'board' : SIGN_ROLE[`${b.style}:${b.text}`] ?? 'off');
 
-const INTACT: PropState = { hp: 1, stage: 0, damagedAt: -1, brokenAt: -1, crashed: false, dir: 1 };
+const INTACT: PropState = { hp: 1, stage: 0, damagedAt: -1, brokenAt: -1, crashed: false, dir: 1, at: 0 };
 const CAR_Z0 = -22;
 const CAR_Z1 = -8;
 const LAMP_Z = -30;

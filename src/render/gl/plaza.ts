@@ -160,7 +160,7 @@ export class Plaza {
     const sw = tw + 28;
     const scx = (P.towers[0].x + P.towers[1].x + T.w) / 2;
     const w = sw + 8 + 72;
-    const h = 56;
+    const h = S.h;
     const [mc, g] = canvas(w, h);
     const [ec, e] = canvas(w, h);
     e.fillStyle = '#000';
@@ -173,7 +173,7 @@ export class Plaza {
     neonText(g, e, sub, x0 + 4 + Math.round((sw - textWidth(sub, 2)) / 2), 36, 2, C.beam, C.chromeDark);
     for (const cx of [18, w - 18]) star(g, cx, 26, 3, C.posterRed);
     const mat = litMaterial(pixelTexture(mc), { emissive: pixelTexture(ec), emissiveStrength: 1.8 });
-    const top = S.h + 30;
+    const top = S.bottom + S.h;
     this.group.add(box(scx - w / 2, scx + w / 2, top - h, top, KEEP_Z + 1, KEEP_Z + 6, mat));
     this.fixed.push({ x: scx, y: top - h / 2, z: KEEP_Z + 60, range: 200, color: C.beam, power: 1.6 });
   }

@@ -4,10 +4,11 @@ import { MOVES, moveHitBox } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
 import { CITY_RULES as CITY } from '../stage/citadel';
 import { isAirborne, setMode } from './fighter';
+import { wallLeft } from './platforms';
 import { fighterPose } from './pose';
 import {
   AIR_HIT_DEFAULT, BLOCK_HITSTOP_CUT, CRUSH_TICKS, FLASH_TICKS, METER_BLOCK, METER_BLOCKED, METER_HIT, METER_HURT,
-  METER_MAX, px, SCALE_MIN, SCALE_STEP, SPIKE_VY, STUN_DECAY_FROM, STUN_DECAY_MIN, STUN_DECAY_STEP, WALL_L, WALL_R,
+  METER_MAX, px, SCALE_MIN, SCALE_STEP, SPIKE_VY, STUN_DECAY_FROM, STUN_DECAY_MIN, STUN_DECAY_STEP, WALL_R,
 } from './rules';
 import type { Fighter, SimState } from './types';
 
@@ -116,6 +117,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   def.meter = Math.min(METER_MAX, def.meter + METER_HURT);
   def.facing = -dir as 1 | -1;
   def.bounce = false;
+  // '벽 쪽으로 날림' 기술에 맞아 날아가면 큰 물건에 부딪혀 무너뜨린다 (props.ts)
+  def.wallFly = d.wall === true;
   s.events.push({ type: 'hit', who, x: ex, y: ey, heavy: d.heavy ?? false, combo: def.comboHits, move: mv.id });
 
   const airborne = isAirborne(def) || def.mode === 'airhit';
@@ -133,6 +136,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
     setMode(def, 'wallsplat', CITY.wallsplat.ticks);
     def.vx = 0;
     def.vy = 0;
+    def.wallFly = false;
     wallSplat(s, def, who);
     return;
   }
@@ -179,5 +183,5 @@ export function knockOut(s: SimState, def: Fighter, dir: number, who: number): v
 /** 맞은 쪽이 벽에 붙어 더 밀릴 수 없으면 때린 쪽이 대신 밀린다 */
 function pushOffWall(att: Fighter, def: Fighter, push: number): void {
   if (isAirborne(att)) return;
-  if (def.x <= WALL_L + px(4) || def.x >= WALL_R - px(4)) att.vx = -att.facing * Math.trunc((push * 4) / 5);
+  if (def.x <= wallLeft(def.y) + px(4) || def.x >= WALL_R - px(4)) att.vx = -att.facing * Math.trunc((push * 4) / 5);
 }
