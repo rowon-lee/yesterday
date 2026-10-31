@@ -74,6 +74,10 @@ export const COLORS = {
   carCream: '#c9bea3',
   carMint: '#5f8f88',
   carCoral: '#a04e48',
+  // 시타델 마천루: 색 넣은 유리, 하늘이 비친 유리, 형광등 켜진 사무실
+  glass: '#1f2a31',
+  glassEdge: '#2f3f47',
+  officeLit: '#93a596',
   // 네온관 (밝은 관, 어두운 관). 꺼지면 어두운 관만 남는다
   neonPink: '#ff5fb4',
   neonPinkDark: '#6e2a4e',

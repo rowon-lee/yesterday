@@ -6,8 +6,8 @@ import { COLORS as C } from '../palette';
 import { SCREEN_H, SCREEN_W } from '../screen';
 import { canvas, disc, discFast, rect } from './dither';
 import {
-  buildFar, buildFront, buildKeep, buildMid, buildSky, buildStreet, buildStructures, farChimneys, farLight, keepLights, keepRoofLights,
-  layerH, lighthouseLamp, LIT_WINDOWS, manholes, midGround, star, toLayerX, type Layer,
+  buildFar, buildFront, buildKeep, buildMid, buildSky, buildStreet, buildStructures, farChimneys, farLight, KEEP_GLOWS, keepBeacons, keepLights,
+  keepRoofLights, layerH, lighthouseLamp, LIT_WINDOWS, manholes, midGround, star, toLayerX, TOWER_LIGHTS, towerBeacons, type Layer,
 } from './layers';
 import { drawFountain, drawSteam, drawTram, Walkers } from './life';
 import { drawProps } from './props';
@@ -82,11 +82,24 @@ export function drawStage(
   place(ctx, L.far, cam);
   drawFarSmoke(ctx, cam, tick);
   place(ctx, L.keep, cam);
-  // 시타델 상층부 서치라이트 (먼 하늘을 천천히 쓴다): 겹 좌표 → 월드 좌표
+  // 시타델 탑 왕관 서치라이트 (먼 하늘을 천천히 쓴다)와 안테나 경고등 (천천히 깜빡인다): 겹 좌표 → 월드 좌표
   const ks = D.keep.speed;
   keepLights().forEach((l, i) => {
     lights.cone(l.x + cam.x * (1 - ks), l.y + cam.y * (1 - ks), -Math.PI / 2 + 0.9 * Math.sin(tick * 0.009 + i * 2.4), 380, 0.1, C.beam, 0.4);
   });
+  if (tick % 90 < 45) {
+    for (const b of keepBeacons()) {
+      const wx = b.x + cam.x * (1 - ks);
+      const wy = b.y + cam.y * (1 - ks);
+      if (!hidden(wx, wy)) lights.point(wx, wy, 16, C.neonRed, 0.8);
+    }
+  }
+  // 탑의 켜진 층과 왕관 불빛: 앞 건물(본관·길가 건물)에 가려진 것은 빛을 내지 않는다
+  for (const l of KEEP_GLOWS) {
+    const wx = l.x + cam.x * (1 - ks);
+    const wy = l.y + cam.y * (1 - ks);
+    if (!hidden(wx, wy)) lights.point(wx, wy, l.r, l.color, l.a);
+  }
   place(ctx, L.mid, cam);
   walkers.step(tick, cam.x, focusX);
   walkers.draw(ctx, cam, depthTone(C.night, D.mid.speed, midGround()));
@@ -135,6 +148,13 @@ export function drawStage(
  * 안개 농도는 카메라가 바닥에 있을 때의 화면 높이로 정한다 (카메라가 오르면 안개도 겹과 함께 움직인다).
  * 빛 레이어 몫(어둠·빛 받은 안개)이라 팔레트 밖 색이 생겨도 된다 (CLAUDE.md 색 규격).
  */
+/** 월드 (x, y)가 본관이나 길가 건물 뒤에 가려지는가 (먼 겹 불빛을 그 앞 건물 위에 번지게 하지 않으려고) */
+function hidden(x: number, y: number): boolean {
+  const K = D.plaza.keep;
+  if (x >= K.x0 && x <= K.x1 && y >= GROUND - K.h - 8) return true;
+  return frontBuildings().some((b) => x >= b.x && x <= b.x + b.w && y >= GROUND - b.h);
+}
+
 const REST_Y = MAP_H - SCREEN_H;
 const hexRgb = (hex: string): [number, number, number] => {
   const n = parseInt(hex.slice(1), 16);
@@ -223,10 +243,14 @@ function fixedLights(tick: number, cityState: CityState | null): void {
   lights.point(CP.x + CP.w / 2, GROUND - CP.h + 14, 34, C.windowLit, 0.6, true);
   if (tick % 40 < 20) lights.point(CP.x + CP.w / 2, GROUND - CP.h - 6, 30, C.neonRed, 0.9);
   lights.point(P.fountain.x, GROUND - 26, 70, C.sky, 0.22, true);
-  // 본관 투광등: 기둥탑과 양쪽 날개 밑에서 위로 쏘는 차가운 빛, 정면 대형 간판 조명
+  // 본관 투광등: 콘크리트 기둥과 양쪽 날개 밑에서 위로 쏘는 차가운 빛. 커튼월의 켜진 사무실·로비·유리 홀·간판·캐노피 불빛
   for (const t of P.towers) lights.cone(t.x + P.tower.w / 2, GROUND - 2, -Math.PI / 2, 300, 0.16, C.beam, 0.42, true);
   for (const x of [P.keep.x0 + 70, P.keep.x1 - 70]) lights.cone(x, GROUND - 2, -Math.PI / 2, 240, 0.22, C.skyLight, 0.22, true);
-  lights.point((P.towers[0].x + P.towers[1].x + P.tower.w) / 2, GROUND - P.sign.h, 110, C.lampGlow, 0.35, true);
+  for (const l of TOWER_LIGHTS) lights.point(l.x, l.y, l.r, l.color, l.a, true);
+  // 콘크리트 기둥 꼭대기 항공 경고등: 둘이 엇갈려 깜빡인다
+  towerBeacons().forEach((b, i) => {
+    if ((tick + i * 45) % 90 < 45) lights.point(b.x, b.y, 22, C.neonRed, 0.9);
+  });
   const solid = (bi: number, x: number, y: number) => {
     if (!cityState) return true;
     const g = GRIDS[bi];
