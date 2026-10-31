@@ -118,4 +118,7 @@ export const STATS = {
   wallSlideAccel: px(BASE_STATS.wallSlideAccel),
   wallJumpVx: px(BASE_STATS.wallJumpVx),
   wallJumpVy: -px(BASE_STATS.wallJumpVy),
+  wallRunSpeed: px(BASE_STATS.wallRunSpeed),
+  /** 벽 달리기 틱 수 (달려 오르는 높이 ÷ 속도) */
+  wallRunTicks: Math.ceil(BASE_STATS.wallRunHeight / BASE_STATS.wallRunSpeed),
 };

@@ -108,6 +108,34 @@ export function findWall(s: SimState, x: number, grab: number, dir: number, slac
   return best;
 }
 
+/**
+ * 이번 틱에 x0에서 x1로 dir 쪽으로 움직이며 지나친 벽 (벽 앞 붙는 자리를 지났거나 그 자리에 닿았으면). 길 위 가장 먼저 만나는 벽.
+ * 대시처럼 한 틱에 많이 움직여도 벽을 놓치지 않게 지나온 구간 전체를 본다 (벽 달리기).
+ */
+export function findWallCross(s: SimState, x0: number, x1: number, grab: number, dir: number): Wall | null {
+  let best: Wall | null = null;
+  let bestD = Infinity;
+  for (const w of wallsOf(s)) {
+    if (w.side !== -dir || !wallSolid(s, w, grab)) continue;
+    const cx = px(w.x) + w.side * WALL_REACH;
+    const a = (cx - x0) * dir;
+    const b = (x1 - cx) * dir;
+    if (a < -px(2) || b < -px(2)) continue;
+    if (a < bestD) {
+      bestD = a;
+      best = w;
+    }
+  }
+  return best;
+}
+
+/** 붙어 있는 벽의 꼭대기 높이 (px. 같은 번호 벽 조각 중 지금 서 있는 것의 가장 높은 곳) */
+export function wallTop(s: SimState, id: number, side: number, x: number): number {
+  let top = 0;
+  for (const w of wallsOf(s)) if (w.id === id && w.side === side && w.x === x) top = Math.max(top, w.h1);
+  return top;
+}
+
 /** 붙어 있는 벽(번호·붙은 쪽·x px)이 높이 grab(px)에서 아직 서 있는가 (무너지거나 끝나면 false) */
 export function wallHolds(s: SimState, id: number, side: number, x: number, grab: number): boolean {
   return wallsOf(s).some((w) => w.id === id && w.side === side && w.x === x && wallSolid(s, w, grab));

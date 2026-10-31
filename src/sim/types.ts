@@ -9,7 +9,9 @@ export type Mode =
   /** 벽꽝: 건물 정면에 박혀 잠깐 갇힘 */
   | 'wallsplat'
   /** 벽 붙기: 공중에서 벽 쪽을 누른 채 벽에 닿아, 벽을 등지고 붙어 천천히 미끄러짐 */
-  | 'wallcling';
+  | 'wallcling'
+  /** 벽 달리기: 벽 쪽으로 대시해 벽에 닿아, 벽을 바라보며 달려 오름 */
+  | 'wallrun';
 
 /** 직렬화 가능한 평범한 객체. 위치·속도는 1/256px 정수. */
 export interface Fighter {
@@ -34,8 +36,8 @@ export interface Fighter {
   queued: MoveId | null;
   /** 대시 방향 (1 앞, -1 뒤), 지상 점프 방향 */
   dir: number;
-  /** 띄우기 뒤 쫓아가는 점프였는지, 2단 점프인지, 벽 점프인지 (그림용) */
-  jumpKind: 0 | 1 | 2 | 3;
+  /** 띄우기 뒤 쫓아가는 점프였는지, 2단 점프인지, 벽 점프인지, 벽 달리기로 꼭대기를 넘어가는 중인지 (그림용) */
+  jumpKind: 0 | 1 | 2 | 3 | 4;
   hp: number;
   meter: number;
   guard: number;
@@ -122,7 +124,9 @@ export interface SimEvent {
     /** 벽 붙기: who = 붙은 사람, combo = 그 벽을 연속으로 디딘 횟수 */
     | 'wallcling'
     /** 벽 점프: who = 뛴 사람, x = 찬 벽 */
-    | 'walljump';
+    | 'walljump'
+    /** 벽 달리기: who = 달리는 사람, x = 벽, text = 'start' | 'top' (꼭대기를 넘어감) */
+    | 'wallrun';
   /** 한 사람 (때린 쪽, 기술 쓴 쪽, 이긴 쪽) */
   who: number;
   x: number;

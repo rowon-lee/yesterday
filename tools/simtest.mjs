@@ -26,7 +26,7 @@ const sim = await vite.ssrLoadModule('/src/sim/index.ts');
 const R = sim.RULES;
 const HP = sim.createState(0).fighters[0].hp;
 
-const total = { wallcling: 0, walljump: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
+const total = { wallcling: 0, walljump: 0, wallrun: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
 const t0 = Date.now();
 for (let m = 0; m < args.matches; m++) {
   const seed = args.seed + m;
@@ -37,7 +37,7 @@ for (let m = 0; m < args.matches; m++) {
     const ok = a.hash === b && a.hash === c && a.ended && a.problems.length === 0;
     if (!ok) failed++;
     const w = a.winner < 0 ? '무승부' : `${a.winner + 1}P 승`;
-    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat} 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
+    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 벽달리기 ${a.stats.wallrun} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat} 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
     for (const p of a.problems.slice(0, 5)) console.log(`      ${p}`);
     for (const k of Object.keys(a.stats)) if (k !== 'maxCombo' && k !== 'maxPerch') total[k] += a.stats[k];
     total.maxCombo = Math.max(total.maxCombo, a.stats.maxCombo);
@@ -75,7 +75,7 @@ console.log(`  건물: 깎인 덩어리 ${total.cityChunks}, 붕괴 ${total.coll
 console.log(`  부서지는 물건: 망가짐 ${total.propDamaged}, 파괴 ${total.propBroken} (그중 날아온 캐릭터에 부딪혀서 ${total.propCrash}, 네온 간판 꺼짐 ${total.neon})`);
 console.log(`  발판: 올라선 횟수 ${total.perch}, 발판 위 ${(total.perchTicks / 60).toFixed(0)}초 (그중 새 구조물 위 ${(total.structTicks / 60).toFixed(0)}초), ↓+점프로 내려옴 ${total.drop}, 가장 높이 선 곳 ${total.maxPerch}px`);
 console.log(`  큰 물건: 망가짐 ${total.bigDamaged}, 크게 무너짐 ${total.bigBroken}`);
-console.log(`  벽 기동: 벽 붙기 ${total.wallcling}, 벽 점프 ${total.walljump}`);
+console.log(`  벽 기동: 벽 붙기 ${total.wallcling}, 벽 점프 ${total.walljump}, 벽 달리기 ${total.wallrun}`);
 console.log(failed ? `실패 ${failed}건` : '모두 통과');
 process.exit(failed ? 1 : 0);
 
@@ -85,7 +85,7 @@ function runCpuMatch(seed, ticks) {
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
   const log = [];
   const problems = [];
-  const stats = { wallcling: 0, walljump: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0 };
+  const stats = { wallcling: 0, walljump: 0, wallrun: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0 };
   const was = [0, 0];
   while (log.length < ticks && state.phase !== 'matchEnd') {
     const inputs = [sim.cpuInput(cpus[0], state, 0), sim.cpuInput(cpus[1], state, 1)];
@@ -558,6 +558,43 @@ function wallChecks() {
   run(s, hold(0, 4));
   run(s, [I.IN_JUMP]);
   results.push(['벽 점프 직후 잠깐 좌우 조작이 듣지 않고, 그 뒤 2단 점프가 된다', locked && f.jumpKind === 2 && f.airJumpUsed, `잠김 ${locked}, 점프 종류 ${f.jumpKind}`]);
+
+  // 벽 달리기: 지상 대시로 기둥탑 왼쪽 면에 닿으면 벽을 바라보며 달려 오르고, 꼭대기(296)에 못 닿으면 끝에서 벽에 붙는다
+  s = fresh(tower.x0 - 40, tower.x0 - 140);
+  f = s.fighters[0];
+  run(s, [I.IN_RIGHT | I.IN_DASH, ...hold(I.IN_RIGHT, 3)]);
+  const running = f.mode === 'wallrun' && f.facing === 1 && f.x === (tower.x0 - reach) * 256;
+  run(s, hold(I.IN_RIGHT, st.wallRunTicks));
+  const h = -f.y / 256;
+  results.push(['지상 대시로 벽에 닿으면 벽을 바라보며 달려 오르고, 다 달리면 벽에 붙는다', running && f.mode === 'wallcling' && f.facing === -1 && h > 120 && h < 145, `달림 ${running}, 끝 ${f.mode} 높이 ${h.toFixed(0)}px`]);
+  // 컨테이너 더미 앞면(112): 꼭대기가 달리는 높이 안이라 모서리를 넘어 윗면에 선다
+  s = fresh(120, 330);
+  f = s.fighters[0];
+  run(s, [I.IN_LEFT | I.IN_DASH, ...hold(I.IN_LEFT, 50)]);
+  results.push(['꼭대기가 닿으면 모서리를 넘어 윗면에 선다 (컨테이너 더미)', f.y === -sim.CONTAINER_TOP.h * 256 && f.x < 66 * 256 && !sim.isAirborne(f), `x=${(f.x / 256).toFixed(0)} 높이 ${-f.y / 256}`]);
+  // 공중 대시로 벽에 닿아도 달려 오른다 (그 높이에서), 2단 점프·공중 대시가 다시 생긴다
+  s = fresh(tower.x0 - 60, tower.x0 - 160);
+  f = s.fighters[0];
+  air(f, tower.x0 - 60, 60);
+  f.airJumpUsed = true;
+  run(s, [I.IN_RIGHT | I.IN_DASH, ...hold(I.IN_RIGHT, 8)]);
+  results.push(['공중 대시로 벽에 닿아도 달려 오르고, 2단 점프·대시가 다시 생긴다', f.mode === 'wallrun' && -f.y / 256 > 60 && !f.airJumpUsed && !f.airDashUsed, `${f.mode} 높이 ${(-f.y / 256).toFixed(0)}`]);
+  // 달리는 중에 점프하면 벽 점프 (벽 반대쪽으로)
+  run(s, [I.IN_RIGHT | I.IN_JUMP]);
+  results.push(['달리는 중에 점프하면 벽 반대쪽으로 벽 점프', f.mode === 'air' && f.jumpKind === 3 && f.vx < 0 && f.facing === -1, `${f.mode} vx ${(f.vx / 256).toFixed(1)}`]);
+  // 같은 벽을 이미 두 번 디뎠으면 대시해도 달리지 않고 지나간다
+  s = fresh(tower.x0 - 40, tower.x0 - 140);
+  f = s.fighters[0];
+  f.wallId = towerWall;
+  f.wallCount = 2;
+  f.y = -1;
+  f.vy = 0;
+  f.mode = 'air';
+  air(f, tower.x0 - 40, 30);
+  f.wallId = towerWall;
+  f.wallCount = 2;
+  run(s, [I.IN_RIGHT | I.IN_DASH, ...hold(0, 8)]);
+  results.push(['같은 벽을 두 번 디뎠으면 대시해도 달리지 않는다', f.mode !== 'wallrun', f.mode]);
 
   // 8) 비상계단 바깥 기둥 (건물에 붙은 벽): 붙은 높이의 칸이 무너지면 떨어진다
   const esc = sim.WALLS.find((w) => w.b >= 0 && w.side === 1 && w.h1 - w.h0 > 200);

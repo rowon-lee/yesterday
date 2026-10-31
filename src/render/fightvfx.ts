@@ -198,6 +198,15 @@ export class FightVfx {
         this.fx.shake(0.5);
       } else if (e.type === 'ko') {
         this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.45, surface: fxColor('street'), seed: this.seed++, shake: shake(0.2) }));
+      } else if (e.type === 'wallrun') {
+        // 벽을 딛는 첫 발 (먼지와 부스러기), 꼭대기 모서리를 넘을 때 (작은 먼지)
+        const f = s.fighters[e.who];
+        const out = f ? f.wallSide : 1;
+        if (e.text === 'start') {
+          this.layer.add(impact({ kind: 'hit', x, y: y - 10 * FX_PX, angle: out > 0 ? 0 : Math.PI, size: 0.25, ramp: fxRamp(COOL), seed: this.seed++ }));
+          this.debris.dustCloud(wx - 4, wx + 4, 0.4, wy);
+        } else this.debris.dustCloud(wx - 6, wx + 6, 0.3, wy);
+        this.debris.burst('brick', wx, wy - 6, out, 3);
       } else if (e.type === 'walljump') {
         // 두 발로 벽을 차는 자리: 벽에서 튀는 먼지와 부스러기
         const f = s.fighters[e.who];
@@ -216,6 +225,11 @@ export class FightVfx {
 
     s.fighters.forEach((f, i) => {
       const side = i as 0 | 1;
+      // 벽을 달려 오르는 동안: 발이 벽을 딛는 자리에서 먼지가 인다
+      if (f.mode === 'wallrun' && f.t % 5 === 2) {
+        const fy = GROUND_Y + f.y / 256;
+        this.debris.dustCloud(f.wallX - 2, f.wallX + 2, 0.15, fy - 10);
+      }
       // 벽에 붙어 미끄러지는 동안: 손·발이 긁는 자리에서 먼지가 인다
       if (f.mode === 'wallcling' && f.vy > 128 && s.tick % 5 === 0) {
         const fy = GROUND_Y + f.y / 256;
