@@ -12,6 +12,13 @@ import { keepAlpha, pixelTexture, shaftMaterial } from './shaders';
 
 const lin = (hex: string) => new THREE.Color(hex).convertSRGBToLinear();
 
+/** 인스턴스 속성의 앞 count칸만 그래픽 칩에 올린다 (매 프레임 버퍼 전체를 올리지 않게) */
+export function upload(attr: THREE.BufferAttribute, count: number): void {
+  attr.clearUpdateRanges();
+  attr.addUpdateRange(0, count);
+  attr.needsUpdate = true;
+}
+
 /** 4×4 바이어 무늬 (0~15)와 정수 해시 */
 const PIXEL_GLSL = /* glsl */ `
 float m2(vec2 v) { return mod(2.0 * v.x + 3.0 * v.y, 4.0); }
@@ -171,8 +178,10 @@ export class Puffs {
 
   end(): void {
     this.mesh.count = this.n;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    this.fade.needsUpdate = true;
+    // 쓴 칸만 올린다 (그릴 것이 없으면 올리지 않는다)
+    if (!this.n) return;
+    upload(this.mesh.instanceMatrix, this.n * 16);
+    upload(this.fade, this.n);
   }
 }
 
@@ -227,8 +236,9 @@ export class Sparks {
 
   end(): void {
     this.mesh.count = this.n;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    this.color.needsUpdate = true;
+    if (!this.n) return;
+    upload(this.mesh.instanceMatrix, this.n * 16);
+    upload(this.color, this.n * 3);
   }
 }
 

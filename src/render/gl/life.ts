@@ -8,7 +8,7 @@ import { SCREEN_H, SCREEN_W } from '../screen';
 import { canvas, disc, hash, line, rect } from '../dither';
 import { farChimneys, farLight, keepBeacons, keepLights, midGround, midSeaX } from './backdrops';
 import { depthOfSpeed } from './core';
-import { Beam, Sparks } from './fx';
+import { Beam, Sparks, upload } from './fx';
 import { plane } from './kit';
 import { lightPool, shared } from './lights';
 import { litMaterial, pixelTexture } from './shaders';
@@ -95,9 +95,10 @@ class FarSprites {
 
   end(): void {
     this.mesh.count = this.n;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    this.fade.needsUpdate = true;
-    this.cell.needsUpdate = true;
+    if (!this.n) return;
+    upload(this.mesh.instanceMatrix, this.n * 16);
+    upload(this.fade, this.n);
+    upload(this.cell, this.n);
   }
 }
 
