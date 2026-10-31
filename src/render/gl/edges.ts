@@ -4,7 +4,7 @@ import { MAP_W } from '../../stage/citadel';
 import { COLORS as C } from '../palette';
 import { canvas, disc, ditherRect, hash, rect } from '../dither';
 import { Beam } from './fx';
-import { box, Details, plane } from './kit';
+import { box, Details, facedBox, plane } from './kit';
 import { lightPool } from './lights';
 import { litMaterial, pixelTexture } from './shaders';
 
@@ -52,7 +52,7 @@ export class Edges {
       const y = r * 28;
       const tex = litMaterial(pixelTexture(paintContainer(CT.x1 - x0, 28, col, r)));
       const end = litMaterial(pixelTexture(paintContainer(60, 28, col, r + 7)), { tint: 0.75 });
-      this.group.add(box(x0, CT.x1, y, y + 28, -110, -0.6, [end, end, end, end, tex, end]));
+      this.group.add(facedBox(x0, CT.x1, y, y + 28, -110, -0.6, { px: end, py: end, pz: tex }));
     }
   }
 

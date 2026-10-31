@@ -106,6 +106,8 @@ export class Buildings {
   /** 덩어리마다 마지막으로 그린 모습 (단계·이웃) */
   private readonly drawn = new Int16Array(CHUNKS.length);
   private readonly rubble: Rubble;
+  /** 마지막으로 맞춘 덩어리 내구도의 지문 */
+  private sig = -1;
 
   constructor() {
     const det = new Details();
@@ -276,6 +278,18 @@ export class Buildings {
   /** 부서진 덩어리를 고쳐 그리고, 무너진 칸을 지우고, 잔해 더미를 쌓는다 */
   update(city: CityState | null, tick: number): void {
     const hp = city?.hp ?? null;
+    // 덩어리 내구도가 지난 프레임과 같으면 덩어리를 훑지 않는다 (대부분의 프레임)
+    let sig = city ? city.collapses.length : -2;
+    if (hp) for (let i = 0; i < hp.length; i++) sig = (Math.imul(sig, 31) + hp[i] + 7) | 0;
+    if (sig !== this.sig) {
+      this.sig = sig;
+      this.patch(hp);
+    }
+    this.rubble.update(city, tick);
+  }
+
+  /** 모습이 바뀐 덩어리만 다시 그리고 무너진 칸 비트를 맞춘다 */
+  private patch(hp: readonly number[] | null): void {
     const changed = new Set<Face>();
     const innerChanged = new Set<Face>();
     for (let i = 0; i < CHUNKS.length; i++) {
@@ -303,7 +317,6 @@ export class Buildings {
       if (hp) for (let c = 0; c < g.cols; c++) if (hp[chunkIndex(g, c, 0)] < 0) m |= 1 << c;
       gone[bi] = m;
     });
-    this.rubble.update(city, tick);
   }
 
   /** 붙박이 빛 (뚫리거나 무너진 덩어리의 창은 꺼진다)과 깜빡이는 TV */
@@ -565,6 +578,8 @@ class Rubble {
         const tex = pixelTexture(c);
         const mesh = plane(x0, x1, 0, 64, FRONT_Z + 10, litMaterial(tex));
         this.group.add(mesh);
+        // 건물 무리는 자리 행렬을 다시 계산하지 않으므로 새로 놓은 더미는 직접 한 번 계산한다
+        mesh.updateMatrixWorld(true);
         p = { mesh, c, tex, step: -1, key };
         this.piles[k] = p;
       }

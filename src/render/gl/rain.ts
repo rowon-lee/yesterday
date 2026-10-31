@@ -3,7 +3,7 @@ import { SURFACES } from '../../stage/citadel';
 import { SCREEN_H, SCREEN_W } from '../screen';
 import { hash } from '../dither';
 import { scaleAt } from './core';
-import { shared, LIGHT_N } from './lights';
+import { LIGHTS_DECL, shared, withLights } from './lights';
 import { keepAlpha } from './shaders';
 
 /**
@@ -32,10 +32,7 @@ const LAYERS: readonly RainLayer[] = [
 ];
 
 const RAIN_VERT = /* glsl */ `
-#define LIGHT_N ${LIGHT_N}
-uniform vec4 uLightPos[LIGHT_N];
-uniform vec4 uLightCol[LIGHT_N];
-uniform int uLightCount;
+${LIGHTS_DECL}
 uniform float uTime;
 uniform vec2 camCenter;
 uniform vec2 camTopLeft;
@@ -58,7 +55,7 @@ void main() {
   vec3 world = vec3(camCenter.x + (px - ${(SCREEN_W / 2).toFixed(1)}) / scale, camCenter.y - (py - ${(SCREEN_H / 2).toFixed(1)}) / scale, depth);
   vec3 lit = vec3(0.0);
   for (int i = 0; i < LIGHT_N; i++) {
-    if (i >= uLightCount) break;
+    if (float(i) >= uLightCount) break;
     float d = length(uLightPos[i].xyz - world);
     float k = clamp(1.0 - d / (uLightPos[i].w * 1.15), 0.0, 1.0);
     lit += uLightCol[i].rgb * k * k;
@@ -93,7 +90,7 @@ export class Rain {
       }
       geo.setAttribute('seed', new THREE.InstancedBufferAttribute(seeds, 2));
       geo.instanceCount = L.n;
-      const mat = keepAlpha(new THREE.ShaderMaterial({
+      const mat = keepAlpha(withLights(new THREE.ShaderMaterial({
         uniforms: {
           ...shared,
           camCenter: { value: new THREE.Vector2() },
@@ -108,7 +105,7 @@ export class Rain {
         vertexShader: RAIN_VERT,
         fragmentShader: RAIN_FRAG,
         side: THREE.DoubleSide,
-      }), true);
+      })), true);
       mat.transparent = false;
       const mesh = new THREE.Mesh(geo, mat);
       mesh.frustumCulled = false;
@@ -118,13 +115,10 @@ export class Rain {
     }
     // 물방울: 3×2 '^' 모양 작은 판 (바닥과 보이는 발판 위)
     const sg = new THREE.PlaneGeometry(3, 2);
-    this.splashMat = keepAlpha(new THREE.ShaderMaterial({
+    this.splashMat = keepAlpha(withLights(new THREE.ShaderMaterial({
       uniforms: { ...shared },
       vertexShader: /* glsl */ `
-        #define LIGHT_N ${LIGHT_N}
-        uniform vec4 uLightPos[LIGHT_N];
-        uniform vec4 uLightCol[LIGHT_N];
-uniform int uLightCount;
+        ${LIGHTS_DECL}
         varying vec2 vUv;
         varying vec3 vColor;
         void main() {
@@ -132,7 +126,7 @@ uniform int uLightCount;
           vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
           vec3 lit = vec3(0.0);
           for (int i = 0; i < LIGHT_N; i++) {
-    if (i >= uLightCount) break;
+    if (float(i) >= uLightCount) break;
             float d = length(uLightPos[i].xyz - wp.xyz);
             float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
             lit += uLightCol[i].rgb * k * k;
@@ -152,7 +146,7 @@ uniform int uLightCount;
           gl_FragColor = vec4(vColor, 1.0);
         }
       `,
-    }), true);
+    })), true);
     this.splashMat.transparent = false;
     this.splash = new THREE.InstancedMesh(sg, this.splashMat, 24);
     this.splash.frustumCulled = false;

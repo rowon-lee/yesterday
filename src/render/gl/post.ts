@@ -48,7 +48,10 @@ void main() {
       wsum += w;
     }
     float fade = 1.0 - clamp(d / 90.0, 0.0, 0.5);
-    col += acc / max(wsum, 0.001) * c.a * strength * fade;
+    // 젖은 길은 빛(간판·창·가로등)을 세게 비추고 어두운 벽은 거의 비추지 않는다: 밝기에 따라 비추는 양을 정한다
+    vec3 r = acc / max(wsum, 0.001);
+    float lum = dot(r, vec3(0.299, 0.587, 0.114));
+    col += r * smoothstep(0.012, 0.09, lum) * c.a * strength * fade;
   }
   gl_FragColor = vec4(col, 1.0);
 }
@@ -247,7 +250,7 @@ export class Post {
       stretch: { value: 3.2 },
       time: { value: 0 },
       originX: { value: 0 },
-      strength: { value: 0.85 },
+      strength: { value: 1.0 },
     });
     this.bright = mat(BRIGHT_FRAG, { src: { value: null }, texel: { value: new THREE.Vector2(1 / RT_W, 1 / RT_H) }, threshold: { value: 0.55 } });
     this.blur = mat(BLUR_FRAG, { src: { value: null }, dir: { value: new THREE.Vector2() } });

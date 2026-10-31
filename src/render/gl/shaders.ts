@@ -1,15 +1,12 @@
 import * as THREE from 'three';
-import { GONE_N, LIGHT_N, shared } from './lights';
+import { GONE_N, LIGHTS_DECL, shared, withLights } from './lights';
 
 /**
  * 셰이더 조각과 재질 (렌더 전용). 색은 선형으로 계산하고(텍스처는 sRGB로 읽어 선형으로 바꾼다),
  * 마지막 후처리에서 화면 색으로 바꿔 팔레트로 줄인다.
  */
 export const LIGHT_GLSL = /* glsl */ `
-#define LIGHT_N ${LIGHT_N}
-uniform vec4 uLightPos[LIGHT_N];
-uniform vec4 uLightCol[LIGHT_N];
-uniform int uLightCount;
+${LIGHTS_DECL}
 uniform vec3 uAmbient;
 uniform vec3 uAmbientGround;
 uniform float uAlbedo;
@@ -20,12 +17,14 @@ uniform float uAlbedo;
 vec3 lightAt(vec3 p, vec3 n) {
   vec3 sum = mix(uAmbientGround, uAmbient, n.y * 0.5 + 0.5);
   for (int i = 0; i < LIGHT_N; i++) {
-    if (i >= uLightCount) break;
+    if (float(i) >= uLightCount) break;
     vec3 L = uLightPos[i].xyz - p;
     float d = length(L);
     float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
     float ndl = clamp(dot(n, L / max(d, 0.001)) * 0.75 + 0.25, 0.0, 1.0);
-    sum += uLightCol[i].rgb * (k * k) * ndl;
+    // 아래로만 비추는 등: 광원 바로 아래가 가장 밝고, 광원 높이 근처의 벽은 비추지 않는다
+    float spot = uLightCol[i].w > 1.5 ? smoothstep(0.25, 0.75, L.y / max(d, 0.001)) : 1.0;
+    sum += uLightCol[i].rgb * (k * k) * ndl * spot;
   }
   return sum;
 }
@@ -136,7 +135,7 @@ export function litMaterial(
   });
   // 붙은 자리가 없는 기하(보통 상자·판)에서는 '어디에도 붙지 않음'으로 읽게
   if (opts.attached) (m as unknown as { defaultAttributeValues: Record<string, number[]> }).defaultAttributeValues = { ...m.defaultAttributeValues, bc: [0, 0] };
-  return m;
+  return withLights(m);
 }
 
 /** 캔버스(도트 그림) → 텍스처: nearest, 밉맵 없음, sRGB */
@@ -193,17 +192,24 @@ export function backdropMaterial(map: THREE.Texture, tint: number, fog: number):
  * 가로등·간판 아래 바닥에 빛 웅덩이가 보이게 한다.
  */
 const FLOOR_LIGHT_GLSL = /* glsl */ `
+/** 젖은 길의 물기에 번진 빛 (바탕색과 상관없이 더한다): floorLight가 함께 채운다 */
+vec3 floorSheen = vec3(0.0);
 vec3 floorLight(vec3 p) {
-  vec3 sum = uAmbientGround;
+  vec3 sum = vec3(0.0);
+  floorSheen = vec3(0.0);
   for (int i = 0; i < LIGHT_N; i++) {
-    if (i >= uLightCount) break;
+    if (float(i) >= uLightCount) break;
     vec3 q = vec3(p.x, p.y, mix(p.z, uLightPos[i].z, 0.85));
     vec3 L = uLightPos[i].xyz - q;
     float d = length(L);
     float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
-    sum += uLightCol[i].rgb * (k * k) * clamp(L.y / max(d, 0.001) * 0.8 + 0.2, 0.0, 1.0);
+    float spot = uLightCol[i].w > 1.5 ? 1.25 : 1.0;
+    vec3 c = uLightCol[i].rgb * (k * k) * spot;
+    sum += c * clamp(L.y / max(d, 0.001) * 0.8 + 0.2, 0.0, 1.0);
+    floorSheen += c;
   }
-  return sum;
+  // 젖은 길은 가까운 빛을 넓게 번져 받는다 (빛 웅덩이, 바닥마다 세기 lightGain). 빛이 없는 곳은 어두운 바닥 그대로
+  return uAmbientGround + sum * lightGain;
 }
 `;
 
@@ -211,9 +217,14 @@ vec3 floorLight(vec3 p) {
  * 젖은 바닥: 아스팔트 그림을 빛으로 비추고, 화면 알파에 젖은 정도(반사 세기)를 쓴다.
  * 반사 자체는 후처리(화면 반사)가 이 알파를 보고 더한다. wet: 웅덩이 무늬(빨강 채널), 가로 x·세로 z로 반복.
  */
-export function floorMaterial(map: THREE.Texture, mapScale: THREE.Vector2, wet: THREE.Texture, wetScale: THREE.Vector2, wetK = 1): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: { ...shared, map: { value: map }, mapScale: { value: mapScale }, wet: { value: wet }, wetScale: { value: wetScale }, wetK: { value: wetK } },
+export function floorMaterial(
+  map: THREE.Texture, mapScale: THREE.Vector2, wet: THREE.Texture, wetScale: THREE.Vector2, wetK = 1, lightGain = 3,
+): THREE.ShaderMaterial {
+  return withLights(new THREE.ShaderMaterial({
+    uniforms: {
+      ...shared, map: { value: map }, mapScale: { value: mapScale }, wet: { value: wet }, wetScale: { value: wetScale }, wetK: { value: wetK },
+      lightGain: { value: lightGain },
+    },
     vertexShader: VERT,
     fragmentShader: /* glsl */ `
       uniform sampler2D map;
@@ -221,6 +232,7 @@ export function floorMaterial(map: THREE.Texture, mapScale: THREE.Vector2, wet: 
       uniform sampler2D wet;
       uniform vec2 wetScale;
       uniform float wetK;
+      uniform float lightGain;
       ${LIGHT_GLSL}
       ${FOG_GLSL}
       varying vec2 vUv;
@@ -233,10 +245,12 @@ export function floorMaterial(map: THREE.Texture, mapScale: THREE.Vector2, wet: 
         float w = texture2D(wet, vWorld.xz * wetScale).r * wetK;
         // 젖은 곳은 바탕이 더 어둡고(물이 덮음) 반사가 세다
         vec3 col = tex * uAlbedo * mix(1.0, 0.55, w) * floorLight(vWorld);
+        // 물기에 번진 빛: 웅덩이일수록 세다
+        col += floorSheen * (0.3 + 0.7 * w) * 0.12 * min(1.0, wetK * 1.5);
         gl_FragColor = vec4(applyFog(col, vDepth, 0.0), (0.35 + 0.6 * w) * min(1.0, wetK * 1.5));
       }
     `,
-  });
+  }));
 }
 
 /**
@@ -244,12 +258,13 @@ export function floorMaterial(map: THREE.Texture, mapScale: THREE.Vector2, wet: 
  * 화면 알파에 젖은 정도 wet를 쓴다 (물웅덩이는 반사가 세다).
  */
 export function decalMaterial(map: THREE.Texture, wet: number): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: { ...shared, map: { value: map }, wet: { value: wet } },
+  return withLights(new THREE.ShaderMaterial({
+    uniforms: { ...shared, map: { value: map }, wet: { value: wet }, lightGain: { value: 3 } },
     vertexShader: VERT,
     fragmentShader: /* glsl */ `
       uniform sampler2D map;
       uniform float wet;
+      uniform float lightGain;
       ${LIGHT_GLSL}
       ${FOG_GLSL}
       ${FLOOR_LIGHT_GLSL}
@@ -260,14 +275,14 @@ export function decalMaterial(map: THREE.Texture, wet: number): THREE.ShaderMate
       void main() {
         vec4 t = texture2D(map, vUv);
         if (t.a < 0.5) discard;
-        vec3 col = t.rgb * uAlbedo * floorLight(vWorld);
+        vec3 col = t.rgb * uAlbedo * floorLight(vWorld) + floorSheen * wet * 0.12;
         gl_FragColor = vec4(applyFog(col, vDepth, 0.0), wet);
       }
     `,
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
-  });
+  }));
 }
 
 /**
@@ -385,7 +400,7 @@ export function hazeMaterial(noise: THREE.Texture, color: string, strength: numb
     `,
     side: THREE.DoubleSide,
   });
-  return keepAlpha(m, false);
+  return keepAlpha(withLights(m), false);
 }
 
 export { keepAlpha };

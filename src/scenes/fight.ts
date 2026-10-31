@@ -200,7 +200,7 @@ export function fightScene(): Scene {
     g.view.commitLights();
     const v = { x: placed.ix, y: placed.iy };
     const toScreen = (x: number, y: number): [number, number] => [Math.round(x - v.x), Math.round(GROUND_Y + y - v.y)];
-    g.actors.back.paint(v.x, v.y, (c) => {
+    g.actors.back.paint(g.view.renderer, v.x, v.y, (c) => {
       let drew = dust.length > 0;
       drawDust(c, dust, toScreen);
       trails.forEach((tr, i) => {
@@ -220,7 +220,7 @@ export function fightScene(): Scene {
       }
       return drew;
     });
-    g.actors.front.paint(v.x, v.y, (c) => {
+    g.actors.front.paint(g.view.renderer, v.x, v.y, (c) => {
       let drew = vfx.draw(c, v, 'front');
       if (fightVfx.debris.busy) {
         fightVfx.debris.drawDust(c, v, 'front');

@@ -202,3 +202,27 @@ export class Details {
     return this.geo.build({ d: litMaterial(pixelTexture(paintSwatches(this.colors)), { attached: true }) });
   }
 }
+
+/**
+ * 면마다 재질이 다른 상자: 보이는 면만 만들고 같은 재질의 면은 한 번에 그린다
+ * (THREE.BoxGeometry에 재질 배열을 주면 면 여섯 개를 따로 그린다). 텍스처는 면마다 한 장을 꽉 채운다.
+ */
+export function facedBox(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, mats: Partial<Record<Face, THREE.Material>>): THREE.Mesh {
+  const geo = new Geo();
+  facedInto(geo, x0, x1, y0, y1, z0, z1, mats);
+  return geo.build(matKeys(mats));
+}
+
+/** facedBox와 같지만 여러 상자를 한 기하에 모은다 (재질이 같으면 한 번에 그린다). build(matKeys(…))로 마무리 */
+export function facedInto(geo: Geo, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, mats: Partial<Record<Face, THREE.Material>>): void {
+  const keys: Partial<Record<Face, string>> = {};
+  for (const [f, m] of Object.entries(mats) as Array<[Face, THREE.Material]>) keys[f] = `m${m.id}`;
+  geo.box(keys, x0, x1, y0, y1, z0, z1, null, FREE, Object.keys(mats) as Face[]);
+}
+
+/** 재질 이름 표 (facedInto가 쓰는 이름) */
+export function matKeys(...list: Array<Partial<Record<Face, THREE.Material>>>): Record<string, THREE.Material> {
+  const out: Record<string, THREE.Material> = {};
+  for (const mats of list) for (const m of Object.values(mats)) if (m) out[`m${m.id}`] = m;
+  return out;
+}

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { COLORS as C } from '../palette';
 import { canvas, disc } from '../dither';
 import { LIGHT_GLSL } from './shaders';
-import { LIGHT_N, shared } from './lights';
+import { LIGHTS_DECL, shared, withLights } from './lights';
 import { keepAlpha, pixelTexture, shaftMaterial } from './shaders';
 
 /**
@@ -109,13 +109,10 @@ export class Puffs {
   constructor(private readonly max: number, light: string, dark: string, order: number, alpha = 0.6) {
     const [c, g] = canvas(32, 32);
     for (let r = 15; r >= 3; r -= 4) disc(g, 16, 16, r, r > 11 ? dark : r > 7 ? light : light, r > 11 ? 6 : r > 7 ? 10 : 14);
-    const mat = keepAlpha(new THREE.ShaderMaterial({
+    const mat = keepAlpha(withLights(new THREE.ShaderMaterial({
       uniforms: { ...shared, map: { value: pixelTexture(c) }, alpha: { value: alpha } },
       vertexShader: /* glsl */ `
-        #define LIGHT_N ${LIGHT_N}
-        uniform vec4 uLightPos[LIGHT_N];
-        uniform vec4 uLightCol[LIGHT_N];
-        uniform int uLightCount;
+        ${LIGHTS_DECL}
         uniform vec3 uAmbient;
         attribute float fade;
         varying vec2 vUv;
@@ -127,7 +124,7 @@ export class Puffs {
           vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
           vec3 lit = uAmbient * 3.0;
           for (int i = 0; i < LIGHT_N; i++) {
-            if (i >= uLightCount) break;
+            if (float(i) >= uLightCount) break;
             float d = length(uLightPos[i].xyz - wp.xyz);
             float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
             lit += uLightCol[i].rgb * k * k;
@@ -148,7 +145,7 @@ export class Puffs {
           gl_FragColor = vec4(t.rgb * (0.3 + vLight), alpha * vFade);
         }
       `,
-    }), false);
+    })), false);
     mat.transparent = false;
     const geo = new THREE.PlaneGeometry(1, 1);
     this.fade = new THREE.InstancedBufferAttribute(new Float32Array(max), 1);
@@ -245,7 +242,7 @@ export class WaterColumn {
   static readonly MAX = 84;
 
   constructor() {
-    this.mat = new THREE.ShaderMaterial({
+    this.mat = withLights(new THREE.ShaderMaterial({
       uniforms: {
         ...shared,
         height: { value: 40 },
@@ -286,7 +283,7 @@ export class WaterColumn {
           gl_FragColor = vec4(c * (0.4 + lit * 0.7), 0.0);
         }
       `,
-    });
+    }));
     const geo = new THREE.PlaneGeometry(20, WaterColumn.MAX);
     geo.translate(0, WaterColumn.MAX / 2, 0);
     this.mesh = new THREE.Mesh(geo, this.mat);

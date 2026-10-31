@@ -6,7 +6,7 @@ import { COLORS as C } from '../palette';
 import { hash } from '../dither';
 import { FRONT_Z } from './buildings';
 import { Flame, Puffs, Sparks, WaterColumn } from './fx';
-import { box, Details, Geo, plane } from './kit';
+import { box, Details, facedBox, Geo, plane } from './kit';
 import { lightPool } from './lights';
 import {
   boardStrip, NEON_HEX, paintBillboard, paintGlass, paintMarquee, paintNewsstand, paintNewsWreck, paintPapers, paintPuddle, paintScorch,
@@ -82,7 +82,7 @@ export class Props {
           this.views.push(b.style === 'marquee' ? new MarqueeView(this, b, i) : b.style === 'billboard' ? new BillboardView(this, b, i, det) : new SignView(this, b, i, det));
           break;
         case 'newsstand':
-          this.views.push(new NewsView(this, b, i, det));
+          this.views.push(new NewsView(this, b, i));
           break;
         case 'hydrant':
           this.views.push(new HydrantView(this, b, i));
@@ -144,10 +144,10 @@ class CarView implements View {
     });
     const end = litMaterial(pixelTexture(paintSide(14, h, i, 2)), { tint: 0.5 });
     const top = litMaterial(pixelTexture(paintSide(w, 14, i, 2)), { tint: 0.3 });
-    this.body = box(b.x, b.x + w, 0, h, CAR_Z0, CAR_Z1, [end, end, top, top, this.sides[0], this.sides[0]]);
+    this.body = facedBox(b.x, b.x + w, 0, h, CAR_Z0, CAR_Z1, { px: end, nx: end, py: top, pz: this.sides[0] });
     const wc = paintCarWreck(w, 22);
     const wm = litMaterial(pixelTexture(wc));
-    this.wreck = box(b.x - 4, b.x - 4 + wc.width, 0, 22, CAR_Z0 + 2, CAR_Z1 - 2, [end, end, top, top, wm, wm]);
+    this.wreck = facedBox(b.x - 4, b.x - 4 + wc.width, 0, 22, CAR_Z0 + 2, CAR_Z1 - 2, { px: end, nx: end, py: top, pz: wm });
     this.wreck.visible = false;
     this.scorch = decal(b.x - 14, b.x + w + 14, -26, 40, paintScorch(w + 28, 66), 0.05);
     this.small = new Flame(20, 14, i);
@@ -164,8 +164,10 @@ class CarView implements View {
       this.wreck.visible = p.stage === 2;
       this.scorch.visible = p.stage === 2;
       if (p.stage < 2) {
+        // 옆면 재질만 바꿔 낀다 (멀쩡 ↔ 찌그러짐)
         const mats = this.body.material as THREE.Material[];
-        mats[4] = mats[5] = this.sides[p.stage];
+        const k = mats.findIndex((m) => this.sides.includes(m as THREE.ShaderMaterial));
+        mats[k] = this.sides[p.stage];
       }
     }
     if (p.stage === 0) {
@@ -276,7 +278,8 @@ class LampView implements View {
     if (on) {
       const head = new THREE.Vector3(this.side * 18, 28, 2);
       this.upper.localToWorld(head);
-      lightPool.add(head.x, head.y, head.z, 140, C.sodium, 1.6);
+      // 코브라 헤드는 아래로 비춘다: 보도와 길, 가게 앞이 밝고 위층 벽은 어둡게 남는다
+      lightPool.add(head.x, head.y, head.z, 150, C.sodium, 2.2, true);
     }
     if (p.stage === 2) {
       // 쓰러진 직후 잠깐 불꽃이 튄다
@@ -342,7 +345,7 @@ class GlassView implements View {
       this.shards.visible = p.stage === 2;
     }
     this.mesh.visible = !gone;
-    if (!gone && p.stage < 2) lightPool.add(b.x + b.w / 2, GLASS_BOTTOM + b.h / 2, FRONT_Z + 10, 64, C.windowLit, 0.5);
+    if (!gone && p.stage < 2) lightPool.add(b.x + b.w / 2, GLASS_BOTTOM + b.h / 2, FRONT_Z + 16, 84, C.windowLit, p.stage === 1 ? 0.6 : 0.8);
   }
 }
 
@@ -489,13 +492,11 @@ class BillboardView implements View {
     this.group.add(plane(b.x + 3, b.x + 3 + cols * 3, ty, ty + 15, this.z + 0.3, this.text));
     // 쇠다리와 버팀대 (지붕에서 판 밑까지)
     const roof = b.bottom - 12;
-    const at = [b.b + 1, 0] as const;
     for (const lx of [b.x + 10, b.x + w - 14]) {
       const a = [b.b + 1, Math.floor((lx - GRIDS[b.b].x) / 16)] as const;
       det.add(lx, lx + 4, roof, b.bottom - 2, this.z - 4, this.z - 1, C.iron, a);
       det.bar(lx, roof, lx + 14, b.bottom - 2, 2, this.z - 4, this.z - 2, C.iron, a);
     }
-    void at;
     owner.group.add(this.group);
   }
 
@@ -529,12 +530,12 @@ class NewsView implements View {
   private readonly papers: THREE.Mesh;
   private readonly roof: THREE.Mesh;
 
-  constructor(owner: Props, b: Breakable, i: number, _det: Details) {
+  constructor(owner: Props, b: Breakable, i: number) {
     const w = Math.round(b.w);
     const h = Math.round(b.h);
     this.mats = [0, 1].map((st) => litMaterial(pixelTexture(paintNewsstand(w, h, st))));
     const side = litMaterial(pixelTexture(paintSide(16, h, i, 0)), { tint: 0.6 });
-    this.body = box(b.x, b.x + w, 0, h - 4, -40, -24, [side, side, side, side, this.mats[0], side]);
+    this.body = facedBox(b.x, b.x + w, 0, h - 4, -40, -24, { px: side, nx: side, py: side, pz: this.mats[0] });
     this.roof = box(b.x - 2, b.x + w + 2, h - 4, h, -42, -20, litMaterial(pixelTexture(solid(C.iron))));
     const wc = paintNewsWreck(w, 16);
     this.wreck = box(b.x - 4, b.x - 4 + wc.width, 0, 16, -40, -24, litMaterial(pixelTexture(wc)));
@@ -551,7 +552,10 @@ class NewsView implements View {
     this.roof.rotation.z = p.stage === 1 ? -0.1 : 0;
     this.wreck.visible = p.stage === 2;
     this.papers.visible = p.stage >= 1;
-    if (p.stage < 2) (this.body.material as THREE.Material[])[4] = this.mats[p.stage];
+    if (p.stage < 2) {
+      const mats = this.body.material as THREE.Material[];
+      mats[mats.findIndex((m) => this.mats.includes(m as THREE.ShaderMaterial))] = this.mats[p.stage];
+    }
   }
 }
 

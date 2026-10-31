@@ -3,9 +3,10 @@ import { CITADEL as D } from '../../data/stages/citadel';
 import { textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { canvas, disc, ditherRect, hash, line, rect } from '../dither';
+import { star } from './backdrops';
 import { scaleAt } from './core';
 import { Beam } from './fx';
-import { box, Details, FREE, Geo, plane, type UvFn } from './kit';
+import { box, Details, facedBox, facedInto, FREE, Geo, matKeys, plane, type UvFn } from './kit';
 import { lightPool } from './lights';
 import { litMaterial, pixelTexture } from './shaders';
 import { neonText } from './tex';
@@ -68,18 +69,17 @@ export class Plaza {
     const side = litMaterial(pixelTexture(paintKeepSide()), { tint: 0.7 });
     const roof = litMaterial(pixelTexture(solidTex(C.smog1)));
     const front = litMaterial(pixelTexture(f.map), { emissive: pixelTexture(f.glow), emissiveStrength: 0.7 });
-    this.group.add(box(K.x0, K.x1, 0, K.h, KEEP_Z - 400, KEEP_Z, [side, side, roof, roof, front, side]));
+    this.group.add(facedBox(K.x0, K.x1, 0, K.h, KEEP_Z - 400, KEEP_Z, { px: side, nx: side, py: roof, pz: front }));
     // 옥상 처마 띠와 서치라이트 받침
     det.add(K.x0 - 4, K.x1 + 4, K.h, K.h + 8, KEEP_Z - 6, KEEP_Z + 4, C.stone);
     det.add(K.x0 - 4, K.x1 + 4, K.h + 7, K.h + 8, KEEP_Z - 6, KEEP_Z + 4, C.paintCream);
-    K.lights.forEach((lx, i) => {
+    K.lights.forEach((lx) => {
       det.add(lx - 10, lx + 10, K.h + 8, K.h + 14, KEEP_Z - 20, KEEP_Z - 4, C.iron);
       det.add(lx - 6, lx + 6, K.h + 14, K.h + 22, KEEP_Z - 16, KEEP_Z - 8, C.ironLight);
       const beam = new Beam(520, 46, C.beam, 0.2, 2);
       beam.pivot.position.set(lx, K.h + 20, KEEP_Z - 12);
       this.group.add(beam.pivot);
       this.beams.push(beam);
-      void i;
     });
     // 정문 캐노피 (얇게 튀어나온 돌판, 아래 매입등)
     const gTop = L.h + P.gate.h;
@@ -95,8 +95,12 @@ export class Plaza {
   private pylons(det: Details): void {
     const mat = litMaterial(pixelTexture(paintPylon()), { emissive: pixelTexture(paintPylon(true)), emissiveStrength: 0.45 });
     const side = litMaterial(pixelTexture(solidTex(C.stoneDark)), { tint: 0.8 });
+    // 기둥 둘을 한 기하로 (옆면 한 번, 앞면 한 번)
+    const geo = new Geo();
+    const faces = { px: side, nx: side, py: side, pz: mat };
+    for (const t of P.towers) facedInto(geo, t.x, t.x + T.w, 0, T.h, KEEP_Z, -16, faces);
+    this.group.add(geo.build(matKeys(faces)));
     P.towers.forEach((t, i) => {
-      this.group.add(box(t.x, t.x + T.w, 0, T.h, KEEP_Z, -16, [side, side, side, side, mat, side]));
       // 테라스 (윗면이 발판): 정면에서 싸우는 면까지
       const tx0 = t.x - T.terraceOver;
       const tx1 = t.x + T.w + T.terraceOver;
@@ -167,7 +171,7 @@ export class Plaza {
     neonText(g, e, S.text, x0 + 4 + Math.round((sw - tw) / 2), 10, 4, C.lampCore, C.chromeDark);
     const sub = S.sub;
     neonText(g, e, sub, x0 + 4 + Math.round((sw - textWidth(sub, 2)) / 2), 36, 2, C.beam, C.chromeDark);
-    for (const cx of [18, w - 18]) starAt(g, cx, 26, 3, C.posterRed);
+    for (const cx of [18, w - 18]) star(g, cx, 26, 3, C.posterRed);
     const mat = litMaterial(pixelTexture(mc), { emissive: pixelTexture(ec), emissiveStrength: 1.8 });
     const top = S.h + 30;
     this.group.add(box(scx - w / 2, scx + w / 2, top - h, top, KEEP_Z + 1, KEEP_Z + 6, mat));
@@ -237,7 +241,7 @@ export class Plaza {
     ditherRect(g, 0, 0, CP.w, CP.h, C.smog1, 3);
     const booth = litMaterial(pixelTexture(mc), { emissive: pixelTexture(ec), emissiveStrength: 1 });
     const side = litMaterial(pixelTexture(solidTex(C.ironLight)), { tint: 0.7 });
-    this.group.add(box(CP.x, CP.x + CP.w, 0, CP.h, -44, -18, [side, side, side, side, booth, side]));
+    this.group.add(facedBox(CP.x, CP.x + CP.w, 0, CP.h, -44, -18, { px: side, nx: side, py: side, pz: booth }));
     det.add(CP.x - 2, CP.x + CP.w + 2, CP.h, CP.h + 4, -46, -16, C.iron);
     // 모래주머니 두 단
     for (let row = 0; row < 2; row++) for (let k = 0; k < 3 - row; k++) {
@@ -282,14 +286,6 @@ function solidTex(color: string): HTMLCanvasElement {
   const [c, g] = canvas(4, 4);
   rect(g, 0, 0, 4, 4, color);
   return c;
-}
-
-/** 별 문장 (가운데 cx, cy), 크기 배수 */
-export function starAt(g: CanvasRenderingContext2D, cx: number, cy: number, s: number, color: string): void {
-  const rows = ['...#...', '..###..', '#######', '.#####.', '.##.##.', '##...##'];
-  rows.forEach((row, y) => {
-    for (let x = 0; x < row.length; x++) if (row[x] === '#') rect(g, cx + (x - 3) * s, cy + (y - 3) * s, s, s, color);
-  });
 }
 
 /** 돌 벽 (블록 줄눈) */
@@ -432,10 +428,11 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
   R(g, K.x0, K.x1, K.lobby, K.lobby + 2, C.stoneDark);
   for (const [x0, x1] of [[K.x0, ax0], [ax1, K.x1]] as const) {
     R(g, x0, x1, 22, K.lobby, C.glass);
-    RD(g, x0, x1, K.lobby - 56, K.lobby - 6, C.windowLit, 3);
-    RD(e, x0, x1, K.lobby - 56, K.lobby - 6, '#5e462c', 3);
-    RD(g, x0, x1, 22, K.lobby - 56, C.windowLit, 8);
-    RD(e, x0, x1, 22, K.lobby - 56, '#5e462c', 8);
+    // 로비 불빛: 위쪽 띠는 거의 꽉 차게, 아래는 듬성듬성 (바둑판 반반 무늬는 철망처럼 보여 피한다)
+    RD(g, x0, x1, K.lobby - 56, K.lobby - 6, C.windowLit, 12);
+    RD(e, x0, x1, K.lobby - 56, K.lobby - 6, '#7a5c3a', 12);
+    RD(g, x0, x1, 22, K.lobby - 56, C.windowLit, 6);
+    RD(e, x0, x1, 22, K.lobby - 56, '#7a5c3a', 6);
     R(g, x0, x1, K.lobby - 6, K.lobby, C.iron);
     R(e, x0, x1, K.lobby - 6, K.lobby, '#000');
     for (let x = x0 + 6; x < x1 - 4; x += 12) {
@@ -453,7 +450,7 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
         R(g, x + 4, x + 16, K.lobby - 64, K.lobby - 6, C.posterRed);
         R(g, x + 4, x + 16, K.lobby - 64, K.lobby - 62, C.posterRedDark);
         R(e, x + 4, x + 16, K.lobby - 64, K.lobby - 6, '#000');
-        starAt(g, X(x + 10), Y(K.lobby - 26), 1, C.paintOchre);
+        star(g, X(x + 10), Y(K.lobby - 26), 1, C.paintOchre);
       }
     }
     for (let x = x0; x < x1; x += 30) {
@@ -461,7 +458,7 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
       R(e, x, x + 1, 22, K.lobby - 6, '#000');
     }
     R(g, x0, x1, K.lobby - 71, K.lobby - 70, C.chromeDark);
-    for (let x = x0 + 45; x < x1; x += 90) fixed.push({ x, y: 60, z: KEEP_Z + 24, range: 70, color: C.windowLit, power: 0.5 });
+    for (let x = x0 + 45; x < x1; x += 90) fixed.push({ x, y: 60, z: KEEP_Z + 40, range: 110, color: C.windowLit, power: 0.7 });
   }
   R(g, K.x0, K.x1, 0, 22, C.iron);
   R(g, K.x0, K.x1, 21, 22, C.ironLight);
@@ -471,8 +468,8 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
 
   // 3) 가운데 유리 홀: 계단참에서 높이 솟은 유리, 큰 깃발, 홀 꼭대기 띠
   R(g, ax0, ax1, ly, K.atrium, C.glass);
-  RD(g, ax0, ax1, ly, K.atrium - 30, C.windowLit, 7);
-  RD(e, ax0, ax1, ly, K.atrium - 30, '#6a4e30', 7);
+  RD(g, ax0, ax1, ly, K.atrium - 30, C.windowLit, 11);
+  RD(e, ax0, ax1, ly, K.atrium - 30, '#6a4e30', 11);
   for (let x = ax0 + 26; x < ax1; x += 26) {
     R(g, x, x + 1, ly, K.atrium, C.chromeDark);
     R(e, x, x + 1, ly, K.atrium, '#000');
@@ -485,7 +482,7 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
   R(g, bcx - 16, bcx + 16, K.atrium - 89, K.atrium - 6, C.posterRed);
   R(g, bcx - 16, bcx + 16, K.atrium - 89, K.atrium - 86, C.posterRedDark);
   R(e, bcx - 16, bcx + 16, K.atrium - 89, K.atrium - 6, '#000');
-  starAt(g, X(bcx), Y(K.atrium - 36), 3, C.paintOchre);
+  star(g, X(bcx), Y(K.atrium - 36), 3, C.paintOchre);
   R(g, ax0, ax1, K.atrium, K.atrium + 6, C.stone);
   R(g, ax0, ax1, K.atrium + 5, K.atrium + 6, C.paintCream);
   fixed.push({ x: bcx, y: K.atrium - 70, z: KEEP_Z + 30, range: 110, color: C.windowLit, power: 0.6 });
@@ -495,8 +492,8 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
   R(g, gx - 4, gx + P.gate.w + 4, ly, gTop, C.iron);
   R(e, gx - 4, gx + P.gate.w + 4, ly, gTop, '#000');
   R(g, gx, gx + P.gate.w, ly, gTop - 4, C.glass);
-  RD(g, gx, gx + P.gate.w, ly, gTop - 40, C.windowLit, 9);
-  RD(e, gx, gx + P.gate.w, ly, gTop - 40, C.windowLit, 9);
+  RD(g, gx, gx + P.gate.w, ly, gTop - 40, C.windowLit, 12);
+  RD(e, gx, gx + P.gate.w, ly, gTop - 40, '#7a5c3a', 12);
   for (let x = gx + 20; x < gx + P.gate.w; x += 20) R(g, x, x + 1, ly, gTop - 4, C.iron);
   R(g, gx, gx + P.gate.w, gTop - 38, gTop - 36, C.iron);
   const rx = gx + P.gate.w / 2 - 12;

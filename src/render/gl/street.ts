@@ -1,13 +1,15 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CITADEL as D } from '../../data/stages/citadel';
 import { textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { canvas, disc, ditherRect, hash, rect } from '../dither';
 import { depthOfSpeed } from './core';
-import { KEEP_Z, starAt } from './plaza';
+import { star } from './backdrops';
+import { KEEP_Z } from './plaza';
 import { Details, plane } from './kit';
 import { fgMaterial, floorMaterial, litMaterial, pixelTexture } from './shaders';
-import { neonText, paintNoise, paintPuddles, paintStreet } from './tex';
+import { neonText, paintPuddles, paintStreet } from './tex';
 
 /**
  * 길 (렌더 전용): 구간마다 다른 바닥(부두 돌 포장·아스팔트·광장 돌판·공원 자갈길), 전차 가공선, 부서지지 않는 길가 소품,
@@ -23,8 +25,8 @@ export function buildStreet(): THREE.Group {
   const g = new THREE.Group();
   const puddles = repeat(pixelTexture(paintPuddles(128, 11)));
   const wetScale = new THREE.Vector2(1 / 420, 1 / 900);
-  const floor = (x0: number, x1: number, zBack: number, map: HTMLCanvasElement, scale: THREE.Vector2, wetK: number) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, 2400 - zBack), floorMaterial(repeat(pixelTexture(map)), scale, puddles, wetScale, wetK));
+  const floor = (x0: number, x1: number, zBack: number, map: HTMLCanvasElement, scale: THREE.Vector2, wetK: number, gain = 3) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, 2400 - zBack), floorMaterial(repeat(pixelTexture(map)), scale, puddles, wetScale, wetK, gain));
     m.rotation.x = -Math.PI / 2;
     m.position.set((x0 + x1) / 2, 0, (zBack + 2400) / 2);
     g.add(m);
@@ -34,9 +36,9 @@ export function buildStreet(): THREE.Group {
   const s512 = new THREE.Vector2(1 / 256, 1 / 512);
   floor(-200, sec('pier').x1, -46, paintQuay(256, 128, RAILS), s512, 0.9);
   floor(sec('theater').x0, sec('theater').x1, -24, street, s512, 1);
-  floor(sec('plaza').x0, sec('plaza').x1, KEEP_Z, paintPavers(192, 128), new THREE.Vector2(1 / 192, 1 / 512), 0.9);
+  floor(sec('plaza').x0, sec('plaza').x1, KEEP_Z, paintPavers(192, 128), new THREE.Vector2(1 / 192, 1 / 512), 0.9, 2);
   floor(sec('apartments').x0, sec('apartments').x1, -24, asphalt, s512, 1);
-  floor(sec('park').x0, MAP_RIGHT, -46, paintGravel(256, 128), s512, 0.45);
+  floor(sec('park').x0, MAP_RIGHT, -46, paintGravel(256, 128), s512, 0.35, 1.2);
   const det = new Details();
   tramWire(det);
   props(det, g);
@@ -111,7 +113,7 @@ function props(det: Details, g: THREE.Group): void {
         rect(cg, 0, 0, pw, 48, C.iron);
         rect(cg, 2, 2, pw - 4, 44, C.posterRed);
         rect(cg, 2, 2, pw - 4, 1, C.paintCream);
-        starAt(cg, Math.floor(pw / 2), 14, 2, C.posterRedDark);
+        star(cg, Math.floor(pw / 2), 14, 2, C.posterRedDark);
         neonText(cg, null, text, Math.floor((pw - textWidth(text, 2)) / 2), 30, 2, C.paintCream, C.paintCream);
         ditherRect(cg, 2, 2, Math.floor(pw * 0.4), 20, C.posterRedDark, 3);
         g.add(plane(x, x + pw, 30, 78, -34, litMaterial(pixelTexture(c))));
@@ -162,7 +164,6 @@ function paintGravel(w: number, d: number): HTMLCanvasElement {
   ditherRect(g, 0, 0, w, d, C.awning, 6);
   for (let k = 0; k < 160; k++) rect(g, Math.floor(hash(k * 3 + 1) * w), Math.floor(hash(k * 5 + 2) * d), 1, 1, C.stone);
   ditherRect(g, 0, Math.floor(d * 0.55), w, d - Math.floor(d * 0.55), C.paintTeal, 9);
-  void paintNoise;
   return c;
 }
 
@@ -173,15 +174,16 @@ function paintGravel(w: number, d: number): HTMLCanvasElement {
 export function foreground(): THREE.Group {
   const g = new THREE.Group();
   const z = depthOfSpeed(D.fg.speed);
-  const mat = fgMaterial('#05040a');
-  const det = new THREE.Group();
+  // 막대마다 따로 그리면 그리기 호출이 수백 번이라 한 기하로 묶는다 (실루엣 하나, 깃발 하나)
+  const bars: THREE.BufferGeometry[] = [];
   const bar = (x0: number, y0: number, x1: number, y1: number, t: number) => {
     const len = Math.hypot(x1 - x0, y1 - y0);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(len + 0.5, t, t), mat);
-    m.position.set((x0 + x1) / 2, (y0 + y1) / 2, z);
-    m.rotation.z = Math.atan2(y1 - y0, x1 - x0);
-    det.add(m);
+    const geo = new THREE.BoxGeometry(len + 0.5, t, t);
+    geo.rotateZ(Math.atan2(y1 - y0, x1 - x0));
+    geo.translate((x0 + x1) / 2, (y0 + y1) / 2, z);
+    bars.push(geo);
   };
+  const flags: THREE.BufferGeometry[] = [];
   for (const it of D.fg.items) {
     if (it.kind === 'post') {
       bar(it.x, 0, it.x, 420, 6);
@@ -199,16 +201,17 @@ export function foreground(): THREE.Group {
     } else {
       // 깃대와 크게 늘어진 붉은 깃발 (어둡게)
       bar(it.x, 0, it.x, 470, 5);
-      const flag = new THREE.Mesh(new THREE.PlaneGeometry(56, 96, 8, 1), fgMaterial('#1a0809'));
-      const pos = flag.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const flag = new THREE.PlaneGeometry(56, 96, 8, 1);
+      const pos = flag.getAttribute('position') as THREE.BufferAttribute;
       for (let i = 0; i < pos.count; i++) {
         const fx = pos.getX(i) + 28;
         pos.setY(i, pos.getY(i) + Math.sin(fx * 0.12) * 3 + (pos.getY(i) < 0 ? fx * 0.2 : 0));
       }
-      flag.position.set(it.x + 31, 192, z);
-      det.add(flag);
+      flag.translate(it.x + 31, 192, z);
+      flags.push(flag.toNonIndexed());
     }
   }
-  g.add(det);
+  g.add(new THREE.Mesh(mergeGeometries(bars.map((b) => b.toNonIndexed())), fgMaterial('#05040a')));
+  if (flags.length) g.add(new THREE.Mesh(mergeGeometries(flags), fgMaterial('#1a0809')));
   return g;
 }

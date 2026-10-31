@@ -66,7 +66,10 @@ export class GlView {
     this.renderer.info.autoReset = false;
     this.renderer.info.reset();
     this.placed = placeCamera(this.camera, v);
-    lightPool.clear();
+    // 화면에 닿는 빛만 후보로 받는다 (commitLights와 같은 둘레)
+    const top = this.camera.position.y + SCREEN_H / 2 + 40;
+    const bottom = this.camera.position.y - SCREEN_H / 2 - 40;
+    lightPool.clear(this.placed.ix - 40, this.placed.ix + SCREEN_W + 40, bottom, top);
     shared.uTime.value = tick;
     return this.placed;
   }

@@ -35,6 +35,8 @@ export class World {
   private readonly steam = new Steam();
   /** 앞겹 (카메라 앞을 스치는 기둥·전선·깃발). 확인용으로 끌 수 있다 */
   readonly foreground = foreground();
+  /** 움직이지 않는 무대 (먼 겹 판·안개 판·길·건물·앞겹) */
+  private readonly statics: THREE.Object3D[] = [];
 
   constructor() {
     for (const [layer, tint, fog] of [
@@ -42,7 +44,7 @@ export class World {
       [buildFar(), 0.4, 0.45],
       [buildKeep(), 0.45, 0.35],
       [buildMid(), 0.32, 0.3],
-    ] as const) this.group.add(backdrop(layer, tint, fog));
+    ] as const) this.statics.push(backdrop(layer, tint, fog));
     // 겹 사이 안개: 중간 건물과 시타델 탑 사이, 싸우는 줄과 중간 건물 사이, 길 위 바닥 안개
     const noise = pixelTexture(paintNoise(128, 7, 4, 3));
     noise.wrapS = THREE.RepeatWrapping;
@@ -61,12 +63,18 @@ export class World {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(9000 * k, h * k), mat);
       m.renderOrder = z < 0 ? 1 : 21;
       m.position.set(1600, (h * k) / 2 - 4 * k, z);
-      this.group.add(m);
+      this.statics.push(m);
     }
-    this.group.add(
-      buildStreet(), this.buildings.group, this.plaza.group, this.edges.group, this.props.group, this.life.group, this.rain.group, this.steam.group,
-      this.foreground,
-    );
+    this.statics.push(buildStreet(), this.buildings.group, this.foreground);
+    this.group.add(...this.statics, this.plaza.group, this.edges.group, this.props.group, this.life.group, this.rain.group, this.steam.group);
+    // 움직이지 않는 무대는 자리 행렬을 한 번만 계산한다 (매 프레임 수백 개를 다시 계산하지 않게)
+    for (const o of this.statics) {
+      o.updateMatrixWorld(true);
+      o.traverse((c) => {
+        c.matrixAutoUpdate = false;
+      });
+      o.matrixWorldAutoUpdate = false;
+    }
   }
 
   /**

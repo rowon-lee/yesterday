@@ -27,6 +27,8 @@ export interface FrontBuildingPlace {
   /** 가게 이름 (없으면 1층이 현관) */
   sign: string;
   poster: string;
+  /** 포스터를 건물 왼쪽에 붙인다 (그림 전용: 고정 카메라 지점의 화면 가장자리에서 글씨가 잘리지 않게) */
+  posterLeft: boolean;
   seed: number;
 }
 
@@ -56,7 +58,10 @@ function layout(): { buildings: FrontBuildingPlace[]; gaps: FrontGap[] } {
     let x: number = sec.x0;
     for (const b of sec.list) {
       if (b.kind === 'alley') gaps.push({ kind: 'alley', section: id, x, w: b.w });
-      else buildings.push({ kind: b.kind, section: id, x, w: b.w, h: heightOf(b.floors), floors: b.floors, sign: b.sign, poster: b.poster, seed: k });
+      else buildings.push({
+        kind: b.kind, section: id, x, w: b.w, h: heightOf(b.floors), floors: b.floors, sign: b.sign, poster: b.poster,
+        posterLeft: 'posterLeft' in b && b.posterLeft, seed: k,
+      });
       x += b.w;
       k += 97;
     }

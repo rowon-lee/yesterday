@@ -238,6 +238,7 @@ function ghostSign(g: CanvasRenderingContext2D, x: number, y: number, text: stri
 /** 포스터 자리: 글씨가 화면 가장자리에서 잘리지 않게 구간 가운데 쪽 벽에 붙인다 */
 function posterX(b: FrontBuildingPlace, tw: number, pw: number, T: (v: number) => number): number {
   const sec = D.sections.find((s) => s.id === b.section)!;
+  if (b.posterLeft) return T(8);
   return b.x + b.w / 2 < (sec.x0 + sec.x1) / 2 ? tw - pw - T(8) : T(8);
 }
 
