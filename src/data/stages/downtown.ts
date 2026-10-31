@@ -39,9 +39,12 @@ export const DOWNTOWN = {
     ],
   },
 
-  /** 앞 겹: 길가 건물. 1층 가게(차양·간판), 위층 창, 철제 비상계단, 선전 포스터 */
+  /**
+   * 앞 겹: 길가 건물. 1층 가게(차양·간판), 위층 창, 철제 비상계단, 선전 포스터.
+   * 쇼윈도를 캐릭터가 부술 수 있도록 거리와 같은 속도(1)로 움직인다.
+   */
   front: {
-    speed: 0.85,
+    speed: 1,
     buildings: [
       { w: 58, h: 72, shop: 'GARAGE', escape: false, poster: '' },
       { w: 14, h: 0, shop: '', escape: false, poster: '' }, // 골목
@@ -61,21 +64,40 @@ export const DOWNTOWN = {
     seed: 271,
   },
 
-  /** 거리 (캐릭터와 같은 속도): 보도, 노면전차 선로, 가스등, 소품 */
+  /** 거리 (캐릭터와 같은 속도): 보도, 노면전차 선로, 부서지지 않는 소품 */
   street: {
     lamps: [70, 210, 350, 490, 630, 770, 910],
     props: [
       { kind: 'barricade', x: 0 },
-      { kind: 'posterboard', x: 104, text: 'OBEY' },
-      { kind: 'hydrant', x: 142 },
-      { kind: 'mailbox', x: 282 },
-      { kind: 'newsstand', x: 418 },
-      { kind: 'hydrant', x: 560 },
-      { kind: 'posterboard', x: 652, text: 'ORDER' },
-      { kind: 'barrel', x: 700 },
+      { kind: 'posterboard', x: 172, text: 'OBEY' },
+      { kind: 'mailbox', x: 300 },
+      { kind: 'posterboard', x: 452, text: 'ORDER' },
+      { kind: 'barrel', x: 724 },
       { kind: 'mailbox', x: 838 },
       { kind: 'posterboard', x: 862, text: 'WORK' },
       { kind: 'barricade', x: 922 },
     ],
+  },
+
+  /**
+   * 부서지는 물건 (게임 기획서 '부서지는 것' 표). x는 왼쪽 끝 px.
+   * 가스등은 street.lamps 자리에, 쇼윈도는 길가 건물 1층마다 하나씩 생긴다.
+   */
+  breakables: {
+    cars: [112, 664],
+    hydrants: [260, 560],
+    newsstands: [418],
+    /** 내구도와 판정 상자 (발밑 기준 폭·높이, px) */
+    car: { hp: 220, w: 46, h: 20 },
+    lamp: { hp: 90, w: 8, h: 50 },
+    glass: { hp: 50, h: 18 },
+    newsstand: { hp: 120, w: 22, h: 24 },
+    hydrant: { hp: 70, w: 7, h: 11 },
+    /** 내구도가 이 % 아래로 내려가면 '망가짐' 모습 */
+    damagedAt: 50,
+    /** 세게 날아온 캐릭터가 부딪히면 한 번에 부서진다: 이 속도(px/틱) 이상일 때 */
+    crashSpeed: 2.5,
+    /** 부딪힌 쪽 추가 피해 */
+    crashDamage: 50,
   },
 } as const;

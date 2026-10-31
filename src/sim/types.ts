@@ -55,13 +55,32 @@ export interface Fighter {
   /** 버튼별 남은 버퍼 틱 [공격, 점프, 대시, 기술A, 기술B, 필살] */
   buf: number[];
   prevInput: number;
+  /** 지금 기술이 이미 친 부서지는 물건 (비트, 물건 번호) */
+  propMask: number;
+}
+
+/** 부서지는 물건 하나의 상태. 위치·크기는 stage/downtown.ts의 BREAKABLES[번호] */
+export interface PropState {
+  hp: number;
+  /** 0 멀쩡, 1 망가짐, 2 파괴 */
+  stage: 0 | 1 | 2;
+  /** 망가진 틱, 부서진 틱 (-1 아직) */
+  damagedAt: number;
+  brokenAt: number;
+  /** 날아온 캐릭터에 부딪혀 부서졌다 */
+  crashed: boolean;
+  /** 부서질 때 맞은 방향 (1 오른쪽으로, -1 왼쪽으로). 잔해가 날아가는 쪽 */
+  dir: number;
 }
 
 export type Phase = 'intro' | 'fight' | 'roundEnd' | 'matchEnd';
 
 /** 이번 틱에 일어난 일. 렌더(이펙트·소리)가 읽고, 다음 틱에 비워진다. */
 export interface SimEvent {
-  type: 'hit' | 'block' | 'crush' | 'tech' | 'ko' | 'cutin' | 'round' | 'fight' | 'timeup' | 'winner' | 'launch' | 'knockdown';
+  type:
+    | 'hit' | 'block' | 'crush' | 'tech' | 'ko' | 'cutin' | 'round' | 'fight' | 'timeup' | 'winner' | 'launch' | 'knockdown'
+    /** 부서지는 물건: who = 물건 번호, text = 'damaged' | 'broken', heavy = 캐릭터가 부딪혀 부서짐 */
+    | 'prop';
   /** 한 사람 (때린 쪽, 기술 쓴 쪽, 이긴 쪽) */
   who: number;
   x: number;
@@ -90,4 +109,6 @@ export interface SimState {
   matchWinner: number;
   fighters: [Fighter, Fighter];
   events: SimEvent[];
+  /** 부서지는 물건 (라운드마다 새로). 어느 물건이 언제 부서졌는지 양쪽 화면이 같게 보이도록 sim에 둔다 */
+  props: PropState[];
 }

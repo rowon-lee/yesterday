@@ -1,9 +1,11 @@
 import { DOWNTOWN as D } from '../../data/stages/downtown';
 import { COLORS as C } from '../palette';
 import { SCREEN_W } from '../screen';
-import { disc, dither, hash, rect } from './dither';
+import type { PropState } from '../../sim';
+import { disc, dither } from './dither';
+import { drawProps } from './props';
 import {
-  buildFactories, buildFront, buildMid, buildSky, buildSkyline, buildStreet, LAMP_TOP, SEARCHLIGHT, type Layer,
+  buildFactories, buildFront, buildMid, buildSky, buildSkyline, buildStreet, SEARCHLIGHT, type Layer,
 } from './layers';
 
 /** 바닥 높이 (화면 y). 캐릭터 발밑이 여기 닿는다. */
@@ -30,8 +32,11 @@ function layers() {
 const place = (ctx: CanvasRenderingContext2D, l: Layer, camX: number) =>
   ctx.drawImage(l.canvas, -Math.round(camX * l.speed), 0);
 
-/** 캐릭터 뒤에 그리는 무대 전부. camX는 카메라 왼쪽 끝 (px), tick은 움직임용 */
-export function drawStage(ctx: CanvasRenderingContext2D, camX: number, tick: number): void {
+/**
+ * 캐릭터 뒤에 그리는 무대 전부. camX는 카메라 왼쪽 끝 (px), tick은 움직임용.
+ * props는 sim의 부서지는 물건 상태 (없으면 모두 멀쩡)
+ */
+export function drawStage(ctx: CanvasRenderingContext2D, camX: number, tick: number, props: readonly PropState[] | null = null): void {
   const L = layers();
   place(ctx, L.sky, camX);
   place(ctx, L.factories, camX);
@@ -41,7 +46,7 @@ export function drawStage(ctx: CanvasRenderingContext2D, camX: number, tick: num
   place(ctx, L.mid, camX);
   place(ctx, L.front, camX);
   place(ctx, L.street, camX);
-  drawLamps(ctx, camX, tick);
+  drawProps(ctx, camX, tick, props);
 }
 
 /** 공장 굴뚝 매연: 뭉게뭉게 솟아 바람에 오른쪽으로 흘러간다 */
@@ -96,38 +101,4 @@ function drawSearchlight(ctx: CanvasRenderingContext2D, camX: number, tick: numb
       if (level > 0 && dither(x, y, level)) ctx.fillRect(x, y, 1, 1);
     }
   }
-}
-
-/** 가스등 불빛: 등 둘레의 은은한 빛과 바닥에 떨어진 빛 웅덩이. 가끔 깜빡인다 */
-function drawLamps(ctx: CanvasRenderingContext2D, camX: number, tick: number): void {
-  const cam = Math.round(camX);
-  D.street.lamps.forEach((lx, i) => {
-    const x = lx - cam;
-    if (x < -40 || x > SCREEN_W + 40) return;
-    const flicker = hash((tick >> 3) * 31 + i * 7) < 0.08 ? -1 : 0;
-    const cy = LAMP_TOP + 4;
-    // 빛 무리: 바깥은 아주 옅게
-    for (const [r, level] of [[12 + flicker, 2], [8 + flicker, 4], [5, 7]] as const) {
-      ctx.fillStyle = C.lampWarm;
-      for (let y = -r; y <= r; y++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (dx * dx + y * y > r * r) continue;
-          const px = x + dx;
-          const py = cy + y;
-          if (dither(px + cam, py, level)) ctx.fillRect(px, py, 1, 1);
-        }
-      }
-    }
-    rect(ctx, x - 2, LAMP_TOP + 1, 5, 6, C.lampGlow);
-    rect(ctx, x - 1, LAMP_TOP + 2, 3, 3, C.lampCore);
-    // 보도에 떨어진 빛 웅덩이
-    ctx.fillStyle = C.lampWarm;
-    for (let y = 0; y < 6; y++) {
-      const half = 16 - y;
-      for (let dx = -half; dx <= half; dx++) {
-        const level = Math.round(5 * (1 - Math.abs(dx) / (half + 1)));
-        if (dither(x + dx + cam, D.ground + y, level)) ctx.fillRect(x + dx, D.ground + y, 1, 1);
-      }
-    }
-  });
 }

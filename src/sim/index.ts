@@ -6,3 +6,5 @@ export { boxesOf } from './combat';
 export { fighterPose } from './pose';
 export { MOVES, STATS } from './frames';
 export * as RULES from './rules';
+export { BREAKABLES } from '../stage/downtown';
+export type { PropState } from './types';

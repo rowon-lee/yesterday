@@ -66,6 +66,7 @@ export const COLORS = {
   smoke: '#4a4446',
   smokeDark: '#3b3639',
   sandbag: '#4f4639',
+  rust: '#5a3424',
   wire: '#55504c',
   // 불빛 (밝은 색은 여기만)
   lampGlow: '#ffcf7a',

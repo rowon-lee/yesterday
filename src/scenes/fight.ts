@@ -158,7 +158,7 @@ export function fightScene(): Scene {
       const [ox, oy] = fx.offset();
       ctx.save();
       ctx.translate(ox, oy);
-      drawStage(ctx, cam, s.tick);
+      drawStage(ctx, cam, s.tick, s.props);
       const toScreen = (x: number, y: number): [number, number] => [Math.round(x - cam), Math.round(GROUND_Y + y)];
 
       // 그림자
@@ -184,6 +184,7 @@ export function fightScene(): Scene {
         drawFighter(ctx, f, i, toScreen, s.tick, fightVfx.white(i));
       }
       vfx.draw(ctx, cam, 'front');
+      fightVfx.debris.draw(ctx, cam);
       if (showBoxes) drawBoxes(ctx, s, cam);
       ctx.restore();
 

@@ -10,7 +10,7 @@ import {
 import type { Fighter, SimState } from './types';
 
 /** 월드 상자 (1/256px). 관절은 발밑 기준 px이므로 방향을 반영해 옮긴다. */
-interface WBox {
+export interface WBox {
   x0: number;
   y0: number;
   x1: number;
@@ -31,6 +31,13 @@ export function hurtOf(f: Fighter): WBox | null {
 }
 
 /** 공격 상자: 기술의 판정 프레임에서 팔꿈치→주먹 / 무릎→발 구간. 이미 냈으면 null */
+/** 지금 기술의 판정 상자 (이미 맞혔어도). 부서지는 물건 판정용 */
+export function activeHitOf(f: Fighter): WBox | null {
+  if (f.mode !== 'attack' || !f.move) return null;
+  const b = moveHitBox(MOVES[f.move], f.t);
+  return b && toWorld(f, b);
+}
+
 export function hitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || f.moveHit || !f.move) return null;
   const b = moveHitBox(MOVES[f.move], f.t);
@@ -110,12 +117,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
 
   const airborne = isAirborne(def) || def.mode === 'airhit';
   if (def.hp <= 0) {
-    setMode(def, 'ko');
-    def.vx = dir * px(2.8);
-    def.vy = px(-4.3);
-    def.y = Math.min(def.y, -1);
-    def.invuln = 1;
-    s.events.push({ type: 'ko', who, x: def.x, y: def.y });
+    knockOut(s, def, dir, who);
     return;
   }
   if (d.spike && airborne) {
@@ -141,6 +143,16 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   def.heavyHit = d.hitstun >= 24;
   def.vx = dir * mv.push;
   pushOffWall(att, def, mv.push);
+}
+
+/** 체력이 0이 된 쪽을 날려 쓰러뜨린다 */
+export function knockOut(s: SimState, def: Fighter, dir: number, who: number): void {
+  setMode(def, 'ko');
+  def.vx = dir * px(2.8);
+  def.vy = px(-4.3);
+  def.y = Math.min(def.y, -1);
+  def.invuln = 1;
+  s.events.push({ type: 'ko', who, x: def.x, y: def.y });
 }
 
 /** 맞은 쪽이 벽에 붙어 더 밀릴 수 없으면 때린 쪽이 대신 밀린다 */

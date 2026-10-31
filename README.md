@@ -40,6 +40,8 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 `?scene=stage`: 첫 구역 '도심 대로'만 띄운다. 카메라가 맵 끝에서 끝까지 오가고, ← →로 직접 움직일 수 있다. `?cam=320`처럼 카메라 위치를 고정할 수도 있다.
 
 - 배치 숫자: `src/data/stages/downtown.ts`
+- 부서지는 물건 27개 (자동차 2, 가스등 7, 쇼윈도 15, 신문 가판대 1, 소화전 2): 위치·판정은 `src/stage/downtown.ts`, 상태(내구도·단계·부서진 틱)는 sim(`src/sim/props.ts`), 그림은 `src/render/stage/props.ts`.
+  `?scene=stage&props=1`(망가짐)·`props=2`(파괴), 또는 1~3 키로 세 단계를 볼 수 있다.
 - 그리기: `src/render/stage/` (여러 겹 시차 배경, 매연·서치라이트·가스등 불빛은 매 틱)
 
 ## 이펙트

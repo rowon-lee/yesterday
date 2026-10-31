@@ -2,6 +2,7 @@ import { DOWNTOWN as D } from '../../data/stages/downtown';
 import { drawText, textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_H, SCREEN_W } from '../screen';
+import { doorOf, frontBuildings, type FrontBuildingPlace } from '../../stage/downtown';
 import { canvas, disc, dither, ditherRect, hash, line, rect } from './dither';
 
 /** 겹 하나: 미리 그려 둔 그림과 카메라 대비 움직이는 비율 */
@@ -186,24 +187,13 @@ export const SEARCHLIGHT = { x: D.mid.tower.x + 14 + 4, y: D.mid.tower.top - 2 }
 
 // ---------------------------------------------------------------- 앞: 길가 건물
 export function buildFront(): Layer {
-  const Fr = D.front;
-  const w = spanOf(Fr.speed);
+  const w = spanOf(D.front.speed);
   const [c, g] = canvas(w, SCREEN_H);
-  const ground = D.ground;
-  let x = 0;
-  let k = Fr.seed;
-  let i = 0;
-  while (x < w) {
-    const b = Fr.buildings[i % Fr.buildings.length];
-    if (b.h > 0) building(g, x, ground, b, k);
-    x += b.w;
-    k += 97;
-    i++;
-  }
-  return { canvas: c, speed: Fr.speed };
+  for (const b of frontBuildings()) building(g, b.x, D.ground, b, b.seed);
+  return { canvas: c, speed: D.front.speed };
 }
 
-type FrontBuilding = (typeof D.front.buildings)[number];
+type FrontBuilding = FrontBuildingPlace;
 
 function building(g: CanvasRenderingContext2D, x: number, ground: number, b: FrontBuilding, seed: number): void {
   const top = ground - b.h;
@@ -274,10 +264,10 @@ function building(g: CanvasRenderingContext2D, x: number, ground: number, b: Fro
 
   // 1층 가게: 쇼윈도, 문, 차양, 칠한 간판
   rect(g, x + 1, shopTop, b.w - 2, 30, C.brickDark);
-  const doorX = x + Math.floor(b.w * 0.7);
-  rect(g, x + 4, shopTop + 10, doorX - x - 8, 18, C.windowDark);
-  ditherRect(g, x + 4, shopTop + 13, doorX - x - 8, 15, C.windowLit, 5, x);
-  rect(g, x + 4, shopTop + 27, doorX - x - 8, 1, C.stone);
+  const doorX = doorOf(b);
+  // 쇼윈도: 유리는 부서지는 물건이라 render/stage/props.ts가 그린다. 여기는 틀만
+  rect(g, x + 3, shopTop + 9, doorX - x - 6, 20, C.stoneDark);
+  rect(g, x + 3, shopTop + 29, doorX - x - 6, 1, C.stone);
   rect(g, doorX, shopTop + 8, 7, 22, C.iron);
   rect(g, doorX + 1, shopTop + 10, 5, 8, C.windowDark);
   // 차양: 줄무늬, 앞으로 기울어짐
@@ -340,29 +330,8 @@ export function buildStreet(): Layer {
     rect(g, 0, ry, w, 1, C.rail);
     rect(g, 0, ry + 1, w, 1, C.railDark);
   }
-  for (const lx of D.street.lamps) gasLamp(g, lx, y0);
   for (const p of D.street.props) prop(g, p.kind, p.x, y0, 'text' in p ? p.text : '');
   return { canvas: c, speed: 1 };
-}
-
-/** 가스등 기둥과 등 머리 (불빛은 매 프레임 따로) */
-export const LAMP_TOP = D.ground - 48;
-function gasLamp(g: CanvasRenderingContext2D, x: number, ground: number): void {
-  rect(g, x - 2, ground - 3, 5, 3, C.iron);
-  rect(g, x - 1, ground - 6, 3, 3, C.iron);
-  rect(g, x, LAMP_TOP + 8, 1, ground - LAMP_TOP - 14, C.iron);
-  rect(g, x + 1, LAMP_TOP + 8, 1, ground - LAMP_TOP - 14, C.ironLight);
-  // 장식 고리와 가로대
-  rect(g, x - 2, LAMP_TOP + 14, 5, 1, C.iron);
-  // 등 머리: 지붕, 유리, 받침
-  rect(g, x - 3, LAMP_TOP, 7, 1, C.iron);
-  rect(g, x - 2, LAMP_TOP - 1, 5, 1, C.iron);
-  rect(g, x, LAMP_TOP - 2, 1, 1, C.iron);
-  rect(g, x - 3, LAMP_TOP + 1, 1, 6, C.iron);
-  rect(g, x + 3, LAMP_TOP + 1, 1, 6, C.iron);
-  rect(g, x - 2, LAMP_TOP + 1, 5, 6, C.lampGlow);
-  rect(g, x - 1, LAMP_TOP + 2, 3, 3, C.lampCore);
-  rect(g, x - 3, LAMP_TOP + 7, 7, 1, C.iron);
 }
 
 function prop(g: CanvasRenderingContext2D, kind: string, x: number, ground: number, text: string): void {
