@@ -111,7 +111,8 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
         }
       }
     }
-    if (cpu.wallDir) return cpu.wallDir;
+    // 구조물 벽은 ↑를 함께 눌러야 붙는다
+    if (cpu.wallDir) return cpu.wallDir | IN_UP;
     if (cpu.tx) {
       const dir = toward(me, cpu.tx);
       if (me.vy >= -px(1) && !me.airJumpUsed && me.y > cpu.ty - px(4)) return IN_JUMP | dir;
@@ -125,7 +126,7 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
   // 가끔 가까운 벽으로 대시해 벽을 달려 오른다 (상대가 위에 있으면 더 자주)
   if (NEUTRAL_GROUND.has(me.mode) && me.mode !== 'land' && roll(cpu, (me.y - op.y) / SUBPX > 40 ? 40 : 400) === 0) {
     for (const dir of [1, -1]) {
-      if (findWall(s, me.x, Math.round(-me.y / SUBPX) + WALL_GRAB_H, dir, 50)) return IN_DASH | (dir > 0 ? IN_RIGHT : IN_LEFT);
+      if (findWall(s, me.x, Math.round(-me.y / SUBPX) + WALL_GRAB_H, dir, 50)) return IN_DASH | IN_UP | (dir > 0 ? IN_RIGHT : IN_LEFT);
     }
   }
   // 높이가 다르면 발판을 오르내린다

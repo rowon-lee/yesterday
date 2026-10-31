@@ -89,13 +89,14 @@ export function wallSolid(s: SimState, w: Wall, hgt: number): boolean {
 /**
  * 공중에서 dir 쪽(1 오른쪽, -1 왼쪽)을 누를 때 붙을 수 있는 벽 (x: 1/256px, grab: 손이 닿는 높이 px). 없으면 null.
  * 벽을 누르는 쪽에서 몸 가운데가 벽 면에서 WALL_REACH(+slack) 안에 들어와 있고(벽 안으로 깊이 들어가 있지는 않고),
- * 손 높이에 벽이 서 있어야 한다. 가까운 벽부터. slack은 미리 보기용 (CPU가 벽 가까이 왔는지 본다)
+ * 손 높이에 벽이 서 있어야 한다. 가까운 벽부터. slack은 미리 보기용 (CPU가 벽 가까이 왔는지 본다).
+ * up: ↑를 함께 누르고 있는가. 구조물 벽은 ↑를 함께 눌러야 하고 (없으면 그 앞을 지나간다), 맵 끝 벽은 벽 쪽만 눌러도 된다
  */
-export function findWall(s: SimState, x: number, grab: number, dir: number, slack = 0): Wall | null {
+export function findWall(s: SimState, x: number, grab: number, dir: number, slack = 0, up = true): Wall | null {
   let best: Wall | null = null;
   let bestD = Infinity;
   for (const w of wallsOf(s)) {
-    if (w.side !== -dir || !wallSolid(s, w, grab)) continue;
+    if (w.side !== -dir || (!up && !w.end) || !wallSolid(s, w, grab)) continue;
     const wx = px(w.x);
     // 벽 앞 붙는 자리까지 남은 거리 (벽 쪽으로 + 방향)
     const d = (wx - x) * dir - WALL_REACH;
@@ -111,12 +112,13 @@ export function findWall(s: SimState, x: number, grab: number, dir: number, slac
 /**
  * 이번 틱에 x0에서 x1로 dir 쪽으로 움직이며 지나친 벽 (벽 앞 붙는 자리를 지났거나 그 자리에 닿았으면). 길 위 가장 먼저 만나는 벽.
  * 대시처럼 한 틱에 많이 움직여도 벽을 놓치지 않게 지나온 구간 전체를 본다 (벽 달리기).
+ * up: ↑를 함께 누르고 있는가 (구조물 벽은 ↑를 함께 눌러야 한다. findWall과 같다)
  */
-export function findWallCross(s: SimState, x0: number, x1: number, grab: number, dir: number): Wall | null {
+export function findWallCross(s: SimState, x0: number, x1: number, grab: number, dir: number, up = true): Wall | null {
   let best: Wall | null = null;
   let bestD = Infinity;
   for (const w of wallsOf(s)) {
-    if (w.side !== -dir || !wallSolid(s, w, grab)) continue;
+    if (w.side !== -dir || (!up && !w.end) || !wallSolid(s, w, grab)) continue;
     const cx = px(w.x) + w.side * WALL_REACH;
     const a = (cx - x0) * dir;
     const b = (x1 - cx) * dir;

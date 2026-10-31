@@ -21,7 +21,7 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
     hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
     runDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
-    wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0,
+    wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false,
   };
 }
 
@@ -90,6 +90,9 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   crashProps(s);
   hitProps(s);
   flyThroughCity(s);
+  // 이번 틱에 무너진 건물·물건 위에 서 있었으면 바로 떨어지기 시작한다 (다음 틱이 슬로모션으로 건너뛰어져도 허공에 서 있지 않게)
+  settle(s, a);
+  settle(s, b);
   faceOpponent(a, b);
   faceOpponent(b, a);
   roundFlow(s);
