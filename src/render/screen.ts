@@ -19,7 +19,7 @@ export function onFit(cb: FitListener): void {
 }
 
 /**
- * overlay: 3D 렌더(?render=3d) 위에 HUD만 겹쳐 그리는 투명 캔버스로 쓴다.
+ * overlay: 3D 화면(three.js) 위에 HUD만 겹쳐 그리는 투명 캔버스로 쓴다.
  */
 export function setupScreen(canvas: HTMLCanvasElement, overlay = false): CanvasRenderingContext2D {
   canvas.width = SCREEN_W;

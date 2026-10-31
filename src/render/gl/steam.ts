@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
-import { canvas, disc } from '../stage/dither';
+import { canvas, disc } from '../dither';
 import { COLORS as C } from '../palette';
 import { LIGHT_N, shared } from './lights';
 import { keepAlpha, pixelTexture } from './shaders';

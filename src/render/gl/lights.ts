@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FRONT } from '../../stage/citadel';
 
 /**
  * 광원 풀 (렌더 전용). 무대·물건·이펙트가 프레임마다 후보 빛을 내면, 화면에 가장 크게 닿는 것부터 LIGHT_N개만
@@ -6,6 +7,8 @@ import * as THREE from 'three';
  * 모든 재질이 같은 유니폼 객체를 가리키므로 한 번 바꾸면 모두에 들어간다.
  */
 export const LIGHT_N = 12;
+/** 부서지는 길가 건물 수 (건물마다 무너진 칸 묶음 하나: uGone) */
+export const GONE_N = FRONT.length;
 
 export interface LightCand {
   x: number;
@@ -42,6 +45,8 @@ export const shared = {
   uFogFar: { value: 30000 },
   uGroundFog: { value: 0.18 },
   uTime: { value: 0 },
+  /** 건물마다 무너져 사라진 칸 (비트: 칸 번호). 붙은 기하는 그 칸 부분을 그리지 않는다 */
+  uGone: { value: new Array<number>(GONE_N).fill(0) },
 };
 
 const cands: LightCand[] = [];

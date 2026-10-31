@@ -2,9 +2,16 @@ import { Actors } from './actors';
 import { GlView } from './view';
 import { World } from './world';
 
-export { GL_MODE } from './mode';
+/** 이 브라우저가 WebGL2를 쓸 수 있는가 (3D 화면은 WebGL2로만 그린다) */
+export function hasWebGL2(): boolean {
+  try {
+    return !!document.createElement('canvas').getContext('webgl2');
+  } catch {
+    return false;
+  }
+}
 
-/** 2.5D 화면과 무대 (?render=3d일 때만 만든다) */
+/** 2.5D 화면과 무대 (무대를 그리는 장면에서만 만든다) */
 let inst: { view: GlView; world: World; actors: Actors } | null = null;
 
 export function initGl(overlay: HTMLCanvasElement): void {
@@ -16,6 +23,6 @@ export function initGl(overlay: HTMLCanvasElement): void {
 }
 
 export function gl(): { view: GlView; world: World; actors: Actors } {
-  if (!inst) throw new Error('3D 화면이 아직 없습니다 (?render=3d)');
+  if (!inst) throw new Error('3D 화면이 아직 없습니다');
   return inst;
 }

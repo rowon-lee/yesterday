@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SURFACES } from '../../stage/citadel';
 import { SCREEN_H, SCREEN_W } from '../screen';
-import { hash } from '../stage/dither';
+import { hash } from '../dither';
 import { scaleAt } from './core';
 import { shared, LIGHT_N } from './lights';
 import { keepAlpha } from './shaders';

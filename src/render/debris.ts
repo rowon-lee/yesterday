@@ -1,6 +1,6 @@
 import { COLORS } from './palette';
 import { SCREEN_H, SCREEN_W } from './screen';
-import { GROUND_Y } from './stage';
+import { GROUND as GROUND_Y } from '../stage/citadel';
 
 /** 부서질 때 튀는 조각 (렌더 전용): 유리, 종이, 물방울, 철 조각. 바닥에 닿으면 사라진다 (남는 잔해는 물건 그림이 그린다) */
 interface Bit {
@@ -237,7 +237,8 @@ export class Debris {
       const g = c.getContext('2d')!;
       this.dust = { canvas: c, g, img: g.createImageData(SCREEN_W, SCREEN_H) };
       this.dustPx = new Uint32Array(this.dust.img.data.buffer);
-      this.dustColors = [rgba(COLORS.sandbag), rgba(COLORS.smogHaze), rgba(COLORS.smoke)];
+      // 빛을 받지 않는 평면 층에 얹히므로 밤 무대에 맞게 한 단계 어둡고 차갑게
+      this.dustColors = ['#3a3530', '#302c30', '#29262c'].map(rgba);
     }
     const px = this.dustPx!;
     px.fill(0);

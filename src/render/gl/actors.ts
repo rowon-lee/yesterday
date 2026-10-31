@@ -4,7 +4,7 @@ import type { LookName } from '../../anim/skeleton';
 import { FOOT_X, FOOT_Y } from '../../anim/motion';
 import { GROUND } from '../../stage/citadel';
 import { SCREEN_H, SCREEN_W } from '../screen';
-import { canvas } from '../stage/dither';
+import { canvas } from '../dither';
 import { lightPool } from './lights';
 import { flatMaterial, pixelTexture, spriteMaterial } from './shaders';
 

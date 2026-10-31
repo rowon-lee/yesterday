@@ -1,7 +1,7 @@
 // 무대를 바꿨을 때: 고정 카메라 지점에서 이전 버전과 지금 버전을 컬러·흑백으로 나란히 찍고, 영역별 흑백 밝기를 잰다.
 //   npm run compare                              이전 = origin/main, 지금 = 작업 중인 코드. 지점 세 곳
 //   npm run compare -- --base HEAD~1             이전 버전을 다른 커밋으로
-//   npm run compare -- --new "render=3d"         지금 버전 주소에 옵션을 붙인다 (옮기는 동안 3D 렌더 켜기)
+//   npm run compare -- --new "quality=low"       지금 버전 주소에 옵션을 붙인다 (--base-query는 이전 버전 주소에)
 //   npm run compare -- --only theater            그 지점만
 // 결과: out/compare/<지점>-color.png, <지점>-gray.png (왼쪽 이전, 오른쪽 지금), out/compare/stats.md
 // 아트 규칙 '명도'를 숫자로 본다: 벽과 바닥이 같은 밝기로 뭉치면 안 되고, 광원(주인공 간판)이 가장 밝아야 한다.

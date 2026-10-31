@@ -5,7 +5,7 @@ import { lightPool, shared } from './lights';
 import { Post } from './post';
 
 /**
- * three.js 2.5D 화면 (렌더 전용, ?render=3d). 3D 장면을 482×272 HDR 화면에 그리고 후처리를 거쳐
+ * three.js 2.5D 화면 (렌더 전용). 3D 장면을 482×272 HDR 화면에 그리고 후처리를 거쳐
  * 정수배로 키운 캔버스에 얹는다. HUD는 위에 겹친 2D 캔버스(#screen)가 그린다.
  */
 export class GlView {
