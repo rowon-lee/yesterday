@@ -88,7 +88,7 @@ export interface PropState {
   crashed: boolean;
   /** 부서질 때 맞은 방향 (1 오른쪽으로, -1 왼쪽으로). 잔해가 날아가는 쪽 */
   dir: number;
-  /** 노면전차만: 넘어져 누운 자리 (차체 왼쪽 끝 월드 px). 다른 물건은 0 */
+  /** 노면전차만: 탈선한 자리 (차체 왼쪽 끝 월드 px). 뒤집혀 놓이는 자리는 tramRestX(at) (맵 안쪽으로 미끄러진다). 다른 물건은 0 */
   at: number;
 }
 

@@ -1,4 +1,4 @@
-import { BIG, BREAK_RULES, BREAKABLES, CITY_RULES, tramAt, tramRestX } from '../stage/citadel';
+import { BIG, BREAK_RULES, BREAKABLES, CITY_RULES, tramAt } from '../stage/citadel';
 import { damageCity } from './city';
 import { activeHitOf, knockOut, type WBox } from './combat';
 import { MOVES } from './frames';
@@ -73,7 +73,7 @@ export function breakProp(s: SimState, i: number, x: number, y: number, crash: b
   p.brokenAt = s.tick;
   p.crashed = crash;
   if (p.damagedAt < 0) p.damagedAt = s.tick;
-  if (i === BIG.tram) p.at = tramRestX(tramAt(s.clock)?.x ?? Math.round(x / 256));
+  if (i === BIG.tram) p.at = tramAt(s.clock)?.x ?? Math.round(x / 256);
   s.events.push({ type: 'prop', who: i, x, y, text: 'broken', heavy: crash, ...(smash ? { combo: smash } : {}) });
 }
 

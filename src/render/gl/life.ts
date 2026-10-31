@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
-import { GROUND } from '../../stage/citadel';
+import { BIG, BREAK_RULES, GROUND, tramAt } from '../../stage/citadel';
+import type { PropState } from '../../sim';
 import { drawText } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_H, SCREEN_W } from '../screen';
@@ -102,24 +103,11 @@ class FarSprites {
 
 // ---------------------------------------------------------------- 노면전차
 /** 이 틱의 전차 위치 (차체 왼쪽 끝, 월드 x)와 방향. 지나가는 중이 아니면 null */
-export function tramAt(tick: number): { x: number; dir: number } | null {
-  const T = D.tram;
-  if (tick < T.first) return null;
-  const n = Math.floor((tick - T.first) / T.every);
-  const t = tick - T.first - n * T.every;
-  const dist = T.x1 - T.x0 + T.length;
-  const travelled = t * T.speed;
-  if (travelled > dist) return null;
-  const dir = n % 2 ? -1 : 1;
-  const x = dir > 0 ? T.x0 - T.length + travelled : T.x1 - travelled;
-  return { x, dir };
-}
-
 /**
  * 1960년대 유선형 노면전차 옆모습 (기준: 차체 왼쪽 끝, 바닥): 둥근 앞뒤, 크림색 위·녹색 아래, 크롬 허리띠, 이어진 띠 창(불 켜진 실내와 승객),
  * 가운데 전조등과 행선 표지, 가공선에 닿은 트롤리 막대. glow: 창·전조등·꼬리등.
  */
-function paintTram(dir: number): { map: HTMLCanvasElement; glow: HTMLCanvasElement } {
+export function paintTram(dir: number): { map: HTMLCanvasElement; glow: HTMLCanvasElement } {
   const T = D.tram;
   const L = T.length;
   const H = T.wire + 4;
@@ -310,11 +298,18 @@ export class Life {
     }
   }
 
-  /** camX: 화면 왼쪽 끝 월드 x, focusX: 싸움이 벌어지는 월드 x (없으면 행인이 그냥 걷는다) */
-  update(tick: number, camX: number, focusX: number | null): void {
+  /**
+   * camX: 화면 왼쪽 끝 월드 x, focusX: 싸움이 벌어지는 월드 x (없으면 행인이 그냥 걷는다).
+   * clock: 도시 시계 (노면전차가 이 시계로 다닌다). props: 부서지는 물건 상태 (무너진 전차는 더 다니지 않고, 간판이 떨어지면 분수가 부서진다)
+   */
+  update(tick: number, camX: number, focusX: number | null, clock = tick, props: readonly PropState[] | null = null): void {
     this.sparks.begin();
-    this.updateTram(tick);
-    this.fountain(tick);
+    const tram = props?.[BIG.tram];
+    this.updateTram(tick, tram && tram.stage === 2 ? null : tramAt(clock), tram?.stage === 1);
+    const sign = props?.[BIG.bigsign];
+    const crushed = sign && sign.stage === 2 && tick - sign.brokenAt >= BREAK_RULES.settle ? tick - sign.brokenAt - BREAK_RULES.settle : -1;
+    if (crushed < 0) this.fountain(tick);
+    else this.brokenFountain(tick, crushed);
     this.sparks.end();
     this.walkers.step(tick, camX, focusX);
     this.walkerSprites.begin();
@@ -341,8 +336,8 @@ export class Life {
     this.beacons.end();
   }
 
-  private updateTram(tick: number): void {
-    const at = tramAt(tick);
+  /** 다니는 노면전차 (at: 지금 자리, 없으면 숨김). dented: 망가짐 (실내등이 깜빡이고 불꽃이 자주 튄다) */
+  private updateTram(tick: number, at: { x: number; dir: number } | null, dented: boolean): void {
     const T = D.tram;
     this.tram.visible = !!at;
     this.headBeam.mesh.visible = !!at;
@@ -353,14 +348,16 @@ export class Life {
     const front = at.dir > 0 ? x + T.length : x;
     const hx = at.dir > 0 ? front - 2 : front + 2;
     const inLine = (px: number) => px >= T.x0 && px <= T.x1;
-    if (inLine(x + T.length / 2)) lightPool.add(x + T.length / 2, 40, 0, T.length * 0.6, C.windowLight, 0.5);
+    const lit = !dented || hash(Math.floor(tick / 3) * 31) > 0.35;
+    (this.tram.material as THREE.ShaderMaterial).uniforms.emissiveStrength.value = lit ? 1 : 0.15;
+    if (inLine(x + T.length / 2) && lit) lightPool.add(x + T.length / 2, 40, 0, T.length * 0.6, C.windowLight, 0.5);
     this.headBeam.pivot.position.set(hx, 22, -2);
     this.headBeam.aim(at.dir > 0 ? -Math.PI / 2 - 0.08 : Math.PI / 2 + 0.08);
     this.headBeam.mesh.visible = inLine(hx);
     if (inLine(hx)) lightPool.add(hx + at.dir * 30, 22, 4, 90, C.lampGlow, 1.1);
     // 가공선 불꽃 (가끔): 순간 파랗게 번쩍인다
     const tipX = (at.dir > 0 ? x + 34 : x + T.length - 34) - at.dir * 34;
-    if (inLine(tipX) && hash(Math.floor(tick / 3) * 7919) < 0.25) {
+    if (inLine(tipX) && hash(Math.floor(tick / 3) * 7919) < (dented ? 0.6 : 0.25)) {
       for (let i = 0; i < 6; i++) {
         const r = hash(tick * 13 + i * 101);
         this.sparks.add(tipX + (r - 0.5) * 10, T.wire - 1 + hash(tick * 7 + i) * 6 - 2, -2.5, i % 2 ? C.fxYellow : C.fxWhite, 2);
@@ -395,6 +392,30 @@ export class Life {
       const r = hash(i * 31 + Math.floor(tick / 4) * 7);
       const x = F.x - F.w / 2 + 6 + Math.round(r * (F.w - 12));
       if (((x + tick) & 3) < 2) this.sparks.add(x, 18 + Math.round(hash(i + tick) * 3), z + 22, C.white, 0.6);
+    }
+  }
+
+  /**
+   * 간판에 깔려 부서진 분수 (t: 깔린 뒤 틱): 터진 관에서 물이 간판 뒤로 높이 치솟았다가 (처음 2초) 낮은 물보라로 남는다.
+   */
+  private brokenFountain(tick: number, t: number): void {
+    const F = D.plaza.fountain;
+    const z = -56;
+    const burst = Math.max(0, 1 - t / 120);
+    const height = Math.round(30 + 70 * burst + Math.sin(tick * 0.2) * 4);
+    const n = 14 + Math.round(20 * burst);
+    for (let i = 0; i < n; i++) {
+      const u = ((tick * 1.3 + i * 11) % 34) / 34;
+      const lean = (hash(i * 7) - 0.5) * (10 + 30 * burst);
+      const y = 20 + Math.round(height * Math.sin(Math.PI * u));
+      const x = F.x + 6 + Math.round(lean * u);
+      if (y > 20) this.sparks.add(x, y, z, i % 3 ? C.skyLight : C.white, 0.6, 1, 2);
+    }
+    // 수반 밖으로 넘친 물이 바닥에 튄다
+    for (let i = 0; i < 10; i++) {
+      const r = hash(i * 23 + Math.floor(tick / 3) * 5);
+      const x = F.x - F.w / 2 + Math.round(r * F.w);
+      if (((x + tick) & 3) < 2) this.sparks.add(x, Math.round(hash(i + tick) * 4), -12, C.skyLight, 0.55);
     }
   }
 

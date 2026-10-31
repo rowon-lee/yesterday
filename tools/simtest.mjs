@@ -6,7 +6,7 @@ import { createServer } from 'vite';
 
 const args = parseArgs(process.argv.slice(2), { matches: 20, ticks: 20000, seed: 1 });
 let failed = 0;
-/** 새 구조물 발판 (컨테이너 더미·등대 밑동·급수탑·누운 간판·누운 전차·잔해 더미) */
+/** 새 구조물 발판 (컨테이너 더미·등대 밑동·급수탑·쓰러진 간판·뒤집힌 전차·잔해 더미) */
 const NEW_KINDS = new Set(['containers', 'stump', 'watertower', 'sign', 'tram', 'rubble']);
 
 // 1) sim/ 안에 무작위·시간 값이 없는지 소스를 훑는다.
@@ -105,7 +105,7 @@ function runCpuMatch(seed, ticks) {
       if (f.floor < 0) {
         stats.perchTicks++;
         stats.maxPerch = Math.max(stats.maxPerch, -f.floor / 256);
-        // 새 구조물 (컨테이너 더미·등대 밑동·급수탑·누운 전차·누운 간판·잔해 더미) 위
+        // 새 구조물 (컨테이너 더미·등대 밑동·급수탑·뒤집힌 전차·쓰러진 간판·잔해 더미) 위
         if (sim.surfacesOf(state).some((sf) => NEW_KINDS.has(sf.kind) && -sf.h * 256 === f.floor && sim.surfaceSolid(state, sf, f.x))) stats.structTicks++;
       }
       if (f.dropT === 9) stats.drop++;
@@ -162,7 +162,7 @@ function check(s, problems) {
     const max = sim.BREAKABLES[i].hp;
     if (p.hp < 0 || p.hp > max) bad(`물건 ${i} 내구도 범위 밖 ${p.hp}`);
     if ((p.stage === 2) !== (p.hp === 0)) bad(`물건 ${i} 파괴 단계와 내구도가 안 맞음 (${p.stage}, ${p.hp})`);
-    if (!Number.isInteger(p.at)) bad(`물건 ${i} 누운 자리가 정수가 아님 ${p.at}`);
+    if (!Number.isInteger(p.at)) bad(`물건 ${i} 탈선한 자리가 정수가 아님 ${p.at}`);
     if (p.stage === 2 && p.brokenAt < 0) bad(`물건 ${i} 부서진 시점이 없음`);
   });
 }
@@ -257,7 +257,7 @@ function platformChecks() {
  * 구조물과 큰 물건 시험. 1P만 정해진 입력으로 움직이고 2P는 가만히 있다 (필요하면 2P가 필살기를 쓴다).
  * - 서쪽 끝 컨테이너 더미: 2단 점프로 올라서고, ↓+점프로 뚫리지 않고, 걸어서 끝을 넘으면 떨어져 벽 안쪽으로 돌아온다
  * - 큰 물건: 평타·그냥 부딪힘은 망가짐까지, 필살기·벽 쪽으로 날린 상대(4타)는 크게 무너짐
- * - 무너진 큰 물건: 등대 꼭대기에 선 사람은 밑동으로 떨어지고, 급수탑 위에 선 사람은 지붕으로, 누운 전차·간판·잔해 더미는 자리를 잡은 뒤 발판
+ * - 무너진 큰 물건: 등대 꼭대기에 선 사람은 밑동으로 떨어지고, 급수탑 위에 선 사람은 지붕으로, 뒤집힌 전차·쓰러진 간판·잔해 더미는 자리를 잡은 뒤 발판
  * - 같은 입력을 두 번, 중간에 저장·복원해서 같은 해시
  */
 function structureChecks() {
@@ -368,7 +368,7 @@ function structureChecks() {
   f = s.fighters[0];
   results.push(['급수탑이 무너지면 위에 선 사람은 지붕으로 떨어진다', onTank && s.props[W].stage === 2 && broke(ev, W)?.combo === 1 && f.y === -wt.bottom * 256, `${-f.y / 256}px`]);
 
-  // 6) 노면전차: 지나가는 중에 필살기 → 탈선해 눕고, 자리를 잡은 뒤 윗면이 발판. 같은 입력·저장·복원으로 같은 해시
+  // 6) 노면전차: 지나가는 중에 필살기 → 탈선해 뒤집히고, 자리를 잡은 뒤 윗면이 발판. 같은 입력·저장·복원으로 같은 해시
   const tramRun = (saveAt) => {
     let st = fresh(600, 800);
     let k = 0;
@@ -382,12 +382,13 @@ function structureChecks() {
     st.fighters[0].meter = sim.RULES.METER_MAX;
     const evs = [...step(I.IN_SUPER)];
     for (let i = 0; i < 120 && !broke(evs, T); i++) evs.push(...step(0));
-    const before = !!surf(st, 'tram', st.props[T].at + 78);
+    const mid = sim.tramRestX(st.props[T].at) + 78;
+    const before = !!surf(st, 'tram', mid);
     for (let i = 0; i < 40; i++) step(0);
-    const after = surf(st, 'tram', st.props[T].at + 78);
-    // 누운 전차 바로 위에서 떨어뜨린다 (극장 차양이 위에 있어 뛰어오르면 차양에 선다)
+    const after = surf(st, 'tram', mid);
+    // 뒤집힌 전차 바로 위에서 떨어뜨린다 (극장 차양이 위에 있어 뛰어오르면 차양에 선다)
     const ff = st.fighters[0];
-    ff.x = (st.props[T].at + 78) * 256;
+    ff.x = mid * 256;
     ff.y = -60 * 256;
     ff.floor = 0;
     for (let i = 0; i < 40; i++) step(0);
@@ -395,14 +396,15 @@ function structureChecks() {
   };
   const tr = tramRun(-1);
   const tp = tr.st.props[T];
-  results.push(['필살기에 맞은 노면전차가 탈선해 눕는다', tp.stage === 2 && broke(tr.evs, T)?.combo === 1 && tp.at === sim.tramRestX(tp.at), `지나던 자리 ${tr.at}, 누운 자리 ${tp.at}`]);
-  results.push(['누운 전차는 자리를 잡은 뒤에야 발판이 된다', !tr.before && !!tr.after && tr.after.h === sim.tramLying(tp.at).h, `높이 ${tr.after?.h}`]);
-  results.push(['누운 전차 위로 떨어지면 선다', tr.st.fighters[0].y === -sim.tramLying(tp.at).h * 256, `${-tr.st.fighters[0].y / 256}px`]);
+  const rest = sim.tramRestX(tp.at);
+  results.push(['필살기에 맞은 노면전차가 탈선해 뒤집힌다', tp.stage === 2 && broke(tr.evs, T)?.combo === 1 && Math.abs(tp.at - tr.at) < 40 && rest >= sim.RULES.WALL_L / 256, `지나던 자리 ${tr.at}, 탈선한 자리 ${tp.at}, 놓인 자리 ${rest}`]);
+  results.push(['뒤집힌 전차는 자리를 잡은 뒤에야 발판이 된다', !tr.before && !!tr.after && tr.after.h === sim.tramLying(rest).h, `높이 ${tr.after?.h}`]);
+  results.push(['뒤집힌 전차 위로 떨어지면 선다', tr.st.fighters[0].y === -sim.tramLying(rest).h * 256, `${-tr.st.fighters[0].y / 256}px`]);
   const tr2 = tramRun(-1);
   const tr3 = tramRun(150);
   results.push(['전차 장면: 같은 입력·저장·복원이면 같은 해시', tr.hash === tr2.hash && tr.hash === tr3.hash, `${tr.hash} ${tr2.hash} ${tr3.hash}`]);
 
-  // 7) 시타델 간판: 기둥탑 꼭대기에서 필살기 → 떨어져 분수를 깔고 눕고, 자리를 잡은 뒤 발판
+  // 7) 시타델 간판: 기둥탑 꼭대기에서 필살기 → 떨어져 분수에 기대 쓰러지고, 자리를 잡은 뒤 윗변이 발판
   const tower = sim.SURFACES.find((x) => x.kind === 'tower');
   s = fresh(tower.x1 - 4, tower.x1 + 230);
   place(s.fighters[0], tower.x1 - 4, tower.h);
@@ -415,8 +417,8 @@ function structureChecks() {
   const lying = sim.SURFACES.find((x) => x.kind === 'sign');
   const early = !!surf(s, 'sign', 1600);
   run(s, hold(0, 40));
-  results.push(['기둥탑 꼭대기에서 필살기를 맞은 시타델 간판이 떨어져 눕는다', sg.stage === 2 && broke(ev, S)?.combo === 1, `단계 ${sg.stage}`]);
-  results.push(['누운 간판은 자리를 잡은 뒤 발판이 된다', !early && !!surf(s, 'sign', 1600) && lying.h > 0, `높이 ${lying.h}`]);
+  results.push(['기둥탑 꼭대기에서 필살기를 맞은 시타델 간판이 떨어져 쓰러진다', sg.stage === 2 && broke(ev, S)?.combo === 1, `단계 ${sg.stage}`]);
+  results.push(['쓰러진 간판은 자리를 잡은 뒤 발판이 된다', !early && !!surf(s, 'sign', 1600) && lying.h > 0, `높이 ${lying.h}`]);
 
   // 8) 잔해 더미: 다이너 1층을 크게 뚫어 무너뜨리면, 쌓인 뒤 윗면이 발판
   s = fresh(600, 900);

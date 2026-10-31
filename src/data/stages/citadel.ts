@@ -107,8 +107,8 @@ export const CITADEL = {
   /**
    * 시타델 광장: 본관(1960년대 마천루 아랫부분), 정문 계단과 계단참(중층 발판), 정문 양옆 콘크리트 기둥
    * (중간 테라스·꼭대기는 옥상 발판), 정면 대형 간판, 옥상 서치라이트, 분수, 히어로 동상, 광장 입구 문기둥.
-   * 정면 대형 간판은 큰 물건: 판 x ~ x+w, 바닥에서 bottom ~ bottom+h. 무너지면 불꽃을 튀며 떨어져 분수를 깔고 눕는다
-   * (누운 간판 윗면 높이 lyingH가 발판, 양 끝이 벽).
+   * 정면 대형 간판은 큰 물건: 판 x ~ x+w, 바닥에서 bottom ~ bottom+h. 무너지면 불꽃을 튀며 떨어져 분수에 기대 쓰러진다
+   * (쓰러진 간판 윗변 높이 lyingH가 발판, 양 끝이 벽).
    * 본관 커튼월: 굵은 기둥 간격(pier), 유리 칸 폭(pane), 층 높이(floor), 로비 높이(lobby), 가운데 높은 유리 홀 꼭대기(atrium)
    */
   plaza: {
@@ -117,7 +117,7 @@ export const CITADEL = {
     gate: { w: 80, h: 120 },
     towers: [{ x: 1440 }, { x: 1704 }],
     tower: { w: 56, h: 296, terrace: 200, terraceOver: 12 },
-    sign: { text: 'CITADEL', sub: 'DISTRICT 1', x: 1528, w: 144, bottom: 274, h: 56, hp: 300, lyingH: 30 },
+    sign: { text: 'CITADEL', sub: 'DISTRICT 1', x: 1528, w: 144, bottom: 274, h: 56, hp: 300, lyingH: 50 },
     fountain: { x: 1600, w: 128 },
     statue: { x: 1110 },
     gatePiers: [984, 2184],
@@ -138,9 +138,9 @@ export const CITADEL = {
   /**
    * 노면전차: 선로 구간(월드 x, 양 끝은 컨테이너와 광장 문기둥에 가려진다), 가공선 높이, 주기(틱), 속도(px/틱), 첫 출발 틱, 길이.
    * 다니는 자리는 틱만으로 정해진다 (sim과 렌더가 같은 계산). 큰 물건: 판정 상자 높이 h, 내구도 hp.
-   * 무너지면 탈선해 뒤로 넘어져 눕는다 (누운 높이 lyingH가 발판, 양 끝이 벽). 그 경기 동안 전차는 더 다니지 않는다.
+   * 무너지면 탈선해 굴러 뒤집힌다 (뒤집힌 차체 높이 lyingH가 발판, 양 끝이 벽). 그 경기 동안 전차는 더 다니지 않는다.
    */
-  tram: { x0: 0, x1: 1000, wire: 104, every: 1500, speed: 3.2, first: 200, length: 156, h: 60, hp: 400, lyingH: 44 },
+  tram: { x0: 0, x1: 1000, wire: 104, every: 1500, speed: 3.2, first: 200, length: 156, h: 60, hp: 400, lyingH: 60 },
 
   /** 거리 (캐릭터와 같은 속도): 보도, 부서지지 않는 소품 */
   street: {
@@ -237,7 +237,7 @@ export const CITADEL = {
      * 급수탑: 비상계단 아파트 구간 building번째 건물(식료품점) 지붕 위, 건물 왼쪽 끝에서 dx. 다리·통·지붕을 합친 높이 h (윗면이 발판).
      */
     watertower: { building: 2, dx: 16, w: 36, h: 54, hp: 300 },
-    /** 무너진 큰 물건(누운 전차·간판)이 자리를 잡아 새 발판과 벽이 되기까지 틱 */
+    /** 무너진 큰 물건(뒤집힌 전차·쓰러진 간판)이 자리를 잡아 새 발판과 벽이 되기까지 틱 */
     settle: 36,
   },
 } as const;

@@ -226,7 +226,7 @@ export function tramAt(tick: number): { x: number; dir: number } | null {
   return { x: dir > 0 ? TR.x0 - TR.length + travelled : TR.x1 - travelled, dir };
 }
 
-/** 넘어진 전차가 눕는 자리 (차체 왼쪽 끝): 맞은 자리에서 맵 안쪽으로 (컨테이너와 광장 문기둥에 가리지 않게) */
+/** 뒤집힌 전차가 놓이는 자리 (차체 왼쪽 끝): 탈선한 자리에서 맵 안쪽으로 미끄러진다 (컨테이너와 광장 문기둥에 가리지 않게) */
 export function tramRestX(x: number): number {
   return Math.max(D.walls.left + 8, Math.min(TR.x1 - TR.length - 24, x));
 }
@@ -335,7 +335,7 @@ export type SurfaceKind =
 
 /**
  * 구조물이 있는 때: 늘 / 큰 물건이 서 있는 동안 / 큰 물건이 무너진 바로 뒤부터 /
- * 무너진 큰 물건이 자리를 잡은 뒤부터 (BREAK_RULES.settle틱 뒤. 누운 전차·간판처럼 떨어져 눕는 것)
+ * 무너진 큰 물건이 자리를 잡은 뒤부터 (BREAK_RULES.settle틱 뒤. 뒤집힌 전차·쓰러진 간판처럼 자리를 잡는 것)
  */
 export type Presence = 'always' | 'standing' | 'broken' | 'settled';
 
@@ -349,7 +349,7 @@ export interface Holder {
 /**
  * 발판 하나 (한 방향: 위에서 내려올 때만 선다): x0 ~ x1 (px), 바닥에서 높이 h.
  * b가 있으면 그 건물의 그 자리 덩어리가 무너져 사라지면 발판도 없다. prop·when은 큰 물건에 딸린 발판
- * (급수탑 꼭대기·등대 꼭대기 둘레는 서 있는 동안, 등대 밑동은 꺾인 뒤, 누운 전차·간판은 자리를 잡은 뒤).
+ * (급수탑 꼭대기·등대 꼭대기 둘레는 서 있는 동안, 등대 밑동은 꺾인 뒤, 뒤집힌 전차·쓰러진 간판은 자리를 잡은 뒤).
  * solid: 아래가 꽉 찬 윗면 (컨테이너 더미). ↓+점프로 뚫고 내려가지 않는다.
  * 높이 세 층: 지상(0), 중층(차양·비상계단·계단참·컨테이너), 옥상(지붕·테라스·기둥탑 꼭대기·등대 둘레·급수탑).
  */
@@ -411,7 +411,7 @@ export const SURFACES: readonly Surface[] = (() => {
   // 급수탑 꼭대기 (서 있는 동안)
   const wt = BREAKABLES[BIG.watertower];
   out.push({ x0: wt.x, x1: wt.x + wt.w, h: wt.bottom + wt.h, tier: 'roof', kind: 'watertower', b: -1, prop: BIG.watertower, when: 'standing' });
-  // 떨어져 분수를 깔고 누운 시타델 간판
+  // 떨어져 분수에 기대 쓰러진 시타델 간판 (윗변)
   out.push({ x0: SG.x + 4, x1: SG.x + SG.w - 4, h: SG.lyingH, tier: 'mid', kind: 'sign', b: -1, prop: BIG.bigsign, when: 'settled' });
   return out;
 })();
@@ -446,15 +446,15 @@ export const WALLS: readonly Wall[] = (() => {
   // 급수탑 (지붕 위, 서 있는 동안)
   const wt = BREAKABLES[BIG.watertower];
   faces(wt.x, wt.x + wt.w, wt.bottom, wt.bottom + wt.h, { b: -1, prop: BIG.watertower, when: 'standing' });
-  // 누운 시타델 간판 양 끝
+  // 쓰러진 시타델 간판 양 끝
   faces(SG.x, SG.x + SG.w, 0, SG.lyingH, { b: -1, prop: BIG.bigsign, when: 'settled' });
   return out;
 })();
 
-/** 상태에 따라 생기는 벽 번호의 시작 (누운 전차, 잔해 더미). 정적인 벽 번호와 겹치지 않는다 */
+/** 상태에 따라 생기는 벽 번호의 시작 (뒤집힌 전차, 잔해 더미). 정적인 벽 번호와 겹치지 않는다 */
 export const DYNAMIC_WALL_ID = 1000;
 
-/** 넘어져 누운 전차 (차체 왼쪽 끝 at): 윗면 발판과 양 끝 벽의 자리 */
+/** 굴러 뒤집힌 전차 (차체 왼쪽 끝 at): 윗면 발판과 양 끝 벽의 자리 */
 export function tramLying(at: number): { x0: number; x1: number; h: number } {
   return { x0: at, x1: at + TR.length, h: TR.lyingH };
 }

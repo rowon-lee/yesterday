@@ -196,7 +196,7 @@ export function fightScene(): Scene {
     const placed = g.view.begin({ x: cam.x - ox, y: cam.y - oy }, s.tick);
     lights2d.clear();
     fightVfx.emitLights(s);
-    g.world.update(g.view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256);
+    g.world.update(g.view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256, s.clock);
     g.view.commitLights();
     const v = { x: placed.ix, y: placed.iy };
     const toScreen = (x: number, y: number): [number, number] => [Math.round(x - v.x), Math.round(GROUND_Y + y - v.y)];
@@ -251,7 +251,7 @@ export function fightScene(): Scene {
     g.view.render();
     ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
     if (showBoxes) {
-      drawPlatforms(ctx, v, s.city);
+      drawPlatforms(ctx, v, s);
       drawBoxes(ctx, s, v);
     }
     // 강한 타격: 화면 번쩍임 (디더링)

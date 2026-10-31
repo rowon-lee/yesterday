@@ -1,5 +1,5 @@
 import {
-  BIG, BREAK_RULES, CHUNK, chunkIndex, CITY_RULES, CONTAINER_TOP, DYNAMIC_WALL_ID, GRIDS, rubbleOf, SURFACES, tramLying, WALLS,
+  BIG, BREAK_RULES, CHUNK, chunkIndex, CITY_RULES, CONTAINER_TOP, DYNAMIC_WALL_ID, GRIDS, rubbleOf, SURFACES, tramLying, tramRestX, WALLS,
   type Holder, type Surface, type Wall,
 } from '../stage/citadel';
 import { px, WALL_L } from './rules';
@@ -11,7 +11,7 @@ import type { SimState } from './types';
  * 좌표는 sim 정수: x는 1/256px, y는 바닥 0에서 위가 음수인 1/256px. 같은 상태면 늘 같은 답.
  * - 부서지는 건물에 붙은 것(차양·비상계단·지붕)은 그 자리 덩어리가 무너져 사라지면 없다.
  * - 큰 물건에 딸린 것은 그 물건의 상태를 따른다 (급수탑 꼭대기는 서 있는 동안, 등대 밑동은 꺾인 뒤 …).
- * - 상태에 따라 생기는 것: 넘어져 누운 노면전차, 건물이 무너진 자리의 잔해 더미 (쌓인 뒤부터).
+ * - 상태에 따라 생기는 것: 굴러 뒤집힌 노면전차, 건물이 무너진 자리의 잔해 더미 (쌓인 뒤부터).
  */
 
 /** 이 구조물이 지금 있는가 (건물 덩어리는 따로 본다) */
@@ -45,15 +45,15 @@ function forEachRubble(s: SimState, fn: (r: ReturnType<typeof rubbleOf>, k: numb
   });
 }
 
-/** 넘어져 자리를 잡은 노면전차 (없으면 null) */
+/** 뒤집혀 자리를 잡은 노면전차 (없으면 null) */
 function lyingTram(s: SimState): ReturnType<typeof tramLying> | null {
   const p = s.props[BIG.tram];
-  return p.stage === 2 && s.tick - p.brokenAt >= BREAK_RULES.settle ? tramLying(p.at) : null;
+  return p.stage === 2 && s.tick - p.brokenAt >= BREAK_RULES.settle ? tramLying(tramRestX(p.at)) : null;
 }
 
 const NOTHING: Holder = { b: -1, prop: -1, when: 'always' };
 
-/** 지금 상태의 발판 전부 (늘 있는 것 + 누운 전차·다 쌓인 잔해 더미). 있는지는 surfaceSolid로 본다 */
+/** 지금 상태의 발판 전부 (늘 있는 것 + 뒤집힌 전차·다 쌓인 잔해 더미). 있는지는 surfaceSolid로 본다 */
 export function surfacesOf(s: SimState): readonly Surface[] {
   const t = lyingTram(s);
   if (!t && !s.city.collapses.length) return SURFACES;

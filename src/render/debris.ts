@@ -132,14 +132,14 @@ export class Debris {
     this.dustCloud(x0 - 16, x1 + 16, 3);
   }
 
-  /** 바닥에서 피어오르는 먼지 구름 (size 1 = 보통). 클수록 뭉치가 많고 크며 높이 솟는다 */
-  dustCloud(x0: number, x1: number, size: number): void {
+  /** 바닥(ground: 화면 y, 지붕 위면 그 높이)에서 피어오르는 먼지 구름 (size 1 = 보통). 클수록 뭉치가 많고 크며 높이 솟는다 */
+  dustCloud(x0: number, x1: number, size: number, ground = GROUND_Y): void {
     const n = Math.round(((x1 - x0) / 6 + 10) * size);
     for (let i = 0; i < n; i++) {
       const x = x0 + this.r() * (x1 - x0);
       this.puffs.push({
         x,
-        y: GROUND_Y - this.r() * 10 * size,
+        y: ground - this.r() * 10 * size,
         r: 4 + this.r() * 6 * size,
         vx: (x - (x0 + x1) / 2) * 0.012 + (this.r() - 0.5) * 0.8,
         vy: -0.2 - this.r() * 0.45 * size,
