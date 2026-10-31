@@ -42,6 +42,8 @@ export function keyboardToInput(input: TickInput): PlayerInput {
 }
 
 const motionByName = new Map(MOTIONS.map((m) => [m.name, m]));
+/** 캐릭터가 화면 끝에 붙지 않게 두는 여백 (px) */
+const CAMERA_MARGIN = 20;
 
 /**
  * 대련 (연습: 1P 키보드 대 CPU). 주소 옵션:
@@ -62,6 +64,8 @@ export function fightScene(): Scene {
   let fx: Effects;
   let hud: Hud;
   let cutin: { who: number; text: string; t: number } | null = null;
+  /** 카메라 왼쪽 끝 (px, 렌더 전용). -1이면 아직 안 정함 */
+  let camX = -1;
   // 렌더 전용: 잔상용 지난 모습, 흙먼지, 직전 상태
   let trails: Snapshot[][] = [[], []];
   let dust: Dust[] = [];
@@ -74,6 +78,7 @@ export function fightScene(): Scene {
     hud = new Hud();
     hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', 'CPU'];
     cutin = null;
+    camX = -1;
     trails = [[], []];
     dust = [];
     prev = s.fighters.map((f) => ({ mode: f.mode, air: f.y < 0, step: 0 }));
@@ -103,9 +108,16 @@ export function fightScene(): Scene {
     dust = dust.filter((d) => d.t < d.life);
   };
 
-  const camera = () => {
-    const mid = (s.fighters[0].x + s.fighters[1].x) / 2 / 256;
-    return Math.max(0, Math.min(RULES.STAGE_W - SCREEN_W, Math.round(mid - SCREEN_W / 2)));
+  // 카메라: 두 사람의 가운데를 부드럽게 따라가되, 둘 다 화면 안에 있게 한다 (렌더 전용)
+  const followCamera = () => {
+    const [a, b] = s.fighters;
+    const mid = (a.x + b.x) / 2 / 256;
+    const target = mid - SCREEN_W / 2;
+    camX = camX < 0 ? target : camX + (target - camX) * 0.18;
+    const lo = Math.max(a.x, b.x) / 256 - SCREEN_W + CAMERA_MARGIN;
+    const hi = Math.min(a.x, b.x) / 256 - CAMERA_MARGIN;
+    camX = Math.max(lo, Math.min(hi, camX));
+    camX = Math.max(0, Math.min(RULES.STAGE_W - SCREEN_W, camX));
   };
 
   return {
@@ -125,6 +137,7 @@ export function fightScene(): Scene {
       hud.tick(s);
       for (const e of s.events) if (e.type === 'cutin') cutin = { who: e.who, text: e.text ?? '', t: 0 };
       watchMotion();
+      followCamera();
       if (cutin) {
         cutin.t++;
         if (s.freeze === 0) cutin = null;
@@ -132,12 +145,13 @@ export function fightScene(): Scene {
     },
 
     render(ctx) {
-      const camX = camera();
+      if (camX < 0) followCamera();
+      const cam = Math.round(camX);
       const [ox, oy] = fx.offset();
       ctx.save();
       ctx.translate(ox, oy);
-      drawStage(ctx, camX);
-      const toScreen = (x: number, y: number): [number, number] => [Math.round(x - camX), Math.round(GROUND_Y + y)];
+      drawStage(ctx, cam, s.tick);
+      const toScreen = (x: number, y: number): [number, number] => [Math.round(x - cam), Math.round(GROUND_Y + y)];
 
       // 그림자
       for (const f of s.fighters) {
@@ -158,7 +172,7 @@ export function fightScene(): Scene {
       const order = [...s.fighters].sort((a, b) => Number(a.mode === 'attack') - Number(b.mode === 'attack'));
       for (const f of order) drawFighter(ctx, f, s.fighters.indexOf(f), toScreen, s.tick);
       fx.draw(ctx, toScreen);
-      if (showBoxes) drawBoxes(ctx, s, camX);
+      if (showBoxes) drawBoxes(ctx, s, cam);
       ctx.restore();
 
       // 강한 타격: 화면 번쩍임 (디더링)
