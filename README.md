@@ -14,6 +14,7 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 | `npm run shot` | 장면을 PC·휴대폰 크기로 캡처. 오류·정수배·틱 속도·키 입력 확인 | `out/shots/<장면>-<화면>.png` |
 | `npm run shot -- blank --tick 300 --view pc-1280x720` | 장면·멈출 틱·화면 크기 지정 | |
 | `npm run shot -- "fight?p1=cpu" --tick 3000 --fast` | 주소 옵션을 붙인 장면, 멈출 틱까지 바로 돌려서 찍기 | |
+| `npm run clip -- "fight?p1=cpu&seed=5" --from 130 --ticks 200 --name 이름` | 장면 한 토막을 움직이는 GIF로 (2배, 30fps). 동작 느낌 확인·PR 미리보기용 | `out/clips/이름.gif` |
 | `npm run simtest` | CPU끼리 N판 대전. 예외, 규칙 범위(체력·기력·방어 내구도·위치), 경기 종료, `sim/`의 무작위·시간 값 사용, 같은 입력 재생·저장/복원 후 상태 해시 일치 확인. 히트·띄우기·낙법·크러시 등 집계 | 콘솔 |
 | `npm run simtest -- --matches 50 --ticks 5400 --seed 7` | 판 수·판당 최대 틱·시작 시드 지정 | |
 
@@ -25,7 +26,7 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 
 | 버튼 | 키 |
 | --- | --- |
-| 방향 (← → 걷기, ↓ 방어, ↑+공격 띄우기, ↓+공격 쓸기·내려찍기) | 화살표 또는 WASD |
+| 방향 (← → 뛰기, ↓ 방어, ↑+공격 띄우기, ↓+공격 쓸기·내려찍기) | 화살표 또는 WASD |
 | 공격 | J |
 | 점프 (공중에서 2단 점프, 맞고 있을 때 낙법) | K |
 | 대시 (← 누르고 대시 = 뒤로) | L |

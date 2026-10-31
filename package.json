@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "shot": "npm run build && node tools/screenshot.mjs",
     "simtest": "node tools/simtest.mjs",
-    "sheets": "node tools/sheets.mjs"
+    "sheets": "node tools/sheets.mjs",
+    "clip": "npm run build && node tools/clip.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0",

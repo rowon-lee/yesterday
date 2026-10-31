@@ -30,7 +30,7 @@ export function setMode(f: Fighter, mode: Mode, len = 0): void {
 export const isAirborne = (f: Fighter): boolean => f.y < 0 || f.vy < 0;
 
 /** 조작을 받는 상태 (콤보가 끝난 것으로 본다) */
-const NEUTRAL: ReadonlySet<Mode> = new Set(['idle', 'walk', 'guard', 'air', 'land', 'dash', 'airdash', 'jumpsquat', 'attack']);
+const NEUTRAL: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'air', 'land', 'dash', 'airdash', 'jumpsquat', 'attack']);
 
 /** 눌린 버튼을 버퍼에 담는다 (멈춰 있는 동안에도 눌림은 기억). */
 export function readButtons(f: Fighter, input: PlayerInput): void {
@@ -138,12 +138,12 @@ function groundControl(s: SimState, f: Fighter, input: PlayerInput): void {
   }
   if (input & (fwd | back)) {
     const forward = (input & fwd) !== 0;
-    if (f.mode !== 'walk' || f.dir !== (forward ? 1 : -1)) {
-      setMode(f, 'walk');
+    if (f.mode !== 'run' || f.dir !== (forward ? 1 : -1)) {
+      setMode(f, 'run');
       f.dir = forward ? 1 : -1;
     }
-    f.vx = f.facing * (forward ? STATS.walkForward : -STATS.walkBack);
-    f.walkDist += forward ? STATS.walkForward : STATS.walkBack;
+    f.vx = f.facing * (forward ? STATS.runForward : -STATS.runBack);
+    f.runDist += forward ? STATS.runForward : STATS.runBack;
     return;
   }
   if (f.mode !== 'idle') setMode(f, 'idle');
@@ -235,7 +235,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
 
   switch (f.mode) {
     case 'idle':
-    case 'walk':
+    case 'run':
     case 'guard':
       groundControl(s, f, input);
       break;
@@ -396,7 +396,7 @@ function land(s: SimState, f: Fighter): void {
 /** 지상 대기 상태면 상대 쪽을 본다 */
 export function faceOpponent(f: Fighter, o: Fighter): void {
   if (isAirborne(f)) return;
-  if (!['idle', 'walk', 'guard', 'land', 'jumpsquat', 'getup', 'blockstun', 'hitstun', 'crush'].includes(f.mode)) return;
+  if (!['idle', 'run', 'guard', 'land', 'jumpsquat', 'getup', 'blockstun', 'hitstun', 'crush'].includes(f.mode)) return;
   if (Math.abs(o.x - f.x) < 256) return;
   const want: 1 | -1 = o.x > f.x ? 1 : -1;
   if (want !== f.facing) {
