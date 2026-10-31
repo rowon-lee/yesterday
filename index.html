@@ -10,6 +10,10 @@ html,body{height:100%;background:#000;color:#f4f0e6;overflow:hidden;touch-action
 body{display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #stage{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
 #screen{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+/* ?render=3d: 3D 화면 캔버스와 HUD 캔버스를 같은 자리에 겹친다 */
+#stage.gl{display:grid;place-items:center}
+#stage.gl>*{grid-area:1/1}
+#stage.gl>#screen{position:relative;z-index:1}
 /* 개발용 화면의 조작 줄 */
 .ui{flex:none;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:6px;background:#0e0820;touch-action:manipulation}
 .ui button,.ui select{font:inherit;font-weight:700;font-size:15px;min-height:40px;padding:0 12px;border:2px solid #5a4c90;background:#1a1030;color:#f4f0e6;cursor:pointer}

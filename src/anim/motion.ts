@@ -36,6 +36,8 @@ export interface Motion {
   hit?: HitSpec;
   /** frame번째 프레임을 칸 왼쪽 위 (ox, oy)에 그린다. 기본은 오른쪽을 보는 모습. */
   draw(ctx: CanvasRenderingContext2D, frame: number, ox: number, oy: number, opts?: DrawOptions): void;
+  /** 미리 그린 시트 (프레임을 가로로 늘어놓은 캔버스, 색 한 벌·방향 하나). 2.5D 렌더가 텍스처로 쓴다 */
+  sheet?(look: LookName, flip: boolean): HTMLCanvasElement;
 }
 
 export const MIN_FRAMES = 12;

@@ -54,5 +54,10 @@ export function buildMotion(d: MotionData): Motion & { bake(): void } {
       const s = sheets![opts.look ?? 'p1'];
       ctx.drawImage(opts.flip ? s.left : s.right, frame * cell, 0, cell, cell, ox, oy, cell, cell);
     },
+    sheet(look, flip) {
+      bake();
+      const s = sheets![look];
+      return flip ? s.left : s.right;
+    },
   };
 }

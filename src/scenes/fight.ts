@@ -19,6 +19,8 @@ import {
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
+import { GL_MODE, gl } from '../render/gl';
+import { lights as lights2d } from '../render/light';
 import type { Scene } from './scene';
 
 /**
@@ -69,6 +71,7 @@ const CAMERA_DAMP = 0.35;
  *   ?p2=idle 상대가 가만히 서 있음 (연습용)
  *   ?boxes=1 판정 상자와 발판 표시 (B 키로도 켜고 끔)
  *   ?seed=n  CPU 시드
+ *   ?x=n     확인용: 두 사람을 월드 x=n 양쪽(±60)에서 시작시킨다 (장면에서 시작 자리만 옮긴다, sim 규칙은 그대로)
  */
 export function fightScene(): Scene {
   const params = new URLSearchParams(location.search);
@@ -93,8 +96,13 @@ export function fightScene(): Scene {
   let dust: Dust[] = [];
   let prev: Array<{ mode: Mode; air: boolean; step: number }> = [];
 
+  const startX = params.has('x') ? Number(params.get('x')) : null;
   const reset = () => {
     s = createState(seed);
+    if (startX !== null && Number.isFinite(startX)) {
+      s.fighters[0].x = Math.round(startX - 60) * 256;
+      s.fighters[1].x = Math.round(startX + 60) * 256;
+    }
     cpus = [createCpu(seed * 2 + 1), createCpu(seed * 2 + 2)];
     fx = new Effects();
     vfx = new VfxLayer();
@@ -179,6 +187,88 @@ export function fightScene(): Scene {
     cam = { x, y };
   };
 
+  /**
+   * 2.5D 화면 (?render=3d): 무대·캐릭터·이펙트는 three.js 화면에, 이 캔버스(ctx)에는 HUD만 겹쳐 그린다.
+   * 먼지·잔상·무너지는 조각·Sprite Fusion 이펙트는 지금까지의 2D 그림을 싸우는 면 바로 뒤·앞의 평면 층에 그린다.
+   * 화면 흔들림은 카메라를 반대로 민다.
+   */
+  const render3d = (ctx: CanvasRenderingContext2D) => {
+    const g = gl();
+    const [ox, oy] = fx.offset();
+    const placed = g.view.begin({ x: cam.x - ox, y: cam.y - oy }, s.tick);
+    lights2d.clear();
+    fightVfx.emitLights(s);
+    g.world.update(g.view, s.tick, s.props, s.city);
+    g.view.commitLights();
+    const v = { x: placed.ix, y: placed.iy };
+    const toScreen = (x: number, y: number): [number, number] => [Math.round(x - v.x), Math.round(GROUND_Y + y - v.y)];
+    g.actors.back.paint(v.x, v.y, (c) => {
+      let drew = dust.length > 0;
+      drawDust(c, dust, toScreen);
+      trails.forEach((tr, i) => {
+        for (const back of [6, 3]) {
+          const t = tr[tr.length - 1 - back];
+          if (t && tr[tr.length - 1].fast && t.fast) {
+            drawGhost(c, t, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6);
+            drew = true;
+          }
+        }
+      });
+      if (vfx.draw(c, v, 'back')) drew = true;
+      if (fightVfx.debris.busy) {
+        fightVfx.debris.drawDust(c, v, 'back');
+        fightVfx.debris.draw(c, v);
+        drew = true;
+      }
+      return drew;
+    });
+    g.actors.front.paint(v.x, v.y, (c) => {
+      let drew = vfx.draw(c, v, 'front');
+      if (fightVfx.debris.busy) {
+        fightVfx.debris.drawDust(c, v, 'front');
+        drew = true;
+      }
+      return drew;
+    });
+    // 맞고 있는 쪽을 뒤에, 공격하는 쪽을 앞에
+    const order = [...s.fighters].sort((a, b) => Number(a.mode === 'attack') - Number(b.mode === 'attack'));
+    g.actors.update(s.fighters.map((f, i) => {
+      const pose = fighterPose(f);
+      const white = fightVfx.white(i);
+      const jitter = f.hitstop > 0 && SHAKEN.has(f.mode) ? (s.tick % 2 ? 1 : -1) : 0;
+      return {
+        motion: motionByName.get(pose.motion)!,
+        frame: pose.frame,
+        look: white ? 'flash' : i === 0 ? 'p1' : 'p2',
+        flip: f.facing < 0,
+        x: f.x / 256 + jitter,
+        h: -f.y / 256,
+        floor: -floorBelow(s, f.x, f.y) / 256,
+        rim: !white,
+        // 대시 중 순간이동 구간은 깜빡인다
+        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2),
+        order: order.indexOf(f),
+      };
+    }));
+    g.view.render();
+    ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+    if (showBoxes) {
+      drawPlatforms(ctx, v, s.city);
+      drawBoxes(ctx, s, v);
+    }
+    // 강한 타격: 화면 번쩍임 (디더링)
+    if (fx.flash > 0) {
+      ctx.fillStyle = COLORS.white;
+      for (let y = 0; y < SCREEN_H; y += 2) for (let x = (y >> 1) & 1; x < SCREEN_W; x += 2) ctx.fillRect(x, y, 1, 1);
+    }
+    if (cutin) drawCutin(ctx, { ...cutin, length: RULES.SUPER_FREEZE });
+    hud.draw(ctx, s);
+    if (s.phase === 'matchEnd' && s.phaseT > 120 && !p1Cpu) {
+      const t = 'PRESS J';
+      if ((s.tick >> 5) % 2 === 0) drawText(ctx, t, Math.floor((SCREEN_W - textWidth(t, 2)) / 2), Math.floor(SCREEN_H * 0.55), COLORS.white, 2);
+    }
+  };
+
   return {
     tick(input) {
       if (input.pressed.has('KeyB')) showBoxes = !showBoxes;
@@ -206,6 +296,10 @@ export function fightScene(): Scene {
 
     render(ctx) {
       if (cam.x < 0) followCamera();
+      if (GL_MODE) {
+        render3d(ctx);
+        return;
+      }
       const view: Cam = { x: Math.round(cam.x), y: Math.round(cam.y) };
       const [ox, oy] = fx.offset();
       ctx.save();

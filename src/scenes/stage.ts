@@ -8,6 +8,8 @@ import { SCREEN_H, SCREEN_W } from '../render/screen';
 import { drawForeground, drawPlatforms, drawStage } from '../render/stage';
 import { drawLights } from '../render/light';
 import { drawAir, drawRain, drawReflection } from '../render/weather';
+import { GL_MODE, gl } from '../render/gl';
+import { lights as lights2d } from '../render/light';
 import type { Scene } from './scene';
 
 /**
@@ -65,6 +67,18 @@ export function stageScene(): Scene {
       }
     },
     render(ctx) {
+      if (GL_MODE) {
+        // 2.5D: 무대는 three.js 화면에, 이 캔버스에는 카메라 글씨만
+        const g = gl();
+        lights2d.clear();
+        g.view.begin({ x: cam, y: camY }, base + tick);
+        g.world.update(g.view, base + tick, props, city);
+        g.view.commitLights();
+        g.view.render();
+        ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+        drawText(ctx, `CAM ${Math.round(cam)} ${Math.round(camY)}`, 4, 4, COLORS.white);
+        return;
+      }
       const view = { x: Math.round(cam), y: Math.round(camY) };
       drawStage(ctx, view, base + tick, props, city);
       drawLights(ctx, view);

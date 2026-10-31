@@ -5,7 +5,8 @@ import { bakeAllMotions } from './anim/motions';
 import { DEFAULT_SCENE, SCENES } from './scenes';
 import { measureFrame, quality } from './render/light';
 import { drawText, textWidth } from './render/font';
-import { SCREEN_W } from './render/screen';
+import { SCREEN_H, SCREEN_W } from './render/screen';
+import { GL_MODE, gl, initGl } from './render/gl';
 
 const params = new URLSearchParams(location.search);
 const sceneName = params.get('scene') ?? DEFAULT_SCENE;
@@ -15,7 +16,9 @@ if (!makeScene) throw new Error(`없는 장면: ${sceneName}`);
 let stopAt = params.has('stopAt') ? Number(params.get('stopAt')) : Infinity;
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
-const ctx = setupScreen(canvas);
+// ?render=3d: #screen은 HUD만 겹쳐 그리는 투명 캔버스가 되고, 그 아래에 three.js 화면을 둔다
+const ctx = setupScreen(canvas, GL_MODE);
+if (GL_MODE) initGl(canvas);
 const keyboard = new Keyboard();
 // 모든 동작의 시트를 시작할 때 미리 그려 둔다.
 bakeAllMotions();
@@ -45,13 +48,23 @@ function tick(): void {
     paused = true;
   },
   /** 성능 확인용: n번 (틱 + 그리기)를 하고 한 번에 걸린 평균 시간(ms)을 돌려준다 (픽셀은 읽지 않는다) */
-  bench(n: number) {
+  bench(n: number, sync = true) {
     const t0 = performance.now();
     for (let i = 0; i < n; i++) {
       tick();
       scene.render(ctx);
+      // 3D: 그래픽 칩 일이 끝날 때까지 기다려 그 시간도 잰다 (sync=false면 자바스크립트 몫만)
+      if (GL_MODE && sync) gl().view.sync();
     }
     return (performance.now() - t0) / n;
+  },
+  /** 3D: 화면·무대 객체 (확인 도구용) */
+  get gl() {
+    return GL_MODE ? gl() : null;
+  },
+  /** 3D: 마지막 프레임의 그리기 호출 수와 삼각형 수 */
+  glInfo() {
+    return GL_MODE ? gl().view.info() : null;
   },
   /** 성능 확인용: 그리지 않고 n틱만 돌렸을 때 한 틱의 평균 시간(ms) */
   benchTicks(n: number) {
@@ -64,7 +77,19 @@ function tick(): void {
   frame(n: number) {
     for (let i = 0; i < n; i++) tick();
     scene.render(ctx);
-    const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let d: Uint8ClampedArray = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    if (GL_MODE) {
+      // 3D 화면 위에 HUD를 겹친 그림
+      const base = gl().view.read();
+      for (let i = 0; i < SCREEN_W * SCREEN_H; i++) {
+        if (d[i * 4 + 3] > 0) {
+          base[i * 4] = d[i * 4];
+          base[i * 4 + 1] = d[i * 4 + 1];
+          base[i * 4 + 2] = d[i * 4 + 2];
+        }
+      }
+      d = base;
+    }
     let colors: number[] = [];
     const lookup = new Map<number, number>();
     const idx = new Uint8Array(canvas.width * canvas.height);

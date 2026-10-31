@@ -70,6 +70,11 @@ export class Debris {
     return rand(this.seed++ * 7919);
   }
 
+  /** 그릴 것이 있는가 (떨어지는 조각, 튀는 조각, 피어난 먼지) */
+  get busy(): boolean {
+    return this.blocks.length > 0 || this.bits.length > 0 || this.puffs.some((p) => p.t >= 0);
+  }
+
   private src: CanvasImageSource | null = null;
   private dust: { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D; img: ImageData } | null = null;
   private dustPx: Uint32Array | null = null;

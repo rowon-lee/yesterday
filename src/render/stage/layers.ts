@@ -1,6 +1,6 @@
 import { CITADEL as D } from '../../data/stages/citadel';
 import {
-  awningOf, DOOR_W, doorOf, escapeOf, FLOOR_H, FRONT_GAPS, frontBuildings, GROUND, hasShopWindow, MAP_H, MAP_W, marqueeOf, SHOP_H,
+  awningOf, DOOR_H, DOOR_W, doorOf, escapeOf, FLOOR_H, FRONT_GAPS, frontBuildings, GROUND, hasShopWindow, MAP_H, MAP_W, marqueeOf, SHOP_H,
   type FrontBuildingPlace, type FrontGap,
 } from '../../stage/citadel';
 import { drawText, textWidth } from '../font';
@@ -410,11 +410,11 @@ function awning(g: CanvasRenderingContext2D, x0: number, x1: number, h: number):
 function shopfront(g: CanvasRenderingContext2D, b: FrontBuildingPlace, x1: number): void {
   rect(g, b.x + 2, GROUND - SHOP_H + 6, x1 - b.x - 4, SHOP_H - 6, C.brickDark);
   const doorX = doorOf(b);
-  rect(g, b.x + 8, GROUND - 62, doorX - b.x - 12, 62, C.stoneDark);
+  rect(g, b.x + 8, GROUND - 68, doorX - b.x - 12, 68, C.stoneDark);
   rect(g, b.x + 8, GROUND - 4, doorX - b.x - 12, 4, C.stone);
-  rect(g, doorX - 1, GROUND - 60, DOOR_W + 2, 60, C.iron);
-  rect(g, doorX + 2, GROUND - 56, DOOR_W - 4, 22, C.windowDark);
-  rect(g, doorX + DOOR_W - 5, GROUND - 30, 2, 2, C.stone);
+  rect(g, doorX - 1, GROUND - DOOR_H, DOOR_W + 2, DOOR_H, C.iron);
+  rect(g, doorX + 2, GROUND - DOOR_H + 4, DOOR_W - 4, 30, C.windowDark);
+  rect(g, doorX + DOOR_W - 5, GROUND - 34, 2, 2, C.stone);
 }
 
 /** 상가와 아파트: 벽돌, 층마다 창, 선전 포스터, 1층 가게(차양·쇼윈도) 또는 현관, 아파트는 층마다 비상계단 */
@@ -432,10 +432,10 @@ function tenement(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
   cornice(g, x, top, b.w);
   let k = b.seed;
   for (let f = 1; f < floors.length; f++) {
-    const wy = floors[f][0] + 14;
-    for (let wx = x + 10; wx + 14 <= x + b.w - 10; wx += 24) window1(g, wx, wy, 14, 30, hash(k++));
+    const wy = floors[f][0] + 18;
+    for (let wx = x + 10; wx + 18 <= x + b.w - 10; wx += 28) window1(g, wx, wy, 18, 46, hash(k++));
   }
-  if (b.poster && floors.length >= 4) poster(g, x + 6, floors[2][0] + 4, Math.max(34, textWidth(b.poster, 2) + 10), 48, b.poster, base);
+  if (b.poster && floors.length >= 3) poster(g, x + 6, floors[floors.length - 1][0] + 18, Math.max(34, textWidth(b.poster, 2) + 10), 48, b.poster, base);
   const esc = escapeOf(b);
   const shopEnd = esc ? esc.x0 - 8 : x + b.w;
   if (hasShopWindow(b)) {
@@ -445,12 +445,12 @@ function tenement(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
   } else {
     // 현관: 계단 세 단, 두 짝 문, 채광창, 반지하 창
     const dx = x + Math.floor((shopEnd - x) / 2) - 14;
-    rect(g, dx - 4, GROUND - 68, 36, 4, C.stone);
-    rect(g, dx, GROUND - 64, 28, 52, C.iron);
-    rect(g, dx + 2, GROUND - 62, 11, 48, C.awning);
-    rect(g, dx + 15, GROUND - 62, 11, 48, C.awning);
-    rect(g, dx + 4, GROUND - 58, 7, 14, C.windowDark);
-    rect(g, dx + 17, GROUND - 58, 7, 14, C.windowDark);
+    rect(g, dx - 4, GROUND - 86, 36, 4, C.stone);
+    rect(g, dx, GROUND - 82, 28, 70, C.iron);
+    rect(g, dx + 2, GROUND - 80, 11, 66, C.awning);
+    rect(g, dx + 15, GROUND - 80, 11, 66, C.awning);
+    rect(g, dx + 4, GROUND - 76, 7, 18, C.windowDark);
+    rect(g, dx + 17, GROUND - 76, 7, 18, C.windowDark);
     for (let st = 0; st < 3; st++) rect(g, dx - 6 - st * 3, GROUND - 12 + st * 4, 40 + st * 6, 4, st % 2 ? C.stoneDark : C.stone);
     window1(g, x + 10, GROUND - 52, 20, 20, hash(k++));
   }
@@ -523,14 +523,14 @@ function theater(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
   rect(g, x + 12, GROUND - SHOP_H + 10, b.w - 24, SHOP_H - 10, C.brickDark);
   for (let i = 0; i < 4; i++) {
     const dx = x + 38 + i * 24;
-    rect(g, dx, GROUND - 52, 18, 52, C.iron);
-    rect(g, dx + 2, GROUND - 50, 14, 30, C.windowLit);
-    rect(g, dx + 8, GROUND - 50, 2, 50, C.iron);
+    rect(g, dx, GROUND - 68, 20, 68, C.iron);
+    rect(g, dx + 2, GROUND - 66, 16, 40, C.windowLit);
+    rect(g, dx + 9, GROUND - 66, 2, 66, C.iron);
   }
   for (const px of [x + 14, x + b.w - 34]) {
-    rect(g, px, GROUND - 52, 20, 32, C.paintOchre);
-    rect(g, px + 2, GROUND - 50, 16, 28, C.posterRed);
-    star(g, px + 10, GROUND - 42, 1);
+    rect(g, px, GROUND - 62, 20, 44, C.paintOchre);
+    rect(g, px + 2, GROUND - 60, 16, 40, C.posterRed);
+    star(g, px + 10, GROUND - 50, 1);
   }
   // 차양 몸체: 윗면(발판)에서 아래로 22px, 크림색 글씨판 (전구와 글씨는 네온 간판이 얹는다)
   const my = GROUND - mq.h;
@@ -549,8 +549,8 @@ function diner(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
   const floors = floorsOf(b);
   let k = b.seed;
   for (let f = 2; f < floors.length; f++) {
-    const wy = floors[f][0] + 14;
-    for (let wx = x + 10; wx + 14 <= x + b.w - 10; wx += 24) window1(g, wx, wy, 14, 30, hash(k++));
+    const wy = floors[f][0] + 18;
+    for (let wx = x + 10; wx + 18 <= x + b.w - 10; wx += 28) window1(g, wx, wy, 18, 46, hash(k++));
   }
   shopfront(g, b, x + b.w);
   const a = awningOf(b)!;
