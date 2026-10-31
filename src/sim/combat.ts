@@ -8,7 +8,7 @@ import { wallLeft } from './platforms';
 import { fighterPose } from './pose';
 import {
   AIR_HIT_DEFAULT, BLOCK_HITSTOP_CUT, CRUSH_TICKS, FLASH_TICKS, METER_BLOCK, METER_BLOCKED, METER_HIT, METER_HURT,
-  METER_MAX, px, SCALE_MIN, SCALE_STEP, SPIKE_VY, STUN_DECAY_FROM, STUN_DECAY_MIN, STUN_DECAY_STEP, WALL_R,
+  METER_MAX, px, SCALE_MIN, SCALE_STEP, SPIKE_VY, STUN_DECAY_FROM, STUN_DECAY_MIN, STUN_DECAY_STEP, WALL_R, WALL_TECH_TICKS,
 } from './rules';
 import type { Fighter, SimState } from './types';
 
@@ -127,12 +127,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
     return;
   }
   // 벽꽝: '벽 쪽으로 날림' 기술이고 뒤에 건물 정면이 서 있으면 정면에 박힌다
+  // (추가 피해는 벽 낙법 구간이 지나 정말 박힌 뒤에: splatLands)
   if (d.wall && wallBehind(s, Math.round(def.x / 256), Math.round(-def.y / 256) + 22)) {
-    def.hp = Math.max(0, def.hp - CITY.wallsplat.damage);
-    if (def.hp <= 0) {
-      knockOut(s, def, dir, who);
-      return;
-    }
     setMode(def, 'wallsplat', CITY.wallsplat.ticks);
     def.vx = 0;
     def.vy = 0;
@@ -167,6 +163,18 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   def.heavyHit = d.hitstun >= 24;
   def.vx = dir * mv.push;
   pushOffWall(att, def, mv.push);
+}
+
+/**
+ * 벽꽝으로 박힌 쪽이 벽 낙법 구간(히트스톱 뒤 WALL_TECH_TICKS틱) 안에 낙법을 못 했으면 정말 박힌다: 벽꽝 추가 피해.
+ * 틱마다 두 사람이 움직인 뒤에 부른다.
+ */
+export function splatLands(s: SimState): void {
+  s.fighters.forEach((f, i) => {
+    if (f.mode !== 'wallsplat' || f.hitstop > 0 || f.t !== WALL_TECH_TICKS + 1) return;
+    f.hp = Math.max(0, f.hp - CITY.wallsplat.damage);
+    if (f.hp <= 0) knockOut(s, f, -f.facing, 1 - i);
+  });
 }
 
 /** 체력이 0이 된 쪽을 날려 쓰러뜨린다 */

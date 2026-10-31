@@ -45,6 +45,15 @@ export interface MoveData {
   wall?: boolean;
   /** 화면을 어둡게 하고 컷인을 띄운 뒤 발동 */
   cutin?: string;
+  /**
+   * 벽 박차기: from 프레임 전까지는 벽에 머물고, from~to 프레임 동안 바라보는 쪽 아래 대각선으로 곧게 날아간다
+   * (중력 없음, px/틱). 맞히거나 막히면 멈춘다
+   */
+  dive?: { from: number; to: number; vx: number; vy: number };
+  /** 맞히거나 막히면 (히트스톱이 끝난 뒤) 때린 쪽이 뒤로 튕겨 오르고 판정 뒤 회복 프레임으로 넘어간다 (px/틱) */
+  rebound?: { vx: number; vy: number };
+  /** 헛치고 땅·발판에 닿으면 굳는 틱 (없으면 공중 공격 착지 굳음) */
+  landLag?: number;
 }
 
 const LIGHT = { guardDamage: 10, hitstun: 16, blockstun: 12, hitstop: 7, push: 1.3 };
@@ -86,6 +95,12 @@ export const BASE_MOVES = {
   slam: {
     motion: 'base/slam', active: [5, 6, 7], limb: ['eF', 'hF'], damage: 70, guardDamage: 18,
     hitstun: 30, blockstun: 16, hitstop: 11, push: 1.4, spike: true, heavy: true, air: true,
+  },
+  /** 벽 박차기 공격: 벽에 붙은 채 공격. 벽을 박차고 아래 대각선으로 날아가며 앞발로 찬다 */
+  wallKick: {
+    motion: 'base/wall_kick', active: [3, 4, 5, 6, 7, 8], limb: ['kF', 'fF'], damage: 65, guardDamage: 16,
+    hitstun: 24, blockstun: 14, hitstop: 9, push: 2.0, launch: { vx: 4.5, vy: -4.0 }, air: true, jumpCancel: true,
+    dive: { from: 2, to: 8, vx: 5.6, vy: 4.0 }, rebound: { vx: 1.6, vy: -4.6 }, landLag: 12,
   },
   skillA: {
     motion: 'base/skill_a', active: [4, 5, 6, 7, 8], limb: ['eF', 'hF'], damage: 90, guardDamage: 25,

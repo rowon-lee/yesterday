@@ -8,6 +8,8 @@ export type Mode =
   | 'ko' | 'win'
   /** 벽꽝: 건물 정면에 박혀 잠깐 갇힘 */
   | 'wallsplat'
+  /** 벽 낙법: 벽꽝으로 박히는 순간 점프해 정면을 박차고 뒤로 공중제비를 돌아 튕겨 나감 (무적) */
+  | 'walltech'
   /** 벽 붙기: 공중에서 벽 쪽을 누른 채 벽에 닿아, 벽을 등지고 붙어 천천히 미끄러짐 */
   | 'wallcling'
   /** 벽 달리기: 벽 쪽으로 대시해 벽에 닿아, 벽을 바라보며 달려 오름 */
@@ -36,7 +38,7 @@ export interface Fighter {
   queued: MoveId | null;
   /** 대시 방향 (1 앞, -1 뒤), 지상 점프 방향 */
   dir: number;
-  /** 띄우기 뒤 쫓아가는 점프였는지, 2단 점프인지, 벽 점프인지, 벽 달리기로 꼭대기를 넘어가는 중인지 (그림용) */
+  /** 띄우기 뒤 쫓아가는 점프였는지, 2단 점프인지, 벽 점프인지, 벽 달리기로 꼭대기를 넘어가는 중인지 (그림용. 'air'가 아닌 상태가 되면 0) */
   jumpKind: 0 | 1 | 2 | 3 | 4;
   hp: number;
   meter: number;
@@ -128,7 +130,11 @@ export interface SimEvent {
     /** 벽 점프: who = 뛴 사람, x = 찬 벽 */
     | 'walljump'
     /** 벽 달리기: who = 달리는 사람, x = 벽, text = 'start' | 'top' (꼭대기를 넘어감) */
-    | 'wallrun';
+    | 'wallrun'
+    /** 벽 박차기 공격으로 벽을 박차고 나감: who = 찬 사람, x = 찬 벽 */
+    | 'wallkick'
+    /** 벽 낙법: who = 낙법한 사람 (박힌 쪽) */
+    | 'walltech';
   /** 한 사람 (때린 쪽, 기술 쓴 쪽, 이긴 쪽) */
   who: number;
   x: number;

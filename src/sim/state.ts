@@ -1,6 +1,6 @@
 import { STATS } from './frames';
 import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isAirborne } from './fighter';
-import { resolveHits } from './combat';
+import { resolveHits, splatLands } from './combat';
 import { crashProps, createProps, hitProps } from './props';
 import { createCity, flyThroughCity } from './city';
 import { wallLeft } from './platforms';
@@ -82,6 +82,8 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   const fighting = s.phase === 'fight';
   stepFighter(s, a, inputs[0], fighting);
   stepFighter(s, b, inputs[1], fighting);
+  // 벽꽝으로 박힌 쪽이 벽 낙법을 못 했으면 추가 피해
+  splatLands(s);
   separate(a, b);
   // 밀려서 발판 끝을 넘었으면 떨어진다
   settle(s, a);

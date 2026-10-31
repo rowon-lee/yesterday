@@ -214,6 +214,20 @@ export class FightVfx {
         this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.3, ramp: fxRamp(COOL), seed: this.seed++ }));
         this.debris.burst('brick', wx, wy, out, 4);
         this.debris.dustCloud(wx - 3, wx + 3, 0.35, wy + 6);
+      } else if (e.type === 'walltech') {
+        // 벽 낙법: 정면을 박차는 자리에서 푸른 충격과 먼지, 빠져나온 몸이 잠깐 빛난다
+        this.glow(wx, wy, 60, COLORS.fxBlue, 0.9, 14);
+        this.layer.add(impact({ kind: 'hit', x, y, angle: -Math.PI / 2, size: 0.32, ramp: fxRamp(COOL), seed: this.seed++ }));
+        this.debris.dustCloud(wx - 6, wx + 6, 0.35, wy + 10);
+        this.debris.burst('brick', wx, wy, 1, 3);
+        this.debris.burst('brick', wx, wy, -1, 3);
+      } else if (e.type === 'wallkick') {
+        // 벽을 박차고 나가는 자리: 벽 점프보다 조금 센 충격, 튀는 부스러기와 먼지
+        const f = s.fighters[e.who];
+        const out = f ? f.facing : 1;
+        this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.36, ramp: fxRamp(COOL), seed: this.seed++ }));
+        this.debris.burst('brick', wx, wy, out, 5);
+        this.debris.dustCloud(wx - 3, wx + 3, 0.4, wy + 6);
       } else if (e.type === 'wallcling') {
         // 벽에 등이 부딪히는 작은 충격과 벽에서 떨어지는 부스러기
         const f = s.fighters[e.who];

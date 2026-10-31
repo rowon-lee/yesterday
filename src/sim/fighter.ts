@@ -1,5 +1,5 @@
 import { AIR_CHAIN, GROUND_CHAIN, type MoveId } from '../data/moves/base';
-import { MOVES, STATS } from './frames';
+import { motionFrames, MOVES, STATS } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
@@ -7,7 +7,8 @@ import { canDropThrough, findWall, findWallCross, floorBelow, landingY, wallHold
 import {
   BOUNCE_VY, BUFFER_TICKS, DROP_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
   JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SAME_WALL_MAX, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
-  WALL_GRAB_H, WALL_JUMP_LOCK, WALL_PUSH, WALL_REACH, WALL_TOP_VX, WALL_TOP_VY, px,
+  WALL_GRAB_H, WALL_JUMP_LOCK, WALL_PUSH, WALL_REACH, WALL_TECH_INVULN, WALL_TECH_TICKS, WALL_TECH_VX, WALL_TECH_VY,
+  WALL_TOP_VX, WALL_TOP_VY, px,
 } from './rules';
 import type { Fighter, Mode, SimState } from './types';
 
@@ -27,6 +28,9 @@ export function setMode(f: Fighter, mode: Mode, len = 0): void {
     f.move = null;
     f.queued = null;
   }
+  // 점프 종류(그림용)는 그 점프로 바로 떠 있는 동안만: 공중 대시·공중 공격 등을 하고 다시 떠 있게 되면 보통 낙하로
+  // (벽 점프·꼭대기 넘기 그림이 처음부터 다시 나오지 않게)
+  if (mode !== 'air') f.jumpKind = 0;
 }
 
 /** 떠 있는가: 서 있는 바닥(땅이나 발판)보다 위에 있거나 떠오르는 중 */
@@ -255,8 +259,8 @@ function wallJump(s: SimState, f: Fighter): void {
 
 /**
  * 벽에 붙은 동안: 솟던 힘이 다하면 멈췄다가 천천히 빨라지며 미끄러진다 (발판·땅에 닿으면 착지).
- * 점프는 벽 점프 (어느 방향을 누르든). 공격·대시는 벽 반대쪽(바라보는 쪽)으로: 지금은 공중 공격·공중 대시를 쓴다
- * (벽 박차기 공격 동작이 생기면 바뀐다). 벽 쪽 방향을 놓거나 ↓를 누르면, 또는 벽이 끝나거나 무너지면 떨어진다.
+ * 점프는 벽 점프 (어느 방향을 누르든). 공격은 벽 박차기 공격, 대시는 벽 반대쪽(바라보는 쪽)으로 공중 대시.
+ * 벽 쪽 방향을 놓거나 ↓를 누르면, 또는 벽이 끝나거나 무너지면 떨어진다.
  */
 function clingControl(s: SimState, f: Fighter, input: PlayerInput): void {
   const toward = f.wallSide < 0 ? IN_RIGHT : IN_LEFT;
@@ -273,8 +277,10 @@ function clingControl(s: SimState, f: Fighter, input: PlayerInput): void {
   }
   if (trySkills(s, f, true)) return;
   if (take(f, B_ATTACK)) {
-    letGo(f);
-    startMove(s, f, atkDir(f) & IN_DOWN ? 'slam' : AIR_CHAIN[0]);
+    // 벽 박차기 공격: 벽에 머물러 웅크렸다가 박차고 나간다 (diveControl)
+    startMove(s, f, 'wallKick');
+    f.vx = 0;
+    f.vy = 0;
     return;
   }
   if (has(f, B_DASH) && !f.airDashUsed) {
@@ -482,7 +488,8 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
     case 'attack': {
       const mv = MOVES[f.move!];
       if (attackControl(s, f, input)) break;
-      if (mv.step) {
+      if (mv.dive) diveControl(s, f, mv);
+      else if (mv.step) {
         const fr = frameOf(mv, f.t);
         if (fr >= mv.step.from && fr <= mv.step.to) f.vx = f.facing * mv.step.speed;
         else if (!isAirborne(f)) f.vx = friction(f.vx);
@@ -524,12 +531,18 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       }
       break;
     case 'tech':
+    case 'walltech':
       if (f.t >= f.len) setMode(f, 'air');
       break;
     case 'wallsplat':
       // 정면에 박혀 있다가 튕겨 나와 떨어진다
       f.vx = 0;
       f.vy = 0;
+      // 벽 낙법: 박히는 순간(히트스톱 동안 누른 것도)부터 그 뒤 WALL_TECH_TICKS틱 안에 점프 (벽꽝 추가 피해는 combat.ts splatLands)
+      if (controllable && f.t <= WALL_TECH_TICKS && take(f, B_JUMP)) {
+        wallTech(s, f);
+        break;
+      }
       if (f.t >= f.len) {
         setMode(f, 'airhit', 30);
         f.vx = f.facing * px(1.6);
@@ -559,6 +572,63 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
   ageButtons(f);
 }
 
+/**
+ * 벽 낙법 (기획서 '벽 기동과 구조물'): 박히지 않고 정면을 박차 뒤로 공중제비를 돌아 튕겨 나간다.
+ * 상대 반대쪽 위로 날아가고, 그동안 무적이다. 콤보는 끊기고, 공중 낙법처럼 2단 점프·공중 대시는 쓸 수 없다.
+ */
+function wallTech(s: SimState, f: Fighter): void {
+  setMode(f, 'walltech', motionFrames('base/wall_tech').total);
+  f.vx = -f.facing * WALL_TECH_VX;
+  f.vy = WALL_TECH_VY;
+  f.y = Math.min(f.y, -1);
+  f.floor = 0;
+  f.invuln = WALL_TECH_INVULN;
+  f.comboHits = 0;
+  f.bounce = false;
+  f.airJumpUsed = true;
+  f.airDashUsed = true;
+  s.events.push({ type: 'walltech', who: s.fighters.indexOf(f), x: f.x, y: f.y - px(22) });
+}
+
+/**
+ * 벽 박차기 공격 (기획서 '벽 기동과 구조물'): dive.from 프레임 전까지는 벽에 머물러 웅크리고, from~to 프레임 동안
+ * 바라보는 쪽 아래 대각선으로 곧게 날아간다 (중력 없음). 맞히거나 막히면 히트스톱이 끝난 뒤 남은 판정 프레임을
+ * 건너뛰고 뒤로 튕겨 오르며 회복 프레임으로 이어진다 (그 사이 점프로 끊으면 2단 점프로 쫓아간다: attackControl).
+ */
+function diveControl(s: SimState, f: Fighter, mv: (typeof MOVES)[MoveId]): void {
+  const d = mv.dive!;
+  const fr = frameOf(mv, f.t);
+  if (f.moveHit) {
+    if (fr <= d.to) {
+      f.t = mv.frames.cum[d.to];
+      f.vx = -f.facing * mv.rebound!.vx;
+      f.vy = mv.rebound!.vy;
+    }
+    return;
+  }
+  if (fr < d.from) {
+    f.vx = 0;
+    f.vy = 0;
+    return;
+  }
+  if (fr > d.to) return;
+  // 박차고 나가는 틱: 벽에서 먼지·부스러기 (렌더)
+  if (f.t === mv.frames.cum[d.from - 1]) s.events.push({ type: 'wallkick', who: s.fighters.indexOf(f), x: px(f.wallX), y: f.y - px(12) });
+  f.vx = f.facing * d.vx;
+  f.vy = d.vy;
+}
+
+/**
+ * 중력을 받지 않는가: 공중 대시는 높이를 지키고, 벽에 붙거나 달리는 동안은 세로 속도를 그 조작이 정하고,
+ * 벽 박차기 공격은 벽에 머무는 동안과 날아가는 동안 곧게 (맞히거나 막히면 그때부터 중력)
+ */
+function weightless(f: Fighter): boolean {
+  if (f.mode === 'airdash' || f.mode === 'wallcling' || f.mode === 'wallrun') return true;
+  if (f.mode !== 'attack' || f.moveHit || !f.move) return false;
+  const mv = MOVES[f.move];
+  return mv.dive !== undefined && frameOf(mv, f.t) <= mv.dive.to;
+}
+
 export function frameOf(mv: (typeof MOVES)[MoveId], t: number): number {
   const cum = mv.frames.cum;
   for (let i = 0; i < cum.length; i++) if (t < cum[i]) return i;
@@ -575,8 +645,7 @@ export function physics(s: SimState, f: Fighter): void {
   if (f.vy < 0) f.floor = 0;
   const airborne = isAirborne(f);
   if (!airborne && f.vy > 0) f.vy = 0;
-  // 공중 대시는 높이를 지키고, 벽에 붙거나 달리는 동안은 세로 속도를 그 조작이 정한다
-  if (airborne && f.mode !== 'airdash' && f.mode !== 'wallcling' && f.mode !== 'wallrun') {
+  if (airborne && !weightless(f)) {
     let g = STATS.gravity;
     if (f.mode === 'airhit') g += Math.min(JUGGLE_GRAVITY_MAX, f.comboHits * JUGGLE_GRAVITY_PER_HIT);
     f.vy = Math.min(STATS.maxFall + (f.mode === 'airhit' ? 4 * 256 : 0), f.vy + g);
@@ -614,14 +683,18 @@ function land(s: SimState, f: Fighter): void {
     case 'air':
     case 'airdash':
     case 'tech':
+    case 'walltech':
     case 'wallcling':
       setMode(f, 'land', STATS.landTicks);
       f.vx = 0;
       break;
-    case 'attack':
-      setMode(f, 'land', STATS.airAttackLandTicks);
+    case 'attack': {
+      // 벽 박차기 공격을 헛치고 땅·발판에 닿으면 오래 굳는다
+      const lag = MOVES[f.move!].data.landLag;
+      setMode(f, 'land', !f.moveHit && lag !== undefined ? lag : STATS.airAttackLandTicks);
       f.vx = 0;
       break;
+    }
     case 'airhit':
       if (f.bounce) {
         f.bounce = false;
