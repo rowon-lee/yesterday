@@ -128,7 +128,9 @@ export interface SimEvent {
     /** 벽 점프: who = 뛴 사람, x = 찬 벽 */
     | 'walljump'
     /** 벽 달리기: who = 달리는 사람, x = 벽, text = 'start' | 'top' (꼭대기를 넘어감) */
-    | 'wallrun';
+    | 'wallrun'
+    /** 벽 박차기 공격으로 벽을 박차고 나감: who = 찬 사람, x = 찬 벽 */
+    | 'wallkick';
   /** 한 사람 (때린 쪽, 기술 쓴 쪽, 이긴 쪽) */
   who: number;
   x: number;

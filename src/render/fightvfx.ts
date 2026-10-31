@@ -214,6 +214,13 @@ export class FightVfx {
         this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.3, ramp: fxRamp(COOL), seed: this.seed++ }));
         this.debris.burst('brick', wx, wy, out, 4);
         this.debris.dustCloud(wx - 3, wx + 3, 0.35, wy + 6);
+      } else if (e.type === 'wallkick') {
+        // 벽을 박차고 나가는 자리: 벽 점프보다 조금 센 충격, 튀는 부스러기와 먼지
+        const f = s.fighters[e.who];
+        const out = f ? f.facing : 1;
+        this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.36, ramp: fxRamp(COOL), seed: this.seed++ }));
+        this.debris.burst('brick', wx, wy, out, 5);
+        this.debris.dustCloud(wx - 3, wx + 3, 0.4, wy + 6);
       } else if (e.type === 'wallcling') {
         // 벽에 등이 부딪히는 작은 충격과 벽에서 떨어지는 부스러기
         const f = s.fighters[e.who];

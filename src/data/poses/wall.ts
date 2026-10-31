@@ -109,5 +109,42 @@ export const WALL_RUN: MotionData = {
 /** 벽 달리기에서 꼭대기를 넘어가는 프레임 (0부터): 이 앞까지가 달려 오르는 구간 */
 export const WALL_RUN_TOP_FROM = 10;
 
+// ---- 벽 박차기 공격 (벽은 뒤쪽 x = -7. 벽을 박차고 바라보는 쪽 아래 대각선으로 날아가며 앞발로 찬다) ----
+/** 붙은 자세에서 웅크려 힘을 모은다: 앞무릎을 끌어당기고, 뒷발은 벽을 딛고, 뒷손은 벽을 짚는다. 눈은 아래 앞쪽 상대를 본다 */
+const WK_COIL = P({ hx: -3, hy: -21, tl: 20, hd: 18, aFx: 5, aFy: 2, aBx: -9, aBy: -2, lFx: 3, lFy: -8, lBx: -6, lBy: -12 });
+/** 더 깊이 웅크린다 (멈칫) */
+const WK_SQUASH = P({ hx: -3, hy: -19, tl: 24, hd: 20, aFx: 4, aFy: 4, aBx: -9, aBy: 0, lFx: 2, lFy: -9, lBx: -6, lBy: -11 });
+/** 뒷발로 벽을 박차 몸이 튀어 나간다: 뒷다리는 벽 쪽으로 뻗고, 앞무릎은 높이 접어 찰 준비 */
+const WK_PUSH = P({ hx: 3, hy: -21, tl: 4, hd: 10, aFx: 9, aFy: -2, aBx: -10, aBy: 3, lFx: 7, lFy: -12, lBx: -12, lBy: -9 });
+/** 앞발을 아래 대각선으로 쭉 뻗어 찬다: 몸은 뒤로 젖히고 뒷다리는 접고, 앞손은 얼굴 앞, 뒷손은 뒤로 */
+const WK_KICK = P({ hx: -1, hy: -18, tl: -14, hd: 14, aFx: 6, aFy: -8, aBx: -11, aBy: -5, lFx: 17, lFy: -4, lBx: -6, lBy: -13 });
+/** 찬 자세 그대로 날아간다 (팔이 바람에 뒤로 밀린다) */
+const WK_DIVE = P({ hx: -1, hy: -18, tl: -18, hd: 16, aFx: 4, aFy: -9, aBx: -12, aBy: -3, lFx: 18, lFy: -3, lBx: -6, lBy: -12 });
+/** 날아가는 끝: 앞발을 조금 접기 시작한다 */
+const WK_DIVE_END = P({ hx: -1, hy: -19, tl: -12, hd: 12, aFx: 6, aFy: -8, aBx: -11, aBy: -5, lFx: 15, lFy: -6, lBx: -5, lBy: -12 });
+/** 다리를 거두며 몸을 세운다 */
+const WK_RETRACT = P({ hx: 0, hy: -22, tl: 2, hd: 6, aFx: 8, aFy: -6, aBx: -8, aBy: -5, lFx: 8, lFy: -9, lBx: -5, lBy: -7 });
+
+/**
+ * 벽 박차기 공격: 벽에 붙은 채 공격하면 벽을 박차고 바라보는 쪽(벽 반대쪽) 아래 대각선으로 날아가며 앞발로 찬다.
+ * 1~2프레임 웅크림(벽에 머묾) → 3프레임 박차고 나감 → 4~9프레임 찬 자세로 날아감(판정) → 10~13프레임 다리를 거두고 낙하 자세로.
+ * 맞히거나 막히면 판정이 끝나고 뒤로 튕겨 오르며 10프레임부터 이어진다 (sim/fighter.ts).
+ */
+export const WALL_KICK: MotionData = {
+  name: 'base/wall_kick',
+  label: '벽 박차기 공격',
+  dur: [2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 3, 3],
+  keys: [
+    { at: 0, pose: WK_COIL },
+    { at: 1, pose: WK_SQUASH, stop: true },
+    { at: 2, pose: WK_PUSH },
+    { at: 3, pose: WK_KICK },
+    { at: 5, pose: WK_DIVE },
+    { at: 8, pose: WK_DIVE_END, stop: true },
+    { at: 9, pose: WK_RETRACT },
+    { at: 12, pose: WJ_FALL },
+  ],
+};
+
 /** 벽 기동 동작 (승인받은 순서대로 늘어난다) */
-export const WALL_MOTIONS: MotionData[] = [WALL_CLING, WALL_JUMP, WALL_RUN];
+export const WALL_MOTIONS: MotionData[] = [WALL_CLING, WALL_JUMP, WALL_RUN, WALL_KICK];

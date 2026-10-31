@@ -73,6 +73,8 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
   if (me.mode === 'attack' && me.move) {
     const id = me.move;
     if (id === 'launcher' && me.moveConnected) return IN_JUMP | fwd;
+    // 벽 박차기 공격을 맞히면 2단 점프로 쫓아간다
+    if (id === 'wallKick') return me.moveConnected && roll(cpu, 2) === 0 ? IN_JUMP | fwd : 0;
     if (MOVES[id].data.air) {
       if (id === 'air2' && me.moveConnected && roll(cpu, 3) === 0) return IN_ATTACK | IN_DOWN;
       if (op.mode === 'airhit' || dist < 40) return IN_ATTACK;
@@ -90,6 +92,15 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
   // 벽에 붙어 있는 동안: 잠깐 버티다가 놓거나 벽 반대쪽으로 뛴다
   if (me.mode === 'wallcling') {
     const toward = me.wallSide < 0 ? IN_RIGHT : IN_LEFT;
+    // 상대가 벽 반대쪽 아래 대각선 길목에 있으면 벽 박차기 공격
+    // (내려가는 1px마다 1.4px 앞으로 난다. 앞발 끝이 몸보다 17px 앞에 있고, 상대 몸 높이 40px쯤에 닿게)
+    const ahead = ((op.x - me.x) * me.facing) / SUBPX;
+    const below = (op.y - me.y) / SUBPX;
+    if (below > 30 && Math.abs(ahead - (17 + (below - 36) * 1.4)) < 22 && roll(cpu, 3) === 0) {
+      cpu.wallT = 0;
+      cpu.wallDir = 0;
+      return IN_ATTACK | toward;
+    }
     if (cpu.wallT > 0) {
       cpu.wallT--;
       return toward;

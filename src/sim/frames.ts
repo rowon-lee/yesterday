@@ -54,6 +54,8 @@ export interface Move {
   push: number;
   launch?: { vx: number; vy: number };
   step?: { from: number; to: number; speed: number };
+  dive?: { from: number; to: number; vx: number; vy: number };
+  rebound?: { vx: number; vy: number };
 }
 
 export const MOVES = {} as Record<MoveId, Move>;
@@ -72,6 +74,8 @@ for (const id of Object.keys(BASE_MOVES) as MoveId[]) {
     push: px(data.push),
     launch: data.launch && { vx: px(data.launch.vx), vy: px(data.launch.vy) },
     step: data.step && { ...data.step, speed: px(data.step.speed) },
+    dive: data.dive && { ...data.dive, vx: px(data.dive.vx), vy: px(data.dive.vy) },
+    rebound: data.rebound && { vx: px(data.rebound.vx), vy: px(data.rebound.vy) },
   };
 }
 
