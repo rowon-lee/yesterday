@@ -583,6 +583,14 @@ function wallChecks() {
   run(s, hold(0, 4));
   run(s, [I.IN_JUMP]);
   results.push(['벽 점프 직후 잠깐 좌우 조작이 듣지 않고, 그 뒤 2단 점프가 된다', locked && f.jumpKind === 2 && f.airJumpUsed, `잠김 ${locked}, 점프 종류 ${f.jumpKind}`]);
+  // 벽 점프 뒤 공중 대시가 끝나면 보통 낙하 그림 (벽 점프 그림이 처음부터 다시 나오지 않는다)
+  s = fresh(tower.x0 - 20, tower.x0 + 200);
+  f = s.fighters[0];
+  air(f, tower.x0 - 9, 150);
+  run(s, hold(I.IN_RIGHT | I.IN_UP, 6));
+  run(s, [I.IN_JUMP, ...hold(0, 3), I.IN_DASH, ...hold(0, sim.STATS.airDashTicks + 1)]);
+  const poseAfter = sim.fighterPose(f).motion;
+  results.push(['벽 점프 뒤 공중 대시가 끝나면 벽 점프 그림이 다시 나오지 않는다', f.mode === 'air' && poseAfter !== 'base/wall_jump', `${f.mode} ${poseAfter}`]);
 
   // 벽 달리기: 지상 대시로 기둥탑 왼쪽 면에 닿으면 벽을 바라보며 달려 오르고, 꼭대기(296)에 못 닿으면 끝에서 벽에 붙는다
   s = fresh(tower.x0 - 40, tower.x0 - 140);

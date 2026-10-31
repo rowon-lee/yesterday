@@ -27,6 +27,9 @@ export function setMode(f: Fighter, mode: Mode, len = 0): void {
     f.move = null;
     f.queued = null;
   }
+  // 점프 종류(그림용)는 그 점프로 바로 떠 있는 동안만: 공중 대시·공중 공격 등을 하고 다시 떠 있게 되면 보통 낙하로
+  // (벽 점프·꼭대기 넘기 그림이 처음부터 다시 나오지 않게)
+  if (mode !== 'air') f.jumpKind = 0;
 }
 
 /** 떠 있는가: 서 있는 바닥(땅이나 발판)보다 위에 있거나 떠오르는 중 */
