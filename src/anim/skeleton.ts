@@ -24,6 +24,8 @@ export interface Look {
 export const LOOKS = {
   p1: { outline: 'ink', shadow: 'goldDark', base: 'gold', light: 'goldLight' },
   p2: { outline: 'ink', shadow: 'skyDark', base: 'sky', light: 'skyLight' },
+  /** 맞은 순간 하얗게 번쩍임 */
+  flash: { outline: 'ink', shadow: 'white', base: 'white', light: 'white' },
 } as const satisfies Record<string, Look>;
 export type LookName = keyof typeof LOOKS;
 

@@ -1,10 +1,10 @@
-// CPU끼리 N판 자동 대전. 예외가 없는지, 같은 입력을 다시 돌리면 같은 상태가 되는지 확인한다.
-//   npm run simtest -- [--matches 20] [--ticks 5400] [--seed 1]
+// CPU끼리 N판 자동 대전. 예외, 규칙 범위, 결정론(같은 입력 재생·저장/복원 후 같은 해시)을 확인한다.
+//   npm run simtest -- [--matches 20] [--ticks 20000] [--seed 1]
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createServer } from 'vite';
 
-const args = parseArgs(process.argv.slice(2), { matches: 20, ticks: 5400, seed: 1 });
+const args = parseArgs(process.argv.slice(2), { matches: 20, ticks: 20000, seed: 1 });
 let failed = 0;
 
 // 1) sim/ 안에 무작위·시간 값이 없는지 소스를 훑는다.
@@ -21,17 +21,27 @@ for (const file of walk('src/sim')) {
 // 2) sim 코드를 그대로 불러와 돌린다 (TypeScript는 Vite가 변환).
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 const sim = await vite.ssrLoadModule('/src/sim/index.ts');
+const R = sim.RULES;
+const HP = sim.createState(0).fighters[0].hp;
 
+const total = { hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
 const t0 = Date.now();
 for (let m = 0; m < args.matches; m++) {
   const seed = args.seed + m;
   try {
     const a = runCpuMatch(seed, args.ticks);
     const b = replay(seed, a.log, null);
-    const c = replay(seed, a.log, Math.floor(args.ticks / 2));
-    const ok = a.hash === b && a.hash === c;
+    const c = replay(seed, a.log, Math.floor(a.log.length / 2));
+    const ok = a.hash === b && a.hash === c && a.ended && a.problems.length === 0;
     if (!ok) failed++;
-    console.log(`${ok ? 'OK ' : 'NG '} ${m + 1}판 (시드 ${seed}, ${a.log.length}틱): 해시 ${a.hash} / 재생 ${b} / 저장·복원 ${c}`);
+    const w = a.winner < 0 ? '무승부' : `${a.winner + 1}P 승`;
+    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
+    for (const p of a.problems.slice(0, 5)) console.log(`      ${p}`);
+    for (const k of Object.keys(a.stats)) if (k !== 'maxCombo') total[k] += a.stats[k];
+    total.maxCombo = Math.max(total.maxCombo, a.stats.maxCombo);
+    total.wins[a.winner < 0 ? 2 : a.winner]++;
+    total.rounds += a.rounds;
+    total.ticks += a.log.length;
   } catch (e) {
     failed++;
     console.log(`NG  ${m + 1}판 (시드 ${seed}): 예외 ${e?.stack ?? e}`);
@@ -39,20 +49,52 @@ for (let m = 0; m < args.matches; m++) {
 }
 await vite.close();
 
-console.log(`\n${args.matches}판, 판마다 최대 ${args.ticks}틱, ${Date.now() - t0}ms. ${failed ? `실패 ${failed}건` : '모두 통과'}`);
+console.log(`\n합계 ${args.matches}판 ${total.rounds}라운드 (${(total.ticks / 60 / 60).toFixed(1)}분 분량), ${Date.now() - t0}ms`);
+console.log(`  1P 승 ${total.wins[0]}, 2P 승 ${total.wins[1]}, 무승부 ${total.wins[2]}`);
+console.log(`  히트 ${total.hit}, 방어 ${total.block}, 가드 크러시 ${total.crush}, 띄우기 ${total.launch}, 낙법 ${total.tech}, 다운 ${total.knockdown}, KO ${total.ko}, 시간 초과 ${total.timeup}, 필살 ${total.cutin}, 최대 콤보 ${total.maxCombo}`);
+console.log(failed ? `실패 ${failed}건` : '모두 통과');
 process.exit(failed ? 1 : 0);
 
-/** CPU 둘이 싸우고, 틱마다 넣은 입력을 기록한다. */
+/** CPU 둘이 싸우고, 틱마다 넣은 입력을 기록한다. 틱마다 규칙 범위를 검사한다. */
 function runCpuMatch(seed, ticks) {
   const state = sim.createState(seed);
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
   const log = [];
-  while (state.tick < ticks && !state.over) {
+  const problems = [];
+  const stats = { hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0 };
+  while (log.length < ticks && state.phase !== 'matchEnd') {
     const inputs = [sim.cpuInput(cpus[0], state, 0), sim.cpuInput(cpus[1], state, 1)];
     log.push(inputs);
     sim.step(state, inputs);
+    for (const e of state.events) {
+      if (e.type in stats) stats[e.type]++;
+      if (e.type === 'hit') stats.maxCombo = Math.max(stats.maxCombo, e.combo);
+    }
+    if (problems.length < 20) check(state, problems);
   }
-  return { log, hash: sim.hashState(state) };
+  return { log, hash: sim.hashState(state), stats, problems, ended: state.phase === 'matchEnd', winner: state.matchWinner, rounds: state.round };
+}
+
+function check(s, problems) {
+  const [a, b] = s.fighters;
+  const bad = (msg) => problems.push(`틱 ${s.tick}: ${msg}`);
+  for (const [i, f] of s.fighters.entries()) {
+    const n = `${i + 1}P`;
+    if (f.hp < 0 || f.hp > HP) bad(`${n} 체력 범위 밖 ${f.hp}`);
+    if (f.meter < 0 || f.meter > R.METER_MAX) bad(`${n} 기력 범위 밖 ${f.meter}`);
+    if (f.guard < 0 || f.guard > R.GUARD_MAX) bad(`${n} 방어 내구도 범위 밖 ${f.guard}`);
+    if (f.x < R.WALL_L || f.x > R.WALL_R) bad(`${n} 벽 밖 x=${f.x / 256}`);
+    if (f.y > 0) bad(`${n} 바닥 아래 y=${f.y / 256}`);
+    if (f.y < -256 * 200) bad(`${n} 너무 높이 y=${f.y / 256}`);
+    if (f.mode === 'attack' && !f.move) bad(`${n} 기술 없이 공격 상태`);
+    if (!Number.isInteger(f.x) || !Number.isInteger(f.y) || !Number.isInteger(f.vx) || !Number.isInteger(f.vy)) bad(`${n} 위치·속도가 정수가 아님`);
+    try {
+      sim.fighterPose(f);
+    } catch (e) {
+      bad(`${n} 그림 프레임 오류 ${e.message}`);
+    }
+  }
+  if (Math.abs(a.x - b.x) > R.MAX_SEPARATION + 256) bad(`둘 사이가 화면 밖 ${Math.abs(a.x - b.x) / 256}px`);
 }
 
 /** 기록한 입력만으로 다시 돌린다. saveAt이 있으면 그 틱에 상태를 직렬화했다가 복원해서 이어 간다. */

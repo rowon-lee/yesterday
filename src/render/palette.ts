@@ -18,6 +18,18 @@ export const COLORS = {
   skyDark: '#2a7fa6',
   red: '#ff4d6d',
   green: '#7bd88f',
+  // 배경 (채도를 낮춘 녹슨 갈색·회색 벽돌·매연 낀 하늘)
+  smog0: '#1c1a22',
+  smog1: '#26232b',
+  smog2: '#332e33',
+  smog3: '#423a3a',
+  brickFar: '#2f2a2e',
+  brickMid: '#3b3232',
+  brickNear: '#4a3c38',
+  windowDim: '#6b5a44',
+  street: '#2a2626',
+  streetLine: '#3a3433',
+  rail: '#55504c',
 } as const;
 
 export type ColorName = keyof typeof COLORS;
