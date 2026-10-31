@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
-import { canvas, disc } from '../stage/dither';
+import { canvas, disc } from '../dither';
 import { COLORS as C } from '../palette';
-import { LIGHT_N, shared } from './lights';
+import { LIGHTS_DECL, shared, withLights } from './lights';
 import { keepAlpha, pixelTexture } from './shaders';
 
 /**
@@ -22,13 +22,10 @@ export class Steam {
     // 디더링한 원 (가운데가 짙다): 알파는 바둑판 무늬로 성기게
     for (let r = 15; r >= 3; r -= 4) disc(g, 16, 16, r, r > 11 ? C.smoke : r > 7 ? C.stone : C.paintCream, r > 11 ? 5 : r > 7 ? 9 : 13);
     const tex = pixelTexture(c);
-    const mat = keepAlpha(new THREE.ShaderMaterial({
+    const mat = keepAlpha(withLights(new THREE.ShaderMaterial({
       uniforms: { ...shared, map: { value: tex } },
       vertexShader: /* glsl */ `
-        #define LIGHT_N ${LIGHT_N}
-        uniform vec4 uLightPos[LIGHT_N];
-        uniform vec4 uLightCol[LIGHT_N];
-uniform int uLightCount;
+        ${LIGHTS_DECL}
         uniform vec3 uAmbient;
         attribute float fade;
         varying vec2 vUv;
@@ -40,7 +37,7 @@ uniform int uLightCount;
           vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
           vec3 lit = uAmbient * 4.0;
           for (int i = 0; i < LIGHT_N; i++) {
-    if (i >= uLightCount) break;
+    if (float(i) >= uLightCount) break;
             float d = length(uLightPos[i].xyz - wp.xyz);
             float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
             lit += uLightCol[i].rgb * k * k;
@@ -60,7 +57,7 @@ uniform int uLightCount;
           gl_FragColor = vec4(t.rgb * (0.35 + vLight), 0.55 * vFade);
         }
       `,
-    }), false);
+    })), false);
     mat.transparent = false;
     const n = Math.max(1, this.vents.length * PUFFS);
     const geo = new THREE.PlaneGeometry(1, 1);

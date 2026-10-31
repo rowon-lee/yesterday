@@ -13,3 +13,5 @@ export const SCENES: Record<string, () => Scene> = {
   viewer: viewerScene,
 };
 export const DEFAULT_SCENE = 'fight';
+/** three.js 2.5D 화면으로 무대를 그리는 장면 (나머지는 2D 캔버스에 바로 그린다) */
+export const GL_SCENES: ReadonlySet<string> = new Set(['fight', 'stage']);

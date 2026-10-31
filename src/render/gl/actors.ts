@@ -4,7 +4,7 @@ import type { LookName } from '../../anim/skeleton';
 import { FOOT_X, FOOT_Y } from '../../anim/motion';
 import { GROUND } from '../../stage/citadel';
 import { SCREEN_H, SCREEN_W } from '../screen';
-import { canvas } from '../stage/dither';
+import { canvas } from '../dither';
 import { lightPool } from './lights';
 import { flatMaterial, pixelTexture, spriteMaterial } from './shaders';
 
@@ -32,31 +32,108 @@ export interface CharDraw {
   order: number;
 }
 
+/**
+ * 평면 층 하나: 화면 크기 캔버스에 2D로 그리고, 이번 프레임에 그린 곳과 지난 프레임에 그렸던 곳만 텍스처에 올린다
+ * (화면 전체를 매 프레임 올리면 휴대폰에서 무겁다). 그린 자리는 캔버스의 그리기 함수를 감싸서 잰다.
+ */
 class Flat {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D;
   readonly tex: THREE.CanvasTexture;
   readonly mesh: THREE.Mesh;
-  private dirty = false;
+  /** 올릴 때 읽는 쪽 (캔버스 그대로, 화면에는 쓰지 않는다) */
+  private readonly src: THREE.Texture;
+  /** 이번 프레임에 그린 사각형 [x0, y0, x1, y1]과 지난 프레임 것 */
+  private box: number[] | null = null;
+  private prev: number[] | null = null;
+  private readonly region = new THREE.Box2();
+  private readonly at = new THREE.Vector2();
 
   constructor(z: number, order: number) {
     [this.canvas, this.ctx] = canvas(SCREEN_W, SCREEN_H);
     this.ctx.imageSmoothingEnabled = false;
     this.tex = pixelTexture(this.canvas);
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W, SCREEN_H), flatMaterial(this.tex));
+    // 부분 올리기는 위아래를 뒤집지 않고 올린다 (텍스처 0번 줄 = 캔버스 맨 위). 판의 uv를 대신 뒤집는다
+    this.tex.flipY = false;
+    this.src = new THREE.Texture(this.canvas);
+    const geo = new THREE.PlaneGeometry(SCREEN_W, SCREEN_H);
+    const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+    this.mesh = new THREE.Mesh(geo, flatMaterial(this.tex));
     this.mesh.position.z = z;
     this.mesh.renderOrder = order;
     this.mesh.frustumCulled = false;
+    this.track();
   }
 
-  /** 이번 프레임 그림: draw가 무언가 그렸으면 true를 돌려준다 (안 그렸으면 올리지 않는다) */
-  paint(ix: number, iy: number, draw: (ctx: CanvasRenderingContext2D) => boolean): void {
-    if (this.dirty) this.ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+  private grow(x: number, y: number, w: number, h: number): void {
+    const x0 = Math.floor(Math.min(x, x + w));
+    const y0 = Math.floor(Math.min(y, y + h));
+    const x1 = Math.ceil(Math.max(x, x + w));
+    const y1 = Math.ceil(Math.max(y, y + h));
+    const b = this.box;
+    if (!b) this.box = [x0, y0, x1, y1];
+    else {
+      b[0] = Math.min(b[0], x0);
+      b[1] = Math.min(b[1], y0);
+      b[2] = Math.max(b[2], x1);
+      b[3] = Math.max(b[3], y1);
+    }
+  }
+
+  /** fillRect·drawImage·putImageData가 그린 자리를 잰다 (평면 층에 그리는 것들은 옮김·회전을 쓰지 않는다) */
+  private track(): void {
+    const g = this.ctx;
+    const fill = g.fillRect.bind(g);
+    g.fillRect = (x: number, y: number, w: number, h: number) => {
+      this.grow(x, y, w, h);
+      fill(x, y, w, h);
+    };
+    const draw = g.drawImage.bind(g) as (...a: unknown[]) => void;
+    g.drawImage = ((...a: number[]) => {
+      const img = a[0] as unknown as { width: number; height: number };
+      if (a.length >= 9) this.grow(a[5], a[6], a[7], a[8]);
+      else if (a.length >= 5) this.grow(a[1], a[2], a[3], a[4]);
+      else this.grow(a[1], a[2], img.width, img.height);
+      draw(...a);
+    }) as unknown as typeof g.drawImage;
+    const put = g.putImageData.bind(g) as (...a: unknown[]) => void;
+    g.putImageData = ((...a: number[]) => {
+      const img = a[0] as unknown as ImageData;
+      if (a.length >= 7) this.grow(a[1] + a[3], a[2] + a[4], a[5], a[6]);
+      else this.grow(a[1], a[2], img.width, img.height);
+      put(...a);
+    }) as unknown as typeof g.putImageData;
+  }
+
+  /** 이번 프레임 그림: draw가 무언가 그렸으면 true를 돌려준다 (안 그렸으면 판을 숨긴다) */
+  paint(renderer: THREE.WebGLRenderer, ix: number, iy: number, draw: (ctx: CanvasRenderingContext2D) => boolean): void {
+    const p = this.prev;
+    if (p) this.ctx.clearRect(p[0], p[1], p[2] - p[0], p[3] - p[1]);
+    this.box = null;
     const drew = draw(this.ctx);
-    this.dirty = drew;
+    const cur = drew ? this.box : null;
+    // 올릴 곳: 지난 프레임에 그렸던 곳(지운 자리)과 이번에 그린 곳
+    let d: number[] | null = null;
+    for (const b of [p, cur]) {
+      if (!b) continue;
+      d = d ? [Math.min(d[0], b[0]), Math.min(d[1], b[1]), Math.max(d[2], b[2]), Math.max(d[3], b[3])] : [...b];
+    }
+    if (d) {
+      const x0 = Math.max(0, d[0]);
+      const y0 = Math.max(0, d[1]);
+      const x1 = Math.min(SCREEN_W, d[2]);
+      const y1 = Math.min(SCREEN_H, d[3]);
+      if (x1 > x0 && y1 > y0) {
+        this.region.min.set(x0, y0);
+        this.region.max.set(x1, y1);
+        this.at.set(x0, y0);
+        renderer.copyTextureToTexture(this.src, this.tex, this.region, this.at);
+      }
+    }
+    this.prev = cur ? [Math.max(0, cur[0]), Math.max(0, cur[1]), Math.min(SCREEN_W, cur[2]), Math.min(SCREEN_H, cur[3])] : null;
     this.mesh.visible = drew;
     if (drew) {
-      this.tex.needsUpdate = true;
       this.mesh.position.x = ix + SCREEN_W / 2;
       this.mesh.position.y = GROUND - (iy + SCREEN_H / 2);
     }

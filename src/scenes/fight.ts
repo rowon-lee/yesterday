@@ -8,10 +8,8 @@ import { VfxLayer } from '../render/vfx';
 import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
-import { drawForeground, drawPlatforms, drawStage, GROUND_Y, type Cam } from '../render/stage';
-import { drawLights, off as lightOff, strongestLight } from '../render/light';
-import { drawAir, drawRain, drawReflection } from '../render/weather';
-import { MAP_H } from '../stage/citadel';
+import { drawPlatforms } from '../render/platforms';
+import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import { drawText, textWidth } from '../render/font';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
@@ -19,7 +17,7 @@ import {
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
-import { GL_MODE, gl } from '../render/gl';
+import { gl } from '../render/gl';
 import { lights as lights2d } from '../render/light';
 import type { Scene } from './scene';
 
@@ -89,7 +87,7 @@ export function fightScene(): Scene {
   let hud: Hud;
   let cutin: { who: number; text: string; t: number } | null = null;
   /** 카메라: 화면 왼쪽 위의 월드 좌표 (px, 렌더 전용). x가 -1이면 아직 안 정함 */
-  let cam: Cam = { x: -1, y: 0 };
+  let cam = { x: -1, y: 0 };
   let camVy = 0;
   // 렌더 전용: 잔상용 지난 모습, 흙먼지, 직전 상태
   let trails: Snapshot[][] = [[], []];
@@ -188,7 +186,7 @@ export function fightScene(): Scene {
   };
 
   /**
-   * 2.5D 화면 (?render=3d): 무대·캐릭터·이펙트는 three.js 화면에, 이 캔버스(ctx)에는 HUD만 겹쳐 그린다.
+   * 2.5D 화면: 무대·캐릭터·이펙트는 three.js 화면에, 이 캔버스(ctx)에는 HUD만 겹쳐 그린다.
    * 먼지·잔상·무너지는 조각·Sprite Fusion 이펙트는 지금까지의 2D 그림을 싸우는 면 바로 뒤·앞의 평면 층에 그린다.
    * 화면 흔들림은 카메라를 반대로 민다.
    */
@@ -198,11 +196,11 @@ export function fightScene(): Scene {
     const placed = g.view.begin({ x: cam.x - ox, y: cam.y - oy }, s.tick);
     lights2d.clear();
     fightVfx.emitLights(s);
-    g.world.update(g.view, s.tick, s.props, s.city);
+    g.world.update(g.view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256);
     g.view.commitLights();
     const v = { x: placed.ix, y: placed.iy };
     const toScreen = (x: number, y: number): [number, number] => [Math.round(x - v.x), Math.round(GROUND_Y + y - v.y)];
-    g.actors.back.paint(v.x, v.y, (c) => {
+    g.actors.back.paint(g.view.renderer, v.x, v.y, (c) => {
       let drew = dust.length > 0;
       drawDust(c, dust, toScreen);
       trails.forEach((tr, i) => {
@@ -222,7 +220,7 @@ export function fightScene(): Scene {
       }
       return drew;
     });
-    g.actors.front.paint(v.x, v.y, (c) => {
+    g.actors.front.paint(g.view.renderer, v.x, v.y, (c) => {
       let drew = vfx.draw(c, v, 'front');
       if (fightVfx.debris.busy) {
         fightVfx.debris.drawDust(c, v, 'front');
@@ -296,73 +294,7 @@ export function fightScene(): Scene {
 
     render(ctx) {
       if (cam.x < 0) followCamera();
-      if (GL_MODE) {
-        render3d(ctx);
-        return;
-      }
-      const view: Cam = { x: Math.round(cam.x), y: Math.round(cam.y) };
-      const [ox, oy] = fx.offset();
-      ctx.save();
-      ctx.translate(ox, oy);
-      drawStage(ctx, view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256);
-      fightVfx.emitLights(s);
-      const toScreen = (x: number, y: number): [number, number] => [Math.round(x - view.x), Math.round(GROUND_Y + y - view.y)];
-
-      // 그림자: 발밑 바닥(땅이나 발판)에, 높이 뜰수록 작게
-      for (const f of s.fighters) {
-        const under = floorBelow(s, f.x, f.y);
-        const [sx, sy] = toScreen(f.x / 256, under / 256);
-        const w = Math.max(4, 14 + Math.round((f.y - under) / 256 / 10));
-        ctx.fillStyle = COLORS.ink;
-        ctx.fillRect(sx - (w >> 1), sy, w, 2);
-      }
-      drawDust(ctx, dust, toScreen);
-      // 빠르게 움직이면 지난 모습 두 개를 잔상으로 (디더링)
-      trails.forEach((tr, i) => {
-        for (const back of [6, 3]) {
-          const g = tr[tr.length - 1 - back];
-          if (g && tr[tr.length - 1].fast && g.fast) drawGhost(ctx, g, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6);
-        }
-      });
-      vfx.draw(ctx, view, 'back');
-      // 무너지는 건물 조각과 먼지 구름은 캐릭터 뒤에 (앞에는 옅은 먼지만)
-      fightVfx.debris.drawDust(ctx, view, 'back');
-      fightVfx.debris.draw(ctx, view);
-      // 맞고 있는 쪽을 뒤에, 공격하는 쪽을 앞에
-      const order = [...s.fighters].sort((a, b) => Number(a.mode === 'attack') - Number(b.mode === 'attack'));
-      for (const f of order) {
-        const i = s.fighters.indexOf(f);
-        drawFighter(ctx, f, i, toScreen, s.tick, fightVfx.white(i));
-      }
-      vfx.draw(ctx, view, 'front');
-      fightVfx.debris.drawDust(ctx, view, 'front');
-      // 조명: 빛을 더하고(가산), 빛 받은 안개와 빛 입자, 젖은 바닥 반사, 비
-      drawLights(ctx, view);
-      drawAir(ctx, view, s.tick);
-      drawReflection(ctx, view, s.tick);
-      drawRain(ctx, view, s.tick);
-      // 앞겹: 카메라 앞을 스치는 기둥·전선. 캐릭터와 겹치는 곳은 비쳐 보이게
-      drawForeground(ctx, view, s.fighters.map((f) => {
-        const [fx, fy] = toScreen(f.x / 256, f.y / 256);
-        return { x: fx - 20, y: fy - 60, w: 40, h: 66 };
-      }));
-      if (showBoxes) {
-        drawPlatforms(ctx, view, s.city);
-        drawBoxes(ctx, s, view);
-      }
-      ctx.restore();
-
-      // 강한 타격: 화면 번쩍임 (디더링)
-      if (fx.flash > 0) {
-        ctx.fillStyle = COLORS.white;
-        for (let y = 0; y < SCREEN_H; y += 2) for (let x = (y >> 1) & 1; x < SCREEN_W; x += 2) ctx.fillRect(x, y, 1, 1);
-      }
-      if (cutin) drawCutin(ctx, { ...cutin, length: RULES.SUPER_FREEZE });
-      hud.draw(ctx, s);
-      if (s.phase === 'matchEnd' && s.phaseT > 120 && !p1Cpu) {
-        const t = 'PRESS J';
-        if ((s.tick >> 5) % 2 === 0) drawText(ctx, t, Math.floor((SCREEN_W - textWidth(t, 2)) / 2), Math.floor(SCREEN_H * 0.55), COLORS.white, 2);
-      }
+      render3d(ctx);
     },
   };
 }
@@ -418,78 +350,7 @@ function drawGhost(
 /** 맞아서 멈춘 동안(히트스톱) 맞은 쪽이 좌우로 1px씩 떨린다 */
 const SHAKEN: ReadonlySet<string> = new Set(['hitstun', 'airhit', 'blockstun', 'crush', 'ko']);
 
-function drawFighter(
-  ctx: CanvasRenderingContext2D,
-  f: Fighter,
-  index: number,
-  toScreen: (x: number, y: number) => [number, number],
-  tick: number,
-  white: boolean,
-) {
-  // 대시 중 순간이동 구간은 깜빡인다
-  if ((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && tick % 2) return;
-  const pose = fighterPose(f);
-  const m = motionByName.get(pose.motion)!;
-  const [sx, sy] = toScreen(f.x / 256, f.y / 256);
-  const jitter = f.hitstop > 0 && SHAKEN.has(f.mode) ? (tick % 2 ? 1 : -1) : 0;
-  const look = white ? 'flash' : index === 0 ? 'p1' : 'p2';
-  m.draw(ctx, pose.frame, sx - FOOT_X + jitter, sy - FOOT_Y, { look, flip: f.facing < 0 });
-  if (!white && !lightOff('rim')) rimLight(ctx, m, pose.frame, sx - FOOT_X + jitter, sy - FOOT_Y, f.facing < 0, f.x / 256, GROUND_Y + f.y / 256 - 26);
-}
-
-/** 테두리 빛 조각 (동작·프레임·방향·빛 쪽·색마다 한 번 만든다): [1px 테두리, 2px 테두리] */
-const rimCache = new Map<string, [HTMLCanvasElement, HTMLCanvasElement]>();
-
-function rimSprites(
-  m: NonNullable<ReturnType<typeof motionByName.get>>, frame: number, flip: boolean, sx: number, sy: number, color: string,
-): [HTMLCanvasElement, HTMLCanvasElement] {
-  const key = `${m.name}|${frame}|${flip ? 1 : 0}|${sx}|${sy}|${color}`;
-  let out = rimCache.get(key);
-  if (out) return out;
-  const make = (depth: number) => {
-    const c = document.createElement('canvas');
-    c.width = 64;
-    c.height = 64;
-    const g = c.getContext('2d')!;
-    m.draw(g, frame, 0, 0, { look: 'p1', flip });
-    g.globalCompositeOperation = 'source-in';
-    g.fillStyle = color;
-    g.fillRect(0, 0, 64, 64);
-    g.globalCompositeOperation = 'destination-out';
-    m.draw(g, frame, -sx * depth, -sy * depth, { look: 'p1', flip });
-    return c;
-  };
-  out = [make(1), make(2)];
-  rimCache.set(key, out);
-  if (rimCache.size > 300) rimCache.delete(rimCache.keys().next().value!);
-  return out;
-}
-
-/**
- * 캐릭터 테두리 빛: 가까운 가장 센 광원 쪽을 향한 테두리를 그 빛 색으로 물들인다 (빛 레이어 몫, 가산).
- * 실루엣에서 '빛 쪽으로 한 칸 옆이 비어 있는 칸'만 남겨 1px 테두리를 만들고, 한 칸 더 안쪽은 옅게.
- */
-function rimLight(
-  ctx: CanvasRenderingContext2D, m: NonNullable<ReturnType<typeof motionByName.get>>, frame: number, x: number, y: number, flip: boolean,
-  wx: number, wy: number,
-) {
-  const l = strongestLight(wx, wy);
-  if (!l || l.k < 0.1) return;
-  const sx = Math.abs(l.dx) > 0.38 ? Math.sign(l.dx) : 0;
-  const sy = Math.abs(l.dy) > 0.38 ? Math.sign(l.dy) : 0;
-  if (!sx && !sy) return;
-  const [rim1, rim2] = rimSprites(m, frame, flip, sx, sy, l.color);
-  const a = Math.min(1, l.k * 1.6);
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = a;
-  ctx.drawImage(rim1, x, y);
-  ctx.globalAlpha = a * 0.45;
-  ctx.drawImage(rim2, x, y);
-  ctx.restore();
-}
-
-function drawBoxes(ctx: CanvasRenderingContext2D, s: SimState, cam: Cam) {
+function drawBoxes(ctx: CanvasRenderingContext2D, s: SimState, cam: { x: number; y: number }) {
   const rect = (b: { x0: number; y0: number; x1: number; y1: number }, color: string) => {
     const x = Math.round(b.x0 / 256 - cam.x);
     const y = Math.round(GROUND_Y + b.y0 / 256 - cam.y);

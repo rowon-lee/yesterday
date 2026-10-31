@@ -75,7 +75,7 @@ export const CITADEL = {
     apartments: {
       x0: 2200,
       list: [
-        { kind: 'apartment', w: 130, floors: 4, sign: 'LAUNDRY', poster: 'WORK' },
+        { kind: 'apartment', w: 130, floors: 4, sign: 'LAUNDRY', poster: 'WORK', posterLeft: true },
         { kind: 'alley', w: 24 },
         { kind: 'apartment', w: 140, floors: 5, sign: '', poster: 'UNITY' },
         { kind: 'apartment', w: 120, floors: 3, sign: 'GROCER', poster: '' },

@@ -1,8 +1,8 @@
 import { CITADEL as D } from '../../data/stages/citadel';
-import { FLOOR_H, SHOP_H, DOOR_H, DOOR_W, doorOf, type FrontBuildingPlace } from '../../stage/citadel';
+import { FLOOR_H, SHOP_H, DOOR_H, DOOR_W, doorOf, escapeOf, type FrontBuildingPlace } from '../../stage/citadel';
 import { glyphRows } from '../font';
 import { COLORS as C } from '../palette';
-import { canvas, ditherRect, hash, line, rect } from '../stage/dither';
+import { canvas, ditherRect, hash, line, rect } from '../dither';
 
 /**
  * 2.5D 무대의 도트 텍스처 (렌더 전용, 오프스크린 Canvas 2D에 미리 그린다).
@@ -132,9 +132,11 @@ function upperWindow(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingC
   } else if (lit) {
     const warm = rnd(seed, 22) < 0.7;
     const col = warm ? C.windowLit : C.officeLit;
-    const hot = warm ? C.windowLight : C.beam;
+    // 형광등 창은 바탕색이 밝아서 발광은 한 단계 낮춘다 (불 켜진 창이 간판보다 밝지 않게)
+    const glowCol = warm ? C.windowLit : '#55645a';
+    const hot = warm ? C.windowLight : '#7a8478';
     rect(g, x, y, ww, hh, col);
-    rect(e, x, y, ww, hh, col);
+    rect(e, x, y, ww, hh, glowCol);
     ditherRect(e, x, y, ww, 6, hot, 8);
     f.lit.push({ x: x + ww / 2, y: y + hh / 2, warm });
     const kind = rnd(seed, 23);
@@ -236,6 +238,7 @@ function ghostSign(g: CanvasRenderingContext2D, x: number, y: number, text: stri
 /** 포스터 자리: 글씨가 화면 가장자리에서 잘리지 않게 구간 가운데 쪽 벽에 붙인다 */
 function posterX(b: FrontBuildingPlace, tw: number, pw: number, T: (v: number) => number): number {
   const sec = D.sections.find((s) => s.id === b.section)!;
+  if (b.posterLeft) return T(8);
   return b.x + b.w / 2 < (sec.x0 + sec.x1) / 2 ? tw - pw - T(8) : T(8);
 }
 
@@ -284,8 +287,9 @@ export function paintFacade(b: FrontBuildingPlace, o: FacadeOpts): Facade {
         upperWindow(f, g, e, wx, top, ww, wh, b.seed * 13 + fl * 101 + k * 7);
       }
     }
-    // 1층 가게 또는 다이너
+    // 1층 가게, 다이너, 아파트 현관
     if (b.kind === 'diner') paintDiner(g, e, b, T, yOf);
+    else if (b.kind === 'apartment' && !b.sign) paintEntrance(f, g, e, b, T, yOf);
     else paintShop(g, e, b, T, yOf);
     // 처마 바로 아래 돌 띠
     rect(g, 0, shop - 2, tw, 3, C.stoneDark);
@@ -326,6 +330,51 @@ function paintShop(g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, b: 
   rect(g, doorX + dw - 6, dy + Math.floor(dh * 0.55), 2, 4, C.chrome);
   // 문턱
   rect(g, doorX - 3, yOf(2), dw + 6, T(2), C.stone);
+}
+
+/** 현관 문 자리 (건물 왼쪽 끝에서, 월드 px): 비상계단 앞까지의 가운데 */
+export function entranceX(b: FrontBuildingPlace): number {
+  const esc = escapeOf(b);
+  const end = esc ? esc.x0 - 8 - b.x : b.w;
+  return Math.floor(end / 2) - 14;
+}
+
+/**
+ * 아파트 현관 (가게 없는 1층): 돌 상인방, 두 짝 나무 문(위 유리로 복도 불빛), 문 위 채광창, 번지 판,
+ * 1층 창 둘과 반지하 창. 현관 계단(돌계단 세 단)은 정면 앞에 상자로 놓는다.
+ */
+function paintEntrance(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, b: FrontBuildingPlace, T: (v: number) => number, yOf: (h: number) => number): void {
+  const dx = T(entranceX(b));
+  // 상인방과 채광창 (복도 불빛)
+  rect(g, dx - T(4), yOf(92), T(36), T(6), C.stone);
+  rect(g, dx - T(4), yOf(92), T(36), 1, C.paintCream);
+  rect(g, dx, yOf(86), T(28), T(4), C.windowLit);
+  rect(e, dx, yOf(86), T(28), T(4), C.windowLit);
+  for (let k = 1; k < 4; k++) rect(g, dx + T(k * 7), yOf(86), 1, T(4), C.iron);
+  // 문틀과 두 짝 문 (위 유리, 아래 판)
+  rect(g, dx, yOf(82), T(28), T(70), C.iron);
+  for (const lx of [2, 15]) {
+    rect(g, dx + T(lx), yOf(80), T(11), T(66), C.awning);
+    rect(g, dx + T(lx), yOf(80), 1, T(66), C.awningStripe);
+    rect(g, dx + T(lx + 2), yOf(76), T(7), T(22), C.windowDark);
+    ditherRect(g, dx + T(lx + 2), yOf(76), T(7), T(22), C.windowLit, 5);
+    ditherRect(e, dx + T(lx + 2), yOf(76), T(7), T(22), C.windowLit, 5);
+    rect(g, dx + T(lx + 2), yOf(44), T(7), T(16), C.awningStripe);
+  }
+  rect(g, dx + T(12), yOf(46), 1, T(4), C.chrome);
+  rect(g, dx + T(16), yOf(46), 1, T(4), C.chrome);
+  // 번지 판
+  rect(g, dx + T(30), yOf(70), T(8), T(6), C.chromeDark);
+  rect(g, dx + T(31), yOf(69), T(6), T(4), C.paintCream);
+  // 1층 창 (문 양옆, 하나는 켜짐)과 반지하 창
+  const right = T(entranceX(b) + 44);
+  for (const [wx, seed] of [[T(10), 3], [right, 11]] as const) {
+    if (wx + T(18) > dx - T(6) && wx < dx + T(34)) continue;
+    upperWindow(f, g, e, wx, yOf(78), T(18), T(40), b.seed * 17 + seed);
+  }
+  rect(g, T(10), yOf(22), T(20), T(14), C.iron);
+  rect(g, T(12), yOf(20), T(16), T(10), C.windowDark);
+  for (let x = T(13); x < T(28); x += 3) rect(g, x, yOf(20), 1, T(10), C.iron);
 }
 
 /** 극장: 돌 기둥, 높은 아치 창 둘(가운데는 세로 간판 자리), 로비 문 넷(차양 아래), 포스터 틀, 매표소 */
@@ -463,33 +512,51 @@ export function paintSwatches(colors: readonly string[]): HTMLCanvasElement {
 }
 
 /**
- * 네온 관 글씨 (3×5 글꼴, 글자 한 칸 = s px). 켜진 관은 발광 텍스처에 밝게, 바탕 텍스처에는 관 색(꺼지면 어두운 관만).
+ * 네온 관 글씨 (3×5 글꼴, 글자 한 칸 = s px). 관은 칸 가운데를 잇는 이어진 선이다 (가로·세로로 붙은 칸끼리 이어진다).
+ * 바탕 텍스처: 어두운 관 둘레(dark)와 꺼진 유리관(희뿌연 속). 발광 텍스처(e): 둘레는 어두운 관 색으로 은은하게, 관은 밝게.
+ * e가 없으면 바탕에 밝은 관을 그대로 칠한다 (빛나지 않는 글씨).
  */
 export function neonText(
   g: CanvasRenderingContext2D, e: CanvasRenderingContext2D | null, text: string, x: number, y: number, s: number,
   bright: string, dark: string, vertical = false,
 ): void {
+  const t = s >= 4 ? 2 : 1;
+  const c0 = Math.floor((s - t) / 2);
   [...text].forEach((ch, k) => {
     const rows = glyphRows(ch);
+    const on = (r: number, c: number) => r >= 0 && r < 5 && c >= 0 && c < 3 && (rows[r] & (4 >> c)) !== 0;
     const ox = vertical ? x : x + k * 4 * s;
     const oy = vertical ? y + k * 6 * s : y;
     for (let r = 0; r < 5; r++) {
       for (let c = 0; c < 3; c++) {
-        if (!(rows[r] & (4 >> c))) continue;
-        // 바탕: 꺼진 유리관 (어두운 관과 희뿌연 속). 켜지면 발광 텍스처가 밝은 색을 더한다
+        if (!on(r, c)) continue;
         rect(g, ox + c * s, oy + r * s, s, s, dark);
-        rect(g, ox + c * s + 1, oy + r * s + 1, Math.max(1, s - 2), Math.max(1, s - 2), e ? C.smog3 : bright);
-        if (e) {
-          rect(e, ox + c * s, oy + r * s, s, s, dark);
-          rect(e, ox + c * s + 1, oy + r * s + 1, Math.max(1, s - 2), Math.max(1, s - 2), bright);
+        if (e) rect(e, ox + c * s, oy + r * s, s, s, dark);
+      }
+    }
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 3; c++) {
+        if (!on(r, c)) continue;
+        const cx = ox + c * s + c0;
+        const cy = oy + r * s + c0;
+        const core = e ? C.smog3 : bright;
+        const segs: Array<[number, number, number, number]> = [[cx, cy, t, t]];
+        if (on(r, c + 1)) segs.push([cx, cy, s + t, t]);
+        if (on(r + 1, c)) segs.push([cx, cy, t, s + t]);
+        for (const [sx, sy, sw, sh] of segs) {
+          rect(g, sx, sy, sw, sh, core);
+          if (e) rect(e, sx, sy, sw, sh, bright);
         }
       }
     }
   });
 }
 
-/** 1960년대 세단 옆모습 (길이 w, 높이 h): 두 가지 색, 크롬 띠, 꼬리 날개, 화이트월 바퀴. 발광: 꼬리등 */
-export function paintCar(w: number, h: number, paint: string, seed: number): { map: HTMLCanvasElement; glow: HTMLCanvasElement } {
+/**
+ * 1960년대 세단 옆모습 (길이 w, 높이 h): 두 가지 색, 크롬 띠, 꼬리 날개, 화이트월 바퀴. 발광: 꼬리등.
+ * dent: 망가짐 (지붕이 내려앉고 앞유리에 금, 전조등이 깨지고 보닛이 찌그러짐, 꼬리등 꺼짐)
+ */
+export function paintCar(w: number, h: number, paint: string, seed: number, dent = false): { map: HTMLCanvasElement; glow: HTMLCanvasElement } {
   const [map, g] = canvas(w, h);
   const [glow, e] = canvas(w, h);
   e.fillStyle = '#000';
@@ -507,12 +574,12 @@ export function paintCar(w: number, h: number, paint: string, seed: number): { m
   rect(g, w - 5, base - 6, 5, 3, C.chrome);
   // 꼬리등과 전조등
   rect(g, 2, base - 13, 3, 4, C.neonRedDark);
-  rect(e, 2, base - 13, 3, 4, C.neonRed);
-  rect(g, w - 4, base - 12, 2, 2, C.chromeDark);
+  if (!dent) rect(e, 2, base - 13, 3, 4, C.neonRed);
+  rect(g, w - 4, base - 12, 2, 2, dent ? C.iron : C.chromeDark);
   // 객실: 크림 지붕, 앞뒤 유리 (뒤 31%~앞 67%)
   const c0 = Math.round(w * 0.31);
   const c1 = Math.round(w * 0.67);
-  const roof = base - 26;
+  const roof = base - (dent ? 22 : 26);
   rect(g, c0, roof, c1 - c0, 2, C.carCream);
   for (let y = roof + 2; y < base - 14; y++) {
     const t = (y - roof) / (base - 14 - roof);
@@ -524,6 +591,13 @@ export function paintCar(w: number, h: number, paint: string, seed: number): { m
   }
   rect(g, Math.round((c0 + c1) / 2), roof + 2, 2, base - 16 - roof, C.carCream);
   ditherRect(g, c0, roof + 3, c1 - c0, 4, C.glassEdge, 6);
+  if (dent) {
+    // 앞유리 금, 찌그러진 보닛
+    line(g, c1 - 12, roof + 2, c1 - 2, base - 15, C.skyDark);
+    line(g, c1 - 6, roof + 2, c1 - 10, base - 15, C.skyDark);
+    for (let k = 0; k < 7; k++) rect(g, w - 26 + k * 3, base - 14 + (k % 2), 3, 2, C.iron);
+    ditherRect(g, w - 30, base - 13, 26, 6, C.iron, 4);
+  }
   // 바퀴 (화이트월)
   for (const wx of [Math.round(w * 0.2), w - Math.round(w * 0.21)]) {
     for (let y = -5; y <= 5; y++) {
@@ -537,6 +611,28 @@ export function paintCar(w: number, h: number, paint: string, seed: number): { m
   for (let k = 0; k < 5; k++) rect(g, 6 + Math.floor(rnd(seed, 700 + k) * (w - 12)), base - 6 + Math.floor(rnd(seed, 710 + k) * 3), 2, 1, C.rust);
   line(g, 4, base - 3, w - 4, base - 3, C.smog0);
   return { map, glow };
+}
+
+/** 타 버린 차 (길이 w, 높이 h): 납작하게 주저앉고, 지붕이 짓눌리고, 바퀴 하나가 빠졌다. 그을음과 녹 */
+export function paintCarWreck(w: number, h: number): HTMLCanvasElement {
+  const [c, g] = canvas(w + 20, h);
+  const base = h - 1;
+  const x = 4;
+  rect(g, x + 2, base - 12, w - 4, 9, C.iron);
+  rect(g, x + 24, base - 18, 30, 6, C.iron);
+  line(g, x + 2, base - 12, x + 8, base - 16, C.iron);
+  rect(g, x + 4, base - 12, w - 8, 1, C.ironLight);
+  ditherRect(g, x + 6, base - 10, w - 14, 6, C.rust, 6);
+  ditherRect(g, x + 2, base - 18, w - 4, 6, C.fxSoot, 5);
+  // 남은 바퀴 (타서 휠만)
+  for (let y = -5; y <= 5; y++) {
+    const half = Math.floor(Math.sqrt(30 - y * y));
+    rect(g, x + 16 - half, base - 4 + y, half * 2 + 1, 1, C.iron);
+  }
+  rect(g, x + w - 22, base - 2, 12, 3, C.iron);
+  // 굴러간 바퀴
+  rect(g, x + w + 6, base - 4, 8, 5, C.iron);
+  return c;
 }
 
 /** 젖은 아스팔트 (가로 x, 세로 z): 금, 빗물 웅덩이(알파 = 젖은 정도), 전차 선로 두 줄 */

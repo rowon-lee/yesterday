@@ -1,15 +1,12 @@
 import * as THREE from 'three';
-import { LIGHT_N, shared } from './lights';
+import { GONE_N, LIGHTS_DECL, shared, withLights } from './lights';
 
 /**
  * 셰이더 조각과 재질 (렌더 전용). 색은 선형으로 계산하고(텍스처는 sRGB로 읽어 선형으로 바꾼다),
  * 마지막 후처리에서 화면 색으로 바꿔 팔레트로 줄인다.
  */
 export const LIGHT_GLSL = /* glsl */ `
-#define LIGHT_N ${LIGHT_N}
-uniform vec4 uLightPos[LIGHT_N];
-uniform vec4 uLightCol[LIGHT_N];
-uniform int uLightCount;
+${LIGHTS_DECL}
 uniform vec3 uAmbient;
 uniform vec3 uAmbientGround;
 uniform float uAlbedo;
@@ -20,12 +17,14 @@ uniform float uAlbedo;
 vec3 lightAt(vec3 p, vec3 n) {
   vec3 sum = mix(uAmbientGround, uAmbient, n.y * 0.5 + 0.5);
   for (int i = 0; i < LIGHT_N; i++) {
-    if (i >= uLightCount) break;
+    if (float(i) >= uLightCount) break;
     vec3 L = uLightPos[i].xyz - p;
     float d = length(L);
     float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
     float ndl = clamp(dot(n, L / max(d, 0.001)) * 0.75 + 0.25, 0.0, 1.0);
-    sum += uLightCol[i].rgb * (k * k) * ndl;
+    // 아래로만 비추는 등: 광원 바로 아래가 가장 밝고, 광원 높이 근처의 벽은 비추지 않는다
+    float spot = uLightCol[i].w > 1.5 ? smoothstep(0.25, 0.75, L.y / max(d, 0.001)) : 1.0;
+    sum += uLightCol[i].rgb * (k * k) * ndl * spot;
   }
   return sum;
 }
@@ -45,6 +44,11 @@ vec3 applyFog(vec3 col, float depth, float h) {
 `;
 
 const VERT = /* glsl */ `
+#ifdef ATTACHED
+// 붙은 건물 (번호 + 1)과 칸. 0이면 어디에도 붙지 않음
+attribute vec2 bc;
+uniform float uGone[${GONE_N}];
+#endif
 varying vec2 vUv;
 varying vec3 vWorld;
 varying vec3 vNormal;
@@ -57,6 +61,13 @@ void main() {
   vec4 mv = viewMatrix * wp;
   vDepth = -mv.z;
   gl_Position = projectionMatrix * mv;
+#ifdef ATTACHED
+  // 그 칸이 무너졌으면 화면 밖으로 (삼각형이 통째로 잘려 나간다)
+  if (bc.x > 0.5) {
+    float m = uGone[int(bc.x + 0.5) - 1];
+    if (mod(floor(m / exp2(bc.y)), 2.0) > 0.5) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+  }
+#endif
 }
 `;
 
@@ -71,7 +82,14 @@ varying vec2 vUv;
 varying vec3 vWorld;
 varying vec3 vNormal;
 varying float vDepth;
+#ifdef CLIPX
+uniform vec2 clipX;
+#endif
 void main() {
+#ifdef CLIPX
+  // 이 x 구간 밖은 그리지 않는다 (선로 끝에서 사라지는 전차)
+  if (vWorld.x < clipX.x || vWorld.x > clipX.y) discard;
+#endif
   vec4 tex = texture2D(map, vUv);
   if (tex.a < 0.5) discard;
   // 바탕색은 채도를 낮춰 두고 (아트 규칙: 배경은 채도를 낮춘다) 색은 빛이 입힌다
@@ -90,20 +108,34 @@ const BLACK = (() => {
   return t;
 })();
 
-/** 도트 텍스처를 광원으로 비추는 재질. emissive: 스스로 빛나는 부분(창·네온) */
-export function litMaterial(map: THREE.Texture, opts: { emissive?: THREE.Texture; emissiveStrength?: number; tint?: number; side?: THREE.Side } = {}): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+/**
+ * 도트 텍스처를 광원으로 비추는 재질. emissive: 스스로 빛나는 부분(창·네온).
+ * attached: 건물에 붙은 기하 (무너진 칸을 지운다, kit.ts의 Geo), clip: 이 x 구간 밖은 그리지 않는다
+ */
+export function litMaterial(
+  map: THREE.Texture,
+  opts: { emissive?: THREE.Texture; emissiveStrength?: number; tint?: number; side?: THREE.Side; attached?: boolean; clip?: [number, number] } = {},
+): THREE.ShaderMaterial {
+  const defines: Record<string, string> = {};
+  if (opts.attached) defines.ATTACHED = '';
+  if (opts.clip) defines.CLIPX = '';
+  const m = new THREE.ShaderMaterial({
+    defines,
     uniforms: {
       ...shared,
       map: { value: map },
       emissiveMap: { value: opts.emissive ?? BLACK },
       emissiveStrength: { value: opts.emissiveStrength ?? 1 },
       tint: { value: new THREE.Color(opts.tint ?? 1, opts.tint ?? 1, opts.tint ?? 1) },
+      clipX: { value: new THREE.Vector2(...(opts.clip ?? [-1e9, 1e9])) },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,
     side: opts.side ?? THREE.FrontSide,
   });
+  // 붙은 자리가 없는 기하(보통 상자·판)에서는 '어디에도 붙지 않음'으로 읽게
+  if (opts.attached) (m as unknown as { defaultAttributeValues: Record<string, number[]> }).defaultAttributeValues = { ...m.defaultAttributeValues, bc: [0, 0] };
+  return withLights(m);
 }
 
 /** 캔버스(도트 그림) → 텍스처: nearest, 밉맵 없음, sRGB */
@@ -155,47 +187,134 @@ export function backdropMaterial(map: THREE.Texture, tint: number, fog: number):
 }
 
 /**
+ * 바닥 빛 웅덩이: 화면에 보이는 길은 대부분 싸우는 면 앞쪽이라 광원(건물 쪽)과 깊이 차이가 크다.
+ * 거의 수평으로 보는 카메라에서는 깊이 차이가 화면에 거의 드러나지 않으므로, 광원과의 깊이 차이를 줄여 재서
+ * 가로등·간판 아래 바닥에 빛 웅덩이가 보이게 한다.
+ */
+const FLOOR_LIGHT_GLSL = /* glsl */ `
+/** 젖은 길의 물기에 번진 빛 (바탕색과 상관없이 더한다): floorLight가 함께 채운다 */
+vec3 floorSheen = vec3(0.0);
+vec3 floorLight(vec3 p) {
+  vec3 sum = vec3(0.0);
+  floorSheen = vec3(0.0);
+  for (int i = 0; i < LIGHT_N; i++) {
+    if (float(i) >= uLightCount) break;
+    vec3 q = vec3(p.x, p.y, mix(p.z, uLightPos[i].z, 0.85));
+    vec3 L = uLightPos[i].xyz - q;
+    float d = length(L);
+    float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
+    float spot = uLightCol[i].w > 1.5 ? 1.25 : 1.0;
+    vec3 c = uLightCol[i].rgb * (k * k) * spot;
+    sum += c * clamp(L.y / max(d, 0.001) * 0.8 + 0.2, 0.0, 1.0);
+    floorSheen += c;
+  }
+  // 젖은 길은 가까운 빛을 넓게 번져 받는다 (빛 웅덩이, 바닥마다 세기 lightGain). 빛이 없는 곳은 어두운 바닥 그대로
+  return uAmbientGround + sum * lightGain;
+}
+`;
+
+/**
  * 젖은 바닥: 아스팔트 그림을 빛으로 비추고, 화면 알파에 젖은 정도(반사 세기)를 쓴다.
  * 반사 자체는 후처리(화면 반사)가 이 알파를 보고 더한다. wet: 웅덩이 무늬(빨강 채널), 가로 x·세로 z로 반복.
  */
-export function floorMaterial(map: THREE.Texture, mapScale: THREE.Vector2, wet: THREE.Texture, wetScale: THREE.Vector2): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: { ...shared, map: { value: map }, mapScale: { value: mapScale }, wet: { value: wet }, wetScale: { value: wetScale } },
+export function floorMaterial(
+  map: THREE.Texture, mapScale: THREE.Vector2, wet: THREE.Texture, wetScale: THREE.Vector2, wetK = 1, lightGain = 3,
+): THREE.ShaderMaterial {
+  return withLights(new THREE.ShaderMaterial({
+    uniforms: {
+      ...shared, map: { value: map }, mapScale: { value: mapScale }, wet: { value: wet }, wetScale: { value: wetScale }, wetK: { value: wetK },
+      lightGain: { value: lightGain },
+    },
     vertexShader: VERT,
     fragmentShader: /* glsl */ `
       uniform sampler2D map;
       uniform vec2 mapScale;
       uniform sampler2D wet;
       uniform vec2 wetScale;
+      uniform float wetK;
+      uniform float lightGain;
       ${LIGHT_GLSL}
       ${FOG_GLSL}
       varying vec2 vUv;
       varying vec3 vWorld;
       varying vec3 vNormal;
       varying float vDepth;
-      /**
-       * 바닥 빛 웅덩이: 화면에 보이는 길은 대부분 싸우는 면 앞쪽이라 광원(건물 쪽)과 깊이 차이가 크다.
-       * 거의 수평으로 보는 카메라에서는 깊이 차이가 화면에 거의 드러나지 않으므로, 광원과의 깊이 차이를 줄여 재서
-       * 가로등·간판 아래 바닥에 빛 웅덩이가 보이게 한다.
-       */
-      vec3 floorLight(vec3 p) {
-        vec3 sum = uAmbientGround;
-        for (int i = 0; i < LIGHT_N; i++) {
-    if (i >= uLightCount) break;
-          vec3 q = vec3(p.x, p.y, mix(p.z, uLightPos[i].z, 0.85));
-          vec3 L = uLightPos[i].xyz - q;
-          float d = length(L);
-          float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
-          sum += uLightCol[i].rgb * (k * k) * clamp(L.y / max(d, 0.001) * 0.8 + 0.2, 0.0, 1.0);
-        }
-        return sum;
-      }
+      ${FLOOR_LIGHT_GLSL}
       void main() {
         vec3 tex = texture2D(map, vWorld.xz * mapScale).rgb;
-        float w = texture2D(wet, vWorld.xz * wetScale).r;
+        float w = texture2D(wet, vWorld.xz * wetScale).r * wetK;
         // 젖은 곳은 바탕이 더 어둡고(물이 덮음) 반사가 세다
         vec3 col = tex * uAlbedo * mix(1.0, 0.55, w) * floorLight(vWorld);
-        gl_FragColor = vec4(applyFog(col, vDepth, 0.0), 0.35 + 0.6 * w);
+        // 물기에 번진 빛: 웅덩이일수록 세다
+        col += floorSheen * (0.3 + 0.7 * w) * 0.12 * min(1.0, wetK * 1.5);
+        gl_FragColor = vec4(applyFog(col, vDepth, 0.0), (0.35 + 0.6 * w) * min(1.0, wetK * 1.5));
+      }
+    `,
+  }));
+}
+
+/**
+ * 바닥 무늬 판 (유리 조각·그을음·물웅덩이·신문지): 길 위에 눕힌 판. 바닥처럼 빛 웅덩이를 받고,
+ * 화면 알파에 젖은 정도 wet를 쓴다 (물웅덩이는 반사가 세다).
+ */
+export function decalMaterial(map: THREE.Texture, wet: number): THREE.ShaderMaterial {
+  return withLights(new THREE.ShaderMaterial({
+    uniforms: { ...shared, map: { value: map }, wet: { value: wet }, lightGain: { value: 3 } },
+    vertexShader: VERT,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D map;
+      uniform float wet;
+      uniform float lightGain;
+      ${LIGHT_GLSL}
+      ${FOG_GLSL}
+      ${FLOOR_LIGHT_GLSL}
+      varying vec2 vUv;
+      varying vec3 vWorld;
+      varying vec3 vNormal;
+      varying float vDepth;
+      void main() {
+        vec4 t = texture2D(map, vUv);
+        if (t.a < 0.5) discard;
+        vec3 col = t.rgb * uAlbedo * floorLight(vWorld) + floorSheen * wet * 0.12;
+        gl_FragColor = vec4(applyFog(col, vDepth, 0.0), wet);
+      }
+    `,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  }));
+}
+
+/**
+ * 흘러가는 전구 글씨 (옥상 전광판): 글씨 띠 텍스처를 offset(px)만큼 밀어 cols칸만 보인다. 끝에서 처음으로 이어진다.
+ * 켜진 전구(알파 1)는 밝게, 꺼진 전구는 어둡게, 전구 사이(알파 0)는 버린다. 빛을 받지 않는 발광 판.
+ */
+export function scrollMaterial(strip: THREE.Texture, cols: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      strip: { value: strip },
+      offset: { value: 0 },
+      cols: { value: cols },
+      stripW: { value: (strip.image as HTMLCanvasElement).width },
+      k: { value: 1.6 },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D strip;
+      uniform float offset;
+      uniform float cols;
+      uniform float stripW;
+      uniform float k;
+      varying vec2 vUv;
+      void main() {
+        float px = floor(vUv.x * cols * 3.0);
+        float py = floor((1.0 - vUv.y) * 15.0);
+        vec4 t = texture2D(strip, vec2((px + offset + 0.5) / stripW, 1.0 - (py + 0.5) / 15.0));
+        if (t.a < 0.3) discard;
+        gl_FragColor = vec4(t.rgb * (t.a > 0.9 ? k : 0.3), 0.0);
       }
     `,
   });
@@ -281,7 +400,7 @@ export function hazeMaterial(noise: THREE.Texture, color: string, strength: numb
     `,
     side: THREE.DoubleSide,
   });
-  return keepAlpha(m, false);
+  return keepAlpha(withLights(m), false);
 }
 
 export { keepAlpha };

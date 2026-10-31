@@ -2,11 +2,11 @@ import { Keyboard, type TickInput } from './core/input';
 import { startLoop } from './core/loop';
 import { setupScreen } from './render/screen';
 import { bakeAllMotions } from './anim/motions';
-import { DEFAULT_SCENE, SCENES } from './scenes';
+import { DEFAULT_SCENE, GL_SCENES, SCENES } from './scenes';
 import { measureFrame, quality } from './render/light';
 import { drawText, textWidth } from './render/font';
 import { SCREEN_H, SCREEN_W } from './render/screen';
-import { GL_MODE, gl, initGl } from './render/gl';
+import { gl, hasWebGL2, initGl } from './render/gl';
 
 const params = new URLSearchParams(location.search);
 const sceneName = params.get('scene') ?? DEFAULT_SCENE;
@@ -16,9 +16,25 @@ if (!makeScene) throw new Error(`없는 장면: ${sceneName}`);
 let stopAt = params.has('stopAt') ? Number(params.get('stopAt')) : Infinity;
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
-// ?render=3d: #screen은 HUD만 겹쳐 그리는 투명 캔버스가 되고, 그 아래에 three.js 화면을 둔다
+/**
+ * 무대를 그리는 장면(대련·무대 보기)은 three.js 2.5D 화면에 그리고, #screen은 그 위에 HUD만 겹쳐 그리는 투명 캔버스가 된다.
+ * 모션 뷰어처럼 무대가 없는 장면은 #screen에 바로 그린다.
+ */
+const GL_MODE = GL_SCENES.has(sceneName);
+if (GL_MODE && !hasWebGL2()) {
+  noWebGL(canvas);
+  throw new Error('WebGL2를 쓸 수 없습니다');
+}
 const ctx = setupScreen(canvas, GL_MODE);
 if (GL_MODE) initGl(canvas);
+
+/** WebGL2가 없는 브라우저: 화면 자리에 안내 글 (게임 그림이 아니라 브라우저 글꼴로 쓴다) */
+function noWebGL(c: HTMLCanvasElement): void {
+  const box = document.createElement('div');
+  box.textContent = '이 브라우저에서는 WebGL2를 쓸 수 없어 게임 화면을 그릴 수 없습니다. 최신 Chrome·Edge·Firefox·Safari로 열어 주세요.';
+  box.style.cssText = 'color:#f4f0e6;font:16px/1.6 sans-serif;padding:24px;max-width:640px;text-align:center;word-break:keep-all';
+  c.replaceWith(box);
+}
 const keyboard = new Keyboard();
 // 모든 동작의 시트를 시작할 때 미리 그려 둔다.
 bakeAllMotions();

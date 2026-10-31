@@ -5,10 +5,8 @@ import { MAP_H } from '../stage/citadel';
 import { drawText } from '../render/font';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
-import { drawForeground, drawPlatforms, drawStage } from '../render/stage';
-import { drawLights } from '../render/light';
-import { drawAir, drawRain, drawReflection } from '../render/weather';
-import { GL_MODE, gl } from '../render/gl';
+import { drawPlatforms } from '../render/platforms';
+import { gl } from '../render/gl';
 import { lights as lights2d } from '../render/light';
 import type { Scene } from './scene';
 
@@ -67,26 +65,16 @@ export function stageScene(): Scene {
       }
     },
     render(ctx) {
-      if (GL_MODE) {
-        // 2.5D: 무대는 three.js 화면에, 이 캔버스에는 카메라 글씨만
-        const g = gl();
-        lights2d.clear();
-        g.view.begin({ x: cam, y: camY }, base + tick);
-        g.world.update(g.view, base + tick, props, city);
-        g.view.commitLights();
-        g.view.render();
-        ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
-        drawText(ctx, `CAM ${Math.round(cam)} ${Math.round(camY)}`, 4, 4, COLORS.white);
-        return;
-      }
-      const view = { x: Math.round(cam), y: Math.round(camY) };
-      drawStage(ctx, view, base + tick, props, city);
-      drawLights(ctx, view);
-      drawAir(ctx, view, base + tick);
-      drawReflection(ctx, view, base + tick);
-      drawRain(ctx, view, base + tick);
-      if (params.get('fg') !== '0') drawForeground(ctx, view);
-      if (params.get('plat') === '1') drawPlatforms(ctx, view, city);
+      // 2.5D: 무대는 three.js 화면에, 이 캔버스에는 카메라 글씨와 확인용 발판만
+      const g = gl();
+      lights2d.clear();
+      g.world.foreground.visible = params.get('fg') !== '0';
+      const placed = g.view.begin({ x: cam, y: camY }, base + tick);
+      g.world.update(g.view, base + tick, props, city);
+      g.view.commitLights();
+      g.view.render();
+      ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+      if (params.get('plat') === '1') drawPlatforms(ctx, { x: placed.ix, y: placed.iy }, city);
       drawText(ctx, `CAM ${Math.round(cam)} ${Math.round(camY)}`, 4, 4, COLORS.white);
     },
   };

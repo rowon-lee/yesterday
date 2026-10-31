@@ -9,7 +9,8 @@ import powerUp from '../vfx/power-up';
 import slash from '../vfx/slash';
 import type { Effects } from './effects';
 import type { ColorName } from './palette';
-import { frontImage, GROUND_Y } from './stage';
+import { GROUND as GROUND_Y } from '../stage/citadel';
+import { facadeAtlas } from './gl/buildings';
 import { fxColor, fxHex, fxRamp, FX_PX, type VfxLayer } from './vfx';
 import { lights } from './light';
 import { COLORS } from './palette';
@@ -171,7 +172,7 @@ export class FightVfx {
         // 건물이 무너짐: 위 덩어리가 잔해로 떨어지고 큰 먼지 구름, 화면 흔들림
         const g = GRIDS[e.who];
         const [c0, c1] = (e.text ?? '0,0').split(',').map(Number);
-        this.debris.collapse(g.x + c0 * 16, Math.min(g.x + g.w, g.x + (c1 + 1) * 16), g.h, frontImage());
+        this.debris.collapse(g.x + c0 * 16, Math.min(g.x + g.w, g.x + (c1 + 1) * 16), g.h, facadeAtlas());
         // 넓게 무너질수록 크게 흔들린다 (기둥 한 줄 0.45 ~ 여섯 줄 이상 0.85)
         this.fx.shake(Math.min(0.85, 0.35 + (e.combo ?? 16) / 16 * 0.08));
         if ((e.combo ?? 0) >= 48) this.fx.flashFor(1);
