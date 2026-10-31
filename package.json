@@ -10,7 +10,8 @@
     "shot": "npm run build && node tools/screenshot.mjs",
     "simtest": "node tools/simtest.mjs",
     "sheets": "node tools/sheets.mjs",
-    "clip": "npm run build && node tools/clip.mjs"
+    "clip": "npm run build && node tools/clip.mjs",
+    "compare": "node tools/compare.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.187.0",
