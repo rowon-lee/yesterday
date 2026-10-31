@@ -18,6 +18,16 @@ export const COLORS = {
   skyDark: '#2a7fa6',
   red: '#ff4d6d',
   green: '#7bd88f',
+  // 이펙트 (Sprite Fusion 램프를 이 색으로 맞춘다). 캐릭터와 같은 팔레트를 쓴다
+  fxWhite: '#ffffff',
+  fxYellow: '#ffe26b',
+  fxOrange: '#ff8a2a',
+  fxFlame: '#f2561d',
+  fxRed: '#c9281f',
+  fxSoot: '#17121d',
+  fxBlue: '#3a8bd8',
+  fxDeepBlue: '#2c58aa',
+  fxNavy: '#212f6b',
   // 무대 (채도를 낮춘 녹슨 갈색·회색 벽돌·매연 낀 하늘). 밝은 색은 불빛에만 쓴다.
   smog0: '#18161c',
   smog1: '#211e25',
