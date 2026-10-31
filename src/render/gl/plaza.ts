@@ -1,20 +1,22 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
 import { BIG, BREAK_RULES } from '../../stage/citadel';
-import type { PropState } from '../../sim';
+import type { CitadelState, PropState } from '../../sim';
 import { textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { canvas, disc, ditherRect, hash, line, rect } from '../dither';
 import { star } from './backdrops';
 import { scaleAt } from './core';
 import { Beam } from './fx';
+import { KeepFall } from './keepfall';
 import { box, Details, facedBox, facedInto, FREE, Geo, matKeys, plane, type UvFn } from './kit';
 import { lightPool } from './lights';
 import { litMaterial, pixelTexture } from './shaders';
 import { neonText } from './tex';
 
 /**
- * 시타델 광장 (월드 x 1,000~2,200)의 2.5D 무대 (렌더 전용). 무너지지 않는다.
+ * 시타델 광장 (월드 x 1,000~2,200)의 2.5D 무대 (렌더 전용). 본관이 금 가고 무너지는 모습은 keepfall.ts가 그린다
+ * (본관은 세로 덩어리 여럿, 무너질 때 묻히는 계단·계단참·기둥 테라스·덮개·정문 캐노피와 옥상 처마는 따로 묶어 둔다).
  * 깊이(z, 카메라 쪽 +): 본관 정면 KEEP_Z → 계단(뒤로 올라간다) → 분수 → 싸우는 면(0).
  * 본관은 1960년대 마천루의 아랫부분: 유리 커튼월(굵은 콘크리트 기둥, 켜진 사무실), 2층 높이 유리 로비, 가운데 높은 유리 홀과 정문.
  * 올라설 수 있는 곳(계단참·기둥 테라스·기둥 꼭대기)은 얇은 판으로 싸우는 면까지 튀어나오고, 서 있지 못하는 덩어리(기둥·계단)는
@@ -30,6 +32,10 @@ const SK = scaleAt(KEEP_Z);
 const STAIR_Z = -92;
 const STAIR_STEP = 7;
 const FOUNTAIN_Z = -50;
+
+/** 본관 정면 그림 (무너질 때 떨어지는 커튼월 조각의 무늬로 쓴다: render/fightvfx.ts) */
+let keepMap: HTMLCanvasElement | null = null;
+export const keepAtlas = (): HTMLCanvasElement | null => keepMap;
 
 const ax0 = P.towers[0].x + T.w;
 const ax1 = P.towers[1].x;
@@ -62,52 +68,115 @@ export class Plaza {
   private readonly fountainTop: THREE.Object3D[] = [];
   private readonly beacons: Array<{ mat: THREE.ShaderMaterial; x: number; y: number; z: number; phase: number }> = [];
   private readonly checkLight: THREE.ShaderMaterial;
+  /** 서 있는 본관 (상자 하나) */
+  private keepWhole!: THREE.Mesh;
+  /** 무너질 때의 본관 세로 덩어리 (자리 = 밑변 가운데)와 x 범위 */
+  private readonly slabs: THREE.Mesh[] = [];
+  private readonly slabX: Array<[number, number]> = [];
+  /** 옥상 처마·서치라이트 받침 (본관과 함께 무너진다) */
+  private readonly crown = new THREE.Group();
+  private readonly crownDet = new Details();
+  /** 기둥탑 둘 (무너질 때 윗부분이 부러진다) */
+  private readonly pylonGroup = new THREE.Group();
+  /** 잔해 언덕에 묻히는 것 (계단·계단참·테라스·덮개·경고등·정문 캐노피) */
+  private readonly buried = new THREE.Group();
+  private readonly buriedDet = new Details();
+  private readonly fall: KeepFall;
+  private collapsed = false;
 
   constructor() {
     const det = new Details();
-    this.keep(det);
-    this.pylons(det);
-    this.stairs(det);
+    this.keep();
+    this.pylons();
+    this.stairs();
     this.sign();
     this.fountain();
     this.walls(det);
     statue(this.group, det);
     this.gatePiers(det);
     this.checkLight = this.checkpoint(det);
+    this.westPost(det);
     this.group.add(det.build());
+    this.crown.add(this.crownDet.build());
+    this.buried.add(this.buriedDet.build());
+    this.group.add(this.crown, this.pylonGroup, this.buried);
+    this.fall = new KeepFall({
+      keepZ: KEEP_Z, whole: this.keepWhole, slabs: this.slabs, slabX: this.slabX, crown: this.crown, beams: this.beams, pylons: this.pylonGroup,
+      buried: this.buried,
+    });
+    this.group.add(this.fall.group);
   }
 
-  /** 본관: 커튼월 정면 그림을 붙인 큰 상자, 옥상 처마와 서치라이트 받침, 정문 캐노피와 벽등 */
-  private keep(det: Details): void {
+  /** 먼 겹의 시타델 탑 윗부분 (본관이 무너지면 함께 내려앉는다) */
+  attachTower(tower: THREE.Object3D): void {
+    this.fall.attachTower(tower);
+  }
+
+  /**
+   * 본관: 커튼월 정면 그림을 붙인 큰 상자 (서 있는 동안 그리기 한 번), 무너질 때 쓰는 굵은 기둥 간격(pier)마다의 세로 덩어리
+   * (평소에는 숨겨 둔다. 덩어리마다 기울며 내려앉는다: keepfall.ts), 옥상 처마와 서치라이트 받침, 정문 캐노피와 벽등
+   */
+  private keep(): void {
     const f = paintKeep(this.fixed);
+    keepMap = f.map;
     const side = litMaterial(pixelTexture(paintKeepSide()), { tint: 0.7 });
     const roof = litMaterial(pixelTexture(solidTex(C.smog1)));
     const front = litMaterial(pixelTexture(f.map), { emissive: pixelTexture(f.glow), emissiveStrength: 0.7 });
     this.glows.push({ mat: front, k: 0.7 });
-    this.group.add(facedBox(K.x0, K.x1, 0, K.h, KEEP_Z - 400, KEEP_Z, { px: side, nx: side, py: roof, pz: front }));
-    // 옥상 처마 띠와 서치라이트 받침
-    det.add(K.x0 - 4, K.x1 + 4, K.h, K.h + 8, KEEP_Z - 6, KEEP_Z + 4, C.stone);
-    det.add(K.x0 - 4, K.x1 + 4, K.h + 7, K.h + 8, KEEP_Z - 6, KEEP_Z + 4, C.paintCream);
+    const W = K.x1 - K.x0;
+    const n = Math.round(W / K.pier);
+    const z0 = KEEP_Z - 400;
+    const faces = { px: side, nx: side, py: roof, pz: front };
+    this.keepWhole = facedBox(K.x0, K.x1, 0, K.h, z0, KEEP_Z, faces);
+    this.group.add(this.keepWhole);
+    const keys = { px: `m${side.id}`, nx: `m${side.id}`, py: `m${roof.id}`, pz: `m${front.id}` };
+    const uv: UvFn = (face, x, y, z) =>
+      face === 'pz' ? [(x - K.x0) / W, y / K.h] : face === 'py' ? [(x - K.x0) / W, (z - z0) / 400] : [(z - z0) / 400, y / K.h];
+    for (let i = 0; i < n; i++) {
+      const x0 = K.x0 + Math.round((W * i) / n);
+      const x1 = K.x0 + Math.round((W * (i + 1)) / n);
+      const geo = new Geo();
+      // 덩어리 사이 옆면은 만들지 않는다 (붙어 있을 때 한 상자와 똑같이 보이게. 양 끝 덩어리만 바깥 옆면)
+      const sides: Array<'px' | 'nx' | 'py' | 'pz'> = ['py', 'pz'];
+      if (i === 0) sides.push('nx');
+      if (i === n - 1) sides.push('px');
+      geo.box(keys, x0, x1, 0, K.h, z0, KEEP_Z, uv, FREE, sides);
+      const mesh = geo.build(matKeys(faces));
+      // 자리를 밑변 가운데로 옮겨 둔다 (그 점을 축으로 기운다)
+      const cx = (x0 + x1) / 2;
+      const cz = (z0 + KEEP_Z) / 2;
+      mesh.geometry.translate(-cx, 0, -cz);
+      mesh.position.set(cx, 0, cz);
+      mesh.visible = false;
+      this.group.add(mesh);
+      this.slabs.push(mesh);
+      this.slabX.push([x0, x1]);
+    }
+    // 옥상 처마 띠와 서치라이트 받침 (본관과 함께 무너진다)
+    const cd = this.crownDet;
+    cd.add(K.x0 - 4, K.x1 + 4, K.h, K.h + 8, KEEP_Z - 6, KEEP_Z + 4, C.stone);
+    cd.add(K.x0 - 4, K.x1 + 4, K.h + 7, K.h + 8, KEEP_Z - 6, KEEP_Z + 4, C.paintCream);
     K.lights.forEach((lx) => {
-      det.add(lx - 10, lx + 10, K.h + 8, K.h + 14, KEEP_Z - 20, KEEP_Z - 4, C.iron);
-      det.add(lx - 6, lx + 6, K.h + 14, K.h + 22, KEEP_Z - 16, KEEP_Z - 8, C.ironLight);
+      cd.add(lx - 10, lx + 10, K.h + 8, K.h + 14, KEEP_Z - 20, KEEP_Z - 4, C.iron);
+      cd.add(lx - 6, lx + 6, K.h + 14, K.h + 22, KEEP_Z - 16, KEEP_Z - 8, C.ironLight);
       const beam = new Beam(520, 46, C.beam, 0.2, 2);
       beam.pivot.position.set(lx, K.h + 20, KEEP_Z - 12);
       this.group.add(beam.pivot);
       this.beams.push(beam);
     });
-    // 정문 캐노피 (얇게 튀어나온 돌판, 아래 매입등)
+    // 정문 캐노피 (얇게 튀어나온 돌판, 아래 매입등): 무너지면 묻힌다
     const gTop = L.h + P.gate.h;
-    det.add(gx - 36, gx + P.gate.w + 36, gTop + 10, gTop + 16, KEEP_Z, KEEP_Z + 40, C.stone);
-    det.add(gx - 36, gx + P.gate.w + 36, gTop + 15, gTop + 16, KEEP_Z, KEEP_Z + 40, C.paintCream);
-    for (let x = gx - 30; x < gx + P.gate.w + 32; x += 14) det.add(x, x + 3, gTop + 9.5, gTop + 10.5, KEEP_Z + 30, KEEP_Z + 38, C.lampCore);
+    const bd = this.buriedDet;
+    bd.add(gx - 36, gx + P.gate.w + 36, gTop + 10, gTop + 16, KEEP_Z, KEEP_Z + 40, C.stone);
+    bd.add(gx - 36, gx + P.gate.w + 36, gTop + 15, gTop + 16, KEEP_Z, KEEP_Z + 40, C.paintCream);
+    for (let x = gx - 30; x < gx + P.gate.w + 32; x += 14) bd.add(x, x + 3, gTop + 9.5, gTop + 10.5, KEEP_Z + 30, KEEP_Z + 38, C.lampCore);
     for (let x = gx - 18; x < gx + P.gate.w + 32; x += 42) this.fixed.push({ x, y: gTop + 4, z: KEEP_Z + 44, range: 40, color: C.lampGlow, power: 0.6 });
     // 정문 양옆 원통 벽등
     for (const lx of [gx - 22, gx + P.gate.w + 14]) this.fixed.push({ x: lx + 4, y: L.h + 64, z: KEEP_Z + 16, range: 52, color: C.lampWarm, power: 0.9 });
   }
 
   /** 정문 양옆 콘크리트 기둥: 거푸집 줄눈, 가운데 빛 홈, 얇게 튀어나온 테라스와 쇠 난간, 꼭대기 덮개와 항공 경고등, 발치 투광등 */
-  private pylons(det: Details): void {
+  private pylons(): void {
     const mat = litMaterial(pixelTexture(paintPylon()), { emissive: pixelTexture(paintPylon(true)), emissiveStrength: 0.45 });
     this.glows.push({ mat, k: 0.45 });
     const side = litMaterial(pixelTexture(solidTex(C.stoneDark)), { tint: 0.8 });
@@ -115,23 +184,24 @@ export class Plaza {
     const geo = new Geo();
     const faces = { px: side, nx: side, py: side, pz: mat };
     for (const t of P.towers) facedInto(geo, t.x, t.x + T.w, 0, T.h, KEEP_Z, -16, faces);
-    this.group.add(geo.build(matKeys(faces)));
+    this.pylonGroup.add(geo.build(matKeys(faces)));
+    const bd = this.buriedDet;
     P.towers.forEach((t, i) => {
-      // 테라스 (윗면이 발판): 정면에서 싸우는 면까지
+      // 테라스 (윗면이 발판): 정면에서 싸우는 면까지 (무너지면 묻힌다)
       const tx0 = t.x - T.terraceOver;
       const tx1 = t.x + T.w + T.terraceOver;
-      det.add(tx0, tx1, T.terrace - 5, T.terrace, KEEP_Z, 6, C.stone);
-      det.add(tx0, tx1, T.terrace - 1, T.terrace, KEEP_Z, 6, C.paintCream);
-      for (let x = tx0; x <= tx1 - 1; x += 8) det.add(x, x + 1, T.terrace, T.terrace + 10, 4, 5, C.chromeDark);
-      det.add(tx0, tx1, T.terrace + 10, T.terrace + 11, 4, 5, C.chrome);
-      det.add(tx0, tx1, T.terrace + 5, T.terrace + 6, 4, 5, C.chromeDark);
+      bd.add(tx0, tx1, T.terrace - 5, T.terrace, KEEP_Z, 6, C.stone);
+      bd.add(tx0, tx1, T.terrace - 1, T.terrace, KEEP_Z, 6, C.paintCream);
+      for (let x = tx0; x <= tx1 - 1; x += 8) bd.add(x, x + 1, T.terrace, T.terrace + 10, 4, 5, C.chromeDark);
+      bd.add(tx0, tx1, T.terrace + 10, T.terrace + 11, 4, 5, C.chrome);
+      bd.add(tx0, tx1, T.terrace + 5, T.terrace + 6, 4, 5, C.chromeDark);
       // 꼭대기 덮개 (윗면이 발판)와 경고등 기둥
-      det.add(t.x - 2, t.x + T.w + 2, T.h - 6, T.h, KEEP_Z, 6, C.stone);
-      det.add(t.x - 2, t.x + T.w + 2, T.h - 1, T.h, KEEP_Z, 6, C.paintCream);
+      bd.add(t.x - 2, t.x + T.w + 2, T.h - 6, T.h, KEEP_Z, 6, C.stone);
+      bd.add(t.x - 2, t.x + T.w + 2, T.h - 1, T.h, KEEP_Z, 6, C.paintCream);
       const bx = t.x + T.w - 10;
-      det.add(bx, bx + 2, T.h, T.h + 10, -40, -38, C.chromeDark);
+      bd.add(bx, bx + 2, T.h, T.h + 10, -40, -38, C.chromeDark);
       const red = litMaterial(pixelTexture(solidTex(C.neonRedDark)), { emissive: pixelTexture(solidTex(C.neonRed)), emissiveStrength: 0 });
-      this.group.add(box(bx - 1, bx + 3, T.h + 10, T.h + 13, -41, -37, red));
+      this.buried.add(box(bx - 1, bx + 3, T.h + 10, T.h + 13, -41, -37, red));
       this.beacons.push({ mat: red, x: bx + 1, y: T.h + 12, z: -30, phase: i * 45 });
       // 빛 홈 (기둥 가운데 세로로 빛나는 홈)
       for (const k of [0.2, 0.5, 0.8]) this.fixed.push({ x: t.x + T.w / 2, y: 24 + (T.h - 44) * k, z: -6, range: 34, color: C.officeLit, power: 0.4 });
@@ -153,7 +223,7 @@ export class Plaza {
   }
 
   /** 정문 계단: 계단참에서 앞으로 내려오는 넓은 화강암 계단 (위로 갈수록 좁아지고 뒤로 물러난다). 계단참은 얇은 판 (윗면이 발판) */
-  private stairs(det: Details): void {
+  private stairs(): void {
     const steps = Math.ceil(L.h / 8);
     const tex = litMaterial(pixelTexture(paintStep()));
     const geo = new Geo();
@@ -164,11 +234,12 @@ export class Plaza {
       geo.box('s', L.x0 + inset, L.x1 - inset, i * 8, (i + 1) * 8, KEEP_Z - 2, z, uv, FREE, ['pz', 'py', 'px', 'nx']);
     }
     (tex.uniforms.map.value as THREE.Texture).wrapS = THREE.RepeatWrapping;
-    this.group.add(geo.build({ s: tex }));
-    // 계단참: 윗면(발판)과 앞 턱. 싸우는 면까지 튀어나온 얇은 판
-    det.add(L.x0, L.x1, L.h - 6, L.h, KEEP_Z, 6, C.stone);
-    det.add(L.x0, L.x1, L.h - 1, L.h, KEEP_Z, 6, C.paintCream);
-    det.add(L.x0, L.x1, L.h - 8, L.h - 6, KEEP_Z, 6, C.stoneDark);
+    this.buried.add(geo.build({ s: tex }));
+    // 계단참: 윗면(발판)과 앞 턱. 싸우는 면까지 튀어나온 얇은 판 (무너지면 묻힌다)
+    const bd = this.buriedDet;
+    bd.add(L.x0, L.x1, L.h - 6, L.h, KEEP_Z, 6, C.stone);
+    bd.add(L.x0, L.x1, L.h - 1, L.h, KEEP_Z, 6, C.paintCream);
+    bd.add(L.x0, L.x1, L.h - 8, L.h - 6, KEEP_Z, 6, C.stoneDark);
   }
 
   /** 정면 대형 간판: 어두운 띠에 빛나는 글자 CITADEL, 아래 DISTRICT 1, 양옆 붉은 별 (광장의 주인공 빛) */
@@ -229,6 +300,19 @@ export class Plaza {
     }
   }
 
+  /** 광장 서쪽 입구 안쪽 초소: 모래주머니 두 단과 서치라이트 기둥 (본관이 무너지면 폐허를 비춘다: keepfall.ts) */
+  private westPost(det: Details): void {
+    const x = P.gatePiers[0] + 40;
+    for (let row = 0; row < 2; row++) for (let k = 0; k < 3 - row; k++) {
+      const bx = x - 6 + k * 11 + row * 5;
+      det.add(bx, bx + 11, row * 7, row * 7 + 7, -40, -24, C.sandbag);
+      det.add(bx, bx + 11, row * 7 + 6, row * 7 + 7, -40, -24, C.awning);
+    }
+    det.add(x + 9, x + 12, 0, 38, -33, -30, C.iron);
+    det.add(x + 4, x + 17, 36, 43, -36, -26, C.ironLight);
+    det.add(x + 5, x + 16, 42, 44, -35, -27, C.chromeDark);
+  }
+
   /** 광장 동쪽 입구 검문소: 모래주머니, 초소(불 켜진 창·줄무늬 띠·HALT), 들어 올린 차단봉, 붉은 경광등 */
   private checkpoint(det: Details): THREE.ShaderMaterial {
     const CP = P.checkpoint;
@@ -275,7 +359,9 @@ export class Plaza {
    * 시타델 간판이 떨어지면 (sign: 간판 상태) 광장 전기가 몇 번 깜빡이다 나간다: 본관 창·기둥 빛 홈·투광등·문기둥 등롱·분수 빛이 꺼지고
    * 옥상 서치라이트와 경고등, 검문소 불빛만 남는다. 간판이 망가지면 간판 글씨가 깜빡인다.
    */
-  update(tick: number, props: readonly PropState[] | null = null): void {
+  update(tick: number, props: readonly PropState[] | null = null, citadel: CitadelState | null = null): void {
+    this.collapsed = citadel !== null && citadel.stage === 4;
+    this.fall.update(tick, citadel);
     const sign = props?.[BIG.bigsign];
     const since = sign && sign.stage === 2 ? tick - sign.brokenAt : -1;
     // 광장 전기: 떨어진 뒤 30틱 동안 깜빡이다 나간다
@@ -293,7 +379,7 @@ export class Plaza {
       if (i < 2) b.aim(0.7 * Math.sin(tick * 0.013 + i * 1.7));
     });
     for (const b of this.beacons) {
-      const on = (tick + b.phase) % 90 < 45;
+      const on = (tick + b.phase) % 90 < 45 && !this.collapsed;
       b.mat.uniforms.emissiveStrength.value = on ? 2 : 0;
       if (on) lightPool.add(b.x, b.y, b.z, 30, C.neonRed, 0.9);
     }

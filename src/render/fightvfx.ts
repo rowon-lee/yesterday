@@ -12,6 +12,7 @@ import type { Effects } from './effects';
 import type { ColorName } from './palette';
 import { BREAK_RULES, GROUND as GROUND_Y } from '../stage/citadel';
 import { facadeAtlas } from './gl/buildings';
+import { keepAtlas } from './gl/plaza';
 import { fxColor, fxHex, fxRamp, FX_PX, type VfxLayer } from './vfx';
 import { lights } from './light';
 import { COLORS } from './palette';
@@ -214,6 +215,8 @@ export class FightVfx {
         this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.3, ramp: fxRamp(COOL), seed: this.seed++ }));
         this.debris.burst('brick', wx, wy, out, 4);
         this.debris.dustCloud(wx - 3, wx + 3, 0.35, wy + 6);
+      } else if (e.type === 'citadel') {
+        this.citadel(e.text ?? '', e.combo ?? 0, wx, wy, e.x > (att?.x ?? 0) ? 1 : -1);
       } else if (e.type === 'walltech') {
         // 벽 낙법: 정면을 박차는 자리에서 푸른 충격과 먼지, 빠져나온 몸이 잠깐 빛난다
         this.glow(wx, wy, 60, COLORS.fxBlue, 0.9, 14);
@@ -360,6 +363,38 @@ export class FightVfx {
         this.debris.burst('metal', cx, GROUND_Y - 8, dir, 4);
         break;
     }
+  }
+
+  /**
+   * 시타델 본관 (sim 'citadel' 이벤트, wx·wy: 그 자리). 깎일 때 벽돌 부스러기. 단계가 넘어갈 때 흔들림과 먼지,
+   * 2단계부터 유리 조각, 3단계 불꽃 빛. 무너질 때 번쩍임·큰 흔들림, 본관 밑동을 따라 차례로 터지는 폭발,
+   * 광장을 덮는 먼지 구름 여러 겹, 떨어지는 커튼월 조각, 이어지는 진동 (본관이 내려앉는 모습은 render/gl/keepfall.ts)
+   */
+  private citadel(text: string, stage: number, wx: number, wy: number, dir: number): void {
+    const K = D.plaza.keep;
+    if (text === 'damage') {
+      this.debris.burst('brick', wx, wy, dir, 2);
+      return;
+    }
+    if (text === 'stage') {
+      this.fx.shake(0.2 + stage * 0.08);
+      this.debris.dustCloud(wx - 90, wx + 90, 0.25 + stage * 0.08);
+      if (stage >= 2) for (let k = 0; k < 4; k++) this.debris.burst('glass', wx - 60 + k * 40, GROUND_Y - 110, k % 2 ? 1 : -1, 5);
+      if (stage === 3) this.glow(wx, GROUND_Y - 150, 160, COLORS.fxOrange, 0.9, 24);
+      return;
+    }
+    if (text !== 'collapse') return;
+    this.fx.flashFor(2);
+    this.fx.shake(0.95);
+    this.glow(wx, GROUND_Y - 120, 260, COLORS.fxOrange, 1, 40);
+    [K.x0 + 60, K.x0 + 220, K.x0 + 380, K.x0 + 540, K.x1 - 60].forEach((x, i) =>
+      this.after(i * 5, () => {
+        this.layer.add(explosion({ x: x * FX_PX, ground: GROUND_Y * FX_PX, size: 0.7, surface: fxColor('street'), seed: this.seed++, fire: 0.3 }));
+        this.fx.shake(0.6);
+      }));
+    for (const [at, size] of [[0, 0.8], [12, 1], [30, 1], [55, 0.8], [85, 0.6]] as const) this.after(at, () => this.debris.dustCloud(K.x0 - 60, K.x1 + 60, size));
+    this.after(8, () => this.debris.collapse(K.x0, K.x1, 300, keepAtlas()));
+    for (const at of [20, 45, 80, 120]) this.after(at, () => this.fx.shake(0.5));
   }
 
   /** 틱 뒤에 연출을 낸다 (sim 틱 기준) */

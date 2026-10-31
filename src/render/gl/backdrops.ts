@@ -167,6 +167,23 @@ export function buildKeep(): Layer {
       rect(g, x0 + 10, top - 18, 18, 2, rib);
     } else rect(g, x0 + sl.w - 14, top - 26, 1, 23, rib);
   });
+  haze(c, C.smog3, K.haze);
+  return { canvas: c, speed: K.speed };
+}
+
+/**
+ * 시타델 탑 윗부분 (본관 마천루의 위쪽: 층층이 들어간 단, 빛나는 유리 왕관, 안테나). 둘레 사무동(buildKeep)과 같은 깊이에
+ * 따로 그린다: 시타델이 무너지면 이 겹만 내려앉아 사라진다 (render/gl/keepfall.ts)
+ */
+export function buildKeepTower(): Layer {
+  const K = D.keep;
+  const w = layerW(K.speed);
+  const h = layerH(K.speed);
+  const [c, g] = canvas(w, h);
+  const cx = keepCenter();
+  const gl = keepGround();
+  const dark = C.factory;
+  const rib = C.smog2;
   // 탑 몸통: 단마다 세로 기둥과 창 줄, 켜진 사무실 (아래 단일수록 넓다). 멀어도 보이게 켜진 창은 밝게, 모서리에 빛줄
   for (const t of keepTiers()) {
     const x0 = cx - t.w / 2;

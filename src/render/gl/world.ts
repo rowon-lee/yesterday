@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import type { CityState, PropState } from '../../sim';
+import type { CitadelState, CityState, PropState } from '../../sim';
 import { GROUND } from '../../stage/citadel';
 import { lights as lights2d, quality } from '../light';
 import { SCREEN_W } from '../screen';
-import { buildFar, buildKeep, buildMid, buildSky, type Layer } from './backdrops';
+import { buildFar, buildKeep, buildKeepTower, buildMid, buildSky, type Layer } from './backdrops';
 import { BigProps } from './bigprops';
 import { Buildings } from './buildings';
 import { depthOfSpeed } from './core';
@@ -68,7 +68,11 @@ export class World {
       this.statics.push(m);
     }
     this.statics.push(buildStreet(), this.buildings.group, this.foreground);
-    this.group.add(...this.statics, this.plaza.group, this.edges.group, this.props.group, this.big.group, this.life.group, this.rain.group, this.steam.group);
+    // 시타델 탑 윗부분: 둘레 사무동 겹 바로 앞. 시타델이 무너지면 내려앉으므로 움직이지 않는 무대에서 뺀다
+    const tower = backdrop(buildKeepTower(), 0.45, 0.35);
+    tower.position.z += 1;
+    this.plaza.attachTower(tower);
+    this.group.add(...this.statics, tower, this.plaza.group, this.edges.group, this.props.group, this.big.group, this.life.group, this.rain.group, this.steam.group);
     // 움직이지 않는 무대는 자리 행렬을 한 번만 계산한다 (매 프레임 수백 개를 다시 계산하지 않게)
     for (const o of this.statics) {
       o.updateMatrixWorld(true);
@@ -82,9 +86,12 @@ export class World {
   /**
    * 이번 틱의 모습과 빛 후보. props·city는 sim 상태 (없으면 모두 멀쩡).
    * focusX: 싸움이 벌어지는 월드 x (멀리 행인이 그 반대쪽으로 도망간다). 없으면 행인이 그냥 걷는다.
-   * clock: sim의 도시 시계 (노면전차가 이 시계로 다닌다. 없으면 tick)
+   * clock: sim의 도시 시계 (노면전차가 이 시계로 다닌다. 없으면 tick). citadel: 시타델 본관 상태 (없으면 멀쩡)
    */
-  update(view: GlView, tick: number, props: readonly PropState[] | null, city: CityState | null, focusX: number | null = null, clock = tick): void {
+  update(
+    view: GlView, tick: number, props: readonly PropState[] | null, city: CityState | null, focusX: number | null = null, clock = tick,
+    citadel: CitadelState | null = null,
+  ): void {
     const p = view.placed;
     // 품질 낮음: 광원 6개, 비 절반, 빛 번짐 끔
     const low = quality() === 'low';
@@ -97,8 +104,8 @@ export class World {
     this.buildings.lights(city, tick);
     this.props.update(props, city, tick, p.ix, p.ix + SCREEN_W);
     this.big.update(props, tick, p.ix, p.ix + SCREEN_W);
-    this.plaza.update(tick, props);
-    this.life.update(tick, p.ix, focusX, clock, props);
+    this.plaza.update(tick, props, citadel);
+    this.life.update(tick, p.ix, focusX, clock, props, citadel !== null && citadel.stage === 4);
     // 이펙트 빛 (타격 번쩍임·기력·필살기·부서질 때 불꽃): 싸우는 면 바로 앞
     for (const pt of lights2d.points) lightPool.add(pt.x, GROUND - pt.y, 12, pt.r * 1.3, pt.color, pt.a * 1.6);
   }
