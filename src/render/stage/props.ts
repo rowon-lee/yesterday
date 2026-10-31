@@ -33,10 +33,13 @@ function wallGone(b: Breakable, city: CityState | null): boolean {
   return city.hp[chunkIndex(g, Math.floor((cx - g.x) / CHUNK), 0)] < 0;
 }
 
+/** part: 'wall'은 건물에 붙은 쇼윈도만 (전차보다 뒤), 'street'는 보도 위 물건만, 없으면 전부 */
 export function drawProps(
   ctx: CanvasRenderingContext2D, cam: Cam, tick: number, props: readonly PropState[] | null, city: CityState | null = null,
+  part: 'wall' | 'street' | null = null,
 ): void {
   ORDERED.forEach(([b, i]) => {
+    if (part && (b.kind === 'glass') !== (part === 'wall')) return;
     if (b.x + b.w < cam.x - 60 || b.x > cam.x + SCREEN_W + 60) return;
     if (b.kind === 'glass' && wallGone(b, city)) return;
     const p = props?.[i] ?? INTACT;

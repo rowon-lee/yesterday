@@ -5,7 +5,7 @@ import { MAP_H } from '../stage/downtown';
 import { drawText } from '../render/font';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
-import { drawStage } from '../render/stage';
+import { drawForeground, drawStage } from '../render/stage';
 import type { Scene } from './scene';
 
 /**
@@ -14,6 +14,7 @@ import type { Scene } from './scene';
  * ← → ↑ ↓ 키로 직접 움직여도 된다. 세로 기본값은 바닥이 보이는 맨 아래.
  * ?props=1 (망가짐) / 2 (파괴) 로 부서지는 물건을 모두 그 단계로 보여 준다. 1~3 키로 바꿔도 된다.
  * ?ruin=1 로 건물 정면을 미리 부숴 본다 (금·구멍·뚫림·무너짐을 sim 규칙 그대로 몇 군데에 낸다).
+ * ?fg=0 으로 앞겹(카메라 앞을 스치는 기둥·전선)을 끈다.
  * ?match=시드 로 CPU끼리 한 경기를 끝까지 돌린 뒤의 거리(건물·물건)를 보여 준다. 라운드가 넘어가도 파괴가 남는지 보는 용도.
  */
 export function stageScene(): Scene {
@@ -62,7 +63,9 @@ export function stageScene(): Scene {
       }
     },
     render(ctx) {
-      drawStage(ctx, { x: Math.round(cam), y: Math.round(camY) }, base + tick, props, city);
+      const view = { x: Math.round(cam), y: Math.round(camY) };
+      drawStage(ctx, view, base + tick, props, city);
+      if (params.get('fg') !== '0') drawForeground(ctx, view);
       drawText(ctx, `CAM ${Math.round(cam)} ${Math.round(camY)}`, 4, 4, COLORS.white);
     },
   };
