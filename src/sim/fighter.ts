@@ -37,7 +37,7 @@ export function setMode(f: Fighter, mode: Mode, len = 0): void {
 export const isAirborne = (f: Fighter): boolean => f.y < f.floor || f.vy < 0;
 
 /** 땅에서만 있을 수 있는 상태 (발밑 바닥이 없어지면 떨어지는 상태로 바꾼다) */
-const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown']);
+const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown', 'intro']);
 
 /** 밀려나는 등 위치가 바뀐 뒤: 서 있던 발판이 발밑에 그대로 있는지 다시 본다 */
 export function settle(s: SimState, f: Fighter): void {
@@ -534,6 +534,11 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
     case 'tech':
     case 'walltech':
       if (f.t >= f.len) setMode(f, 'air');
+      break;
+    case 'intro':
+      // 등장: 그림이 끝나면 대기 (라운드 시작 연출보다 먼저 끝난다)
+      f.vx = 0;
+      if (f.t >= f.len) setMode(f, 'idle');
       break;
     case 'wallsplat':
       // 정면에 박혀 있다가 튕겨 나와 떨어진다

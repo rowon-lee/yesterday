@@ -6,6 +6,8 @@ export type Mode =
   | 'jumpsquat' | 'air' | 'land' | 'dash' | 'airdash'
   | 'attack' | 'hitstun' | 'airhit' | 'knockdown' | 'getup' | 'tech'
   | 'ko' | 'win'
+  /** 등장: 경기 첫 라운드 시작 연출 동안 한 번 (내려선 자세에서 일어나 기본자세로) */
+  | 'intro'
   /** 벽꽝: 건물 정면에 박혀 잠깐 갇힘 */
   | 'wallsplat'
   /** 벽 낙법: 벽꽝으로 박히는 순간 점프해 정면을 박차고 뒤로 공중제비를 돌아 튕겨 나감 (무적) */

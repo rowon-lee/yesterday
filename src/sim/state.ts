@@ -1,4 +1,4 @@
-import { STATS } from './frames';
+import { motionFrames, STATS } from './frames';
 import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isAirborne } from './fighter';
 import { resolveHits, splatLands } from './combat';
 import { crashProps, createProps, hitProps } from './props';
@@ -48,6 +48,8 @@ function resetRound(s: SimState): void {
   s.fighters.forEach((f, i) => {
     const keep = { wins: f.wins, meter: f.meter };
     Object.assign(f, newFighter(mid + (i === 0 ? -START_GAP : START_GAP), i === 0 ? 1 : -1), keep);
+    // 경기 첫 라운드: 시작 연출 동안 등장 동작 (끝나면 대기)
+    if (s.round === 1) setMode(f, 'intro', motionFrames('base/intro').total);
   });
   s.phase = 'intro';
   s.phaseT = 0;

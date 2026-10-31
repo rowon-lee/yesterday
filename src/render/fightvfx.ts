@@ -215,6 +215,17 @@ export class FightVfx {
         this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.3, ramp: fxRamp(COOL), seed: this.seed++ }));
         this.debris.burst('brick', wx, wy, out, 4);
         this.debris.dustCloud(wx - 3, wx + 3, 0.35, wy + 6);
+      } else if (e.type === 'round' && s.round === 1) {
+        // 등장: 두 사람이 위에서 내려선 자리에 충격과 먼지, 바닥 부스러기, 가벼운 흔들림
+        for (const f of s.fighters) {
+          const fx = f.x / 256;
+          const [px, py] = feet(f);
+          this.layer.add(impact({ kind: 'hit', x: px, y: py, angle: -Math.PI / 2, size: 0.3, ramp: fxRamp(COOL), seed: this.seed++ }));
+          this.debris.dustCloud(fx - 14, fx + 14, 0.4);
+          this.debris.burst('brick', fx, GROUND_Y - 2, 1, 3);
+          this.debris.burst('brick', fx, GROUND_Y - 2, -1, 3);
+        }
+        this.fx.shake(0.25);
       } else if (e.type === 'citadel') {
         this.citadel(e.text ?? '', e.combo ?? 0, wx, wy, e.x > (att?.x ?? 0) ? 1 : -1);
       } else if (e.type === 'walltech') {

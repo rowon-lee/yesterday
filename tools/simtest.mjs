@@ -67,6 +67,24 @@ for (const [name, ok, note] of structureChecks()) {
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 구조물 시험: ${name}${note ? ` (${note})` : ''}`);
 }
+// 5-1) 등장: 경기 첫 라운드 시작 연출 동안 등장 동작, 끝나면 대기. 두 번째 라운드는 등장 없이
+{
+  const s = sim.createState(1);
+  const first = s.fighters.every((f) => f.mode === 'intro');
+  let idleBeforeFight = false;
+  while (s.phase === 'intro') {
+    sim.step(s, [0, 0]);
+    if (s.phase === 'intro') idleBeforeFight = s.fighters.every((f) => f.mode === 'idle');
+  }
+  const fightIdle = s.fighters.every((f) => f.mode === 'idle');
+  s.fighters[1].hp = 0;
+  const round = s.round;
+  while (s.round === round && s.tick < 2000) sim.step(s, [0, 0]);
+  const second = s.round === round + 1 && s.fighters.every((f) => f.mode === 'idle');
+  const ok = first && idleBeforeFight && fightIdle && second;
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 등장 시험: 첫 라운드 시작 연출 동안 등장 동작, 싸움 전에 대기로, 두 번째 라운드는 등장 없음 (처음 ${first}, 싸움 전 대기 ${idleBeforeFight}, 둘째 라운드 ${second})`);
+}
 // 6) 시타델 붕괴 (정해진 입력으로)
 for (const [name, ok, note] of keepChecks()) {
   if (!ok) failed++;
