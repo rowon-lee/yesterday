@@ -3,8 +3,10 @@
 // 찍으면서 오류가 없는지, 캔버스가 정수배인지, 60틱/초로 도는지, 키 입력이 모이는지 확인한다.
 //   npm run shot                         모든 장면, 모든 화면 크기
 //   npm run shot -- blank                그 장면만
+//   npm run shot -- "fight?p1=cpu&boxes=1"  장면 뒤에 주소 옵션을 붙일 수 있다
 //   npm run shot -- --tick 300           300틱째에 멈추고 찍기 (기본 60)
 //   npm run shot -- --view pc-1280x720   그 화면 크기만
+//   npm run shot -- --fast               멈출 틱까지 바로 돌려서 찍기 (긴 대전 장면용, 틱 속도·입력 검사는 건너뜀)
 import { mkdirSync } from 'node:fs';
 import { preview } from 'vite';
 import { chromium } from 'playwright';
@@ -18,10 +20,12 @@ const VIEWS = [
 
 const argv = process.argv.slice(2);
 let stopAt = 60;
+let fast = false;
 const viewNames = [];
 let sceneNames = [];
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--tick') stopAt = Number(argv[++i]);
+  else if (argv[i] === '--fast') fast = true;
   else if (argv[i] === '--view') viewNames.push(argv[++i]);
   else sceneNames.push(argv[i]);
 }
@@ -61,14 +65,15 @@ async function shoot(scene, v) {
   });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${url}?scene=${encodeURIComponent(scene)}&stopAt=${stopAt}`);
+  const [name, extra] = scene.split('?');
+  await page.goto(`${url}?scene=${encodeURIComponent(name)}${extra ? `&${extra}` : ''}&stopAt=${stopAt}${fast ? '&ff=1' : ''}`);
   const notes = [];
   try {
-    await page.waitForFunction(() => window.__debug?.tick >= 1, null, { timeout: 5000 });
+    await page.waitForFunction(() => window.__debug?.tick >= 1, null, { timeout: 15000 });
     const start = Date.now();
     // 틱이 도는 동안 키를 눌러 입력이 모이는지 본다 (멈추기 전에 시간이 있을 때만).
     let held = null;
-    if (stopAt >= 10) {
+    if (stopAt >= 10 && !fast) {
       await page.keyboard.down('KeyJ');
       await page.waitForFunction(() => window.__debug.held.includes('KeyJ'), null, { timeout: 1000 }).catch(() => {});
       held = await page.evaluate(() => window.__debug.held);
@@ -87,7 +92,7 @@ async function shoot(scene, v) {
       errors.push(`정수배 아님 (${size.w}×${size.h})`);
     }
     notes.push(`배율 ${scale}배`);
-    if (stopAt >= 30) {
+    if (stopAt >= 30 && !fast) {
       if (rate < 50 || rate > 70) errors.push(`틱 속도 ${rate.toFixed(1)}/초`);
       notes.push(`${rate.toFixed(1)}틱/초`);
     }
@@ -98,7 +103,7 @@ async function shoot(scene, v) {
   } catch (e) {
     errors.push(e.message.split('\n')[0]);
   }
-  const path = `out/shots/${scene}-${v.name}.png`;
+  const path = `out/shots/${scene.replace(/[?&=]+/g, '-')}-${stopAt}-${v.name}.png`;
   await page.screenshot({ path });
   await page.close();
   const ok = errors.length === 0;

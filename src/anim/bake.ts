@@ -37,7 +37,7 @@ export function buildMotion(d: MotionData): Motion & { bake(): void } {
       for (let i = 0; i < n; i++) lc.drawImage(right, i * cell, 0, cell, cell, -(i + 1) * cell, 0, cell, cell);
       return { right, left };
     };
-    sheets = { p1: make('p1'), p2: make('p2') };
+    sheets = { p1: make('p1'), p2: make('p2'), flash: make('flash') };
   };
 
   return {

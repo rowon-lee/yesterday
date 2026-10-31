@@ -36,4 +36,7 @@ function tick(): void {
   get held() { return lastInput ? [...lastInput.held] : []; },
 };
 
+// 확인용: ?ff=1 이면 멈출 틱(stopAt)까지 기다리지 않고 바로 돌린다 (긴 대전 장면 캡처용).
+if (params.has('ff') && Number.isFinite(stopAt)) while (tickCount < stopAt) tick();
+
 startLoop(tick, () => scene.render(ctx));
