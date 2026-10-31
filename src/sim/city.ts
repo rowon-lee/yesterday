@@ -108,16 +108,15 @@ function fall(s: SimState, gi: number, g: BuildingGrid, c0: number, c1: number):
   const hp = s.city.hp;
   for (let c = c0; c <= c1; c++) for (let r = 0; r < g.rows; r++) hp[chunkIndex(g, c, r)] = -1;
   s.city.collapses.push({ b: gi, c0, c1, tick: s.tick });
-  // 무너진 자리의 1층 쇼윈도도 함께 깨진다
-  const x0 = g.x + c0 * CHUNK;
-  const x1 = g.x + (c1 + 1) * CHUNK;
+  // 무너진 자리에 붙어 있던 쇼윈도·네온 간판도 함께 부서진다 (네온은 빛도 꺼진다)
   BREAKABLES.forEach((b, i) => {
     const p = s.props?.[i];
-    if (b.kind !== 'glass' || !p || p.stage === 2 || b.x >= x1 || b.x + b.w <= x0) return;
+    if (b.b !== gi || b.col < c0 || b.col > c1 || !p || p.stage === 2) return;
     p.hp = 0;
     p.stage = 2;
     p.brokenAt = s.tick;
     if (p.damagedAt < 0) p.damagedAt = s.tick;
+    if (b.kind === 'neon') s.events.push({ type: 'prop', who: i, x: px(b.x + b.w / 2), y: -px(b.bottom + b.h / 2), text: 'broken', heavy: false });
   });
   // 크게 무너질 때만 슬로모션 (옆 기둥 한두 줄이 따라 무너지는 것은 흔들림만)
   if (c1 - c0 + 1 >= R.collapse.slowColumns) s.slow = Math.max(s.slow, R.slowTicks);

@@ -65,8 +65,20 @@ export class VfxLayer {
   private out: ImageData | null = null;
   private canvas: HTMLCanvasElement | null = null;
 
+  /** 지난 그리기에서 이펙트가 칠한 사각형 (x0, y0, x1, y1). 다음 그리기 전에 그 안만 지운다 */
+  private used = [0, 0, SCREEN_W - 1, SCREEN_H - 1];
+
   add(fx: VfxInstance): void {
     this.list.push(fx);
+  }
+
+  private wipe(): void {
+    const [x0, y0, x1, y1] = this.used;
+    if (x1 < 0) return;
+    for (let y = y0; y <= y1; y++) {
+      this.color.fill(0, y * SCREEN_W + x0, y * SCREEN_W + x1 + 1);
+      this.light.fill(0, y * SCREEN_W + x0, y * SCREEN_W + x1 + 1);
+    }
   }
 
   clear(): void {
@@ -84,13 +96,19 @@ export class VfxLayer {
     this.list = this.list.filter((fx) => !fx.done());
   }
 
-  /** cam: 화면 왼쪽 위의 월드 좌표 (px). 화면 흔들림은 ctx의 이동으로 이미 들어가 있다 */
+  /**
+   * cam: 화면 왼쪽 위의 월드 좌표 (px). 화면 흔들림은 ctx의 이동으로 이미 들어가 있다.
+   * 칠해진 칸만 디더링·팔레트 스냅을 하고, 칠해진 칸을 감싼 사각형만 화면에 올린다 (휴대폰에서 화면 전체를 올리면 무겁다).
+   */
   draw(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, layer: Layer): void {
     if (!this.list.length) return;
-    this.color.fill(0);
-    this.light.fill(0);
-    const frame: Frame = { w: SCREEN_W, h: SCREEN_H, ox: cam.x, oy: cam.y, color: this.color, light: this.light };
+    // 지난번에 칠한 사각형만 지우고, 이번에 칠한 사각형(box)만 훑는다
+    this.wipe();
+    const box = [SCREEN_W, SCREEN_H, -1, -1];
+    const frame: Frame = { w: SCREEN_W, h: SCREEN_H, ox: cam.x, oy: cam.y, color: this.color, light: this.light, box };
     for (const fx of this.list) fx.draw(frame, layer);
+    this.used = box;
+    if (box[2] < 0) return;
     if (!this.canvas) {
       this.canvas = document.createElement('canvas');
       this.canvas.width = SCREEN_W;
@@ -98,36 +116,48 @@ export class VfxLayer {
       this.out = new ImageData(SCREEN_W, SCREEN_H);
     }
     const px = new Uint32Array(this.out!.data.buffer);
-    px.fill(0);
-    let any = false;
-    for (let y = 0; y < SCREEN_H; y++) {
-      for (let x = 0; x < SCREEN_W; x++) {
-        const i = y * SCREEN_W + x;
-        const c = this.color[i];
-        const a = c >>> 24;
+    const color = this.color;
+    const light = this.light;
+    let x0 = SCREEN_W;
+    let y0 = SCREEN_H;
+    let x1 = -1;
+    let y1 = -1;
+    for (let y = box[1]; y <= box[3]; y++) {
+      const row = y * SCREEN_W;
+      px.fill(0, row + box[0], row + box[2] + 1);
+      for (let x = box[0]; x <= box[2]; x++) {
+        const i = row + x;
+        const c = color[i];
+        const l = light[i];
+        if (c === 0 && l === 0) continue;
         // 무늬는 월드 좌표에 고정해 카메라가 움직여도 지글거리지 않게
         const th = threshold(x + cam.x, y + cam.y);
-        if (a && a / 255 > th) {
-          px[i] = snap(c & 255, (c >>> 8) & 255, (c >>> 16) & 255);
-          any = true;
-          continue;
+        const a = c >>> 24;
+        let v = 0;
+        if (a && a / 255 > th) v = snap(c & 255, (c >>> 8) & 255, (c >>> 16) & 255);
+        else if (l) {
+          const r = l & 255;
+          const g = (l >>> 8) & 255;
+          const b = (l >>> 16) & 255;
+          const k = Math.max(r, g, b) / 255;
+          // 빛은 밝기만큼만 성기게 (가장 밝아도 절반 정도만 찍는다)
+          if (k * 0.55 > th) {
+            const m = 255 / Math.max(1, Math.max(r, g, b));
+            v = snap(Math.min(255, r * m), Math.min(255, g * m), Math.min(255, b * m));
+          }
         }
-        const l = this.light[i];
-        if (!l) continue;
-        const r = l & 255;
-        const g = (l >>> 8) & 255;
-        const b = (l >>> 16) & 255;
-        const k = Math.max(r, g, b) / 255;
-        // 빛은 밝기만큼만 성기게 (가장 밝아도 절반 정도만 찍는다)
-        if (k * 0.55 > th) {
-          const m = 255 / Math.max(1, Math.max(r, g, b));
-          px[i] = snap(Math.min(255, r * m), Math.min(255, g * m), Math.min(255, b * m));
-          any = true;
-        }
+        if (!v) continue;
+        px[i] = v;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        y1 = y;
       }
     }
-    if (!any) return;
-    this.canvas!.getContext('2d')!.putImageData(this.out!, 0, 0);
-    ctx.drawImage(this.canvas!, 0, 0);
+    if (x1 < 0) return;
+    const w = x1 - x0 + 1;
+    const h = y1 - y0 + 1;
+    this.canvas!.getContext('2d')!.putImageData(this.out!, 0, 0, x0, y0, w, h);
+    ctx.drawImage(this.canvas!, x0, y0, w, h, x0, y0, w, h);
   }
 }

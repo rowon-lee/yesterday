@@ -49,7 +49,12 @@ const GLYPHS: Record<string, readonly number[]> = {
 export const GLYPH_W = 3;
 export const GLYPH_H = 5;
 
-/** (x, y)는 왼쪽 위. scale은 도트 하나의 크기(정수). */
+const textCache = new Map<string, HTMLCanvasElement>();
+
+/**
+ * (x, y)는 왼쪽 위. scale은 도트 하나의 크기(정수).
+ * 글·색·크기마다 한 번 그려 두고 이미지로 얹는다 (HUD처럼 매 프레임 같은 글을 쓰면 점을 하나씩 찍는 것보다 훨씬 가볍다).
+ */
 export function drawText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -58,19 +63,31 @@ export function drawText(
   color: string,
   scale = 1,
 ): void {
-  ctx.fillStyle = color;
-  let cx = x;
-  for (const ch of text) {
-    const rows = GLYPHS[ch];
-    if (rows) {
-      for (let r = 0; r < GLYPH_H; r++) {
-        for (let c = 0; c < GLYPH_W; c++) {
-          if (rows[r] & (4 >> c)) ctx.fillRect(cx + c * scale, y + r * scale, scale, scale);
+  if (!text) return;
+  const key = `${scale}|${color}|${text}`;
+  let c = textCache.get(key);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = Math.max(1, textWidth(text, scale));
+    c.height = GLYPH_H * scale;
+    const g = c.getContext('2d')!;
+    g.fillStyle = color;
+    let cx = 0;
+    for (const ch of text) {
+      const rows = GLYPHS[ch];
+      if (rows) {
+        for (let r = 0; r < GLYPH_H; r++) {
+          for (let col = 0; col < GLYPH_W; col++) {
+            if (rows[r] & (4 >> col)) g.fillRect(cx + col * scale, r * scale, scale, scale);
+          }
         }
       }
+      cx += (GLYPH_W + 1) * scale;
     }
-    cx += (GLYPH_W + 1) * scale;
+    textCache.set(key, c);
+    if (textCache.size > 400) textCache.delete(textCache.keys().next().value!);
   }
+  ctx.drawImage(c, Math.round(x), Math.round(y));
 }
 
 export function textWidth(text: string, scale = 1): number {

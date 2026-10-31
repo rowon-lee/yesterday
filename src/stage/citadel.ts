@@ -113,7 +113,10 @@ export function escapeOf(b: FrontBuildingPlace): { x0: number; x1: number; landi
   return { x0, x1: x0 + L.escapeW, landings };
 }
 
-export type BreakableKind = 'car' | 'lamp' | 'glass' | 'newsstand' | 'hydrant';
+export type BreakableKind = 'car' | 'lamp' | 'glass' | 'newsstand' | 'hydrant' | 'neon';
+/** 네온 간판 모양: 가게 이름, 세로 간판, 전구 차양, 전구 테두리 판, 옥상 전광판 */
+export type NeonStyle = 'shop' | 'blade' | 'marquee' | 'board' | 'billboard';
+export type NeonColor = 'pink' | 'cyan' | 'amber' | 'green' | 'red';
 
 /** 부서지는 물건 하나. 판정 상자는 바닥 기준: x ~ x+w, 바닥(+bottom)에서 h까지 위 */
 export interface Breakable {
@@ -121,27 +124,86 @@ export interface Breakable {
   x: number;
   w: number;
   h: number;
-  /** 바닥에서 떠 있는 높이 (쇼윈도) */
+  /** 바닥에서 떠 있는 높이 (쇼윈도·네온 간판) */
   bottom: number;
   hp: number;
+  /** 붙어 있는 부서지는 건물 번호와 받치는 덩어리 칸·줄 (그 덩어리가 무너지면 같이 부서진다). 없으면 -1 */
+  b: number;
+  col: number;
+  row: number;
+  /** 네온 간판만: 모양, 글씨, 빛 색 */
+  style?: NeonStyle;
+  text?: string;
+  color?: NeonColor;
 }
 
 const B = D.breakables;
 
 export const LAMPS: readonly number[] = B.lamps;
 
+const FREE = { b: -1, col: 0, row: 0 };
+/** 3×5 도트 글꼴로 쓴 글씨 폭 (render/font.ts와 같은 계산) */
+const textW = (text: string, scale: number): number => (text.length * 4 - 1) * scale;
+const NEON_COLORS: readonly NeonColor[] = ['pink', 'cyan', 'amber', 'green'];
+
+/** 건물 bi에 붙은 물건이 받치는 덩어리 (가운데 x, 높이 h에서) */
+function support(bi: number, x: number, h: number): { b: number; col: number; row: number } {
+  const b = LAYOUT.buildings[bi];
+  const ch = D.city.chunk;
+  const col = Math.max(0, Math.min(Math.ceil(b.w / ch) - 1, Math.floor((x - b.x) / ch)));
+  const row = Math.max(0, Math.min(Math.ceil(b.h / ch) - 1, Math.floor(h / ch)));
+  return { b: bi, col, row };
+}
+
+/** 건물마다 붙은 네온 간판 */
+function neonSigns(): Breakable[] {
+  const out: Breakable[] = [];
+  const N = B.neon;
+  const add = (bi: number, style: NeonStyle, text: string, color: NeonColor, x: number, w: number, bottom: number, h: number, big: boolean) => {
+    out.push({ kind: 'neon', x, w, h, bottom, hp: big ? N.big : N.hp, ...support(bi, x + w / 2, Math.min(bottom + h / 2, LAYOUT.buildings[bi].h - 1)), style, text, color });
+  };
+  LAYOUT.buildings.forEach((b, bi) => {
+    const color = NEON_COLORS[Math.floor(b.seed / 97) % NEON_COLORS.length];
+    const a = awningOf(b);
+    if (b.kind === 'theater') {
+      const m = marqueeOf(b)!;
+      add(bi, 'blade', b.sign, 'pink', b.x + Math.floor(b.w / 2) - 11, 22, m.h + 6, b.h - 30 - (m.h + 6), true);
+      add(bi, 'marquee', 'TONIGHT', 'amber', m.x0, m.x1 - m.x0, m.h - 22, 22, true);
+    } else if (b.kind === 'diner' && a) {
+      const w = textW(b.sign, 3) + 20;
+      add(bi, 'board', b.sign, 'red', b.x + Math.floor((b.w - w) / 2), w, a.h + 10, 30, true);
+    } else if (a && b.sign) {
+      const w = textW(b.sign, 2) + 10;
+      add(bi, 'shop', b.sign, color, Math.round((a.x0 + a.x1 - w) / 2), w, a.h + 1, 14, false);
+    }
+    // 호텔은 위층에 세로 네온을 하나 더 단다
+    if (b.sign === 'HOTEL') add(bi, 'blade', 'HOTEL', 'cyan', b.x + b.w - 26, 16, 120, 130, false);
+  });
+  // 옥상 전광판 (지붕 위 쇠다리에 얹힘): 받치는 덩어리는 지붕 맨 윗줄
+  const BB = D.billboard;
+  const apts = LAYOUT.buildings.filter((b) => b.section === 'apartments');
+  const host = apts[BB.building];
+  if (host) {
+    const bi = LAYOUT.buildings.indexOf(host);
+    const x = host.x + Math.floor((host.w - BB.w) / 2);
+    out.push({ kind: 'neon', x, w: BB.w, h: BB.h, bottom: host.h + 12, hp: N.big, ...support(bi, x + BB.w / 2, host.h - 1), style: 'billboard', text: BB.text, color: 'amber' });
+  }
+  return out;
+}
+
 /** 이 맵의 부서지는 물건 전부 (순서가 곧 번호. sim 상태의 props와 짝이 맞는다) */
 export const BREAKABLES: readonly Breakable[] = (() => {
   const list: Breakable[] = [];
-  for (const x of B.cars) list.push({ kind: 'car', x, w: B.car.w, h: B.car.h, bottom: 0, hp: B.car.hp });
-  for (const x of LAMPS) list.push({ kind: 'lamp', x: x - B.lamp.w / 2, w: B.lamp.w, h: B.lamp.h, bottom: 0, hp: B.lamp.hp });
-  for (const b of frontBuildings()) {
-    if (!hasShopWindow(b)) continue;
+  for (const x of B.cars) list.push({ kind: 'car', x, w: B.car.w, h: B.car.h, bottom: 0, hp: B.car.hp, ...FREE });
+  for (const x of LAMPS) list.push({ kind: 'lamp', x: x - B.lamp.w / 2, w: B.lamp.w, h: B.lamp.h, bottom: 0, hp: B.lamp.hp, ...FREE });
+  LAYOUT.buildings.forEach((b, bi) => {
+    if (!hasShopWindow(b)) return;
     const g = shopWindow(b);
-    list.push({ kind: 'glass', x: g.x, w: g.w, h: B.glass.h, bottom: GLASS_BOTTOM, hp: B.glass.hp });
-  }
-  for (const x of B.newsstands) list.push({ kind: 'newsstand', x, w: B.newsstand.w, h: B.newsstand.h, bottom: 0, hp: B.newsstand.hp });
-  for (const x of B.hydrants) list.push({ kind: 'hydrant', x, w: B.hydrant.w, h: B.hydrant.h, bottom: 0, hp: B.hydrant.hp });
+    list.push({ kind: 'glass', x: g.x, w: g.w, h: B.glass.h, bottom: GLASS_BOTTOM, hp: B.glass.hp, ...support(bi, g.x + g.w / 2, 0) });
+  });
+  for (const x of B.newsstands) list.push({ kind: 'newsstand', x, w: B.newsstand.w, h: B.newsstand.h, bottom: 0, hp: B.newsstand.hp, ...FREE });
+  for (const x of B.hydrants) list.push({ kind: 'hydrant', x, w: B.hydrant.w, h: B.hydrant.h, bottom: 0, hp: B.hydrant.hp, ...FREE });
+  list.push(...neonSigns());
   return list;
 })();
 

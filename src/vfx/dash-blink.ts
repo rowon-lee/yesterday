@@ -2,7 +2,7 @@
 // MIT License
 // Copyright (c) 2026 Hugo Duprez
 // YESTERDAY 수정: 원래 이름 movement.ts. delay 옵션 추가 (게임의 대시와 같은 틱에 시작하도록 시작 지연을 0으로). 색은 부르는 쪽에서 우리 팔레트로 넘긴다.
-export interface Frame { w: number; h: number; ox: number; oy: number; color: Uint32Array; light: Uint32Array }
+export interface Frame { w: number; h: number; ox: number; oy: number; color: Uint32Array; light: Uint32Array; box?: number[] }
 export type Layer = "back" | "front";
 export interface Actor { feet(): [number, number]; silhouette?(): { x: number; y: number; w: number; h: number; data: Uint32Array } | null }
 export interface Options {
@@ -295,9 +295,16 @@ const PLASMA = { cyan: hex("#7ff3ff"), deep: hex("#1ab8e6") };
 const SMOKE_RAMP = ["#7b6f72", "#5d5660", "#433d48", "#2b2630", "#1a171e"].map(hex);
 const PX = 2;
 class Px {
-  w: number; h: number; ox: number; oy: number; data: Uint32Array;
-  constructor(f: Frame, data: Uint32Array) { this.w = f.w; this.h = f.h; this.ox = f.ox; this.oy = f.oy; this.data = data; }
-  at(x: number, y: number) { x = (x - this.ox) | 0; y = (y - this.oy) | 0; return x < 0 || y < 0 || x >= this.w || y >= this.h ? -1 : y * this.w + x; }
+  w: number; h: number; ox: number; oy: number; data: Uint32Array; box?: number[];
+  constructor(f: Frame, data: Uint32Array) { this.w = f.w; this.h = f.h; this.ox = f.ox; this.oy = f.oy; this.data = data; this.box = f.box; }
+  // YESTERDAY: 칠할 수 있는 칸을 감싼 사각형(box: x0, y0, x1, y1)을 기록한다 (부르는 쪽이 화면 전체를 훑지 않게)
+  at(x: number, y: number) {
+    x = (x - this.ox) | 0; y = (y - this.oy) | 0;
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return -1;
+    const b = this.box;
+    if (b) { if (x < b[0]!) b[0] = x; if (y < b[1]!) b[1] = y; if (x > b[2]!) b[2] = x; if (y > b[3]!) b[3] = y; }
+    return y * this.w + x;
+  }
   set(x: number, y: number, c: number) { const i = this.at(x, y); if (i >= 0) this.data[i] = c; }
   blend(x: number, y: number, c: number, a: number) {
     const i = this.at(x, y);

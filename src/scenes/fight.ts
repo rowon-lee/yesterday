@@ -9,6 +9,8 @@ import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
 import { drawForeground, drawPlatforms, drawStage, GROUND_Y, type Cam } from '../render/stage';
+import { drawLights, off as lightOff, strongestLight } from '../render/light';
+import { drawAir, drawRain, drawReflection } from '../render/weather';
 import { MAP_H } from '../stage/citadel';
 import { drawText, textWidth } from '../render/font';
 import {
@@ -209,6 +211,7 @@ export function fightScene(): Scene {
       ctx.save();
       ctx.translate(ox, oy);
       drawStage(ctx, view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256);
+      fightVfx.emitLights(s);
       const toScreen = (x: number, y: number): [number, number] => [Math.round(x - view.x), Math.round(GROUND_Y + y - view.y)];
 
       // 그림자: 발밑 바닥(땅이나 발판)에, 높이 뜰수록 작게
@@ -239,6 +242,11 @@ export function fightScene(): Scene {
       }
       vfx.draw(ctx, view, 'front');
       fightVfx.debris.drawDust(ctx, view, 'front');
+      // 조명: 빛을 더하고(가산), 빛 받은 안개와 빛 입자, 젖은 바닥 반사, 비
+      drawLights(ctx, view);
+      drawAir(ctx, view, s.tick);
+      drawReflection(ctx, view, s.tick);
+      drawRain(ctx, view, s.tick);
       // 앞겹: 카메라 앞을 스치는 기둥·전선. 캐릭터와 겹치는 곳은 비쳐 보이게
       drawForeground(ctx, view, s.fighters.map((f) => {
         const [fx, fy] = toScreen(f.x / 256, f.y / 256);
@@ -332,6 +340,59 @@ function drawFighter(
   const jitter = f.hitstop > 0 && SHAKEN.has(f.mode) ? (tick % 2 ? 1 : -1) : 0;
   const look = white ? 'flash' : index === 0 ? 'p1' : 'p2';
   m.draw(ctx, pose.frame, sx - FOOT_X + jitter, sy - FOOT_Y, { look, flip: f.facing < 0 });
+  if (!white && !lightOff('rim')) rimLight(ctx, m, pose.frame, sx - FOOT_X + jitter, sy - FOOT_Y, f.facing < 0, f.x / 256, GROUND_Y + f.y / 256 - 26);
+}
+
+/** 테두리 빛 조각 (동작·프레임·방향·빛 쪽·색마다 한 번 만든다): [1px 테두리, 2px 테두리] */
+const rimCache = new Map<string, [HTMLCanvasElement, HTMLCanvasElement]>();
+
+function rimSprites(
+  m: NonNullable<ReturnType<typeof motionByName.get>>, frame: number, flip: boolean, sx: number, sy: number, color: string,
+): [HTMLCanvasElement, HTMLCanvasElement] {
+  const key = `${m.name}|${frame}|${flip ? 1 : 0}|${sx}|${sy}|${color}`;
+  let out = rimCache.get(key);
+  if (out) return out;
+  const make = (depth: number) => {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    const g = c.getContext('2d')!;
+    m.draw(g, frame, 0, 0, { look: 'p1', flip });
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = color;
+    g.fillRect(0, 0, 64, 64);
+    g.globalCompositeOperation = 'destination-out';
+    m.draw(g, frame, -sx * depth, -sy * depth, { look: 'p1', flip });
+    return c;
+  };
+  out = [make(1), make(2)];
+  rimCache.set(key, out);
+  if (rimCache.size > 300) rimCache.delete(rimCache.keys().next().value!);
+  return out;
+}
+
+/**
+ * 캐릭터 테두리 빛: 가까운 가장 센 광원 쪽을 향한 테두리를 그 빛 색으로 물들인다 (빛 레이어 몫, 가산).
+ * 실루엣에서 '빛 쪽으로 한 칸 옆이 비어 있는 칸'만 남겨 1px 테두리를 만들고, 한 칸 더 안쪽은 옅게.
+ */
+function rimLight(
+  ctx: CanvasRenderingContext2D, m: NonNullable<ReturnType<typeof motionByName.get>>, frame: number, x: number, y: number, flip: boolean,
+  wx: number, wy: number,
+) {
+  const l = strongestLight(wx, wy);
+  if (!l || l.k < 0.1) return;
+  const sx = Math.abs(l.dx) > 0.38 ? Math.sign(l.dx) : 0;
+  const sy = Math.abs(l.dy) > 0.38 ? Math.sign(l.dy) : 0;
+  if (!sx && !sy) return;
+  const [rim1, rim2] = rimSprites(m, frame, flip, sx, sy, l.color);
+  const a = Math.min(1, l.k * 1.6);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = a;
+  ctx.drawImage(rim1, x, y);
+  ctx.globalAlpha = a * 0.45;
+  ctx.drawImage(rim2, x, y);
+  ctx.restore();
 }
 
 function drawBoxes(ctx: CanvasRenderingContext2D, s: SimState, cam: Cam) {

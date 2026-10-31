@@ -3,6 +3,9 @@ import { startLoop } from './core/loop';
 import { setupScreen } from './render/screen';
 import { bakeAllMotions } from './anim/motions';
 import { DEFAULT_SCENE, SCENES } from './scenes';
+import { measureFrame, quality } from './render/light';
+import { drawText, textWidth } from './render/font';
+import { SCREEN_W } from './render/screen';
 
 const params = new URLSearchParams(location.search);
 const sceneName = params.get('scene') ?? DEFAULT_SCENE;
@@ -41,23 +44,58 @@ function tick(): void {
     stopAt = Infinity;
     paused = true;
   },
+  /** 성능 확인용: n번 (틱 + 그리기)를 하고 한 번에 걸린 평균 시간(ms)을 돌려준다 (픽셀은 읽지 않는다) */
+  bench(n: number) {
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) {
+      tick();
+      scene.render(ctx);
+    }
+    return (performance.now() - t0) / n;
+  },
+  /** 성능 확인용: 그리지 않고 n틱만 돌렸을 때 한 틱의 평균 시간(ms) */
+  benchTicks(n: number) {
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) tick();
+    return (performance.now() - t0) / n;
+  },
+  get quality() { return quality(); },
   /** 확인 도구(tools/clip)용: n틱 진행하고 그린 뒤 화면 픽셀을 색 번호로 돌려준다 */
   frame(n: number) {
     for (let i = 0; i < n; i++) tick();
     scene.render(ctx);
     const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    const colors: number[] = [];
+    let colors: number[] = [];
     const lookup = new Map<number, number>();
     const idx = new Uint8Array(canvas.width * canvas.height);
+    let overflow = false;
     for (let i = 0; i < idx.length; i++) {
       const c = (d[i * 4] << 16) | (d[i * 4 + 1] << 8) | d[i * 4 + 2];
       let k = lookup.get(c);
       if (k === undefined) {
-        k = Math.min(255, colors.length);
-        if (colors.length < 256) colors.push(c);
+        if (colors.length >= 256) {
+          overflow = true;
+          break;
+        }
+        k = colors.length;
+        colors.push(c);
         lookup.set(c, k);
       }
       idx[i] = k;
+    }
+    // 빛 레이어 때문에 256색을 넘으면 6×7×6 색 상자로 줄인다 (바둑판 디더링으로 띠가 덜 지게)
+    if (overflow) {
+      const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+      colors = [];
+      for (let r = 0; r < 6; r++) for (let gg = 0; gg < 7; gg++) for (let b = 0; b < 6; b++) {
+        colors.push((Math.round((r * 255) / 5) << 16) | (Math.round((gg * 255) / 6) << 8) | Math.round((b * 255) / 5));
+      }
+      const w = canvas.width;
+      for (let i = 0; i < idx.length; i++) {
+        const t = (bayer[((Math.floor(i / w) & 3) << 2) | (i % w & 3)] + 0.5) / 16 - 0.5;
+        const q = (v: number, n: number) => Math.max(0, Math.min(n, Math.round((v / 255) * n + t)));
+        idx[i] = q(d[i * 4], 5) * 42 + q(d[i * 4 + 1], 6) * 6 + q(d[i * 4 + 2], 5);
+      }
     }
     let bin = '';
     for (let i = 0; i < idx.length; i++) bin += String.fromCharCode(idx[i]);
@@ -68,4 +106,36 @@ function tick(): void {
 // 확인용: ?ff=1 이면 멈출 틱(stopAt)까지 기다리지 않고 바로 돌린다 (긴 대전 장면 캡처용).
 if (params.has('ff') && Number.isFinite(stopAt)) while (tickCount < stopAt) tick();
 
-startLoop(() => paused || tick(), () => scene.render(ctx));
+/** 확인용: ?fps=1 이면 화면 오른쪽 위에 초당 그린 화면 수, 한 번 그리는 데 걸린 시간, 조명 품질을 띄운다 (휴대폰에서 직접 확인) */
+const showFps = params.get('fps') === '1';
+let fpsFrames = 0;
+let fpsSpent = 0;
+let fpsAt = 0;
+let fpsText = '';
+
+function drawFps(ms: number, now: number): void {
+  fpsFrames++;
+  fpsSpent += ms;
+  if (now - fpsAt >= 1000) {
+    fpsText = `${Math.round((fpsFrames * 1000) / (now - fpsAt))}FPS ${(fpsSpent / fpsFrames).toFixed(1)}MS ${quality().toUpperCase()}`;
+    fpsFrames = 0;
+    fpsSpent = 0;
+    fpsAt = now;
+  }
+  if (!fpsText) return;
+  const w = textWidth(fpsText) + 4;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(SCREEN_W - w, 0, w, 9);
+  drawText(ctx, fpsText, SCREEN_W - w + 2, 2, '#ffffff');
+}
+
+/** 화면 그리기: 걸린 시간과 프레임마다 돈 틱 수를 재서 느리면 빛 레이어 품질을 낮춘다 (휴대폰 60프레임) */
+function render(ticks: number, now: number): void {
+  const t0 = performance.now();
+  scene.render(ctx);
+  const ms = performance.now() - t0;
+  measureFrame(ms, t0, ticks);
+  if (showFps) drawFps(ms, now);
+}
+
+startLoop(() => paused || tick(), render);

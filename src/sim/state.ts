@@ -1,5 +1,5 @@
 import { STATS } from './frames';
-import { faceOpponent, physics, readButtons, setMode, updateFighter, isAirborne } from './fighter';
+import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isAirborne } from './fighter';
 import { resolveHits } from './combat';
 import { crashProps, createProps, hitProps } from './props';
 import { createCity, flyThroughCity } from './city';
@@ -79,6 +79,9 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   stepFighter(s, a, inputs[0], fighting);
   stepFighter(s, b, inputs[1], fighting);
   separate(a, b);
+  // 밀려서 발판 끝을 넘었으면 떨어진다
+  settle(s, a);
+  settle(s, b);
   resolveHits(s);
   crashProps(s);
   hitProps(s);

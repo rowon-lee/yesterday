@@ -1,15 +1,15 @@
-import type { CityState } from '../../sim';
 import { CITADEL as D } from '../../data/stages/citadel';
-import { CHUNK, chunkIndex, FRONT, GRIDS, GROUND } from '../../stage/citadel';
-import { drawText, glyphRows } from '../font';
+import { GROUND } from '../../stage/citadel';
+import { drawText } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_W } from '../screen';
-import { disc, dither, hash, line, rect } from './dither';
+import { disc, discFast, dither, hash, line, rect, stamp } from './dither';
 import { midGround, midSeaX } from './layers';
+import { lights } from '../light';
 
 /**
- * 움직이는 도시 (모두 렌더 전용, sim과 무관): 노면전차, 도망치는 행인, 증기, 분수, 옥상 전광판.
- * 전차·증기·분수·전광판은 틱만 보고 그려서 같은 틱이면 늘 같은 그림이다.
+ * 움직이는 도시 (모두 렌더 전용, sim과 무관): 노면전차, 도망치는 행인, 증기, 분수.
+ * 전차·증기·분수는 틱만 보고 그려서 같은 틱이면 늘 같은 그림이다. (옥상 전광판은 부서지는 네온이라 props.ts)
  */
 
 // ---------------------------------------------------------------- 노면전차
@@ -28,8 +28,8 @@ export function tramAt(tick: number): { x: number; dir: number } | null {
 }
 
 /**
- * 1910년대식 노면전차: 짙은 녹색 아래 판, 크림색 창 띠(불 켜진 창과 승객 실루엣), 지붕의 채광 단,
- * 앞뒤 승강대와 배장기, 앞쪽 전조등, 가공선에 닿은 트롤리 막대(가끔 불꽃). 판정 없음.
+ * 1960년대 유선형 노면전차: 둥근 앞뒤, 크림색 위·녹색 아래 두 가지 색, 크롬 허리띠, 이어진 띠 창(불 켜진 실내와 승객),
+ * 가운데 전조등과 행선 표지, 가공선에 닿은 트롤리 막대(가끔 불꽃). 판정 없음. 전조등과 실내가 빛을 낸다.
  */
 export function drawTram(g: CanvasRenderingContext2D, tick: number): void {
   const at = tramAt(tick);
@@ -39,67 +39,80 @@ export function drawTram(g: CanvasRenderingContext2D, tick: number): void {
   const x = Math.round(at.x);
   const G = GROUND;
   const front = at.dir > 0 ? x + L : x;
-  // 바퀴와 대차
-  for (const bx of [x + 22, x + L - 46]) {
-    rect(g, bx - 2, G - 12, 28, 4, C.iron);
-    for (const wx of [bx + 4, bx + 20]) {
-      disc(g, wx, G - 5, 5, C.iron);
-      disc(g, wx, G - 5, 2, C.ironLight);
-    }
-  }
-  // 아래 판 (녹색), 창 띠 (크림), 지붕
-  rect(g, x + 6, G - 32, L - 12, 20, C.paintTeal);
-  rect(g, x + 6, G - 32, L - 12, 1, C.paintCream);
-  rect(g, x + 6, G - 14, L - 12, 2, C.iron);
-  rect(g, x + 6, G - 54, L - 12, 22, C.paintCream);
-  rect(g, x + 2, G - 60, L - 4, 6, C.iron);
-  rect(g, x + 20, G - 64, L - 40, 4, C.ironLight);
-  for (let cx = x + 24; cx < x + L - 24; cx += 8) rect(g, cx, G - 63, 4, 2, C.windowLit);
-  // 승강대 (앞뒤 끝은 조금 좁게)
-  for (const ex of [x, x + L - 6]) {
-    rect(g, ex, G - 56, 6, 42, C.paintTeal);
-    rect(g, ex + 1, G - 52, 4, 16, C.windowDark);
-  }
-  // 창: 불 켜진 실내와 승객
-  for (let wx = x + 12, i = 0; wx + 12 < x + L - 10; wx += 15, i++) {
-    rect(g, wx, G - 51, 12, 15, C.windowLit);
-    rect(g, wx, G - 51, 12, 3, C.windowLight);
-    if (hash(i * 31 + 7) < 0.6) {
-      const px = wx + 3 + Math.floor(hash(i * 17) * 5);
-      disc(g, px, G - 44, 2, C.iron);
-      rect(g, px - 2, G - 42, 5, 6, C.iron);
-    }
-    rect(g, wx + 12, G - 52, 3, 17, C.paintCream);
-  }
-  // 글씨와 번호판
-  drawText(g, 'LINE 7', x + Math.floor(L / 2) - 18, G - 28, C.paintCream, 1);
-  rect(g, front - (at.dir > 0 ? 18 : -2), G - 60, 16, 6, C.windowDark);
-  drawText(g, '7', front - (at.dir > 0 ? 13 : -7), G - 59, C.lampGlow, 1);
-  // 배장기와 전조등
-  for (let i = 0; i < 6; i++) {
-    const fx = at.dir > 0 ? front + i : front - i;
-    rect(g, fx, G - 12 + i, 1, 2, C.iron);
-  }
-  const hx = at.dir > 0 ? front - 4 : front + 1;
-  rect(g, hx, G - 26, 4, 4, C.lampCore);
-  for (let i = 1; i <= 12; i++) {
-    const lx = at.dir > 0 ? front + i : front - i;
-    for (let y = G - 28 - Math.floor(i / 4); y < G - 20 + Math.floor(i / 4); y++) if (dither(lx, y, 6 - Math.floor(i / 3))) rect(g, lx, y, 1, 1, C.lampGlow);
-  }
-  // 트롤리 막대: 뒤쪽 지붕에서 가공선까지 비스듬히
-  const baseX = at.dir > 0 ? x + 30 : x + L - 30;
+  // 차체·창·승객·트롤리 막대는 방향마다 한 번 그려 두고 얹는다 (기준점: 차체 왼쪽 끝, 바닥)
+  stamp(g, `tram:${at.dir}`, x, G, L + 8, T.wire + 4, 4, T.wire + 2, (sg) => tramBody(sg, at.dir, L, T.wire));
+  lights.point(x + L / 2, G - 40, L * 0.55, C.windowLight, 0.35);
+  const hx = at.dir > 0 ? front - 3 : front + 1;
+  lights.point(hx + 1, G - 22, 30, C.lampCore, 0.8);
+  lights.cone(hx + 1, G - 22, at.dir > 0 ? 0.08 : Math.PI - 0.08, 150, 0.22, C.lampGlow, 0.45);
+  // 가공선 불꽃 (가끔): 순간 파랗게 번쩍인다
+  const baseX = at.dir > 0 ? x + 34 : x + L - 34;
   const wireY = G - T.wire;
   const tipX = baseX - at.dir * 34;
-  line(g, baseX, G - 64, tipX, wireY + 2, C.iron);
-  line(g, baseX + 1, G - 64, tipX + 1, wireY + 2, C.ironLight);
-  rect(g, tipX - 1, wireY, 3, 3, C.ironLight);
-  // 가공선 불꽃 (가끔)
   if (hash(Math.floor(tick / 3) * 7919) < 0.25) {
     for (let i = 0; i < 6; i++) {
       const r = hash(tick * 13 + i * 101);
       rect(g, tipX + Math.round((r - 0.5) * 10), wireY - 1 + Math.round(hash(tick * 7 + i) * 6) - 2, 1, 1, i % 2 ? C.fxYellow : C.fxWhite);
     }
+    lights.point(tipX, wireY, 46, C.skyLight, 0.9);
   }
+}
+
+/** 전차 몸체 (기준점: 차체 왼쪽 끝 x=0, 바닥 y=0) */
+function tramBody(g: CanvasRenderingContext2D, dir: number, L: number, wire: number): void {
+  const x = 0;
+  const G = 0;
+  const front = dir > 0 ? x + L : x;
+  // 둥근 앞뒤: 위아래로 갈수록 안쪽으로 들어가는 몸체
+  const inset = (y: number) => {
+    const t = Math.abs(y - (G - 32)) / 24;
+    return Math.round(Math.max(0, t * t * 10));
+  };
+  for (let y = G - 56; y < G - 10; y++) {
+    const k = inset(y);
+    const col = y < G - 30 ? C.carCream : C.carMint;
+    rect(g, x + k, y, L - k * 2, 1, col);
+  }
+  rect(g, x + 4, G - 31, L - 8, 2, C.chrome);
+  rect(g, x + 10, G - 12, L - 20, 2, C.iron);
+  // 지붕 환기 띠와 트롤리 받침
+  rect(g, x + 30, G - 59, L - 60, 3, C.chromeDark);
+  // 띠 창: 이어진 창, 불 켜진 실내와 승객
+  for (let wx = x + 14, k = 0; wx + 10 < x + L - 14; wx += 13, k++) {
+    rect(g, wx, G - 46, 11, 13, C.windowLit);
+    rect(g, wx, G - 46, 11, 2, C.windowLight);
+    if (hash(k * 31 + 7) < 0.6) {
+      const px = wx + 3 + Math.floor(hash(k * 17) * 5);
+      disc(g, px, G - 40, 2, C.iron);
+      rect(g, px - 2, G - 38, 5, 5, C.iron);
+    }
+    rect(g, wx + 11, G - 47, 2, 15, C.carCream);
+    rect(g, wx, G - 50, 11, 2, C.windowDark);
+  }
+  // 바퀴 대차
+  for (const bx of [x + 22, x + L - 46]) {
+    rect(g, bx - 2, G - 11, 28, 3, C.iron);
+    for (const wx of [bx + 4, bx + 20]) {
+      disc(g, wx, G - 5, 5, C.iron);
+      disc(g, wx, G - 5, 2, C.chromeDark);
+    }
+  }
+  // 앞쪽: 둥근 앞유리, 가운데 전조등, 행선 표지
+  const fx = dir > 0 ? front - 12 : front + 2;
+  rect(g, fx, G - 50, 10, 16, C.windowDark);
+  rect(g, dir > 0 ? front - 9 : front + 3, G - 55, 6, 4, C.windowDark);
+  drawText(g, '7', dir > 0 ? front - 8 : front + 4, G - 55, C.lampGlow, 1);
+  const hx = dir > 0 ? front - 3 : front + 1;
+  rect(g, hx, G - 24, 3, 4, C.lampCore);
+  rect(g, dir > 0 ? x + 2 : x + L - 4, G - 22, 2, 3, C.neonRed);
+  drawText(g, 'CITADEL LINE', x + Math.floor(L / 2) - 23, G - 27, C.carCream, 1);
+  // 트롤리 막대: 뒤쪽 지붕에서 가공선까지 비스듬히
+  const baseX = dir > 0 ? x + 34 : x + L - 34;
+  const wireY = G - wire;
+  const tipX = baseX - dir * 34;
+  line(g, baseX, G - 59, tipX, wireY + 2, C.iron);
+  line(g, baseX + 1, G - 59, tipX + 1, wireY + 2, C.ironLight);
+  rect(g, tipX - 1, wireY, 3, 3, C.ironLight);
 }
 
 // ---------------------------------------------------------------- 증기
@@ -114,7 +127,7 @@ export function drawSteam(g: CanvasRenderingContext2D, vents: ReadonlyArray<{ x:
       const x = v.x + Math.sin((age + vi * 13) * 0.08) * 3 + age * 0.15;
       const y = v.y - age * 0.7;
       const level = Math.max(2, Math.round(10 * (1 - k)));
-      disc(g, x, y, 3 + k * 9, k < 0.4 ? C.stone : C.smoke, level);
+      discFast(g, x, y, 3 + k * 9, k < 0.4 ? C.stone : C.smoke, level);
     }
   });
 }
@@ -165,21 +178,26 @@ export class Walkers {
     this.list = this.list.filter((w) => w.age < 900 && w.x > Math.max(view0 - 120, midSeaX()) && w.x < view1 + 120);
   }
 
-  /** 가운데 겹 바로 앞에 그린다 (cam은 월드 카메라) */
-  draw(g: CanvasRenderingContext2D, cam: { x: number; y: number }): void {
+  /** 가운데 겹 바로 앞에 그린다 (cam은 월드 카메라, color는 원근을 입힌 실루엣 색) */
+  draw(g: CanvasRenderingContext2D, cam: { x: number; y: number }, color: string = C.night): void {
     const s = D.mid.speed;
     const ox = Math.round(cam.x * s);
     const oy = Math.round(cam.y * s);
     const gy = midGround() + 2 - oy;
-    for (const w of this.list) walker(g, Math.round(w.x - ox), gy, w.dir, w.phase, w.speed > 0.6);
+    for (const w of this.list) walker(g, Math.round(w.x - ox), gy, w.dir, w.phase, w.speed > 0.6, color);
   }
 }
 
-/** 반 크기 행인 실루엣 (키 약 24px, 모자). 뛰면 팔다리를 크게 휘두른다 */
-function walker(g: CanvasRenderingContext2D, x: number, foot: number, dir: number, phase: number, run: boolean): void {
-  const col = C.night;
-  const swing = Math.sin(phase) * (run ? 5 : 3);
+/** 반 크기 행인 실루엣 (키 약 24px, 모자). 뛰면 팔다리를 크게 휘두른다. 자세(휘두름 정도)마다 한 번 그려 두고 얹는다 */
+function walker(g: CanvasRenderingContext2D, x: number, foot: number, dir: number, phase: number, run: boolean, color: string): void {
+  const swing = Math.round(Math.sin(phase) * (run ? 5 : 3));
   const lean = run ? dir * 2 : 0;
+  stamp(g, `walker:${swing}:${lean}:${color}`, x, foot, 20, 30, 10, 27, (sg) => walkerPose(sg, swing, lean, color));
+}
+
+function walkerPose(g: CanvasRenderingContext2D, swing: number, lean: number, col: string): void {
+  const x = 0;
+  const foot = 0;
   const hip = foot - 11;
   const neck = foot - 20;
   line(g, x, hip, x - swing, foot, col);
@@ -223,64 +241,5 @@ export function drawFountain(g: CanvasRenderingContext2D, tick: number): void {
     const r = hash(i * 31 + Math.floor(tick / 4) * 7);
     const x = F.x - F.w / 2 + 6 + Math.round(r * (F.w - 12));
     if (dither(x, tick, 8)) rect(g, x, GROUND - 18 - Math.round(hash(i + tick) * 3), 1, 1, C.white);
-  }
-}
-
-// ---------------------------------------------------------------- 옥상 전광판
-let boardBits: boolean[][] | null = null;
-
-/** 글씨를 전구 한 칸씩의 점 그림으로 (5줄 × 글자마다 4칸) */
-function boardText(): boolean[][] {
-  if (boardBits) return boardBits;
-  const rows: boolean[][] = [[], [], [], [], []];
-  for (const ch of D.billboard.text) {
-    const glyph = glyphRows(ch);
-    for (let r = 0; r < 5; r++) {
-      for (let c = 0; c < 3; c++) rows[r].push((glyph[r] & (4 >> c)) !== 0);
-      rows[r].push(false);
-    }
-  }
-  boardBits = rows;
-  return rows;
-}
-
-/**
- * 비상계단 아파트 옥상 전광판: 쇠다리 위 판에 전구로 된 글씨가 흘러간다.
- * 아래 지붕 덩어리가 무너져 사라지면 그리지 않는다.
- */
-export function drawBillboard(g: CanvasRenderingContext2D, tick: number, city: CityState | null): void {
-  const B = D.billboard;
-  const b = FRONT.filter((f) => f.section === 'apartments')[B.building];
-  if (!b) return;
-  const gi = FRONT.indexOf(b);
-  const grid = GRIDS[gi];
-  const x = b.x + Math.floor((b.w - B.w) / 2);
-  if (city) {
-    const col = Math.floor((x + B.w / 2 - grid.x) / CHUNK);
-    if (city.hp[chunkIndex(grid, Math.max(0, Math.min(grid.cols - 1, col)), grid.rows - 1)] < 0) return;
-  }
-  const roof = GROUND - b.h;
-  const y = roof - B.h - 12;
-  // 쇠다리와 판
-  for (const lx of [x + 10, x + B.w - 14]) {
-    rect(g, lx, y + B.h, 4, 12, C.iron);
-    line(g, lx, roof, lx + 14, y + B.h, C.iron);
-  }
-  rect(g, x - 2, y - 2, B.w + 4, B.h + 4, C.iron);
-  rect(g, x, y, B.w, B.h, C.smog0);
-  // 흘러가는 글씨 (전구 3px 간격), 위아래 테두리 전구는 차례로 깜빡
-  const bits = boardText();
-  const cols = Math.floor((B.w - 6) / 3);
-  const len = bits[0].length;
-  const shift = Math.floor(tick / 5);
-  const ty = y + Math.floor((B.h - 15) / 2);
-  for (let c = 0; c < cols; c++) {
-    const src = (c + shift) % len;
-    for (let r = 0; r < 5; r++) rect(g, x + 3 + c * 3, ty + r * 3, 2, 2, bits[r][src] ? C.lampGlow : C.awning);
-  }
-  for (let bx = x + 1; bx < x + B.w - 1; bx += 3) {
-    const on = (Math.floor(bx / 3) + Math.floor(tick / 6)) % 3 === 0;
-    rect(g, bx, y + 1, 2, 1, on ? C.lampCore : C.lampWarm);
-    rect(g, bx, y + B.h - 2, 2, 1, on ? C.lampWarm : C.lampCore);
   }
 }
