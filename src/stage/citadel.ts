@@ -164,22 +164,27 @@ function neonSigns(): Breakable[] {
   const add = (bi: number, style: NeonStyle, text: string, color: NeonColor, x: number, w: number, bottom: number, h: number, big: boolean) => {
     out.push({ kind: 'neon', x, w, h, bottom, hp: big ? N.big : N.hp, ...support(bi, x + w / 2, Math.min(bottom + h / 2, LAYOUT.buildings[bi].h - 1)), style, text, color });
   };
+  // 간판 글씨가 화면 가장자리에서 반쯤 잘리지 않게 (아트 규칙): 세로 간판은 바닥에 선 카메라 화면(높이 240 아래) 안에 두고,
+  // 가게 간판은 구간 가운데 쪽으로 붙인다 (구간 끝에 선 카메라에서도 다 보이게)
+  const SIGN_TOP = 232;
   LAYOUT.buildings.forEach((b, bi) => {
     const color = NEON_COLORS[Math.floor(b.seed / 97) % NEON_COLORS.length];
     const a = awningOf(b);
     if (b.kind === 'theater') {
       const m = marqueeOf(b)!;
-      add(bi, 'blade', b.sign, 'pink', b.x + Math.floor(b.w / 2) - 11, 22, m.h + 6, b.h - 30 - (m.h + 6), true);
+      add(bi, 'blade', b.sign, 'pink', b.x + Math.floor(b.w / 2) - 11, 22, m.h + 6, Math.min(b.h - 30, SIGN_TOP) - (m.h + 6), true);
       add(bi, 'marquee', 'TONIGHT', 'amber', m.x0, m.x1 - m.x0, m.h - 22, 22, true);
     } else if (b.kind === 'diner' && a) {
       const w = textW(b.sign, 3) + 20;
       add(bi, 'board', b.sign, 'red', b.x + Math.floor((b.w - w) / 2), w, a.h + 10, 30, true);
     } else if (a && b.sign) {
       const w = textW(b.sign, 2) + 10;
-      add(bi, 'shop', b.sign, color, Math.round((a.x0 + a.x1 - w) / 2), w, a.h + 1, 14, false);
+      const sec = D.sections.find((s) => s.id === b.section)!;
+      const towardRight = b.x + b.w / 2 < (sec.x0 + sec.x1) / 2;
+      add(bi, 'shop', b.sign, color, towardRight ? a.x1 - w - 6 : a.x0 + 6, w, a.h + 1, 14, false);
     }
     // 호텔은 위층에 세로 네온을 하나 더 단다
-    if (b.sign === 'HOTEL') add(bi, 'blade', 'HOTEL', 'cyan', b.x + b.w - 26, 16, 120, 130, false);
+    if (b.sign === 'HOTEL') add(bi, 'blade', 'HOTEL', 'cyan', b.x + b.w - 26, 16, 100, SIGN_TOP - 100, false);
   });
   // 옥상 전광판 (지붕 위 쇠다리에 얹힘): 받치는 덩어리는 지붕 맨 윗줄
   const BB = D.billboard;
