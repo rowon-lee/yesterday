@@ -100,15 +100,15 @@ export class VfxLayer {
    * cam: 화면 왼쪽 위의 월드 좌표 (px). 화면 흔들림은 ctx의 이동으로 이미 들어가 있다.
    * 칠해진 칸만 디더링·팔레트 스냅을 하고, 칠해진 칸을 감싼 사각형만 화면에 올린다 (휴대폰에서 화면 전체를 올리면 무겁다).
    */
-  draw(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, layer: Layer): void {
-    if (!this.list.length) return;
+  draw(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, layer: Layer): boolean {
+    if (!this.list.length) return false;
     // 지난번에 칠한 사각형만 지우고, 이번에 칠한 사각형(box)만 훑는다
     this.wipe();
     const box = [SCREEN_W, SCREEN_H, -1, -1];
     const frame: Frame = { w: SCREEN_W, h: SCREEN_H, ox: cam.x, oy: cam.y, color: this.color, light: this.light, box };
     for (const fx of this.list) fx.draw(frame, layer);
     this.used = box;
-    if (box[2] < 0) return;
+    if (box[2] < 0) return false;
     if (!this.canvas) {
       this.canvas = document.createElement('canvas');
       this.canvas.width = SCREEN_W;
@@ -154,10 +154,11 @@ export class VfxLayer {
         y1 = y;
       }
     }
-    if (x1 < 0) return;
+    if (x1 < 0) return false;
     const w = x1 - x0 + 1;
     const h = y1 - y0 + 1;
     this.canvas!.getContext('2d')!.putImageData(this.out!, 0, 0, x0, y0, w, h);
     ctx.drawImage(this.canvas!, x0, y0, w, h, x0, y0, w, h);
+    return true;
   }
 }

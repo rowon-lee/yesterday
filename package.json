@@ -13,8 +13,12 @@
     "clip": "npm run build && node tools/clip.mjs"
   },
   "devDependencies": {
+    "@types/three": "^0.187.0",
     "playwright": "^1.63.0",
     "typescript": "^5.9.3",
     "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
   }
 }
