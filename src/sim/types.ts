@@ -83,6 +83,8 @@ export interface Fighter {
   driftLock: number;
   /** 이번 대시를 ↑와 함께 시작했다 (구조물 벽에 닿으면 벽 달리기) */
   dashUp: boolean;
+  /** 이번 기술(필살기)이 이미 시타델에 닿았다 (기술 하나에 한 번) */
+  citadelHit: boolean;
 }
 
 /** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */
@@ -90,6 +92,21 @@ export interface CityState {
   hp: number[];
   /** 무너진 기록: 건물 번호, 무너진 칸 범위, 틱 */
   collapses: Array<{ b: number; c0: number; c1: number; tick: number }>;
+}
+
+/**
+ * 시타델 본관 (기획서 '시타델 붕괴'). 라운드가 넘어가도 남고, 새 경기에만 새로.
+ * stage: 0 멀쩡, 1 금, 2 유리 깨짐·간판 떨어짐, 3 외벽 갈라짐·불, 4 무너짐
+ */
+export interface CitadelState {
+  hp: number;
+  stage: 0 | 1 | 2 | 3 | 4;
+  /** 1~4단계가 된 틱 (-1 아직). stageAt[3]이 무너진 틱 */
+  stageAt: number[];
+  /** 무너뜨린 사람 (-1 아직) */
+  by: number;
+  /** 무너진 뒤 잔해 언덕 덩어리 (x0 ~ x1, 윗면 높이 h). 무너지는 순간 정해진다 */
+  hill: Array<{ x0: number; x1: number; h: number }>;
 }
 
 /** 부서지는 물건 하나의 상태. 위치·크기는 stage/citadel.ts의 BREAKABLES[번호] */
@@ -134,7 +151,12 @@ export interface SimEvent {
     /** 벽 박차기 공격으로 벽을 박차고 나감: who = 찬 사람, x = 찬 벽 */
     | 'wallkick'
     /** 벽 낙법: who = 낙법한 사람 (박힌 쪽) */
-    | 'walltech';
+    | 'walltech'
+    /**
+     * 시타델 본관: text = 'damage' (combo = 깎인 양) | 'stage' (combo = 새 단계 1~3) | 'collapse' (무너짐).
+     * who = 깎은 사람, x = 그 자리
+     */
+    | 'citadel';
   /** 한 사람 (때린 쪽, 기술 쓴 쪽, 이긴 쪽) */
   who: number;
   x: number;
@@ -169,6 +191,8 @@ export interface SimState {
   props: PropState[];
   /** 건물 파괴: 덩어리 내구도와 무너진 기록. 라운드가 넘어가도 유지 */
   city: CityState;
+  /** 시타델 본관 내구도·단계·잔해 언덕. 라운드가 넘어가도 유지 */
+  citadel: CitadelState;
   /** 무너질 때 게임 시간이 반 속도로 가는 남은 틱 */
   slow: number;
 }

@@ -2,6 +2,7 @@ import { STATS } from './frames';
 import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isAirborne } from './fighter';
 import { resolveHits, splatLands } from './combat';
 import { crashProps, createProps, hitProps } from './props';
+import { createCitadel, hitCitadel } from './citadel';
 import { createCity, flyThroughCity } from './city';
 import { wallLeft } from './platforms';
 import type { PlayerInput } from './input';
@@ -21,7 +22,7 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
     hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
     runDist: 0, wins: 0, atkDir: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
-    wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false,
+    wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false, citadelHit: false,
   };
 }
 
@@ -34,6 +35,8 @@ export function createState(seed: number): SimState {
     // 부서지는 물건과 건물은 라운드가 넘어가도 남는다 (3라운드쯤이면 거리가 폐허). 새 경기에만 새로
     props: createProps(),
     city: createCity(),
+    // 시타델 본관도 라운드가 넘어가도 남는다 (한 경기에 한 번 무너진다)
+    citadel: createCitadel(),
     slow: 0,
   };
   resetRound(s);
@@ -91,6 +94,7 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   resolveHits(s);
   crashProps(s);
   hitProps(s);
+  hitCitadel(s);
   flyThroughCity(s);
   // 이번 틱에 무너진 건물·물건 위에 서 있었으면 바로 떨어지기 시작한다 (다음 틱이 슬로모션으로 건너뛰어져도 허공에 서 있지 않게)
   settle(s, a);
