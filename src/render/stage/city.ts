@@ -1,7 +1,8 @@
 import type { CityState } from '../../sim';
-import { CHUNKS, chunkIndex, chunkStage, FLOOR_H, FRONT, GRIDS, GROUND, MAP_H, MAP_W, SHOP_H } from '../../stage/downtown';
+import { CHUNKS, chunkIndex, chunkStage, FRONT, GRIDS, GROUND, MAP_H, MAP_W, type FrontBuildingPlace } from '../../stage/downtown';
 import { COLORS as C } from '../palette';
-import { canvas, dither, hash, line, rect } from './dither';
+import { canvas, disc, dither, ditherRect, hash, line, paint, rect } from './dither';
+import { floorsOf } from './layers';
 
 /**
  * 건물 파괴 그리기 (렌더 전용). sim의 덩어리 내구도를 보고, 미리 그려 둔 건물 정면 그림에서
@@ -136,91 +137,237 @@ export class CityLayer {
   }
 }
 
-/** 실내 그림 (맵 전체 크기, 건물 정면 자리마다). 층마다 벽지, 바닥판, 가구, 계단, 배관 */
+/**
+ * 실내 그림 (맵 전체 크기, 건물 정면 자리마다). 건물 종류마다 다르다:
+ * 상가·공동주택은 층마다 벽지·가구·계단, 1층 가게는 진열장, 창고는 나무 기둥과 상자,
+ * 청사는 돌 벽·책상·서류장·붉은 깃발, 공장은 층 없이 높은 공간에 보일러·톱니바퀴·통로·기중기.
+ */
 function buildInterior(): HTMLCanvasElement {
   const [c, g] = canvas(MAP_W, MAP_H);
-  const papers = [C.awning, C.paintTeal, C.posterRedDark, C.stoneDark, C.brickDark, C.paintOchre];
   FRONT.forEach((b, bi) => {
-    const top = GROUND - b.h;
-    // 층 경계 (바닥에서 위로): 1층 가게, 그 위로 FLOOR_H씩
-    const floors: Array<[number, number]> = [[GROUND - SHOP_H, GROUND]];
-    for (let f = 0; f < b.floors; f++) floors.push([GROUND - SHOP_H - (f + 1) * FLOOR_H, GROUND - SHOP_H - f * FLOOR_H]);
-    floors.push([top, GROUND - SHOP_H - b.floors * FLOOR_H]);
-    floors.forEach(([y0, y1], fi) => {
-      if (y1 <= y0) return;
-      const seed = b.seed * 31 + fi * 7;
-      const paper = papers[Math.floor(hash(seed) * papers.length)];
-      // 벽지: 바탕 + 세로 줄무늬나 점무늬 (어둡게 디더링)
-      rect(g, b.x, y0, b.w, y1 - y0, C.windowDark);
-      for (let y = y0; y < y1; y++) {
-        for (let x = b.x; x < b.x + b.w; x++) {
-          const stripe = hash(seed + 1) < 0.5 ? (x - b.x) % 6 < 3 : (x + y) % 5 === 0;
-          if (dither(x, y, stripe ? 9 : 5)) {
-            g.fillStyle = paper;
-            g.fillRect(x, y, 1, 1);
-          }
-        }
-      }
-      // 천장 밑 배관과 바닥판
-      rect(g, b.x, y0, b.w, 2, C.iron);
-      rect(g, b.x, y0 + 3, b.w, 1, C.ironLight);
-      rect(g, b.x, y1 - 3, b.w, 3, C.iron);
-      const pipeX = b.x + 4 + Math.floor(hash(seed + 2) * (b.w - 8));
-      rect(g, pipeX, y0, 2, y1 - y0 - 3, C.ironLight);
-      rect(g, pipeX - 1, y0 + 8, 4, 2, C.iron);
-      // 매달린 전구 (몇 개만 켜짐)
-      if (hash(seed + 3) < 0.5) {
-        const lx = b.x + 10 + Math.floor(hash(seed + 4) * (b.w - 20));
-        rect(g, lx, y0 + 2, 1, 6, C.iron);
-        rect(g, lx - 1, y0 + 8, 3, 2, hash(seed + 5) < 0.5 ? C.lampWarm : C.stone);
-      }
-      // 가구: 바닥 위에 놓인 탁자·책장·침대·옷장
-      let x = b.x + 3;
-      let k = seed + 10;
-      while (x < b.x + b.w - 10) {
-        const kind = Math.floor(hash(k++) * 5);
-        const floor = y1 - 3;
-        if (kind === 0) {
-          rect(g, x, floor - 8, 14, 2, C.awningStripe);
-          rect(g, x + 1, floor - 6, 1, 6, C.awning);
-          rect(g, x + 12, floor - 6, 1, 6, C.awning);
-          x += 18;
-        } else if (kind === 1) {
-          rect(g, x, floor - 22, 10, 22, C.awning);
-          for (let sy = floor - 20; sy < floor - 2; sy += 6) {
-            rect(g, x + 1, sy, 8, 1, C.iron);
-            for (let bx = x + 1; bx < x + 9; bx += 2) rect(g, bx, sy - 4, 1, 4, hash(k + bx) < 0.5 ? C.paintCream : C.posterRed);
-          }
-          x += 14;
-        } else if (kind === 2) {
-          rect(g, x, floor - 6, 20, 6, C.paintCream);
-          rect(g, x, floor - 10, 4, 10, C.awning);
-          rect(g, x + 2, floor - 8, 6, 2, C.white);
-          x += 24;
-        } else if (kind === 3) {
-          rect(g, x, floor - 18, 9, 18, C.awningStripe);
-          rect(g, x + 4, floor - 18, 1, 18, C.awning);
-          x += 13;
-        } else {
-          x += 8;
-        }
-      }
-    });
-    // 계단: 건물 한쪽에 층을 잇는 비스듬한 계단
-    if (b.floors >= 2) {
-      const sx = b.x + (bi % 2 ? 8 : b.w - 28);
-      for (let f = 0; f < b.floors; f++) {
-        const yBottom = GROUND - SHOP_H - f * FLOOR_H - 3;
-        for (let st = 0; st < 10; st++) {
-          const stx = bi % 2 ? sx + st * 2 : sx + 20 - st * 2;
-          rect(g, stx, yBottom - st * 3 - 3, 3, 3, C.stone);
-          rect(g, stx, yBottom - st * 3, 3, 1, C.stoneDark);
-        }
-        line(g, bi % 2 ? sx : sx + 22, yBottom - 4, bi % 2 ? sx + 20 : sx + 2, yBottom - 34, C.iron);
-      }
+    g.save();
+    g.beginPath();
+    g.rect(b.x, GROUND - b.h, b.w, b.h);
+    g.clip();
+    if (b.kind === 'factory') factoryInside(g, b);
+    else {
+      floorsOf(b).forEach(([y0, y1], fi) => {
+        const seed = b.seed * 31 + fi * 7;
+        if (b.kind === 'warehouse') storeroom(g, b, y0, y1, seed);
+        else if (b.kind === 'hall' || b.kind === 'wing') office(g, b, y0, y1, seed);
+        else if (fi === 0 && b.kind === 'shop') shopFloor(g, b, y0, y1, seed);
+        else room(g, b, y0, y1, seed);
+      });
+      if (b.kind !== 'warehouse') stairs(g, b, bi);
     }
+    g.restore();
   });
   return c;
+}
+
+/** 방 공통: 천장 밑 배관, 바닥판, 세로 배관, 매달린 전구 */
+function shell(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: number, y1: number, seed: number): void {
+  rect(g, b.x, y0, b.w, 2, C.iron);
+  rect(g, b.x, y0 + 3, b.w, 1, C.ironLight);
+  rect(g, b.x, y1 - 4, b.w, 4, C.iron);
+  const pipeX = b.x + 4 + Math.floor(hash(seed + 2) * (b.w - 8));
+  rect(g, pipeX, y0, 3, y1 - y0 - 4, C.ironLight);
+  rect(g, pipeX - 1, y0 + 10, 5, 2, C.iron);
+  if (hash(seed + 3) < 0.6) {
+    const lx = b.x + 12 + Math.floor(hash(seed + 4) * (b.w - 24));
+    rect(g, lx, y0 + 2, 1, 9, C.iron);
+    rect(g, lx - 2, y0 + 11, 5, 3, hash(seed + 5) < 0.5 ? C.lampWarm : C.stone);
+  }
+}
+
+/** 집: 벽지(줄무늬나 점무늬)와 가구(탁자·책장·침대·옷장·액자) */
+function room(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: number, y1: number, seed: number): void {
+  const papers = [C.awning, C.paintTeal, C.posterRedDark, C.stoneDark, C.brickDark, C.paintOchre];
+  const paper = papers[Math.floor(hash(seed) * papers.length)];
+  const striped = hash(seed + 1) < 0.5;
+  paint(g, b.x, y0, b.w, y1 - y0, (x, y) => {
+    const on = striped ? (x - b.x) % 8 < 4 : (x + y) % 6 === 0;
+    return dither(x, y, on ? 9 : 5) ? paper : C.windowDark;
+  });
+  rect(g, b.x, y1 - 12, b.w, 1, C.awning); // 걸레받이
+  shell(g, b, y0, y1, seed);
+  const floor = y1 - 4;
+  let x = b.x + 4;
+  let k = seed + 10;
+  while (x < b.x + b.w - 14) {
+    const kind = Math.floor(hash(k++) * 6);
+    if (kind === 0) {
+      rect(g, x, floor - 12, 22, 3, C.awningStripe);
+      rect(g, x + 2, floor - 9, 2, 9, C.awning);
+      rect(g, x + 18, floor - 9, 2, 9, C.awning);
+      rect(g, x + 8, floor - 15, 5, 3, C.paintCream);
+      x += 28;
+    } else if (kind === 1) {
+      rect(g, x, floor - 32, 15, 32, C.awning);
+      for (let sy = floor - 29; sy < floor - 2; sy += 8) {
+        rect(g, x + 1, sy, 13, 1, C.iron);
+        for (let bx = x + 1; bx < x + 14; bx += 2) rect(g, bx, sy - 6, 1, 6, hash(k + bx) < 0.5 ? C.paintCream : C.posterRed);
+      }
+      x += 20;
+    } else if (kind === 2) {
+      rect(g, x, floor - 9, 30, 9, C.paintCream);
+      rect(g, x, floor - 15, 5, 15, C.awning);
+      rect(g, x + 3, floor - 12, 9, 3, C.white);
+      x += 36;
+    } else if (kind === 3) {
+      rect(g, x, floor - 28, 14, 28, C.awningStripe);
+      rect(g, x + 6, floor - 28, 1, 28, C.awning);
+      x += 19;
+    } else if (kind === 4) {
+      rect(g, x + 2, y0 + 16, 12, 10, C.paintOchre);
+      rect(g, x + 4, y0 + 18, 8, 6, C.stoneDark);
+      x += 18;
+    } else {
+      x += 10;
+    }
+  }
+}
+
+/** 1층 가게: 진열장 선반과 계산대 */
+function shopFloor(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: number, y1: number, seed: number): void {
+  rect(g, b.x, y0, b.w, y1 - y0, C.windowDark);
+  ditherRect(g, b.x, y0, b.w, y1 - y0, C.awning, 6);
+  shell(g, b, y0, y1, seed);
+  for (let sy = y0 + 16; sy < y1 - 20; sy += 14) {
+    rect(g, b.x + 4, sy, b.w - 8, 2, C.awningStripe);
+    for (let gx = b.x + 6; gx < b.x + b.w - 8; gx += 4) {
+      const r = hash(seed + gx * 3 + sy);
+      if (r < 0.7) rect(g, gx, sy - 6 + Math.floor(r * 3), 3, 6 - Math.floor(r * 3), r < 0.25 ? C.posterRed : r < 0.5 ? C.paintCream : C.paintTeal);
+    }
+  }
+  const cx = b.x + Math.floor(b.w * 0.2);
+  rect(g, cx, y1 - 22, Math.floor(b.w * 0.45), 18, C.awning);
+  rect(g, cx, y1 - 22, Math.floor(b.w * 0.45), 2, C.awningStripe);
+  rect(g, cx + 6, y1 - 30, 10, 8, C.ironLight);
+}
+
+/** 창고: 나무 기둥과 들보, 쌓인 상자와 자루 */
+function storeroom(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: number, y1: number, seed: number): void {
+  rect(g, b.x, y0, b.w, y1 - y0, C.windowDark);
+  ditherRect(g, b.x, y0, b.w, y1 - y0, C.brickDark, 7);
+  rect(g, b.x, y0, b.w, 4, C.awning);
+  rect(g, b.x, y1 - 4, b.w, 4, C.awning);
+  for (let px = b.x + 20; px < b.x + b.w; px += 44) rect(g, px, y0, 5, y1 - y0, C.awning);
+  let x = b.x + 4;
+  let k = seed;
+  while (x < b.x + b.w - 16) {
+    const stack = 1 + Math.floor(hash(k++) * 3);
+    const s = 14 + Math.floor(hash(k++) * 6);
+    for (let i = 0; i < stack; i++) {
+      const by = y1 - 4 - (i + 1) * s;
+      if (by < y0 + 6) break;
+      rect(g, x, by, s, s, C.awningStripe);
+      rect(g, x, by, s, 1, C.paintOchre);
+      rect(g, x, by, 1, s, C.awning);
+      line(g, x + 1, by + 1, x + s - 2, by + s - 2, C.awning);
+    }
+    x += s + 4 + Math.floor(hash(k++) * 10);
+  }
+  // 매달린 쇠사슬과 갈고리
+  const hx = b.x + Math.floor(hash(seed + 9) * (b.w - 20)) + 10;
+  for (let y = y0 + 4; y < y0 + 26; y += 2) rect(g, hx, y, 1, 1, C.ironLight);
+  rect(g, hx - 1, y0 + 26, 3, 3, C.ironLight);
+}
+
+/** 청사 사무실: 돌 벽 판, 책상과 갓등, 서류장, 붉은 깃발 */
+function office(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: number, y1: number, seed: number): void {
+  rect(g, b.x, y0, b.w, y1 - y0, C.stoneDark);
+  ditherRect(g, b.x, y0, b.w, y1 - y0, C.windowDark, 8);
+  for (let px = b.x + 6; px < b.x + b.w; px += 30) rect(g, px, y0 + 6, 1, y1 - y0 - 12, C.stone);
+  shell(g, b, y0, y1, seed);
+  const floor = y1 - 4;
+  let x = b.x + 6;
+  let k = seed;
+  while (x < b.x + b.w - 20) {
+    const kind = Math.floor(hash(k++) * 4);
+    if (kind === 0) {
+      rect(g, x, floor - 14, 26, 3, C.awning);
+      rect(g, x + 2, floor - 11, 2, 11, C.awning);
+      rect(g, x + 22, floor - 11, 2, 11, C.awning);
+      rect(g, x + 16, floor - 20, 1, 6, C.iron);
+      rect(g, x + 13, floor - 22, 7, 3, C.paintTeal);
+      rect(g, x + 4, floor - 16, 8, 2, C.paintCream);
+      x += 32;
+    } else if (kind === 1) {
+      rect(g, x, floor - 30, 14, 30, C.ironLight);
+      for (let dy = floor - 27; dy < floor; dy += 8) rect(g, x + 2, dy, 10, 1, C.iron);
+      x += 20;
+    } else if (kind === 2 && y1 - y0 > 50) {
+      rect(g, x + 4, y0 + 12, 12, 26, C.posterRed);
+      rect(g, x + 4, y0 + 10, 12, 2, C.iron);
+      x += 22;
+    } else {
+      x += 12;
+    }
+  }
+}
+
+/** 공장 안: 층 없이 높은 공간. 보일러(불구멍), 톱니바퀴, 가운데 높이의 철제 통로, 천장 기중기 */
+function factoryInside(g: CanvasRenderingContext2D, b: FrontBuildingPlace): void {
+  const top = GROUND - b.h;
+  rect(g, b.x, top, b.w, b.h, C.windowDark);
+  ditherRect(g, b.x, top, b.w, b.h, C.brickRedDark, 7);
+  // 천장 기중기 들보와 갈고리
+  rect(g, b.x, top + 18, b.w, 5, C.iron);
+  const hx = b.x + Math.floor(hash(b.seed) * (b.w - 30)) + 15;
+  rect(g, hx - 6, top + 23, 12, 5, C.ironLight);
+  for (let y = top + 28; y < top + 70; y += 2) rect(g, hx, y, 1, 1, C.ironLight);
+  rect(g, hx - 2, top + 70, 5, 4, C.ironLight);
+  // 가운데 높이 철제 통로
+  const cy = GROUND - Math.floor(b.h * 0.55);
+  rect(g, b.x, cy, b.w, 3, C.iron);
+  for (let rx = b.x; rx < b.x + b.w; rx += 6) rect(g, rx, cy - 10, 1, 10, C.iron);
+  rect(g, b.x, cy - 10, b.w, 1, C.ironLight);
+  // 바닥: 보일러, 톱니바퀴, 벨트
+  let x = b.x + 8;
+  let k = b.seed;
+  while (x < b.x + b.w - 30) {
+    if (hash(k++) < 0.5) {
+      rect(g, x, GROUND - 52, 30, 52, C.ironLight);
+      rect(g, x, GROUND - 52, 30, 3, C.iron);
+      for (let ry = GROUND - 46; ry < GROUND; ry += 8) rect(g, x + 2, ry, 26, 1, C.iron);
+      rect(g, x + 9, GROUND - 22, 12, 10, C.fxFlame);
+      rect(g, x + 11, GROUND - 20, 8, 6, C.fxOrange);
+      rect(g, x + 12, GROUND - 80, 6, 28, C.iron);
+      x += 40;
+    } else {
+      disc(g, x + 16, GROUND - 30, 15, C.iron);
+      disc(g, x + 16, GROUND - 30, 11, C.ironLight);
+      for (let a = 0; a < 8; a++) {
+        const ang = (a / 8) * Math.PI * 2;
+        rect(g, Math.round(x + 16 + Math.cos(ang) * 14) - 1, Math.round(GROUND - 30 + Math.sin(ang) * 14) - 1, 3, 3, C.iron);
+      }
+      disc(g, x + 16, GROUND - 30, 3, C.iron);
+      line(g, x + 16, GROUND - 45, x + 40, cy + 3, C.awning);
+      x += 38;
+    }
+  }
+}
+
+/** 계단: 건물 한쪽에 층을 잇는 비스듬한 계단 */
+function stairs(g: CanvasRenderingContext2D, b: FrontBuildingPlace, bi: number): void {
+  const floors = floorsOf(b);
+  if (floors.length < 2) return;
+  const left = bi % 2 === 1;
+  const sx = b.x + (left ? 10 : b.w - 40);
+  for (let f = 0; f < floors.length - 1; f++) {
+    const yBottom = floors[f][0] - 4;
+    const rise = floors[f + 1][1] - floors[f + 1][0];
+    const steps = 14;
+    const stepH = Math.floor((floors[f][1] - floors[f][0] - 4) / steps);
+    for (let st = 0; st < steps; st++) {
+      const stx = left ? sx + st * 2 : sx + 28 - st * 2;
+      rect(g, stx, floors[f][1] - 4 - (st + 1) * stepH, 4, stepH, C.stone);
+      rect(g, stx, floors[f][1] - 4 - st * stepH, 4, 1, C.stoneDark);
+    }
+    line(g, left ? sx : sx + 32, floors[f][1] - 10, left ? sx + 28 : sx + 4, yBottom - 6, C.iron);
+    void rise;
+  }
 }
 
 /** 무너진 자리의 잔해 더미 (월드 좌표, 바닥 위). grow는 0~1: 무너진 직후부터 차오른다 */
@@ -232,7 +379,7 @@ export function drawRubble(g: CanvasRenderingContext2D, city: CityState | null, 
     const x1 = Math.min(gr.x + gr.w, gr.x + (col.c1 + 1) * 16) + 6;
     const grow = Math.min(1, Math.max(0, (tick - col.tick) / 40));
     if (grow <= 0) continue;
-    const peak = Math.min(46, 10 + gr.h / 6) * grow;
+    const peak = Math.min(60, 10 + gr.h / 6) * grow;
     const w = x1 - x0;
     const seed = col.b * 977 + col.c0 * 31;
     for (let x = x0; x < x1; x++) {

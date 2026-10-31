@@ -8,7 +8,7 @@ import { VfxLayer } from '../render/vfx';
 import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
-import { drawStage, GROUND_Y, type Cam } from '../render/stage';
+import { drawForeground, drawStage, GROUND_Y, type Cam } from '../render/stage';
 import { MAP_H } from '../stage/downtown';
 import { drawText, textWidth } from '../render/font';
 import {
@@ -50,6 +50,16 @@ const CAMERA_MARGIN = 20;
 /** 위로 솟은 사람의 발에서 이만큼 위까지 (머리와 여유), 아래 사람의 발에서 이만큼 아래까지 보이게 */
 const CAMERA_HEAD = 90;
 const CAMERA_FEET = 24;
+/**
+ * 띄우기·공중 콤보: 누가 CAMERA_LIFT_FROM(px)보다 높이 뜨면, 넘은 높이의 CAMERA_AIR_FOLLOW배 + CAMERA_LIFT만큼
+ * 카메라가 따라 올라가 위층과 하늘이 보이게 한다 (캐릭터는 화면에서 조금만 올라가고 배경이 내려간다).
+ */
+const CAMERA_LIFT_FROM = 30;
+const CAMERA_AIR_FOLLOW = 0.8;
+const CAMERA_LIFT = 10;
+/** 세로 따라가기 스프링: 당기는 힘과 감쇠 (부드럽게 가속·감속, 넘치지 않음. 목표의 2px 안까지 약 30틱) */
+const CAMERA_SPRING = 0.05;
+const CAMERA_DAMP = 0.35;
 
 /**
  * 대련 (연습: 1P 키보드 대 CPU). 주소 옵션:
@@ -75,6 +85,7 @@ export function fightScene(): Scene {
   let cutin: { who: number; text: string; t: number } | null = null;
   /** 카메라: 화면 왼쪽 위의 월드 좌표 (px, 렌더 전용). x가 -1이면 아직 안 정함 */
   let cam: Cam = { x: -1, y: 0 };
+  let camVy = 0;
   // 렌더 전용: 잔상용 지난 모습, 흙먼지, 직전 상태
   let trails: Snapshot[][] = [[], []];
   let dust: Dust[] = [];
@@ -122,6 +133,8 @@ export function fightScene(): Scene {
   /**
    * 카메라 (렌더 전용): 두 사람의 가운데를 부드럽게 따라가되 둘 다 화면 안에 있게 한다.
    * 위아래로도 따라간다: 둘 다 땅에 있으면 바닥이 보이게 내려오고, 높이 솟으면 위 사람의 머리가 보이게 올라간다.
+   * 세로는 스프링으로 부드럽게 가속·감속하고, 띄우기·공중 콤보 중에는 위로 여유를 더 둬서 위층과 하늘이 열린다.
+   * 스프링이 늦어도 머리와 발이 화면 밖으로 나가지는 않게 막는다.
    */
   const followCamera = () => {
     const [a, b] = s.fighters;
@@ -137,11 +150,30 @@ export function fightScene(): Scene {
     const bottom = MAP_H - SCREEN_H;
     const topHead = GROUND_Y + Math.min(a.y, b.y) / 256 - CAMERA_HEAD;
     const lowFeet = GROUND_Y + Math.max(a.y, b.y) / 256 + CAMERA_FEET;
-    let ty = Math.min(bottom, topHead);
-    // 아래 사람의 발까지 담지 못하면 둘의 가운데를 비춘다
-    if (lowFeet - ty > SCREEN_H) ty = (topHead + lowFeet) / 2 - SCREEN_H / 2;
+    const highest = Math.max(-a.y, -b.y) / 256;
+    let ty = highest > CAMERA_LIFT_FROM ? bottom - (highest - CAMERA_LIFT_FROM) * CAMERA_AIR_FOLLOW - CAMERA_LIFT : bottom;
+    // 위 사람의 머리는 화면 안에, 아래 사람의 발도 화면 안에. 둘 다 담지 못하면 둘의 가운데를 비춘다
+    ty = Math.max(lowFeet - SCREEN_H, Math.min(ty, topHead));
+    if (lowFeet - topHead > SCREEN_H) ty = (topHead + lowFeet) / 2 - SCREEN_H / 2;
     ty = Math.max(0, Math.min(bottom, ty));
-    const y = first ? ty : cam.y + (ty - cam.y) * 0.15;
+    let y = ty;
+    if (first) camVy = 0;
+    else {
+      camVy = (camVy + (ty - cam.y) * CAMERA_SPRING) * (1 - CAMERA_DAMP);
+      y = cam.y + camVy;
+      // 머리가 화면 위로, 발이 화면 아래로 나가지 않게
+      const headTop = topHead + CAMERA_HEAD - 10;
+      const feetLimit = lowFeet - SCREEN_H;
+      if (y > headTop && lowFeet - headTop <= SCREEN_H) {
+        y = headTop;
+        camVy = Math.min(camVy, 0);
+      }
+      if (y < feetLimit && lowFeet - headTop <= SCREEN_H) {
+        y = feetLimit;
+        camVy = Math.max(camVy, 0);
+      }
+      y = Math.max(0, Math.min(bottom, y));
+    }
     cam = { x, y };
   };
 
@@ -176,7 +208,7 @@ export function fightScene(): Scene {
       const [ox, oy] = fx.offset();
       ctx.save();
       ctx.translate(ox, oy);
-      drawStage(ctx, view, s.tick, s.props, s.city);
+      drawStage(ctx, view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256);
       const toScreen = (x: number, y: number): [number, number] => [Math.round(x - view.x), Math.round(GROUND_Y + y - view.y)];
 
       // 그림자 (높이 뜰수록 작아진다)
@@ -206,6 +238,11 @@ export function fightScene(): Scene {
       }
       vfx.draw(ctx, view, 'front');
       fightVfx.debris.drawDust(ctx, view, 'front');
+      // 앞겹: 카메라 앞을 스치는 기둥·전선. 캐릭터와 겹치는 곳은 비쳐 보이게
+      drawForeground(ctx, view, s.fighters.map((f) => {
+        const [fx, fy] = toScreen(f.x / 256, f.y / 256);
+        return { x: fx - 20, y: fy - 60, w: 40, h: 66 };
+      }));
       if (showBoxes) drawBoxes(ctx, s, view);
       ctx.restore();
 
