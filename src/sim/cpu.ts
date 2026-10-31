@@ -68,6 +68,8 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
 
   // 맞고 있을 때: 낙법이 되면 빠져나온다
   if (me.mode === 'airhit') return me.comboHits >= TECH_HITS && roll(cpu, 6) === 0 ? IN_JUMP : 0;
+  // 벽꽝으로 박히면: 열에 넷쯤은 벽 낙법 (박힌 뒤 둘째 틱에 한 번만 정한다)
+  if (me.mode === 'wallsplat') return me.t === 2 && roll(cpu, 5) < 2 ? IN_JUMP : 0;
 
   // 기술 도중: 연타, 띄운 뒤 쫓아가기, 공중 콤보 마무리
   if (me.mode === 'attack' && me.move) {

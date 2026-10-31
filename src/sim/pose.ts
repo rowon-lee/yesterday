@@ -85,6 +85,8 @@ function pick(f: Fighter): [string, number] {
       return stretch('base/getup', f.t, GETUP_TICKS);
     case 'tech':
       return stretch('base/tech', f.t, Math.max(1, f.len));
+    case 'walltech':
+      return once('base/wall_tech', f.t);
     case 'ko':
       return f.y < f.floor ? loop('base/hit_air', f.t) : stretch('base/knockdown', Math.min(f.t, KNOCKDOWN_TICKS), KNOCKDOWN_TICKS);
     case 'win':

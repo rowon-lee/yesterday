@@ -83,6 +83,15 @@ export const TECH_TICKS = 14;
 /** 낙법: 뒤로 몸을 돌려 빠져나가는 속도 */
 export const TECH_VX = px(2.6);
 export const TECH_VY = px(-5.5);
+/**
+ * 벽 낙법: 벽꽝으로 정면에 박히는 순간(히트스톱 동안)부터 그 뒤 이 틱 안에 점프를 누르면 박히지 않고 튕겨 나간다.
+ * 못 누르면 이 틱이 지난 뒤 박혀서 벽꽝 추가 피해를 받는다
+ */
+export const WALL_TECH_TICKS = 6;
+/** 벽 낙법으로 튕겨 나가는 속도 (상대 반대쪽, 위)와 무적 틱 */
+export const WALL_TECH_VX = px(2.2);
+export const WALL_TECH_VY = px(-6.2);
+export const WALL_TECH_INVULN = 20;
 /** 공중에서 맞을 때마다 더 빨리 떨어진다 (맞은 횟수당 중력 추가, 상한) */
 export const JUGGLE_GRAVITY_PER_HIT = px(0.03);
 export const JUGGLE_GRAVITY_MAX = px(0.3);

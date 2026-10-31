@@ -146,5 +146,46 @@ export const WALL_KICK: MotionData = {
   ],
 };
 
+// ---- 벽 낙법 (벽꽝: 뒤쪽 건물 정면에 박히는 순간. 상대 쪽을 본 채 정면을 박차고 뒤로 공중제비를 돌아 튕겨 나간다) ----
+/** 정면에 부딪힌 순간 (벽꽝 그림과 같은 자세: 몸이 젖혀지고 팔이 위로 들린다) */
+const WT_HIT = P({ hx: -6, hy: -22, tl: -20, hd: -16, aFx: 2, aFy: -19, aBx: -9, aBy: -16, lFx: 10, lFy: 0, lBx: -7, lBy: 0 });
+/** 박히기 전에 무릎을 끌어당겨 웅크린다 */
+const WT_PULL = P({ hx: -3, hy: -25, tl: -10, hd: 4, aFx: 6, aFy: 2, aBx: 3, aBy: 4, lFx: 7, lFy: -17, lBx: 2, lBy: -15 });
+/** 두 발로 정면을 박찬다: 다리를 아래로 쭉 뻗고 팔은 위로 젖힌다 */
+const WT_PUSH = P({ hx: -2, hy: -27, tl: -14, hd: -8, aFx: 5, aFy: -15, aBx: -6, aBy: -13, lFx: 3, lFy: 0, lBx: -3, lBy: 1 });
+/*
+ * 뒤로 공중제비: 공중 웅크림(무릎을 가슴에 붙이고 팔로 감싼 자세)을 엉덩이를 중심으로 통째로 돌린 것.
+ * 몸통 기울기 -60° → -150° → -240° → -320° (한 바퀴 -360°는 0°와 같은 모습)
+ */
+const WT_FLIP1 = P({ hx: -1, hy: -28, tl: -60, hd: -8, aFx: 4, aFy: -6, aBx: 5, aBy: -1, lFx: 9, lFy: -34, lBx: 10, lBy: -27 });
+const WT_FLIP2 = P({ hx: -1, hy: -28, tl: -150, hd: -8, aFx: -6, aFy: -4, aBx: -1, aBy: -5, lFx: -7, lFy: -38, lBx: 0, lBy: -39 });
+const WT_FLIP3 = P({ hx: -1, hy: -28, tl: -240, hd: -8, aFx: -4, aFy: 6, aBx: -5, aBy: 1, lFx: -11, lFy: -22, lBx: -12, lBy: -29 });
+const WT_FLIP4 = P({ hx: -1, hy: -28, tl: -320, hd: -8, aFx: 5, aFy: 5, aBx: 1, aBy: 5, lFx: 3, lFy: -17, lBx: -4, lBy: -17 });
+/** 한 바퀴를 다 돌며 몸을 편다: 팔을 벌려 균형을 잡는다 (-372° = -12°) */
+const WT_OPEN = P({ hx: 0, hy: -25, tl: -372, hd: 6, aFx: 10, aFy: -9, aBx: -9, aBy: -9, lFx: 7, lFy: -7, lBx: -6, lBy: -3 });
+/** 낙하 자세 (벽 점프 끝과 같다. 한 바퀴 돈 각도로 적는다) */
+const WT_FALL: Pose = { ...WJ_FALL, tl: WJ_FALL.tl - 360 };
+
+/**
+ * 벽 낙법: 벽꽝으로 건물 정면에 박히는 순간 점프하면, 박히지 않고 정면을 박차 뒤로 공중제비를 돌아 튕겨 나간다.
+ * 1프레임 부딪힌 순간 → 2프레임 웅크림 → 3프레임 박참 → 4~10프레임 뒤로 한 바퀴 → 11~13프레임 몸을 펴 낙하 자세로.
+ */
+export const WALL_TECH: MotionData = {
+  name: 'base/wall_tech',
+  label: '벽 낙법',
+  dur: [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3],
+  keys: [
+    { at: 0, pose: WT_HIT },
+    { at: 1, pose: WT_PULL },
+    { at: 2, pose: WT_PUSH },
+    { at: 3, pose: WT_FLIP1 },
+    { at: 5, pose: WT_FLIP2 },
+    { at: 6, pose: WT_FLIP3 },
+    { at: 8, pose: WT_FLIP4 },
+    { at: 10, pose: WT_OPEN },
+    { at: 12, pose: WT_FALL },
+  ],
+};
+
 /** 벽 기동 동작 (승인받은 순서대로 늘어난다) */
-export const WALL_MOTIONS: MotionData[] = [WALL_CLING, WALL_JUMP, WALL_RUN, WALL_KICK];
+export const WALL_MOTIONS: MotionData[] = [WALL_CLING, WALL_JUMP, WALL_RUN, WALL_KICK, WALL_TECH];

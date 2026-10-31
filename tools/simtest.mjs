@@ -26,7 +26,7 @@ const sim = await vite.ssrLoadModule('/src/sim/index.ts');
 const R = sim.RULES;
 const HP = sim.createState(0).fighters[0].hp;
 
-const total = { wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
+const total = { wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
 const t0 = Date.now();
 for (let m = 0; m < args.matches; m++) {
   const seed = args.seed + m;
@@ -37,7 +37,7 @@ for (let m = 0; m < args.matches; m++) {
     const ok = a.hash === b && a.hash === c && a.ended && a.problems.length === 0;
     if (!ok) failed++;
     const w = a.winner < 0 ? '무승부' : `${a.winner + 1}P 승`;
-    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 벽달리기 ${a.stats.wallrun} 박차기 ${a.stats.wallkick} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat} 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
+    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 벽달리기 ${a.stats.wallrun} 박차기 ${a.stats.wallkick} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat}(벽낙법 ${a.stats.walltech}) 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
     for (const p of a.problems.slice(0, 5)) console.log(`      ${p}`);
     for (const k of Object.keys(a.stats)) if (k !== 'maxCombo' && k !== 'maxPerch') total[k] += a.stats[k];
     total.maxCombo = Math.max(total.maxCombo, a.stats.maxCombo);
@@ -75,7 +75,7 @@ console.log(`  건물: 깎인 덩어리 ${total.cityChunks}, 붕괴 ${total.coll
 console.log(`  부서지는 물건: 망가짐 ${total.propDamaged}, 파괴 ${total.propBroken} (그중 날아온 캐릭터에 부딪혀서 ${total.propCrash}, 네온 간판 꺼짐 ${total.neon})`);
 console.log(`  발판: 올라선 횟수 ${total.perch}, 발판 위 ${(total.perchTicks / 60).toFixed(0)}초 (그중 새 구조물 위 ${(total.structTicks / 60).toFixed(0)}초), ↓+점프로 내려옴 ${total.drop}, 가장 높이 선 곳 ${total.maxPerch}px`);
 console.log(`  큰 물건: 망가짐 ${total.bigDamaged}, 크게 무너짐 ${total.bigBroken}`);
-console.log(`  벽 기동: 벽 붙기 ${total.wallcling}, 벽 점프 ${total.walljump}, 벽 달리기 ${total.wallrun}, 벽 박차기 공격 ${total.wallkick}`);
+console.log(`  벽 기동: 벽 붙기 ${total.wallcling}, 벽 점프 ${total.walljump}, 벽 달리기 ${total.wallrun}, 벽 박차기 공격 ${total.wallkick}, 벽 낙법 ${total.walltech} (벽꽝 ${total.wallsplat}번 중)`);
 console.log(failed ? `실패 ${failed}건` : '모두 통과');
 process.exit(failed ? 1 : 0);
 
@@ -85,7 +85,7 @@ function runCpuMatch(seed, ticks) {
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
   const log = [];
   const problems = [];
-  const stats = { wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0 };
+  const stats = { wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0 };
   const was = [0, 0];
   while (log.length < ticks && state.phase !== 'matchEnd') {
     const inputs = [sim.cpuInput(cpus[0], state, 0), sim.cpuInput(cpus[1], state, 1)];
@@ -686,6 +686,41 @@ function wallChecks() {
       results.push(['벽 박차기 공격을 맞히고 점프하면 2단 점프로 쫓아간다', f.mode === 'air' && f.jumpKind === 2 && f.airJumpUsed && f.vx < 0, `${f.mode} 점프 종류 ${f.jumpKind}`]);
     }
   }
+
+  // 벽 낙법: 건물 정면 앞에서 2P가 1P의 기술 B(벽 쪽으로 날림)에 맞아 정면에 박힌다 (2P가 점프를 누르는 때를 바꿔 가며)
+  const g1 = sim.GRIDS[1];
+  const gx = Math.round(g1.x + g1.w / 2);
+  const skillB = sim.MOVES.skillB.data.damage;
+  const splat = (jumpAfter, hp = null) => {
+    const sp = fresh(gx - 22, gx);
+    const [a, d] = sp.fighters;
+    a.facing = 1;
+    d.facing = -1;
+    a.meter = sim.RULES.METER_MAX;
+    if (hp !== null) d.hp = hp;
+    const hp0 = d.hp;
+    let at = -1;
+    const seen = [];
+    for (let k = 0; k < 80; k++) {
+      sim.step(sp, [k === 0 ? I.IN_SKILL_B : 0, at >= 0 && k === at + jumpAfter ? I.IN_JUMP : 0]);
+      if (at < 0 && sp.events.some((e) => e.type === 'wallsplat')) at = k;
+      if (at >= 0) seen.push(d.mode);
+      if (d.mode === 'walltech' && seen.filter((m) => m === 'walltech').length === 1) {
+        return { d, hp0, at, teched: true, vx: d.vx, vy: d.vy, invuln: d.invuln, hpAtTech: d.hp };
+      }
+      if (at >= 0 && k > at + 40) break;
+    }
+    return { d, hp0, at, teched: false, seen };
+  };
+  const hit = skillB;
+  let r = splat(3);
+  results.push(['벽꽝에 박히는 순간(히트스톱 중) 점프하면 벽 낙법: 박히지 않고 상대 반대쪽 위로 튕겨 나가며 무적', r.at >= 0 && r.teched && r.vx > 0 && r.vy < 0 && r.invuln > 0, `벽꽝 ${r.at >= 0}, 낙법 ${r.teched}, vx ${(r.vx / 256).toFixed(1)} vy ${(r.vy / 256).toFixed(1)} 무적 ${r.invuln}`]);
+  results.push(['벽 낙법이면 벽꽝 추가 피해를 받지 않는다', r.teched && r.hp0 - r.hpAtTech === hit, `피해 ${r.hp0 - r.hpAtTech} (기술 B ${hit})`]);
+  r = splat(10 + sim.RULES.WALL_TECH_TICKS + 4);
+  const late = r.d;
+  results.push(['낙법 구간이 지나 점프하면 박혀서 벽꽝 추가 피해를 받는다', r.at >= 0 && !r.teched && r.hp0 - late.hp === hit + sim.CITY_RULES.wallsplat.damage, `낙법 ${r.teched}, 피해 ${r.hp0 - late.hp}`]);
+  r = splat(999, hit + 30);
+  results.push(['벽꽝 추가 피해로 체력이 다하면 쓰러진다 (KO)', r.at >= 0 && r.d.mode === 'ko' && r.d.hp === 0, `${r.d.mode} 체력 ${r.d.hp}`]);
 
   // ↑ 없이 벽 쪽을 누르면 구조물 앞을 지나간다: 왼쪽 기둥탑 앞에 선 상대에게 뛰어들기·대시
   const right = tower.x1;

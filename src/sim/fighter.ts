@@ -1,5 +1,5 @@
 import { AIR_CHAIN, GROUND_CHAIN, type MoveId } from '../data/moves/base';
-import { MOVES, STATS } from './frames';
+import { motionFrames, MOVES, STATS } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
@@ -7,7 +7,8 @@ import { canDropThrough, findWall, findWallCross, floorBelow, landingY, wallHold
 import {
   BOUNCE_VY, BUFFER_TICKS, DROP_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
   JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SAME_WALL_MAX, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
-  WALL_GRAB_H, WALL_JUMP_LOCK, WALL_PUSH, WALL_REACH, WALL_TOP_VX, WALL_TOP_VY, px,
+  WALL_GRAB_H, WALL_JUMP_LOCK, WALL_PUSH, WALL_REACH, WALL_TECH_INVULN, WALL_TECH_TICKS, WALL_TECH_VX, WALL_TECH_VY,
+  WALL_TOP_VX, WALL_TOP_VY, px,
 } from './rules';
 import type { Fighter, Mode, SimState } from './types';
 
@@ -530,12 +531,18 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       }
       break;
     case 'tech':
+    case 'walltech':
       if (f.t >= f.len) setMode(f, 'air');
       break;
     case 'wallsplat':
       // 정면에 박혀 있다가 튕겨 나와 떨어진다
       f.vx = 0;
       f.vy = 0;
+      // 벽 낙법: 박히는 순간(히트스톱 동안 누른 것도)부터 그 뒤 WALL_TECH_TICKS틱 안에 점프 (벽꽝 추가 피해는 combat.ts splatLands)
+      if (controllable && f.t <= WALL_TECH_TICKS && take(f, B_JUMP)) {
+        wallTech(s, f);
+        break;
+      }
       if (f.t >= f.len) {
         setMode(f, 'airhit', 30);
         f.vx = f.facing * px(1.6);
@@ -563,6 +570,24 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       break;
   }
   ageButtons(f);
+}
+
+/**
+ * 벽 낙법 (기획서 '벽 기동과 구조물'): 박히지 않고 정면을 박차 뒤로 공중제비를 돌아 튕겨 나간다.
+ * 상대 반대쪽 위로 날아가고, 그동안 무적이다. 콤보는 끊기고, 공중 낙법처럼 2단 점프·공중 대시는 쓸 수 없다.
+ */
+function wallTech(s: SimState, f: Fighter): void {
+  setMode(f, 'walltech', motionFrames('base/wall_tech').total);
+  f.vx = -f.facing * WALL_TECH_VX;
+  f.vy = WALL_TECH_VY;
+  f.y = Math.min(f.y, -1);
+  f.floor = 0;
+  f.invuln = WALL_TECH_INVULN;
+  f.comboHits = 0;
+  f.bounce = false;
+  f.airJumpUsed = true;
+  f.airDashUsed = true;
+  s.events.push({ type: 'walltech', who: s.fighters.indexOf(f), x: f.x, y: f.y - px(22) });
 }
 
 /**
@@ -658,6 +683,7 @@ function land(s: SimState, f: Fighter): void {
     case 'air':
     case 'airdash':
     case 'tech':
+    case 'walltech':
     case 'wallcling':
       setMode(f, 'land', STATS.landTicks);
       f.vx = 0;
