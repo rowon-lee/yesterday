@@ -198,11 +198,22 @@ export class FightVfx {
         this.fx.shake(0.5);
       } else if (e.type === 'ko') {
         this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.45, surface: fxColor('street'), seed: this.seed++, shake: shake(0.2) }));
+      } else if (e.type === 'wallcling') {
+        // 벽에 등이 부딪히는 작은 충격과 벽에서 떨어지는 부스러기
+        const f = s.fighters[e.who];
+        const out = f ? f.wallSide : 1;
+        this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.22, ramp: fxRamp(COOL), seed: this.seed++ }));
+        this.debris.burst('brick', wx, wy, out, 3);
       }
     }
 
     s.fighters.forEach((f, i) => {
       const side = i as 0 | 1;
+      // 벽에 붙어 미끄러지는 동안: 손·발이 긁는 자리에서 먼지가 인다
+      if (f.mode === 'wallcling' && f.vy > 128 && s.tick % 5 === 0) {
+        const fy = GROUND_Y + f.y / 256;
+        this.debris.dustCloud(f.wallX - 2, f.wallX + 2, 0.15, fy - 8);
+      }
       // 대시·공중 대시가 시작되는 틱: 잔상과 박차는 먼지
       if ((f.mode === 'dash' || f.mode === 'airdash') && this.prevMode[i] !== f.mode) {
         const air = f.mode === 'airdash';

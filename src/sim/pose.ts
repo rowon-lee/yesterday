@@ -1,4 +1,5 @@
 import type { Joints } from '../anim/pose';
+import { WALL_CLING_LOOP_FROM } from '../data/poses/wall';
 import { frameAtTick, frameStretched, motionFrames, MOVES, STATS } from './frames';
 import { GETUP_TICKS, KNOCKDOWN_TICKS } from './rules';
 import type { Fighter } from './types';
@@ -21,6 +22,15 @@ function once(name: string, t: number): [string, number] {
 }
 function stretch(name: string, t: number, len: number): [string, number] {
   return [name, frameStretched(motionFrames(name), t, len)];
+}
+/** 앞 프레임들은 한 번, from번째 프레임부터는 되풀이 (벽 붙기: 붙는 순간 뒤 미끄러지는 동안) */
+function holdLoop(name: string, t: number, from: number): [string, number] {
+  const m = motionFrames(name);
+  const head = m.cum[from - 1];
+  if (t < head) return [name, frameAtTick(m, t)];
+  const span = m.total - head;
+  const u = head + ((t - head) % span);
+  return [name, frameAtTick(m, u)];
 }
 
 function pick(f: Fighter): [string, number] {
@@ -71,5 +81,7 @@ function pick(f: Fighter): [string, number] {
       return f.y < f.floor ? loop('base/hit_air', f.t) : stretch('base/knockdown', Math.min(f.t, KNOCKDOWN_TICKS), KNOCKDOWN_TICKS);
     case 'win':
       return once('base/win', f.t);
+    case 'wallcling':
+      return holdLoop('base/wall_cling', f.t, WALL_CLING_LOOP_FROM);
   }
 }

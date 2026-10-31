@@ -7,7 +7,9 @@ export type Mode =
   | 'attack' | 'hitstun' | 'airhit' | 'knockdown' | 'getup' | 'tech'
   | 'ko' | 'win'
   /** 벽꽝: 건물 정면에 박혀 잠깐 갇힘 */
-  | 'wallsplat';
+  | 'wallsplat'
+  /** 벽 붙기: 공중에서 벽 쪽을 누른 채 벽에 닿아, 벽을 등지고 붙어 천천히 미끄러짐 */
+  | 'wallcling';
 
 /** 직렬화 가능한 평범한 객체. 위치·속도는 1/256px 정수. */
 export interface Fighter {
@@ -67,6 +69,12 @@ export interface Fighter {
   dropT: number;
   /** '벽 쪽으로 날림' 기술에 맞아 날아가는 중 (큰 물건에 부딪히면 크게 무너뜨린다) */
   wallFly: boolean;
+  /** 마지막으로 디딘 벽 번호 (-1 없음)와 그 벽을 연속으로 디딘 횟수 (땅·발판에 내려서면 처음부터) */
+  wallId: number;
+  wallCount: number;
+  /** 붙어 있는 벽의 x (월드 px)와 붙은 쪽 (-1 벽 왼쪽, 1 벽 오른쪽, 0 없음) */
+  wallX: number;
+  wallSide: number;
 }
 
 /** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */
@@ -108,7 +116,9 @@ export interface SimEvent {
     /** 건물이 무너짐: who = 건물 번호, combo = 무너진 폭(px), text = '첫 칸,끝 칸' */
     | 'collapse'
     /** 벽꽝: who = 때린 쪽 */
-    | 'wallsplat';
+    | 'wallsplat'
+    /** 벽 붙기: who = 붙은 사람, combo = 그 벽을 연속으로 디딘 횟수 */
+    | 'wallcling';
   /** 한 사람 (때린 쪽, 기술 쓴 쪽, 이긴 쪽) */
   who: number;
   x: number;

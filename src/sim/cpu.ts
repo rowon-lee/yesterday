@@ -6,8 +6,8 @@ import {
 } from './input';
 import { MAP_ENDS, type Surface } from '../stage/citadel';
 import { isAirborne } from './fighter';
-import { surfaceSolid, surfacesOf } from './platforms';
-import { METER_BAR, METER_MAX, px, SUBPX, TECH_HITS } from './rules';
+import { findWall, surfaceSolid, surfacesOf } from './platforms';
+import { METER_BAR, METER_MAX, px, SUBPX, TECH_HITS, WALL_GRAB_H } from './rules';
 import type { Fighter, SimState } from './types';
 
 /**
@@ -28,10 +28,13 @@ export interface CpuState {
   /** 발판에 오를 때 노리는 자리 (1/256px, x가 0이면 없음) */
   tx: number;
   ty: number;
+  /** 벽 붙기: 누르고 있을 방향 (IN_LEFT·IN_RIGHT, 0이면 안 붙음)과 붙어 있을 틱 */
+  wallDir: number;
+  wallT: number;
 }
 
 export function createCpu(seed: number, skill = 60): CpuState {
-  return { rng: seed | 0, plan: 'wait', planT: 0, last: 0, skill, tx: 0, ty: 0 };
+  return { rng: seed | 0, plan: 'wait', planT: 0, last: 0, skill, tx: 0, ty: 0, wallDir: 0, wallT: 0 };
 }
 
 /** 점프와 2단 점프로 오를 수 있다고 보는 높이 (px, 여유를 둠) */
@@ -84,9 +87,31 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
   }
   // 발판으로 오르는 점프: 노린 자리로 몸을 틀고, 아직 발판보다 낮은데 떨어지기 시작하면 2단 점프
   if (me.mode === 'jumpsquat' && cpu.tx) return toward(me, cpu.tx);
+  // 벽에 붙어 있는 동안: 잠깐 버티다가 놓거나 벽 반대쪽으로 뛴다
+  if (me.mode === 'wallcling') {
+    const toward = me.wallSide < 0 ? IN_RIGHT : IN_LEFT;
+    if (cpu.wallT > 0) {
+      cpu.wallT--;
+      return toward;
+    }
+    cpu.wallDir = 0;
+    return roll(cpu, 2) === 0 ? IN_JUMP | toward : 0;
+  }
+  if (me.mode !== 'air') cpu.wallDir = 0;
   // 띄운 상대를 공중에서 쫓는 중
   if (me.mode === 'air') {
     if (op.mode === 'airhit' && dist < 50) return IN_ATTACK | fwd;
+    // 떨어지는 중 벽 가까이면 가끔 벽 쪽을 눌러 붙는다
+    if (!cpu.tx && !cpu.wallDir && me.vy >= 0) {
+      for (const dir of [1, -1]) {
+        if (findWall(s, me.x, Math.round(-me.y / SUBPX) + WALL_GRAB_H, dir, 24) && roll(cpu, 3) === 0) {
+          cpu.wallDir = dir > 0 ? IN_RIGHT : IN_LEFT;
+          cpu.wallT = 15 + roll(cpu, 45);
+          break;
+        }
+      }
+    }
+    if (cpu.wallDir) return cpu.wallDir;
     if (cpu.tx) {
       const dir = toward(me, cpu.tx);
       if (me.vy >= -px(1) && !me.airJumpUsed && me.y > cpu.ty - px(4)) return IN_JUMP | dir;
