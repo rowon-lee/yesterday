@@ -35,4 +35,7 @@ export const BASE_STATS = {
   /** 벽 붙기: 미끄러지는 최고 속도와 가속 (붙는 순간 멈췄다가 천천히 빨라진다) */
   wallSlide: 1.2,
   wallSlideAccel: 0.06,
+  /** 벽 점프: 벽 반대쪽으로 튕겨 오르는 속도 (가로, 세로. 세로 8.6이면 약 88px 솟는다) */
+  wallJumpVx: 4.4,
+  wallJumpVy: 8.6,
 } as const;

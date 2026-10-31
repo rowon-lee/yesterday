@@ -198,6 +198,13 @@ export class FightVfx {
         this.fx.shake(0.5);
       } else if (e.type === 'ko') {
         this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.45, surface: fxColor('street'), seed: this.seed++, shake: shake(0.2) }));
+      } else if (e.type === 'walljump') {
+        // 두 발로 벽을 차는 자리: 벽에서 튀는 먼지와 부스러기
+        const f = s.fighters[e.who];
+        const out = f ? f.facing : 1;
+        this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.3, ramp: fxRamp(COOL), seed: this.seed++ }));
+        this.debris.burst('brick', wx, wy, out, 4);
+        this.debris.dustCloud(wx - 3, wx + 3, 0.35, wy + 6);
       } else if (e.type === 'wallcling') {
         // 벽에 등이 부딪히는 작은 충격과 벽에서 떨어지는 부스러기
         const f = s.fighters[e.who];

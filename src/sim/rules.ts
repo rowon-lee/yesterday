@@ -41,6 +41,8 @@ export const WALL_GRAB_H = 30;
 export const SAME_WALL_MAX = 2;
 /** 벽에서 손을 놓을 때 벽 반대쪽으로 밀려나는 속도 */
 export const WALL_PUSH = px(1.2);
+/** 벽 점프 직후 이 틱 동안은 공중 좌우 조작이 듣지 않는다 (곧바로 같은 벽으로 되돌아가지 않게) */
+export const WALL_JUMP_LOCK = 10;
 
 // 방어
 export const GUARD_MAX = 100;

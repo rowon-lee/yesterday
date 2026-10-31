@@ -43,5 +43,34 @@ export const WALL_CLING: MotionData = {
 /** 벽 붙기에서 되풀이하는 프레임 (0부터): 붙는 순간 뒤 */
 export const WALL_CLING_LOOP_FROM = 4;
 
+// ---- 벽 점프 (벽은 뒤쪽. 첫 프레임에는 이미 벽에서 4px쯤 떨어져 있다) ----
+/** 두 발로 벽을 차며 몸을 앞으로 던진다: 다리는 뒤로 쭉, 몸은 앞으로 기울고 두 팔은 앞위로 */
+const WJ_KICK = P({ hx: 3, hy: -21, tl: 38, hd: -12, aFx: 11, aFy: -8, aBx: 8, aBy: -4, lFx: -9, lFy: -9, lBx: -12, lBy: -3 });
+/** 튕겨 나간다: 몸이 비스듬히 솟고 다리는 뒤에 끌리고 팔은 위로 뻗는다 */
+const WJ_LAUNCH = P({ hx: 2, hy: -24, tl: 26, hd: -16, aFx: 8, aFy: -16, aBx: 3, aBy: -15, lFx: -6, lFy: -7, lBx: -10, lBy: -3 });
+/** 솟으며 무릎을 끌어당겨 웅크린다 */
+const WJ_TUCK = P({ hy: -26, tl: 18, hd: -2, aFx: 7, aFy: 2, aBx: 3, aBy: 5, lFx: 8, lFy: -16, lBx: 2, lBy: -14 });
+/** 꼭대기 근처에서 몸을 펴며 앞을 본다 */
+const WJ_OPEN = P({ hy: -24, tl: 6, hd: 2, aFx: 9, aFy: -6, aBx: -6, aBy: -4, lFx: 6, lFy: -5, lBx: -5, lBy: -2 });
+/** 떨어지는 자세로 이어진다 (임시 '낙하'의 첫 자세와 같다) */
+const WJ_FALL = P({ hy: -24, tl: 4, hd: 2, aFx: 9, aFy: -9, aBx: -7, aBy: -6, lFx: 6, lFy: -2, lBx: -6, lBy: -1 });
+
+/**
+ * 벽 점프: 벽에 붙은 채 점프하면 벽 반대쪽(바라보는 쪽)으로 비스듬히 튕겨 오른다.
+ * 두 발로 벽을 차고(1~2프레임) → 비스듬히 솟고 → 무릎을 끌어당겼다가 → 꼭대기에서 몸을 펴 떨어지는 자세로 이어진다.
+ */
+export const WALL_JUMP: MotionData = {
+  name: 'base/wall_jump',
+  label: '벽 점프',
+  dur: [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+  keys: [
+    { at: 0, pose: WJ_KICK },
+    { at: 2, pose: WJ_LAUNCH },
+    { at: 6, pose: WJ_TUCK, stop: true },
+    { at: 10, pose: WJ_OPEN },
+    { at: 13, pose: WJ_FALL },
+  ],
+};
+
 /** 벽 기동 동작 (승인받은 순서대로 늘어난다) */
-export const WALL_MOTIONS: MotionData[] = [WALL_CLING];
+export const WALL_MOTIONS: MotionData[] = [WALL_CLING, WALL_JUMP];

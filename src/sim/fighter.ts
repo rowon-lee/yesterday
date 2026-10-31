@@ -7,7 +7,7 @@ import { canDropThrough, findWall, floorBelow, landingY, wallHolds } from './pla
 import {
   BOUNCE_VY, BUFFER_TICKS, DROP_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
   JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SAME_WALL_MAX, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
-  WALL_GRAB_H, WALL_PUSH, WALL_REACH, px,
+  WALL_GRAB_H, WALL_JUMP_LOCK, WALL_PUSH, WALL_REACH, px,
 } from './rules';
 import type { Fighter, Mode, SimState } from './types';
 
@@ -192,6 +192,8 @@ function groundControl(s: SimState, f: Fighter, input: PlayerInput): void {
 }
 
 function airDrift(f: Fighter, input: PlayerInput): void {
+  // 벽 점프 직후에는 튕겨 나간 쪽으로 날아간다
+  if (f.driftLock > 0) return;
   const h = (input & IN_RIGHT ? 1 : 0) - (input & IN_LEFT ? 1 : 0);
   if (h) f.vx = Math.max(-STATS.airMaxVx, Math.min(STATS.airMaxVx, f.vx + h * STATS.airAccel));
 }
@@ -237,17 +239,34 @@ function letGo(f: Fighter): void {
 }
 
 /**
+ * 벽 점프 (기획서 '벽 기동과 구조물'): 붙은 채 점프하면 벽 반대쪽(바라보는 쪽)으로 비스듬히 튕겨 오른다.
+ * 벽을 디뎌 다시 생긴 2단 점프·공중 대시는 그대로 남는다. 잠깐 공중 좌우 조작이 듣지 않는다 (WALL_JUMP_LOCK).
+ */
+function wallJump(s: SimState, f: Fighter): void {
+  setMode(f, 'air');
+  f.vx = f.facing * STATS.wallJumpVx;
+  f.vy = STATS.wallJumpVy;
+  f.jumpKind = 3;
+  f.driftLock = WALL_JUMP_LOCK;
+  s.events.push({ type: 'walljump', who: s.fighters.indexOf(f), x: px(f.wallX), y: f.y - px(10) });
+}
+
+/**
  * 벽에 붙은 동안: 솟던 힘이 다하면 멈췄다가 천천히 빨라지며 미끄러진다 (발판·땅에 닿으면 착지).
- * 벽 쪽 방향을 놓거나 ↓를 누르면, 또는 벽이 끝나거나 무너지면 떨어진다.
- * 점프·공격·대시는 벽 반대쪽(바라보는 쪽)으로: 지금은 2단 점프·공중 공격·공중 대시를 쓴다 (벽 점프·벽 박차기 공격 동작이 생기면 바뀐다)
+ * 점프는 벽 점프 (어느 방향을 누르든). 공격·대시는 벽 반대쪽(바라보는 쪽)으로: 지금은 공중 공격·공중 대시를 쓴다
+ * (벽 박차기 공격 동작이 생기면 바뀐다). 벽 쪽 방향을 놓거나 ↓를 누르면, 또는 벽이 끝나거나 무너지면 떨어진다.
  */
 function clingControl(s: SimState, f: Fighter, input: PlayerInput): void {
   const toward = f.wallSide < 0 ? IN_RIGHT : IN_LEFT;
   f.x = px(f.wallX) + f.wallSide * WALL_REACH;
   f.vx = 0;
   f.vy = f.vy < 0 ? Math.min(0, f.vy + STATS.gravity) : Math.min(STATS.wallSlide, f.vy + STATS.wallSlideAccel);
-  if (!(input & toward) || input & IN_DOWN || !wallHolds(s, f.wallId, f.wallSide, f.wallX, grabH(f))) {
+  if (!wallHolds(s, f.wallId, f.wallSide, f.wallX, grabH(f))) {
     letGo(f);
+    return;
+  }
+  if (take(f, B_JUMP)) {
+    wallJump(s, f);
     return;
   }
   if (trySkills(s, f, true)) return;
@@ -256,19 +275,14 @@ function clingControl(s: SimState, f: Fighter, input: PlayerInput): void {
     startMove(s, f, atkDir(f) & IN_DOWN ? 'slam' : AIR_CHAIN[0]);
     return;
   }
-  if (has(f, B_JUMP) && !f.airJumpUsed) {
-    take(f, B_JUMP);
-    letGo(f);
-    doubleJump(f, 0);
-    f.vx = f.facing * STATS.jumpVx;
-    return;
-  }
   if (has(f, B_DASH) && !f.airDashUsed) {
     take(f, B_DASH);
     setMode(f, 'airdash', STATS.airDashTicks);
     f.dir = 1;
     f.airDashUsed = true;
+    return;
   }
+  if (!(input & toward) || input & IN_DOWN) letGo(f);
 }
 
 function airControl(s: SimState, f: Fighter, input: PlayerInput): void {
@@ -341,6 +355,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
   const input = controllable ? rawInput : 0;
   if (!controllable) f.buf.fill(0);
   f.t++;
+  if (f.driftLock > 0) f.driftLock--;
   // 발밑이 없는데 땅 상태면 (발판이 무너진 직후 등) 떨어지는 상태로
   if (isAirborne(f) && GROUND_ONLY.has(f.mode)) fallOff(f);
   if (f.invuln > 0) f.invuln--;

@@ -57,6 +57,8 @@ function pick(f: Fighter): [string, number] {
     case 'jumpsquat':
       return ['base/jump', 0];
     case 'air':
+      // 벽 점프는 그 그림이 끝날 때까지 (꼭대기를 지나 떨어지는 자세로 이어진다)
+      if (f.jumpKind === 3 && f.t < motionFrames('base/wall_jump').total) return once('base/wall_jump', f.t);
       if (f.vy < 0) return f.jumpKind === 2 ? once('base/jump2', f.t) : once('base/jump', f.t + 2);
       return once('base/fall', Math.floor(f.vy / 64));
     case 'land':
