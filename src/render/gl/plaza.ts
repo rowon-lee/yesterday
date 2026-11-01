@@ -292,7 +292,7 @@ export class Plaza {
     registerSign(S.sub, '시타델 간판', S.x + (S.w - sw) / 2, S.x + (S.w + sw) / 2, top - 46, top - 36, KEEP_Z + 6, sw, S.w);
     this.group.add(this.signMesh);
     // 네온 세 번째 겹: 간판 둘레 벽(커튼월)에 퍼지는 청록빛
-    this.fixed.push({ x: S.x + S.w / 2, y: S.bottom + S.h / 2, z: KEEP_Z + 60, range: 200, color: '#8fe6e6', power: 1.6 });
+    this.fixed.push({ x: S.x + S.w / 2, y: S.bottom + S.h / 2, z: KEEP_Z + 60, range: 200, color: '#8fe6e6', power: 1.15 });
   }
 
   /** 분수: 둥근 돌 수반(물 위에 비친 빛), 가운데 받침과 그릇 (물줄기는 움직이는 도시가 매 틱 그린다) */
@@ -660,7 +660,7 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
     // 펜던트 등 (천장에서 늘어진 둥근 등)과 바닥 쪽 은은한 빛
     const pend = [x0 + w * 0.2, x0 + w * 0.5, x0 + w * 0.8].map(Math.round);
     // 등마다 벽에 떨어지는 빛 웅덩이: 등 둘레는 하얗게 날아간 빛의 심 (흑백 200 이상), 바깥으로 단계마다 어두워진다
-    const lamps: Array<[number, number, number, number, number]> = pend.map((px) => [px, 110, 36, 50, 1.15]);
+    const lamps: Array<[number, number, number, number, number]> = pend.map((px) => [px, 110, 36, 50, 1.0]);
     lamps.push([x0 + w / 2, top, w * 0.62, 44, 0.32]);
     for (const px of pend) lamps.push([px, 22, 46, 16, 0.3]);
     const ex = [x0 + Math.round(w * 0.36), x0 + Math.round(w * 0.64)];
@@ -669,12 +669,14 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
     if (west) for (const c of ex) lamps.push([c, 96, 18, 9, 0.35]);
     else lamps.push([dx0 + 14, 52, 24, 16, 0.55]);
     interior(x0, x1, 22, top, lamps, 0.26);
-    // 뒷벽 깃발 (붉은 천에 별)
-    const bx = west ? x0 + Math.round(w * 0.5) : x0 + Math.round(w * 0.66);
-    sil(bx - 10, bx + 10, 64, top - 2, C.posterRed);
-    R(g, bx - 10, bx + 10, 64, 67, C.posterRedDark);
-    R(g, bx - 10, bx + 10, top - 6, top - 2, C.posterRedDark);
-    star(g, X(bx), Y(top - 34), 2, C.paintOchre);
+    // 뒷벽 깃발 (붉은 천에 별): 동쪽 로비에만 (서쪽은 가운데 펜던트 빛 웅덩이를 가리지 않게 비운다)
+    if (!west) {
+      const bx = x0 + Math.round(w * 0.66);
+      sil(bx - 10, bx + 10, 64, top - 2, C.posterRed);
+      R(g, bx - 10, bx + 10, 64, 67, C.posterRedDark);
+      R(g, bx - 10, bx + 10, top - 6, top - 2, C.posterRedDark);
+      star(g, X(bx), Y(top - 34), 2, C.paintOchre);
+    }
     if (west) {
       // 승강기 둘: 청동 문, 문틀, 층 표시등
       for (const c of ex) {
