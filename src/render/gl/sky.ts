@@ -69,8 +69,9 @@ void main() {
     col += glow * glowK * (pow(t, 2.6) * 0.9 + pow(t, 8.0) * 0.8);
     col += vec3(0.30, 0.34, 0.42) * 0.10 * smoothstep(moon.z * 4.5, 0.0, md);
     float d = cloudAt(p, t);
-    // 아랫면 가장자리: 아래로 갈수록 옅어지는 곳 (화면 미분으로 한 번에)
-    float rim = clamp(dFdy(d) * 3.0, 0.0, 1.0);
+    // 아랫면 가장자리: 아래로 갈수록 옅어지는 곳. 바로 아래 칸과의 차로 칸마다 따로 계산한다
+    // (화면 미분 dFdy는 2×2 칸 묶음마다 같은 값이라 테두리가 큰 네모 픽셀이 된다)
+    float rim = clamp((d - cloudAt(p + vec2(0.0, 1.0), clamp((p.y + 1.0) / horizon, 0.0, 1.0))) * 3.0, 0.0, 1.0);
     vec3 cc = mix(cloud, cloudLit, clamp(smoothstep(0.25, 1.0, t) * 0.85 + rim * 1.6, 0.0, 1.0));
     cc += vec3(0.20, 0.22, 0.27) * 0.25 * smoothstep(moon.z * 6.0, 0.0, md);
     cc += (cloudLit * 1.5 + vec3(0.35, 0.38, 0.55)) * flash * (0.4 + d);

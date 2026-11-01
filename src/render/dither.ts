@@ -1,5 +1,7 @@
+import { COLORS, RAMPS } from './palette';
+
 /**
- * 픽셀 그리기 도구. 반투명 대신 4×4 바이어 디더링으로 농도를 낸다 (흐림 금지).
+ * 픽셀 그리기 도구. 흐림 없이 칠한다. 바이어 디더링은 두 색이 만나는 경계에만 쓴다 (넓은 면 바둑판 금지, 맵 아트 지침서).
  */
 const BAYER = [
   [0, 8, 2, 10],
@@ -16,19 +18,85 @@ export function rect(g: CanvasRenderingContext2D, x: number, y: number, w: numbe
   g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
 
-/** 사각형을 농도 level(0~16)로 디더링해서 칠한다. ox, oy는 무늬 기준 (겹 좌표를 넘겨 무늬가 겹과 같이 움직이게) */
+/** 팔레트 (COLORS + RAMPS, 후처리 팔레트와 같은 목록) */
+const PAL: ReadonlyArray<readonly [number, number, number]> = [...new Set([...Object.values(COLORS), ...RAMPS])].map((h) => {
+  const n = parseInt(h.slice(1), 16);
+  return [n >> 16, (n >> 8) & 255, n & 255] as const;
+});
+/** 가장 가까운 팔레트 색 (0xrrggbb). 후처리 팔레트와 같은 가중치 */
+export function nearestPalette(r: number, g: number, b: number): number {
+  let best = 0;
+  let bd = Infinity;
+  for (let k = 0; k < PAL.length; k++) {
+    const p = PAL[k];
+    const d = 3 * (p[0] - r) ** 2 + 4 * (p[1] - g) ** 2 + 2 * (p[2] - b) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = k;
+    }
+  }
+  const p = PAL[best];
+  return (p[0] << 16) | (p[1] << 8) | p[2];
+}
+
+/**
+ * 사각형을 농도 level(0~16)만큼 color로 물들인다. 넓은 면을 바둑판 점무늬로 칠하지 않는다:
+ * 칸마다 원래 색과 color를 level/16만큼 섞어 가장 가까운 팔레트 색으로 칠하고 (넓은 면은 단색),
+ * 사각형 안쪽 가장자리 한 줄만 바이어 무늬로 반씩 섞어 두 색이 만나는 경계만 부드럽게 한다.
+ * 투명한 칸은 그대로 둔다. ox, oy는 가장자리 무늬 기준 (겹 좌표를 넘겨 무늬가 겹과 같이 움직이게). 캔버스는 평행 이동만 따른다.
+ */
 export function ditherRect(
   g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, level: number, ox = 0, oy = 0,
 ): void {
-  // 넓은 사각형은 픽셀 버퍼로 한 번에 (putImageData는 클립을 무시하므로 사각형이 그릴 자리 안에 있을 때만 쓴다)
-  if (w * h > 4000 && x >= 0 && y >= 0 && x + w <= g.canvas.width && y + h <= g.canvas.height && g.getTransform().isIdentity) {
-    paint(g, x, y, w, h, (px, py) => (dither(px + ox, py + oy, level) ? color : null));
+  if (level <= 0 || w <= 0 || h <= 0) return;
+  if (level >= 16) {
+    rect(g, x, y, w, h, color);
     return;
   }
-  g.fillStyle = color;
-  for (let j = 0; j < h; j++) {
-    for (let i = 0; i < w; i++) if (dither(x + i + ox, y + j + oy, level)) g.fillRect(x + i, y + j, 1, 1);
+  const t = g.getTransform();
+  const X0 = Math.round(x + t.e);
+  const Y0 = Math.round(y + t.f);
+  const X1 = X0 + Math.round(w);
+  const Y1 = Y0 + Math.round(h);
+  const W = g.canvas.width;
+  const H = g.canvas.height;
+  const ax = Math.max(0, X0);
+  const ay = Math.max(0, Y0);
+  const bx = Math.min(W, X1);
+  const by = Math.min(H, Y1);
+  if (bx <= ax || by <= ay) return;
+  const img = g.getImageData(ax, ay, bx - ax, by - ay);
+  const d = img.data;
+  const n = parseInt(color.slice(1), 16);
+  const cr = n >> 16;
+  const cg = (n >> 8) & 255;
+  const cb = n & 255;
+  const k = level / 16;
+  const cache = new Map<number, number>();
+  const iw = bx - ax;
+  for (let j = 0; j < by - ay; j++) {
+    const py = ay + j;
+    const edgeY = (py === Y0 && Y0 > 0) || (py === Y1 - 1 && Y1 < H);
+    for (let i = 0; i < iw; i++) {
+      const p = (j * iw + i) * 4;
+      if (d[p + 3] === 0) continue;
+      const px = ax + i;
+      const edge = edgeY || (px === X0 && X0 > 0) || (px === X1 - 1 && X1 < W);
+      if (edge && !dither(px + ox, py + oy, 8)) continue;
+      const src = (d[p] << 16) | (d[p + 1] << 8) | d[p + 2];
+      let out = cache.get(src);
+      if (out === undefined) {
+        out = nearestPalette(d[p] + (cr - d[p]) * k, d[p + 1] + (cg - d[p + 1]) * k, d[p + 2] + (cb - d[p + 2]) * k);
+        // 섞어도 같은 팔레트 색이면 원래 색 그대로 (팔레트 밖 색으로 그린 바탕이 사각형 모양으로 바뀌지 않게)
+        if (out === nearestPalette(d[p], d[p + 1], d[p + 2])) out = src;
+        cache.set(src, out);
+      }
+      d[p] = out >> 16;
+      d[p + 1] = (out >> 8) & 255;
+      d[p + 2] = out & 255;
+    }
   }
+  g.putImageData(img, ax, ay);
 }
 
 /** 원. level을 주면 디더링 (꽉 찬 원은 줄마다 한 번에 칠한다) */

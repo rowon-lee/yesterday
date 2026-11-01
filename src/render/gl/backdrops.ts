@@ -6,6 +6,9 @@ import { SCREEN_H, SCREEN_W } from '../screen';
 import { canvas, disc, dither, ditherRect, hash, line, paint, rect } from '../dither';
 import { registerLayerSign } from './signs';
 
+/** 시타델 광장 구간 (월드 x) */
+const PLAZA = D.sections.find((s) => s.id === 'plaza')!;
+
 /**
  * 먼 겹(하늘과 바다·1구역 마천루·시타델 탑 윗부분·중간 건물)의 도트 그림 (렌더 전용, 오프스크린 Canvas 2D에 미리 그린다).
  * 겹마다 카메라 대비 움직이는 비율(speed)이 있고, 그 비율만큼 가로·세로로 작은 그림이 된다: 폭 = 화면 + (맵 - 화면) × speed.
@@ -202,7 +205,8 @@ export function buildKeep(): Layer {
     for (let x = x0 + 3; x < x0 + sl.w - 2; x += 6) rect(g, x, top + 4, 1, h - top - 4, rib);
     for (let y = top + 6; y < gl - 4; y += 6) {
       rect(g, x0, y, sl.w, 1, i % 2 ? dark : C.smog1);
-      for (let x = x0 + 4; x < x0 + sl.w - 4; x += 6) if (hash(x * 7 + y * 13 + i) < 0.14) rect(g, x, y + 2, 2, 2, hash(x + y) < 0.3 ? C.windowLight : lit);
+      // 먼 사무동 창은 1×2 (가늘게): 2×2 네모가 줄지으면 키운 그림처럼 보인다
+      for (let x = x0 + 4; x < x0 + sl.w - 4; x += 6) if (hash(x * 7 + y * 13 + i) < 0.14) rect(g, x + 1, y + 2, 1, 2, hash(x + y) < 0.3 ? C.windowLight : lit);
     }
     rect(g, x0 - 2, top - 3, sl.w + 4, 3, rib);
     if (i % 2) {
@@ -349,10 +353,14 @@ export function buildMid(): Layer {
       for (let wx = x + 4; wx < x + bw - 6; wx += 9) rect(g, wx, wy, 5, 8, hash(k++) < 0.1 ? C.windowLit : C.windowDark);
     }
     if (!steps && hash(k++) < 0.6) waterTower(g, x + 6 + Math.floor(hash(k++) * (bw - 24)), top, C.iron, 1.3);
-    if (index % 3 === 1) {
-      const text = ['HOTEL', 'TONIC', 'RADIO', 'CIGARS', 'COAL'][Math.floor(index / 3) % 5];
+    // 먼 가게 간판 (어둡게). 시타델 광장 뒤에는 달지 않는다: 광장 화면의 주인공 간판은 CITADEL 하나 (간판 위계)
+    const signText = ['HOTEL', 'TONIC', 'RADIO', 'CIGARS', 'COAL'][Math.floor(index / 3) % 5];
+    const signX = x + Math.floor((bw - textWidth(signText, 2) - 8) / 2);
+    const signWorld = (signX - (SCREEN_W / 2) * (1 - M.speed)) / M.speed;
+    if (index % 3 === 1 && (signWorld < PLAZA.x0 - SCREEN_W / 2 || signWorld > PLAZA.x1)) {
+      const text = signText;
       const tw = textWidth(text, 2);
-      const px = x + Math.floor((bw - tw - 8) / 2);
+      const px = signX;
       ditherRect(g, px, top + 24, tw + 8, 18, index % 2 ? C.paintTeal : C.paintOchre, 12);
       drawText(g, text, px + 4, top + 28, C.paintCream, 2);
       registerLayerSign(text, '중간 겹 간판', M.speed, px + 4, px + 4 + tw, top + 28, top + 38, tw, tw + 8);

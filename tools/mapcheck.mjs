@@ -74,16 +74,24 @@ export function analyze(probe) {
     const db = depth[b];
     return Math.abs(da - db) > Math.max(12, 0.004 * Math.min(da, db));
   };
+  /**
+   * 바닥처럼 깊이가 줄마다 고르게 변하는 면인가: 후보 칸(i) 양옆 a·b 너머(aa·bb)에서도 깊이가 같은 빠르기로 이어지면
+   * 끊긴 곳(형태의 경계)이 아니다 (젖은 바닥의 빗물 무늬·반사 줄을 외곽선으로 세지 않게)
+   */
+  const ramp = (aa, a, b, bb) => {
+    const across = Math.abs(depth[a] - depth[b]) / 2;
+    return Math.abs(depth[aa] - depth[a]) > 0.5 * across && Math.abs(depth[b] - depth[bb]) > 0.5 * across;
+  };
 
   // 1. 외곽선
   const cand = new Uint8Array(n); // 1: 세로선 후보, 2: 가로선 후보
   let boundary = 0;
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
+  for (let y = 2; y < h - 2; y++) {
+    for (let x = 2; x < w - 2; x++) {
       const i = y * w + x;
       if (jump(i, i + 1) || jump(i, i + w)) boundary++;
-      if (L[i] < Math.min(L[i - 1], L[i + 1]) - 6 && jump(i - 1, i + 1)) cand[i] |= 1;
-      if (L[i] < Math.min(L[i - w], L[i + w]) - 6 && jump(i - w, i + w)) cand[i] |= 2;
+      if (L[i] < Math.min(L[i - 1], L[i + 1]) - 6 && jump(i - 1, i + 1) && !ramp(i - 2, i - 1, i + 1, i + 2)) cand[i] |= 1;
+      if (L[i] < Math.min(L[i - w], L[i + w]) - 6 && jump(i - w, i + w) && !ramp(i - 2 * w, i - w, i + w, i + 2 * w)) cand[i] |= 2;
     }
   }
   const outlineMask = new Uint8Array(n);
@@ -148,39 +156,32 @@ export function analyze(probe) {
       let signs = 0;
       for (let y = y0; y < y0 + B; y++) for (let x = x0; x < x0 + B; x++) signs += signMask[y * w + x];
       if (signs > (B * B) / 4) continue;
-      let total = 0;
-      let one = 0;
-      let mid = 0;
-      const count = (len) => {
-        total++;
-        if (len === 1) one++;
-        else if (len <= 4) mid++;
+      // 가로 줄과 세로 줄을 따로 센다: 키운 그림은 두 방향 모두 2~4칸 덩어리다
+      // (넓은 단색 벽에 2~3칸 굵기 가로 띠만 있는 곳은 세로로만 2~3칸이라 빠진다)
+      const runs = (horizontal) => {
+        const r = { total: 0, one: 0, mid: 0 };
+        for (let a = 0; a < B; a++) {
+          let len = 1;
+          let first = true;
+          for (let b = 1; b < B; b++) {
+            const i = horizontal ? (y0 + a) * w + x0 + b : (y0 + b) * w + x0 + a;
+            const j = horizontal ? i - 1 : i - w;
+            if (col[i] === col[j]) len++;
+            else {
+              if (!first) {
+                r.total++;
+                if (len === 1) r.one++;
+                else if (len <= 4) r.mid++;
+              }
+              first = false;
+              len = 1;
+            }
+          }
+        }
+        return r;
       };
-      for (let y = y0; y < y0 + B; y++) {
-        let len = 1;
-        let first = true;
-        for (let x = x0 + 1; x < x0 + B; x++) {
-          if (col[y * w + x] === col[y * w + x - 1]) len++;
-          else {
-            if (!first) count(len);
-            first = false;
-            len = 1;
-          }
-        }
-      }
-      for (let x = x0; x < x0 + B; x++) {
-        let len = 1;
-        let first = true;
-        for (let y = y0 + 1; y < y0 + B; y++) {
-          if (col[y * w + x] === col[(y - 1) * w + x]) len++;
-          else {
-            if (!first) count(len);
-            first = false;
-            len = 1;
-          }
-        }
-      }
-      if (total >= 16 && one / total < 0.05 && mid / total >= 0.6) {
+      const big = (r) => r.total >= 8 && r.one / r.total < 0.05 && r.mid / r.total >= 0.6;
+      if (big(runs(true)) && big(runs(false))) {
         bigWin++;
         for (let y = y0; y < y0 + B; y++) for (let x = x0; x < x0 + B; x++) bigMask[y * w + x] = 1;
       }
