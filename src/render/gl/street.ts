@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CITADEL as D } from '../../data/stages/citadel';
+import { MAP_W } from '../../stage/citadel';
 import { textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { canvas, disc, ditherRect, hash, rect } from '../dither';
@@ -34,11 +35,15 @@ export function buildStreet(): THREE.Group {
   const street = paintStreet(256, 128, 3, RAILS);
   const asphalt = paintStreet(256, 128, 5, []);
   const s512 = new THREE.Vector2(1 / 256, 1 / 512);
-  floor(-200, sec('pier').x1, -46, paintQuay(256, 128, RAILS), s512, 0.9);
+  // 공장 지대 (기름 묻은 콘크리트), 항만 창고 부두·해안 부두 (돌 포장 부두, 선로), 극장 거리, 광장, 아파트, 공원, 고가 철도 밑, 성벽 검문소
+  floor(-200, sec('factory').x1, -60, asphalt, s512, 0.8);
+  floor(sec('docks').x0, sec('pier').x1, -46, paintQuay(256, 128, RAILS), s512, 0.9);
   floor(sec('theater').x0, sec('theater').x1, -24, street, s512, 1);
   floor(sec('plaza').x0, sec('plaza').x1, KEEP_Z, paintPavers(192, 128), new THREE.Vector2(1 / 192, 1 / 512), 0.9, 2);
   floor(sec('apartments').x0, sec('apartments').x1, -24, asphalt, s512, 1);
-  floor(sec('park').x0, MAP_RIGHT, -46, paintGravel(256, 128), s512, 0.35, 1.2);
+  floor(sec('park').x0, sec('park').x1, -46, paintGravel(256, 128), s512, 0.35, 1.2);
+  floor(sec('elrail').x0, sec('elrail').x1, -40, street, s512, 1);
+  floor(sec('wall').x0, MAP_RIGHT, -60, paintPavers(192, 128), new THREE.Vector2(1 / 192, 1 / 512), 0.9, 2);
   const det = new Details();
   tramWire(det);
   props(det, g);
@@ -46,7 +51,7 @@ export function buildStreet(): THREE.Group {
   return g;
 }
 
-const MAP_RIGHT = 3400;
+const MAP_RIGHT = MAP_W + 200;
 
 function repeat(t: THREE.Texture): THREE.Texture {
   t.wrapS = THREE.RepeatWrapping;

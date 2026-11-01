@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
-import { KEEP_RULES as R } from '../../stage/citadel';
+import { KEEP_RULES as R, KEEP_ZONE } from '../../stage/citadel';
 import type { CitadelState } from '../../sim';
 import { COLORS as C } from '../palette';
 import { canvas, ditherRect, hash, rect } from '../dither';
@@ -44,12 +44,12 @@ export interface KeepParts {
   buried: THREE.Object3D;
 }
 
-/** 본관 불길 자리 (3단계): 월드 x, 높이. 싸우는 화면에 보이는 로비 위·아래층 */
-const FIRE_SPOTS: ReadonlyArray<[number, number]> = [
-  [1272, 176], [1352, 214], [1418, 132], [1520, 236], [1622, 196], [1690, 138], [1790, 222], [1866, 168], [1934, 206],
-];
-/** 3단계 세로로 크게 갈라진 틈: x, 아래 끝 높이, 위 끝 높이 */
-const SPLITS: ReadonlyArray<[number, number, number]> = [[1404, 10, 470], [1572, 96, 470], [1786, 20, 440]];
+/** 본관 불길 자리 (3단계): 월드 x(본관 서쪽 끝에서 몇 px), 높이. 싸우는 화면에 보이는 로비 위·아래층 */
+const FIRE_SPOTS: ReadonlyArray<[number, number]> = ([
+  [32, 176], [112, 214], [178, 132], [280, 236], [382, 196], [450, 138], [550, 222], [626, 168], [694, 206],
+] as const).map(([dx, h]) => [KEEP_ZONE.x0 + dx, h]);
+/** 3단계 세로로 크게 갈라진 틈: x(본관 서쪽 끝에서 몇 px), 아래 끝 높이, 위 끝 높이 */
+const SPLITS: ReadonlyArray<[number, number, number]> = ([[164, 10, 470], [332, 96, 470], [546, 20, 440]] as const).map(([dx, h0, h1]) => [KEEP_ZONE.x0 + dx, h0, h1]);
 /** 잔해 언덕 불길: 덩어리 번호와 덩어리 안 자리(0~1) */
 const HILL_FIRES: ReadonlyArray<[number, number]> = [[1, 0.5], [3, 0.4], [6, 0.3], [8, 0.6], [9, 0.5], [12, 0.4], [14, 0.6]];
 /** 잔해 언덕 앞판의 x 범위·높이 (밑동 위로 철근이 조금 솟는다) */

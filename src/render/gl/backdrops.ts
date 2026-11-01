@@ -242,8 +242,9 @@ export function keepBeacons(): Array<{ x: number; y: number }> {
  * 광장 난간 너머로 먼 길과 행인이 보이게 한다.
  */
 export const midGround = (): number => layerGround(D.mid.speed) - 30;
-/** 바다가 보이는 부두 뒤는 이 x(겹 좌표)까지 비운다 */
+/** 바다가 보이는 항만·부두 뒤는 이 x(겹 좌표) 사이를 비운다 */
 export const midSeaX = (): number => Math.round(toLayerX(D.mid.speed, D.mid.seaUntil));
+export const midSeaFromX = (): number => Math.round(toLayerX(D.mid.speed, D.mid.seaFrom));
 
 export function buildMid(): Layer {
   const M = D.mid;
@@ -252,11 +253,18 @@ export function buildMid(): Layer {
   const gl = midGround();
   const [c, g] = canvas(w, h);
   const parkFrom = toLayerX(M.speed, M.parkFrom);
-  let x = midSeaX();
+  const parkUntil = toLayerX(M.speed, M.parkUntil);
+  const seaFrom = midSeaFromX();
+  let x = 0;
   let k = M.seed;
   let index = 0;
   while (x < w) {
-    if (x > parkFrom) {
+    // 항만·부두 뒤는 비워 바다가 보이게
+    if (x + 40 > seaFrom && x < midSeaX()) {
+      x = midSeaX();
+      continue;
+    }
+    if (x > parkFrom && x < parkUntil) {
       // 공원 뒤: 키 큰 나무 무리
       const r = 14 + Math.floor(hash(k++) * 14);
       rect(g, x + r - 2, gl - 30, 4, 30, C.iron);
@@ -297,12 +305,13 @@ export function buildMid(): Layer {
     x += bw + 3 + Math.floor(hash(k++) * 6);
     index++;
   }
-  // 먼 길: 보도와 차도 (행인이 이 위를 걷는다)
-  const sea = midSeaX();
-  rect(g, sea, gl, w - sea, h - gl, C.street);
-  rect(g, sea, gl, w - sea, 3, C.sidewalk);
-  rect(g, sea, gl + 3, w - sea, 1, C.curb);
-  ditherRect(g, sea, gl + 4, w - sea, h - gl - 4, C.streetLine, 3);
+  // 먼 길: 보도와 차도 (행인이 이 위를 걷는다). 항만·부두 뒤(바다)는 비운다
+  for (const [a, b] of [[0, midSeaFromX()], [midSeaX(), w]]) {
+    rect(g, a, gl, b - a, h - gl, C.street);
+    rect(g, a, gl, b - a, 3, C.sidewalk);
+    rect(g, a, gl + 3, b - a, 1, C.curb);
+    ditherRect(g, a, gl + 4, b - a, h - gl - 4, C.streetLine, 3);
+  }
   return { canvas: c, speed: M.speed };
 }
 

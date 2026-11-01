@@ -1,16 +1,16 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
-import { MAP_W } from '../../stage/citadel';
+import { PARK_GATE_W } from '../../stage/citadel';
 import { COLORS as C } from '../palette';
 import { canvas, disc, ditherRect, hash, rect } from '../dither';
 import { box, Details, facedBox, plane } from './kit';
 import { litMaterial, pixelTexture } from './shaders';
 
 /**
- * 맵 양 끝 구간 (렌더 전용, 무너지지 않는다): 서쪽 해안 부두와 동쪽 시타델 공원.
- * - 부두: 서쪽 끝 컨테이너 더미(벽, 윗면이 발판), 방파제 철제 난간(너머로 바다), 볼라드와 밧줄, 나무 상자.
+ * 해안 부두와 시타델 공원 (렌더 전용, 무너지지 않는다).
+ * - 부두: 컨테이너 더미(구조물: 윗면이 발판, 양옆이 벽), 방파제 철제 난간(너머로 바다), 볼라드와 밧줄, 나무 상자.
  *   등대는 무너지는 큰 물건이라 bigprops.ts가 그린다.
- * - 공원: 뒤쪽 산울타리, 키 큰 나무, 동쪽 끝 철책(벽)과 돌기둥.
+ * - 공원: 뒤쪽 산울타리, 키 큰 나무, 동쪽 철책과 문기둥(구조물 벽). 그 너머로 고가 철도 밑 거리가 이어진다.
  */
 export class Edges {
   readonly group = new THREE.Group();
@@ -29,17 +29,19 @@ export class Edges {
     this.group.add(det.build());
   }
 
-  /** 서쪽 끝 컨테이너 더미 (캐릭터가 넘지 못하는 벽, 전차 선로 시작을 가린다) */
+  /** 컨테이너 더미 (구조물: 윗면이 발판, 양옆이 벽. 전차 선로 서쪽 끝을 가린다) */
   private containers(): void {
     const CT = D.pier.containers;
     const colors = [C.rust, C.paintTeal, C.paintOchre, C.brickRed];
     for (let r = 0; r < CT.rows; r++) {
       const col = colors[r % colors.length];
-      const x0 = CT.x0 - (r % 2 ? 6 : 0) - 30;
+      // 단마다 조금씩 엇갈려 쌓였지만, 발판·벽이 있는 자리(x0~x1)를 넘지 않는다
+      const x0 = CT.x0 + (r % 2 ? 3 : 0);
+      const x1 = CT.x1 - (r % 2 ? 0 : 3);
       const y = r * CT.rowH;
-      const tex = litMaterial(pixelTexture(paintContainer(CT.x1 - x0, CT.rowH, col, r)));
+      const tex = litMaterial(pixelTexture(paintContainer(x1 - x0, CT.rowH, col, r)));
       const end = litMaterial(pixelTexture(paintContainer(60, CT.rowH, col, r + 7)), { tint: 0.75 });
-      this.group.add(facedBox(x0, CT.x1, y, y + CT.rowH, -110, -0.6, { px: end, py: end, pz: tex }));
+      this.group.add(facedBox(x0, x1, y, y + CT.rowH, -110, -0.6, { nx: end, px: end, py: end, pz: tex }));
     }
   }
 
@@ -56,7 +58,7 @@ export class Edges {
   /** 시타델 공원: 뒤쪽 산울타리, 키 큰 나무 (줄기는 상자, 잎은 빛을 받는 그림 판 두 겹) */
   private park(det: Details): void {
     const P = D.park;
-    const x0 = D.sections[4].x0;
+    const x0 = D.sections.find((s) => s.id === 'park')!.x0;
     const x1 = P.fence.x0;
     const hedge = litMaterial(pixelTexture(paintHedge(x1 - x0, 24)));
     this.group.add(plane(x0, x1, 0, 24, -44, hedge));
@@ -84,23 +86,24 @@ export class Edges {
     }
   }
 
-  /** 동쪽 끝 철책 (캐릭터가 넘지 못하는 벽)과 돌기둥 */
+  /** 공원 동쪽 철책 문기둥(구조물 벽)과 그 너머 짧은 철책 (공원이 끝나는 곳까지) */
   private fence(det: Details): void {
     const FN = D.park.fence;
-    det.add(FN.x0, MAP_W + 40, 0, 14, -100, -1, C.stoneDark);
-    det.add(FN.x0, MAP_W + 40, 13, 14, -100, -1, C.stone);
-    for (let x = FN.x0 + 2; x < MAP_W + 40; x += 5) {
-      det.add(x, x + 2, 14, FN.h, -4, -2, C.iron);
-      det.add(x - 1, x + 3, FN.h, FN.h + 3, -4.5, -1.5, C.ironLight);
+    const end = D.sections.find((s) => s.id === 'park')!.x1;
+    det.add(FN.x0, end, 0, 14, -100, -40, C.stoneDark);
+    det.add(FN.x0, end, 13, 14, -100, -40, C.stone);
+    for (let x = FN.x0 + PARK_GATE_W + 2; x < end; x += 5) {
+      det.add(x, x + 2, 14, FN.h, -44, -42, C.iron);
+      det.add(x - 1, x + 3, FN.h, FN.h + 3, -44.5, -41.5, C.ironLight);
     }
-    det.add(FN.x0, MAP_W + 40, FN.h - 16, FN.h - 14, -4.5, -1.5, C.iron);
-    det.add(FN.x0, MAP_W + 40, 38, 40, -4.5, -1.5, C.iron);
-    this.group.add(box(FN.x0 - 4, FN.x0 + 10, 0, FN.h + 10, -30, -0.6, litMaterial(pixelTexture(paintPillar(14, FN.h + 10)))));
+    det.add(FN.x0 + PARK_GATE_W, end, FN.h - 16, FN.h - 14, -44.5, -41.5, C.iron);
+    det.add(FN.x0 + PARK_GATE_W, end, 38, 40, -44.5, -41.5, C.iron);
+    this.group.add(box(FN.x0, FN.x0 + PARK_GATE_W, 0, FN.h + 10, -30, -0.6, litMaterial(pixelTexture(paintPillar(PARK_GATE_W, FN.h + 10)))));
   }
 }
 
 /** 컨테이너 옆면: 골판 줄, 문 잠금 막대, 녹과 그을음 */
-function paintContainer(w: number, h: number, color: string, seed: number): HTMLCanvasElement {
+export function paintContainer(w: number, h: number, color: string, seed: number): HTMLCanvasElement {
   const [c, g] = canvas(w, h);
   rect(g, 0, 0, w, h, color);
   rect(g, 0, 0, w, 2, C.iron);

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { CitadelState, CityState, PropState } from '../../sim';
-import { GROUND } from '../../stage/citadel';
+import { GROUND, MAP_W } from '../../stage/citadel';
 import { lights as lights2d, quality } from '../light';
 import { SCREEN_W } from '../screen';
 import { buildFar, buildKeep, buildKeepTower, buildMid, horizonY, layerH, layerW, type Layer } from './backdrops';
@@ -9,6 +9,7 @@ import { Buildings } from './buildings';
 import { depthOfSpeed } from './core';
 import { Edges } from './edges';
 import { Life } from './life';
+import { Outskirts } from './outskirts';
 import { lightPool, shared } from './lights';
 import { moodAt } from './mood';
 import { lightningAt, skyMaterial } from './sky';
@@ -35,6 +36,8 @@ export class World {
   private readonly big = new BigProps();
   private readonly plaza = new Plaza();
   private readonly edges = new Edges();
+  /** 맵을 넓히며 붙인 네 구간 (공장 지대·항만 창고 부두·고가 철도 밑·성벽 검문소) */
+  private readonly outskirts = new Outskirts();
   private readonly life = new Life();
   private readonly rain = new Rain();
   private readonly steam = new Steam();
@@ -99,9 +102,9 @@ export class World {
       this.hazes.push([mat, strength]);
       // 캐릭터(깊이를 쓰지 않음)보다 뒤 안개는 캐릭터보다 먼저, 앞 안개는 나중에 그린다
       mat.transparent = false;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(9000 * k, h * k), mat);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry((MAP_W + 6000) * k, h * k), mat);
       m.renderOrder = z < 0 ? 1 : 21;
-      m.position.set(1600, (h * k) / 2 - 4 * k, z);
+      m.position.set(MAP_W / 2, (h * k) / 2 - 4 * k, z);
       this.statics.push(m);
     }
     this.statics.push(buildStreet(), this.buildings.group, this.foreground);
@@ -109,7 +112,7 @@ export class World {
     const tower = backdrop(buildKeepTower(), 0.5, 0.45, 0.55);
     tower.position.z += 1;
     this.plaza.attachTower(tower);
-    this.group.add(...this.statics, tower, this.plaza.group, this.edges.group, this.props.group, this.big.group, this.life.group, this.rain.group, this.steam.group);
+    this.group.add(...this.statics, tower, this.plaza.group, this.edges.group, this.outskirts.group, this.props.group, this.big.group, this.life.group, this.rain.group, this.steam.group);
     // 움직이지 않는 무대는 자리 행렬을 한 번만 계산한다 (매 프레임 수백 개를 다시 계산하지 않게)
     for (const o of this.statics) {
       o.updateMatrixWorld(true);
@@ -144,6 +147,7 @@ export class World {
     this.props.update(props, city, tick, p.ix, p.ix + SCREEN_W);
     this.big.update(props, tick, p.ix, p.ix + SCREEN_W);
     this.plaza.update(tick, props, citadel);
+    this.outskirts.update(tick, p.ix, p.ix + SCREEN_W);
     this.life.update(tick, p.ix, focusX, clock, props, citadel !== null && citadel.stage === 4);
     // 이펙트 빛 (타격 번쩍임·기력·필살기·부서질 때 불꽃): 싸우는 면 바로 앞
     for (const pt of lights2d.points) lightPool.add(pt.x, GROUND - pt.y, 12, pt.r * 1.3, pt.color, pt.a * 1.6);

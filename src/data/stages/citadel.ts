@@ -13,20 +13,24 @@
  * (2층 200px ~ 5층 470px), 1960년대 자동차 길이 120px, 가로등 110px.
  */
 export const CITADEL = {
-  width: 3200,
+  width: 6400,
   height: 540,
   /** 바닥: 맵(과 각 겹) 아래 끝에서 이만큼 위 */
   groundFromBottom: 30,
-  /** 맵 끝 벽: 서쪽 컨테이너 더미 앞면, 동쪽 철책 (캐릭터가 넘지 못하는 x) */
-  walls: { left: 66, right: 3156 },
+  /** 맵 끝 벽: 서쪽 공장 벽돌 담, 동쪽 1구역 성벽 (캐릭터가 넘지 못하는 x). h는 벽 높이 (벽 기동에 쓴다) */
+  walls: { left: 56, right: 6344, leftH: 420, rightH: 440 },
 
   /** 구간 (월드 x). 건물·소품·앞겹이 구간마다 다르다 */
   sections: [
-    { id: 'pier', name: '해안 부두', x0: 0, x1: 400 },
-    { id: 'theater', name: '극장·다이너 거리', x0: 400, x1: 1000 },
-    { id: 'plaza', name: '시타델 광장', x0: 1000, x1: 2200 },
-    { id: 'apartments', name: '비상계단 아파트', x0: 2200, x1: 2800 },
-    { id: 'park', name: '시타델 공원', x0: 2800, x1: 3200 },
+    { id: 'factory', name: '공장 지대', x0: 0, x1: 800 },
+    { id: 'docks', name: '항만 창고 부두', x0: 800, x1: 1600 },
+    { id: 'pier', name: '해안 부두', x0: 1600, x1: 2000 },
+    { id: 'theater', name: '극장·다이너 거리', x0: 2000, x1: 2600 },
+    { id: 'plaza', name: '시타델 광장', x0: 2600, x1: 3800 },
+    { id: 'apartments', name: '비상계단 아파트', x0: 3800, x1: 4400 },
+    { id: 'park', name: '시타델 공원', x0: 4400, x1: 4800 },
+    { id: 'elrail', name: '고가 철도 밑', x0: 4800, x1: 5600 },
+    { id: 'wall', name: '1구역 성벽 검문소', x0: 5600, x1: 6400 },
   ],
 
   /**
@@ -37,6 +41,20 @@ export const CITADEL = {
    * halo: 안개 속 빛 무리 세기, streak: 강한 빛의 가로 플레어 세기, lightning: 먼 번개 잦기 (0이면 없음)
    */
   moods: {
+    factory: {
+      sky: { zenith: '#0a0506', mid: '#1c0c0c', glow: '#a03a1a', glowK: 1.2, cloud: '#140808', cloudLit: '#7a2a14', cover: 0.75 },
+      fog: { color: '#3a2420', mist: 0.5, haze: 1.4 },
+      ambient: { sky: '#2a1a1a', ground: '#0c0606' },
+      grade: { shadow: '#2a2440', high: '#ffb070', sat: 1.1, contrast: 0.2 },
+      halo: 1.3, streak: 0.3, lightning: 0.2,
+    },
+    docks: {
+      sky: { zenith: '#05070c', mid: '#121418', glow: '#8a5a2a', glowK: 1.0, cloud: '#0c0e12', cloudLit: '#5a4024', cover: 0.6 },
+      fog: { color: '#3a3226', mist: 0.6, haze: 1.5 },
+      ambient: { sky: '#1e2430', ground: '#08090c' },
+      grade: { shadow: '#1e4048', high: '#ffc070', sat: 1.05, contrast: 0.12 },
+      halo: 1.4, streak: 0.25, lightning: 0.6,
+    },
     pier: {
       sky: { zenith: '#05070d', mid: '#0d1621', glow: '#3e6a72', glowK: 0.9, cloud: '#0b1018', cloudLit: '#2c4a52', cover: 0.55 },
       fog: { color: '#2a3e48', mist: 0.55, haze: 1.3 },
@@ -72,6 +90,20 @@ export const CITADEL = {
       grade: { shadow: '#1e4040', high: '#fff0b0', sat: 1.0, contrast: 0.1 },
       halo: 1.3, streak: 0.2, lightning: 0.4,
     },
+    elrail: {
+      sky: { zenith: '#04080a', mid: '#0a1616', glow: '#2a6a5a', glowK: 0.8, cloud: '#081010', cloudLit: '#204a40', cover: 0.6 },
+      fog: { color: '#20363a', mist: 0.45, haze: 1.1 },
+      ambient: { sky: '#142a2a', ground: '#050a0a' },
+      grade: { shadow: '#14403a', high: '#d8fff0', sat: 1.05, contrast: 0.18 },
+      halo: 1.1, streak: 0.35, lightning: 0.3,
+    },
+    wall: {
+      sky: { zenith: '#05060a', mid: '#10131a', glow: '#5a5e6a', glowK: 0.8, cloud: '#0c0e14', cloudLit: '#40444e', cover: 0.7 },
+      fog: { color: '#2a303c', mist: 0.5, haze: 1.2 },
+      ambient: { sky: '#1a1e2a', ground: '#06070a' },
+      grade: { shadow: '#24304a', high: '#f0f4ff', sat: 0.85, contrast: 0.25 },
+      halo: 1.2, streak: 0.4, lightning: 0.7,
+    },
   },
 
   /** 1. 하늘과 바다: 수평선(바닥에서 seaTop 위)부터 아래가 바다, 멀리 깜빡이는 등대 불빛 */
@@ -79,9 +111,9 @@ export const CITADEL = {
 
   /** 2. 1구역 마천루 실루엣 (아르데코: 층층이 들어간 지붕, 첨탑). from 앞쪽은 바다 */
   far: {
-    speed: 0.12, haze: 10, seed: 7, from: 200, min: 120, max: 250,
+    speed: 0.12, haze: 10, seed: 7, from: 392, min: 120, max: 250,
     /** 공장 매연: 공원 쪽 먼 하늘에 선 굴뚝 (먼 겹 x, 높이). 매연은 매 틱 그린다 */
-    chimneys: [{ x: 512, w: 10, h: 176 }, { x: 540, w: 8, h: 150 }, { x: 586, w: 12, h: 196 }, { x: 620, w: 8, h: 160 }],
+    chimneys: [{ x: 704, w: 10, h: 176 }, { x: 732, w: 8, h: 150 }, { x: 778, w: 12, h: 196 }, { x: 812, w: 8, h: 160 }],
   },
 
   /**
@@ -89,12 +121,12 @@ export const CITADEL = {
    * 빛나는 유리 왕관, 안테나(mast)와 경고등, 왕관 모서리 서치라이트. 둘레에 낮은 사무동(slabs: 탑 가운데에서 dx, 폭, 높이)
    */
   keep: {
-    speed: 0.3, haze: 6, worldX: 1600, w: 200, h: 282, mast: 44,
+    speed: 0.3, haze: 6, worldX: 3200, w: 200, h: 282, mast: 44,
     slabs: [{ dx: -330, w: 84, h: 150 }, { dx: -236, w: 96, h: 196 }, { dx: 142, w: 92, h: 182 }, { dx: 246, w: 80, h: 138 }],
   },
 
   /** 4. 가운데 겹: 중간 건물. seaUntil 앞쪽(부두 뒤)은 비워 바다가 보이게, 공원 뒤는 나무 */
-  mid: { speed: 0.6, haze: 4, seed: 113, min: 100, max: 220, seaUntil: 380, parkFrom: 2780 },
+  mid: { speed: 0.6, haze: 4, seed: 113, min: 100, max: 220, seaFrom: 780, seaUntil: 1980, parkFrom: 4380, parkUntil: 4820 },
 
   /**
    * 5. 싸우는 거리의 부서지는 건물 (캐릭터와 같은 속도). 구간마다 x0부터 이어 놓고, 사이는 골목(alley)이다.
@@ -108,7 +140,7 @@ export const CITADEL = {
     shopH: 110,
     /** 다이너는 2층(200px): 차양(76)에서 2단 점프(약 160)로 지붕에 오를 수 있게 */
     theater: {
-      x0: 400,
+      x0: 2000,
       list: [
         { kind: 'shop', w: 110, floors: 3, sign: 'BAKERY', poster: 'OBEY' },
         { kind: 'theater', w: 170, floors: 4, sign: 'PALACE', poster: '' },
@@ -118,7 +150,7 @@ export const CITADEL = {
       ],
     },
     apartments: {
-      x0: 2200,
+      x0: 3800,
       list: [
         { kind: 'apartment', w: 130, floors: 4, sign: 'LAUNDRY', poster: 'WORK', posterLeft: true },
         { kind: 'alley', w: 24 },
@@ -139,14 +171,14 @@ export const CITADEL = {
 
   /**
    * 해안 부두: 서쪽 끝 컨테이너 더미(벽), 방파제 난간, 등대(중간 발코니·꼭대기 둘레가 발판, 꼭대기 서치라이트).
-   * 컨테이너 더미는 rows단 × rowH (윗면이 발판). 그 높이 위에서는 standFrom까지 더미 위를 걸을 수 있다 (아래에서는 x1이 벽).
+   * 컨테이너 더미는 rows단 × rowH (윗면이 발판, 양옆이 벽: 맵이 넓어져 맵 끝 벽에서 구조물이 됐다).
    * 등대는 큰 물건: 내구도 hp, 무너지면 snap 높이에서 꺾여 바다 쪽으로 쓰러지고 밑동 윗면이 발판으로 남는다.
    */
   pier: {
-    containers: { x0: 0, x1: 66, rows: 4, rowH: 28, standFrom: 14 },
-    railing: { x0: 66, x1: 400, h: 26 },
-    lighthouse: { x: 150, w: 36, h: 226, gallery: 196, galleryW: 60, balcony: 92, balconyW: 52, hp: 450, snap: 120 },
-    bollards: [124, 380],
+    containers: { x0: 1600, x1: 1666, rows: 4, rowH: 28 },
+    railing: { x0: 1666, x1: 2000, h: 26 },
+    lighthouse: { x: 1750, w: 36, h: 226, gallery: 196, galleryW: 60, balcony: 92, balconyW: 52, hp: 450, snap: 120 },
+    bollards: [1724, 1980],
   },
 
   /**
@@ -157,17 +189,17 @@ export const CITADEL = {
    * 본관 커튼월: 굵은 기둥 간격(pier), 유리 칸 폭(pane), 층 높이(floor), 로비 높이(lobby), 가운데 높은 유리 홀 꼭대기(atrium)
    */
   plaza: {
-    keep: { x0: 1240, x1: 1960, h: 470, lights: [1330, 1870], pier: 90, pane: 15, floor: 26, lobby: 150, atrium: 236 },
-    landing: { x0: 1496, x1: 1704, h: 88 },
+    keep: { x0: 2840, x1: 3560, h: 470, lights: [2930, 3470], pier: 90, pane: 15, floor: 26, lobby: 150, atrium: 236 },
+    landing: { x0: 3096, x1: 3304, h: 88 },
     gate: { w: 80, h: 120 },
-    towers: [{ x: 1440 }, { x: 1704 }],
+    towers: [{ x: 3040 }, { x: 3304 }],
     tower: { w: 56, h: 296, terrace: 200, terraceOver: 12 },
-    sign: { text: 'CITADEL', sub: 'DISTRICT 1', x: 1528, w: 144, bottom: 274, h: 56, hp: 300, lyingH: 50 },
-    fountain: { x: 1600, w: 128 },
-    statue: { x: 1110 },
-    gatePiers: [984, 2184],
+    sign: { text: 'CITADEL', sub: 'DISTRICT 1', x: 3128, w: 144, bottom: 274, h: 56, hp: 300, lyingH: 50 },
+    fountain: { x: 3200, w: 128 },
+    statue: { x: 2710 },
+    gatePiers: [2584, 3784],
     /** 광장 동쪽 입구 검문소: 초소 왼쪽 끝, 폭과 높이 */
-    checkpoint: { x: 2138, w: 38, h: 46 },
+    checkpoint: { x: 3738, w: 38, h: 46 },
   },
 
   /**
@@ -185,22 +217,69 @@ export const CITADEL = {
     settle: 120,
     wallMin: 20,
     hill: [
-      { x0: 1180, x1: 1228, h: 24 },
-      { x0: 1228, x1: 1284, h: 46 },
-      { x0: 1284, x1: 1336, h: 72 },
-      { x0: 1336, x1: 1384, h: 58 },
-      { x0: 1384, x1: 1440, h: 96 },
-      { x0: 1440, x1: 1496, h: 176 },
-      { x0: 1496, x1: 1552, h: 112 },
-      { x0: 1552, x1: 1604, h: 138 },
-      { x0: 1604, x1: 1652, h: 100 },
-      { x0: 1652, x1: 1704, h: 124 },
-      { x0: 1704, x1: 1760, h: 168 },
-      { x0: 1760, x1: 1816, h: 88 },
-      { x0: 1816, x1: 1872, h: 108 },
-      { x0: 1872, x1: 1924, h: 64 },
-      { x0: 1924, x1: 1972, h: 40 },
-      { x0: 1972, x1: 2020, h: 20 },
+      { x0: 2780, x1: 2828, h: 24 },
+      { x0: 2828, x1: 2884, h: 46 },
+      { x0: 2884, x1: 2936, h: 72 },
+      { x0: 2936, x1: 2984, h: 58 },
+      { x0: 2984, x1: 3040, h: 96 },
+      { x0: 3040, x1: 3096, h: 176 },
+      { x0: 3096, x1: 3152, h: 112 },
+      { x0: 3152, x1: 3204, h: 138 },
+      { x0: 3204, x1: 3252, h: 100 },
+      { x0: 3252, x1: 3304, h: 124 },
+      { x0: 3304, x1: 3360, h: 168 },
+      { x0: 3360, x1: 3416, h: 88 },
+      { x0: 3416, x1: 3472, h: 108 },
+      { x0: 3472, x1: 3524, h: 64 },
+      { x0: 3524, x1: 3572, h: 40 },
+      { x0: 3572, x1: 3620, h: 20 },
+    ],
+  },
+
+  /**
+   * 새 구간의 구조물 (공장 지대·항만 창고 부두·고가 철도 밑·1구역 성벽 검문소). 자리와 크기만, 모양은 렌더가 정한다.
+   * blocks: 상자 (윗면이 발판, 옆면이 벽, 아래가 꽉 찬 윗면). decks: 판 (윗면만 발판). posts: 기둥 (옆면만 벽, 바닥에서 h0 ~ h).
+   * 점프 한 번 약 95px, 2단 점프까지 약 160px, 벽 달리기 약 135px.
+   */
+  outskirts: {
+    blocks: [
+      // 공장 지대: 용광로 굴뚝 (꼭대기가 옥상), 저탄 탑
+      { kind: 'stack', x0: 160, x1: 224, h: 286 },
+      { kind: 'hopper', x0: 640, x1: 724, h: 196 },
+      // 항만 창고 부두: 컨테이너 2단·3단 더미, 하역장
+      { kind: 'crate2', x0: 1170, x1: 1232, h: 56 },
+      { kind: 'crate3', x0: 1232, x1: 1294, h: 84 },
+      { kind: 'dock', x0: 1380, x1: 1560, h: 40 },
+      // 1구역 성벽 검문소: 초소, 모래주머니 벽
+      { kind: 'booth', x0: 6080, x1: 6140, h: 58 },
+      { kind: 'sandbags', x0: 6200, x1: 6262, h: 34 },
+    ],
+    decks: [
+      // 공장: 굴뚝 둘레 작업대, 철제 통로
+      { kind: 'ring', x0: 138, x1: 246, h: 140 },
+      { kind: 'catwalk', x0: 330, x1: 600, h: 118 },
+      // 항만: 갠트리 크레인 위 들보·아래 들보, 하역장 차양
+      { kind: 'crane', x0: 880, x1: 1110, h: 236 },
+      { kind: 'craneLow', x0: 900, x1: 1090, h: 120 },
+      { kind: 'dockAwning', x0: 1396, x1: 1544, h: 112 },
+      // 고가 철도: 선로 바닥, 역 계단참
+      { kind: 'rail', x0: 4860, x1: 5540, h: 176 },
+      { kind: 'stairs', x0: 5236, x1: 5316, h: 92 },
+      // 성벽: 감시탑 초소 바닥과 지붕
+      { kind: 'watch', x0: 5880, x1: 5980, h: 170 },
+      { kind: 'watchRoof', x0: 5888, x1: 5972, h: 212 },
+    ],
+    posts: [
+      // 철제 통로 기둥, 크레인 다리
+      { kind: 'catwalkLeg', x: 330, w: 8, h0: 0, h: 118 }, { kind: 'catwalkLeg', x: 592, w: 8, h0: 0, h: 118 },
+      { kind: 'craneLeg', x: 896, w: 14, h0: 0, h: 236 }, { kind: 'craneLeg', x: 1080, w: 14, h0: 0, h: 236 },
+      // 고가 철도 기둥 (선로 아래)
+      { kind: 'railLeg', x: 4880, w: 12, h0: 0, h: 176 }, { kind: 'railLeg', x: 5050, w: 12, h0: 0, h: 176 },
+      { kind: 'railLeg', x: 5220, w: 12, h0: 0, h: 176 }, { kind: 'railLeg', x: 5390, w: 12, h0: 0, h: 176 },
+      { kind: 'railLeg', x: 5520, w: 12, h0: 0, h: 176 },
+      // 감시탑 다리와 초소 옆면
+      { kind: 'watchLeg', x: 5884, w: 8, h0: 0, h: 170 }, { kind: 'watchLeg', x: 5968, w: 8, h0: 0, h: 170 },
+      { kind: 'watchCabin', x: 5880, w: 100, h0: 170, h: 212 },
     ],
   },
 
@@ -209,9 +288,9 @@ export const CITADEL = {
 
   /** 시타델 공원: 나무(가운데 x, 줄기 높이, 잎 반지름), 벤치, 동쪽 끝 철책 */
   park: {
-    trees: [{ x: 2846, h: 90, r: 44 }, { x: 2950, h: 120, r: 58 }, { x: 3050, h: 100, r: 50 }, { x: 3124, h: 84, r: 40 }],
-    benches: [2900, 3000, 3090],
-    fence: { x0: 3156, h: 150 },
+    trees: [{ x: 4446, h: 90, r: 44 }, { x: 4550, h: 120, r: 58 }, { x: 4650, h: 100, r: 50 }, { x: 4724, h: 84, r: 40 }],
+    benches: [4500, 4600, 4690],
+    fence: { x0: 4756, h: 150 },
   },
 
   /**
@@ -219,23 +298,31 @@ export const CITADEL = {
    * 다니는 자리는 틱만으로 정해진다 (sim과 렌더가 같은 계산). 큰 물건: 판정 상자 높이 h, 내구도 hp.
    * 무너지면 탈선해 굴러 뒤집힌다 (뒤집힌 차체 높이 lyingH가 발판, 양 끝이 벽). 그 경기 동안 전차는 더 다니지 않는다.
    */
-  tram: { x0: 0, x1: 1000, wire: 104, every: 1500, speed: 3.2, first: 200, length: 156, h: 60, hp: 400, lyingH: 60 },
+  tram: { x0: 1600, x1: 2600, wire: 104, every: 1500, speed: 3.2, first: 200, length: 156, h: 60, hp: 400, lyingH: 60 },
 
   /** 거리 (캐릭터와 같은 속도): 보도, 부서지지 않는 소품 */
   street: {
     sidewalk: 9,
     props: [
-      { kind: 'crates', x: 70 },
-      { kind: 'posterboard', x: 404, text: 'OBEY' },
-      { kind: 'mailbox', x: 620 },
-      { kind: 'manhole', x: 740 },
-      { kind: 'barrel', x: 960 },
-      { kind: 'bench', x: 1180 },
-      { kind: 'planter', x: 1236 },
-      { kind: 'planter', x: 1964 },
-      { kind: 'mailbox', x: 2560 },
-      { kind: 'barrel', x: 2620 },
-      { kind: 'manhole', x: 2700 },
+      { kind: 'barrel', x: 250 },
+      { kind: 'crates', x: 612 },
+      { kind: 'crates', x: 960 },
+      { kind: 'barrel', x: 1330 },
+      { kind: 'crates', x: 1670 },
+      { kind: 'posterboard', x: 2004, text: 'OBEY' },
+      { kind: 'mailbox', x: 2220 },
+      { kind: 'manhole', x: 2340 },
+      { kind: 'barrel', x: 2560 },
+      { kind: 'bench', x: 2780 },
+      { kind: 'planter', x: 2836 },
+      { kind: 'planter', x: 3564 },
+      { kind: 'mailbox', x: 4160 },
+      { kind: 'barrel', x: 4220 },
+      { kind: 'manhole', x: 4300 },
+      { kind: 'manhole', x: 5100 },
+      { kind: 'mailbox', x: 5450 },
+      { kind: 'barrel', x: 5650 },
+      { kind: 'crates', x: 6290 },
     ],
   },
 
@@ -246,11 +333,15 @@ export const CITADEL = {
   fg: {
     speed: 1.5,
     items: [
-      { kind: 'post', x: 300 }, { kind: 'wire', x: 300, to: 640 }, { kind: 'post', x: 640 }, { kind: 'wire', x: 640, to: 920 },
-      { kind: 'post', x: 920 },
-      { kind: 'flag', x: 1180 }, { kind: 'flag', x: 2020 },
-      { kind: 'post', x: 2380 }, { kind: 'wire', x: 2380, to: 2720 }, { kind: 'post', x: 2720 },
-      { kind: 'post', x: 3020 },
+      { kind: 'post', x: 200 }, { kind: 'wire', x: 200, to: 520 }, { kind: 'post', x: 520 },
+      { kind: 'post', x: 1000 }, { kind: 'wire', x: 1000, to: 1300 }, { kind: 'post', x: 1300 },
+      { kind: 'post', x: 1900 }, { kind: 'wire', x: 1900, to: 2240 }, { kind: 'post', x: 2240 }, { kind: 'wire', x: 2240, to: 2520 },
+      { kind: 'post', x: 2520 },
+      { kind: 'flag', x: 2780 }, { kind: 'flag', x: 3620 },
+      { kind: 'post', x: 3980 }, { kind: 'wire', x: 3980, to: 4320 }, { kind: 'post', x: 4320 },
+      { kind: 'post', x: 4620 },
+      { kind: 'post', x: 5000 }, { kind: 'wire', x: 5000, to: 5300 }, { kind: 'post', x: 5300 },
+      { kind: 'flag', x: 5760 }, { kind: 'flag', x: 6180 },
     ],
   },
 
@@ -291,11 +382,11 @@ export const CITADEL = {
    * 네온 간판은 건물에서 생긴다: 가게 이름 간판, 극장 세로 간판과 전구 차양, 다이너 간판, 호텔 세로 네온, 옥상 전광판.
    */
   breakables: {
-    lamps: [116, 334, 474, 662, 884, 1062, 1290, 1910, 2128, 2262, 2512, 2742, 2880, 3080],
+    lamps: [110, 290, 470, 760, 860, 1140, 1330, 1520, 1716, 1934, 2074, 2262, 2484, 2662, 2890, 3510, 3728, 3862, 4112, 4342, 4480, 4680, 4960, 5140, 5330, 5480, 5680, 5860, 6020, 6240],
     /** 차가 길어져(120) 가로등·소화전·가판대와 겹치지 않게 옮김 */
-    cars: [208, 482, 744, 2000, 2380],
-    hydrants: [352, 640, 1024, 2604],
-    newsstands: [688, 1922],
+    cars: [380, 1420, 1808, 2082, 2344, 3600, 3980, 5000, 5380, 5720],
+    hydrants: [560, 1110, 1952, 2240, 2624, 4204, 5170, 5990],
+    newsstands: [2288, 3522, 5250],
     /** 내구도와 판정 상자 (발밑 기준 폭·높이, px). 자동차는 1960년대 세단 (길고 낮다) */
     car: { hp: 240, w: 120, h: 36 },
     /** 네온 간판·전광판 (건물에 붙어 있어 판정 상자는 간판 자리, 높이 77~360). 큰 간판은 big */

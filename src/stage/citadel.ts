@@ -8,10 +8,10 @@ import { CITADEL as D } from '../data/stages/citadel';
 export const MAP_W = D.width;
 export const MAP_H = D.height;
 export const GROUND = D.height - D.groundFromBottom;
-/** 캐릭터가 넘지 못하는 서쪽·동쪽 끝 (px). 서쪽은 컨테이너 더미 높이 위에서는 더미 위까지 갈 수 있다 (CONTAINER_TOP) */
+/** 캐릭터가 넘지 못하는 서쪽·동쪽 끝 (px): 서쪽 공장 벽돌 담, 동쪽 1구역 성벽 */
 export const MAP_ENDS = D.walls;
-/** 서쪽 끝 컨테이너 더미: 윗면 높이와, 그 위에서 갈 수 있는 서쪽 끝 */
-export const CONTAINER_TOP = { h: D.pier.containers.rows * D.pier.containers.rowH, standFrom: D.pier.containers.standFrom };
+/** 해안 부두 컨테이너 더미 윗면 높이 (구조물: 윗면이 발판, 양옆이 벽) */
+export const CONTAINER_TOP = { h: D.pier.containers.rows * D.pier.containers.rowH };
 
 export type SectionId = (typeof D.sections)[number]['id'];
 export type BuildingKind = 'shop' | 'theater' | 'diner' | 'apartment';
@@ -358,7 +358,9 @@ export function chunkStage(hp: number): 0 | 1 | 2 | 3 | 4 {
 export type SurfaceTier = 'mid' | 'roof';
 export type SurfaceKind =
   | 'awning' | 'marquee' | 'escape' | 'landing' | 'roof' | 'terrace' | 'tower' | 'gallery'
-  | 'containers' | 'stump' | 'watertower' | 'sign' | 'tram' | 'rubble' | 'hill';
+  | 'containers' | 'stump' | 'watertower' | 'sign' | 'tram' | 'rubble' | 'hill'
+  /** 새 구간의 상자(윗면이 발판)와 판(윗면만 발판): 굴뚝·저탄 탑·컨테이너·하역장·초소·모래주머니 / 작업대·통로·크레인 들보·선로·계단참·감시탑 */
+  | 'block' | 'deck';
 
 /**
  * 구조물이 있는 때: 늘 / 큰 물건이 서 있는 동안 / 큰 물건이 무너진 바로 뒤부터 /
@@ -413,6 +415,8 @@ const ALWAYS: Holder = { b: -1, prop: -1, when: 'always' };
 const WITH_KEEP: Holder = { b: -1, prop: -1, when: 'always', keep: true };
 const LH = D.pier.lighthouse;
 const SG = D.plaza.sign;
+/** 공원 동쪽 철책 문기둥 폭 (벽 기동에 쓰는 구조물) */
+export const PARK_GATE_W = 14;
 
 export const SURFACES: readonly Surface[] = (() => {
   const out: Surface[] = [];
@@ -426,7 +430,7 @@ export const SURFACES: readonly Surface[] = (() => {
     if (e) for (const h of e.landings) out.push({ x0: e.x0, x1: e.x1, h, tier: 'mid', kind: 'escape', ...on });
     out.push({ x0: b.x, x1: b.x + b.w, h: b.h, tier: 'roof', kind: 'roof', ...on });
   });
-  // 서쪽 끝 컨테이너 더미 윗면 (아래가 꽉 차 있다)
+  // 해안 부두 컨테이너 더미 윗면 (아래가 꽉 차 있다)
   const CT = D.pier.containers;
   out.push({ x0: CT.x0, x1: CT.x1, h: CONTAINER_TOP.h, tier: 'mid', kind: 'containers', ...ALWAYS, solid: true });
   const P = D.plaza;
@@ -446,6 +450,10 @@ export const SURFACES: readonly Surface[] = (() => {
   out.push({ x0: wt.x, x1: wt.x + wt.w, h: wt.bottom + wt.h, tier: 'roof', kind: 'watertower', b: -1, prop: BIG.watertower, when: 'standing' });
   // 떨어져 분수에 기대 쓰러진 시타델 간판 (윗변)
   out.push({ x0: SG.x + 4, x1: SG.x + SG.w - 4, h: SG.lyingH, tier: 'mid', kind: 'sign', b: -1, prop: BIG.bigsign, when: 'settled', keep: true });
+  // 새 구간: 상자 윗면 (아래가 꽉 차 있다), 판 (한 방향 발판). 높이 140 넘으면 옥상 층
+  const tierOf = (h: number): SurfaceTier => (h > 140 ? 'roof' : 'mid');
+  for (const b of D.outskirts.blocks) out.push({ x0: b.x0, x1: b.x1, h: b.h, tier: tierOf(b.h), kind: 'block', ...ALWAYS, solid: true });
+  for (const d of D.outskirts.decks) out.push({ x0: d.x0, x1: d.x1, h: d.h, tier: tierOf(d.h), kind: 'deck', ...ALWAYS });
   return out;
 })();
 
@@ -456,9 +464,15 @@ export const WALLS: readonly Wall[] = (() => {
   const faces = (x0: number, x1: number, h0: number, h1: number, on: Holder): void => {
     out.push({ x: x0, side: -1, h0, h1, id: id++, ...on }, { x: x1, side: 1, h0, h1, id: id++, ...on });
   };
-  // 맵 끝 벽: 서쪽 컨테이너 더미 앞면, 동쪽 공원 철책
-  out.push({ x: D.walls.left, side: 1, h0: 0, h1: CONTAINER_TOP.h, id: id++, ...ALWAYS, end: true });
-  out.push({ x: D.walls.right, side: -1, h0: 0, h1: D.park.fence.h, id: id++, ...ALWAYS, end: true });
+  // 맵 끝 벽: 서쪽 공장 벽돌 담, 동쪽 1구역 성벽
+  out.push({ x: D.walls.left, side: 1, h0: 0, h1: D.walls.leftH, id: id++, ...ALWAYS, end: true });
+  out.push({ x: D.walls.right, side: -1, h0: 0, h1: D.walls.rightH, id: id++, ...ALWAYS, end: true });
+  // 해안 부두 컨테이너 더미 양옆, 공원 동쪽 철책 문기둥 (맵이 넓어져 맵 끝 벽에서 구조물이 됐다)
+  faces(D.pier.containers.x0, D.pier.containers.x1, 0, CONTAINER_TOP.h, ALWAYS);
+  faces(D.park.fence.x0, D.park.fence.x0 + PARK_GATE_W, 0, D.park.fence.h, ALWAYS);
+  // 새 구간: 상자 양옆, 기둥 양옆
+  for (const b of D.outskirts.blocks) faces(b.x0, b.x1, 0, b.h, ALWAYS);
+  for (const p of D.outskirts.posts) faces(p.x, p.x + p.w, p.h0, p.h, ALWAYS);
   // 등대 몸통: 꺾이는 높이 아래는 늘, 위는 서 있는 동안 (같은 벽)
   const lid = id;
   faces(LH.x, LH.x + LH.w, 0, LH.snap, ALWAYS);
