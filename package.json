@@ -11,7 +11,8 @@
     "simtest": "node tools/simtest.mjs",
     "sheets": "node tools/sheets.mjs",
     "clip": "npm run build && node tools/clip.mjs",
-    "compare": "node tools/compare.mjs"
+    "compare": "node tools/compare.mjs",
+    "moveclip": "npm run build && node tools/moveclip.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.187.0",
