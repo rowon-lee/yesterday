@@ -772,6 +772,82 @@ function attackChecks() {
     if (fFree < 0 && !log[i].a.startsWith('attack')) fFree = i;
   }
   results.push(['대시 공격이 막히면 막은 쪽이 먼저 움직인다 (빈틈)', blockAt >= 0 && gFree >= 0 && fFree > gFree, `막힘 ${blockAt + 1}틱째, 막은 쪽 풀림 ${gFree + 1}틱째, 대시 공격 끝 ${fFree + 1}틱째`]);
+
+  // ---- 누르기와 길게 누르기 (기획서): 연타가 씹히거나 차지가 실수로 나가면 안 된다 ----
+  const H = sim.RULES.CHARGE_HOLD;
+  const charging = (l) => l.a.startsWith('charge');
+  // 4) 누른 틱에 바로 평타가 시작된다 (기다렸다가 판단하지 않는다)
+  s = fresh(2400, 2440);
+  f = s.fighters[0];
+  run(s, [I.IN_ATTACK]);
+  results.push(['누른 틱에 바로 평타가 나간다 (지연 0틱)', f.mode === 'attack' && f.move === 'atk1' && f.t === 0, `${f.mode}/${f.move} t=${f.t}`]);
+  // 5) 연타: 1틱씩, 8틱씩 누르고 떼기 → 4타까지 끊기지 않고, 모으기는 한 번도 없다
+  for (const [label, on, off] of [['1틱씩', 1, 3], ['8틱씩', 8, 2]]) {
+    s = fresh(2400, 2440);
+    const seq = [];
+    for (let k = 0; k < 8; k++) seq.push(...hold(I.IN_ATTACK, on), ...hold(0, off));
+    log = run(s, [...seq, ...hold(0, 40)]);
+    const chain = ['atk1', 'atk2', 'atk3', 'atk4'].filter((m) => log.some((l) => l.a === `attack/${m}`));
+    const charged = log.some(charging);
+    results.push([`연타 (${label} 누르고 떼기) → 4타까지 끊기지 않고 차지는 나오지 않는다`, chain.length === 4 && !charged, `${chain.join('→')}${charged ? ', 모으기 나옴' : ''}`]);
+  }
+  // 6) 길게 누르기: 평타(1타)가 바로 나가고, 누른 지 18틱째에 모으기로. 떼면 차지가 나가 맞히고, 기력은 쓰지 않는다
+  s = fresh(2400, 2456);
+  f = s.fighters[0];
+  const m0 = f.meter;
+  log = run(s, hold(I.IN_ATTACK, 30));
+  const startAt = log.findIndex(charging);
+  results.push([`길게 누르면 평타 뒤 ${H}틱째에 모으기로 넘어간다`, log[0].a === 'attack/atk1' && startAt === H - 1, `첫 틱 ${log[0].a}, 모으기 ${startAt + 1}틱째`]);
+  log = run(s, hold(0, 50));
+  const relAt = log.findIndex((l) => l.a === 'attack/charge');
+  const chHit = log.findIndex((l) => l.ev.some((e) => e.type === 'hit' && e.move === 'charge'));
+  results.push(['떼면 차지가 나가 맞히고, 기력은 쓰지 않는다', relAt === 0 && chHit > 0 && f.meter >= m0, `뗀 틱 ${relAt + 1}틱째 차지, 맞힘 ${chHit + 1}틱째, 기력 ${m0} → ${f.meter}`]);
+  // 7) 단계: 모으기 30틱이면 2단계, 60틱이면 3단계. 3단계는 막혀도 방어를 깬다
+  s = fresh(2400, 2456);
+  log = run(s, hold(I.IN_ATTACK, H + 62), I.IN_DOWN);
+  const lvAt = (lv) => log.findIndex((l) => l.ev.some((e) => e.type === 'charge' && e.text === 'level' && e.combo === lv));
+  results.push(['모으기 30틱이면 2단계, 60틱이면 3단계', lvAt(2) === H - 1 + 30 && lvAt(3) === H - 1 + 60, `2단계 ${lvAt(2) + 1}틱째, 3단계 ${lvAt(3) + 1}틱째`]);
+  log = run(s, hold(0, 40), I.IN_DOWN);
+  const crushed = log.some((l) => l.ev.some((e) => e.type === 'crush' && e.move === 'charge'));
+  results.push(['3단계 차지는 막혀도 방어를 깬다', crushed, crushed ? '가드 크러시' : log.flatMap((l) => l.ev.map((e) => e.type)).join(',')]);
+  // 8) 모으는 중에는 무방비: ↓를 눌러도 막지 못하고, 맞으면 취소된다 (차지는 나가지 않는다). 2P가 붙어서 1타
+  s = fresh(2400, 2456);
+  f = s.fighters[0];
+  run(s, hold(I.IN_ATTACK | I.IN_DOWN, H + 4));
+  const wasCharging = f.mode === 'charge';
+  s.fighters[1].x = f.x + 30 * 256;
+  log = [];
+  for (let k = 0; k < 50; k++) {
+    sim.step(s, [k < 20 ? I.IN_ATTACK | I.IN_DOWN : 0, k === 0 ? I.IN_ATTACK : 0]);
+    log.push({ ev: s.events, a: `${f.mode}/${f.move}` });
+  }
+  const gotHit = log.findIndex((l) => l.ev.some((e) => e.type === 'hit' && e.who === 1));
+  const blocked = log.some((l) => l.ev.some((e) => e.type === 'block' && e.who === 1));
+  const fired = log.some((l) => l.a === 'attack/charge');
+  results.push(['모으는 중에는 ↓를 눌러도 막지 못하고, 맞으면 취소된다', wasCharging && gotHit >= 0 && !blocked && !fired, `모으는 중 ${wasCharging}, 맞음 ${gotHit + 1}틱째, 막음 ${blocked}, 차지 나감 ${fired}`]);
+  // 9) 공중 공격을 길게 눌러도 (내려와서도) 차지가 되지 않는다
+  s = fresh(2400, 2600);
+  run(s, [I.IN_JUMP, ...hold(0, 8)]);
+  log = run(s, hold(I.IN_ATTACK, 80));
+  results.push(['공중 공격을 길게 눌러도 내려와서 차지가 되지 않는다', log.some((l) => l.a.startsWith('attack/air')) && !log.some(charging), log.some(charging) ? '모으기 나옴' : '모으기 없음']);
+  // 10) 평타를 누른 채 앞을 눌러도 걷지 않고 서서 모으기로 (방향은 무시)
+  s = fresh(2400, 2600);
+  log = run(s, hold(I.IN_ATTACK | I.IN_RIGHT, 30));
+  results.push(['평타를 누른 채 방향을 눌러도 걷지 않고 모으기로 넘어간다', !log.some((l) => l.a.startsWith('run')) && log.some(charging), `${log.some((l) => l.a.startsWith('run')) ? '걸음' : '안 걸음'}, ${log.some(charging) ? '모으기' : '모으기 없음'}`]);
+  // 11) 평타를 누른 채 점프하면 차지는 취소된다
+  s = fresh(2400, 2600);
+  log = run(s, [...hold(I.IN_ATTACK, 10), I.IN_ATTACK | I.IN_JUMP, ...hold(I.IN_ATTACK, 40)]);
+  results.push(['평타를 누른 채 점프하면 차지는 취소된다', log.some((l) => l.a.startsWith('jumpsquat')) && !log.some(charging), log.some(charging) ? '모으기 나옴' : '모으기 없음']);
+  // 12) 최고 단계에서 1초(60틱) 더 쥐고 있으면 저절로 나간다
+  s = fresh(2400, 2600);
+  log = run(s, hold(I.IN_ATTACK, H + 140));
+  const autoAt = log.findIndex((l) => l.a === 'attack/charge');
+  results.push(['최고 단계에서 1초 더 쥐고 있으면 저절로 나간다', autoAt === H - 1 + 120, `모으기 시작 ${H}틱째, 나감 ${autoAt + 1}틱째`]);
+  // 13) 대시 공격을 누른 채 있으면 대시 공격 뒤 모으기로 (땅에서 시작한 평타)
+  s = fresh(2400, 2600);
+  run(s, [I.IN_DASH | I.IN_RIGHT, 0, 0]);
+  log = run(s, hold(I.IN_ATTACK, 30));
+  results.push(['대시 공격을 누른 채 있으면 대시 공격 뒤 모으기로 넘어간다', log[0].a === 'attack/dashAttack' && log.findIndex(charging) === H - 1, `첫 틱 ${log[0].a}, 모으기 ${log.findIndex(charging) + 1}틱째`]);
   return results;
 }
 

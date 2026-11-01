@@ -54,6 +54,31 @@ export interface MoveData {
   rebound?: { vx: number; vy: number };
   /** 헛치고 땅·발판에 닿으면 굳는 틱 (없으면 공중 공격 착지 굳음) */
   landLag?: number;
+  /**
+   * 차지 (공격 길게 눌렀다 떼기, 기획서 '누르기와 길게 누르기'). 동작 그림 앞쪽은 모으는 그림이다:
+   * windup 프레임 전까지는 한 번(끌어 모음), windup~loopTo 프레임은 누르고 있는 동안 되풀이, 떼면 from 프레임부터 친다.
+   * levels: 모으기를 시작하고 at틱이 지나면 그 단계. 단계마다 피해·방어 깎기·날리기를 바꾼다 (나머지는 기술 데이터 그대로).
+   * auto: 마지막 단계에서 이만큼 더 쥐고 있으면 저절로 나간다
+   */
+  charge?: {
+    windup: number;
+    loopTo: number;
+    from: number;
+    auto: number;
+    levels: ReadonlyArray<ChargeLevel>;
+  };
+}
+
+/** 차지 한 단계 */
+export interface ChargeLevel {
+  at: number;
+  damage: number;
+  guardDamage: number;
+  launch: { vx: number; vy: number };
+  /** 벽 쪽으로 날림 (벽꽝) */
+  wall?: boolean;
+  /** 맞히면 점프로 끊고 쫓아갈 수 있다 */
+  jumpCancel?: boolean;
 }
 
 const LIGHT = { guardDamage: 10, hitstun: 16, blockstun: 12, hitstop: 7, push: 1.3 };
@@ -87,6 +112,23 @@ export const BASE_MOVES = {
   dashAttack: {
     motion: 'base/dash_attack', active: [5, 6], limb: ['eF', 'hF'], damage: 65, guardDamage: 18,
     hitstun: 26, blockstun: 12, hitstop: 9, push: 2.4, step: { from: 0, to: 5, speed: 6.0 },
+  },
+  /**
+   * 차지 (기본형): 공격을 길게 누르면 평타 뒤에 모으기로 넘어가고, 떼면 앞으로 내디디며 크게 내지른다. 기력은 쓰지 않는다.
+   * 1단계(바로)는 비스듬히 띄워 점프로 쫓아 공중 콤보, 2단계(0.5초)는 더 세고 높이, 3단계(1초)는 막혀도 방어를 깨고 맞으면 벽 쪽으로 날린다
+   */
+  charge: {
+    motion: 'base/charge', active: [10, 11], limb: ['eF', 'hF'], damage: 70, guardDamage: 30,
+    hitstun: 30, blockstun: 18, hitstop: 12, push: 3.0, heavy: true, step: { from: 8, to: 10, speed: 5.0 },
+    launch: { vx: 2.5, vy: -10.5 }, jumpCancel: true,
+    charge: {
+      windup: 4, loopTo: 7, from: 8, auto: 60,
+      levels: [
+        { at: 0, damage: 70, guardDamage: 30, launch: { vx: 2.5, vy: -10.5 }, jumpCancel: true },
+        { at: 30, damage: 100, guardDamage: 50, launch: { vx: 4.0, vy: -11.5 }, jumpCancel: true },
+        { at: 60, damage: 140, guardDamage: 100, launch: { vx: 10.0, vy: -5.0 }, wall: true },
+      ],
+    },
   },
   air1: {
     motion: 'base/air1', active: [3, 4], limb: ['eF', 'hF'], damage: 35, guardDamage: 10,
@@ -130,4 +172,6 @@ export type MoveId = keyof typeof BASE_MOVES;
 
 /** 연타 순서 */
 export const GROUND_CHAIN: readonly MoveId[] = ['atk1', 'atk2', 'atk3', 'atk4'];
+/** 길게 누르면 차지로 이어지는 평타 (땅에서 시작한 평타만. 공중 공격·벽 박차기 공격은 아니다) */
+export const CHARGE_FROM: ReadonlySet<MoveId> = new Set(['atk1', 'atk2', 'atk3', 'atk4', 'launcher', 'sweep', 'dashAttack']);
 export const AIR_CHAIN: readonly MoveId[] = ['air1', 'air2', 'air3'];

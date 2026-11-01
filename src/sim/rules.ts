@@ -109,3 +109,8 @@ export const BLOCK_HITSTOP_CUT = 3;
 export const SUPER_FREEZE = 45;
 /** 버튼을 미리 눌러 두면 이 틱 동안 기억 */
 export const BUFFER_TICKS = 8;
+/**
+ * 길게 누르기 (기획서 '누르기와 길게 누르기'): 공격 버튼을 떼지 않고 이 틱 넘게 누르고 있으면 길게 누른 것이다.
+ * 연타할 때 한 번 누르는 시간은 보통 3~8틱이고, 누를 때마다 처음부터 센다
+ */
+export const CHARGE_HOLD = 18;

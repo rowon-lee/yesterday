@@ -35,6 +35,8 @@ const SIDE_RAMP: Record<0 | 1, ColorName[]> = {
 };
 /** 타격 불꽃 (뜨거운 색) */
 const WARM: ColorName[] = ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed'];
+/** 차지를 모으는 동안 몸 둘레 오라와 빛 (기본 스틱맨은 흰 주황. 캐릭터를 얹으면 대표 색) */
+const CHARGE_RAMP: ColorName[] = ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame', 'goldDark', 'fxRed'];
 /** 막혔을 때 (차가운 색) */
 const COOL: ColorName[] = ['fxWhite', 'skyLight', 'sky', 'fxBlue', 'fxDeepBlue', 'fxNavy'];
 /** 휘두른 궤적 */
@@ -105,6 +107,12 @@ export class FightVfx {
     }
     s.fighters.forEach((f, i) => {
       if (f.meter >= RULES.METER_MAX) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 54, i === 0 ? COLORS.gold : COLORS.sky, 0.45);
+      // 차지를 모으는 동안: 캐릭터가 광원이 되어 바닥과 벽을 비춘다 (단계마다 넓고 밝게, 숨 쉬듯 맥박)
+      if (f.mode === 'charge') {
+        const lv = Math.max(1, f.chargeLv);
+        const pulse = 0.8 + 0.2 * Math.sin(s.tick * (0.25 + 0.1 * lv));
+        lights.point(f.x / 256, GROUND_Y + f.y / 256 - 24, 34 + 16 * lv, lv >= 3 ? COLORS.fxYellow : COLORS.fxOrange, (0.3 + 0.15 * lv) * pulse);
+      }
     });
     if (s.freeze > 0) {
       const who = s.events.find((e) => e.type === 'cutin')?.who ?? this.lastCutin;
@@ -152,6 +160,7 @@ export class FightVfx {
       else if (e.type === 'crush') this.glow(wx, wy, 90, COLORS.fxYellow, 1, 20);
       else if (e.type === 'ko') this.glow(wx, wy, 130, COLORS.fxOrange, 1, 40);
       else if (e.type === 'wallsplat') this.glow(wx, wy, 80, COLORS.fxOrange, 0.9, 16);
+      else if (e.type === 'charge') this.charge(s, e.who, e.text ?? '', e.combo ?? 1);
       else if (e.type === 'cutin') {
         this.lastCutin = e.who;
         this.glow(wx, wy - 26, 200, e.who === 0 ? COLORS.goldLight : COLORS.skyLight, 1, 50);
@@ -496,6 +505,31 @@ export class FightVfx {
         });
         break;
       }
+    }
+  }
+
+  /**
+   * 차지: 모으기 시작과 단계가 오를 때마다 몸 둘레 오라를 한 겹씩 더 (모으는 동안 유지, 단계마다 크게),
+   * 단계가 오르는 순간 빛이 번쩍, 떼는 순간 앞으로 빛
+   */
+  private charge(s: SimState, who: number, what: string, lv: number): void {
+    const f = s.fighters[who];
+    const wx = f.x / 256;
+    const wy = GROUND_Y + f.y / 256 - 24;
+    if (what === 'start' || what === 'level') {
+      this.layer.add(powerUp({
+        actor: { feet: () => feet(f), silhouette: () => silhouette(f) },
+        palette: fxHex(CHARGE_RAMP),
+        size: 0.36 + 0.14 * lv,
+        seed: this.seed++,
+        sustain: () => f.mode === 'charge',
+      }));
+      if (what === 'level') {
+        this.glow(wx, wy, 50 + 18 * lv, lv >= 3 ? COLORS.fxWhite : COLORS.fxYellow, 0.9, 12);
+        if (lv >= 3) this.fx.shake(0.15);
+      }
+    } else if (what === 'release') {
+      this.glow(wx + f.facing * 14, wy, 60 + 14 * lv, COLORS.fxYellow, 0.8, 10);
     }
   }
 

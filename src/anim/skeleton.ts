@@ -29,6 +29,9 @@ export const LOOKS = {
   ghost2: { outline: 'skyDark', shadow: 'skyDark', base: 'skyDark', light: 'skyDark' },
   /** 맞은 순간 하얗게 번쩍임 */
   flash: { outline: 'ink', shadow: 'white', base: 'white', light: 'white' },
+  /** 차지를 모으는 동안 몸이 빛남: 한 단계씩 밝게 (렌더가 단계마다 맥박치듯 바꿔 끼운다) */
+  glow1: { outline: 'ink', shadow: 'gold', base: 'goldLight', light: 'white' },
+  glow2: { outline: 'ink', shadow: 'sky', base: 'skyLight', light: 'white' },
 } as const satisfies Record<string, Look>;
 export type LookName = keyof typeof LOOKS;
 

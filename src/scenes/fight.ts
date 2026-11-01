@@ -23,7 +23,7 @@ import type { Scene } from './scene';
 
 /**
  * 1P 키보드 키 배치. 방향: 화살표 또는 WASD.
- * 왼손 WASD, 오른손 두 줄: 윗줄 U 스킬 1 · I 스킬 2 · O 필살기, 아랫줄 J 공격 · K 점프 · L 대시
+ * 왼손 WASD, 오른손 두 줄: 윗줄 U 스킬 1 · I 스킬 2 · O 필살기, 아랫줄 J 공격(길게 = 차지) · K 점프 · L 대시
  */
 export const KEYMAP: Record<string, PlayerInput> = {
   ArrowUp: IN_UP, KeyW: IN_UP,
@@ -233,11 +233,12 @@ export function fightScene(): Scene {
     g.actors.update(s.fighters.map((f, i) => {
       const pose = fighterPose(f);
       const white = fightVfx.white(i);
+      const glow = chargeGlow(f, s.tick);
       const jitter = f.hitstop > 0 && SHAKEN.has(f.mode) ? (s.tick % 2 ? 1 : -1) : 0;
       return {
         motion: motionByName.get(pose.motion)!,
         frame: pose.frame,
-        look: white ? 'flash' : i === 0 ? 'p1' : 'p2',
+        look: white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
         flip: f.facing < 0,
         x: f.x / 256 + jitter,
         h: -f.y / 256,
@@ -309,6 +310,18 @@ interface Snapshot {
 }
 
 /** 잔상을 남길 만큼 빠른가: 3px/틱 이상으로 움직일 때 (대시는 Sprite Fusion 잔상이 따로 있어 뺀다) */
+/**
+ * 차지를 모으는 동안 몸이 빛나는 맥박 (렌더 전용): 0 그대로, 1 한 단계 밝게, 2 하얗게.
+ * 1단계는 느리게, 2단계는 빠르게 밝아졌다 돌아오고, 3단계는 늘 밝은 채 짧게 하얗게 번쩍인다
+ */
+function chargeGlow(f: Fighter, tick: number): 0 | 1 | 2 {
+  if (f.mode !== 'charge') return 0;
+  const lv = Math.max(1, f.chargeLv);
+  if (lv >= 3) return tick % 8 < 2 ? 2 : 1;
+  const period = lv === 1 ? 16 : 8;
+  return tick % period < period / 2 ? 1 : 0;
+}
+
 function isFast(f: Fighter): boolean {
   return f.mode !== 'dash' && f.mode !== 'airdash' && Math.abs(f.vx) >= 3 * 256;
 }

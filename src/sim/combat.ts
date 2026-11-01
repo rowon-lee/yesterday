@@ -76,6 +76,12 @@ function blocks(def: Fighter, att: Fighter): boolean {
 function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId): void {
   const mv = MOVES[id];
   const d = mv.data;
+  // 차지는 모은 단계마다 피해·방어 깎기·날리기·벽 쪽으로 날림이 다르다
+  const lvl = d.charge ? d.charge.levels[Math.max(0, Math.min(d.charge.levels.length, att.chargeLv) - 1)] : undefined;
+  const baseDamage = lvl?.damage ?? d.damage;
+  const guardDamage = lvl?.guardDamage ?? d.guardDamage;
+  const launch = lvl ? { vx: px(lvl.launch.vx), vy: px(lvl.launch.vy) } : mv.launch;
+  const wall = lvl ? lvl.wall === true : d.wall === true;
   const dir = att.facing;
   const who = s.fighters.indexOf(att);
   const ex = Math.trunc((Math.max(hb.x0, Math.min(hb.x1, def.x)) + (dir > 0 ? hb.x1 : hb.x0)) / 2);
@@ -90,7 +96,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   }
 
   if (blocked) {
-    def.guard -= d.guardDamage;
+    def.guard -= guardDamage;
     const stop = Math.max(4, d.hitstop - BLOCK_HITSTOP_CUT);
     att.hitstop = stop;
     def.hitstop = stop;
@@ -112,7 +118,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
 
   att.moveConnected = true;
   const scale = Math.max(SCALE_MIN, 100 - SCALE_STEP * def.comboHits);
-  const damage = Math.max(1, Math.trunc((d.damage * scale) / 100));
+  const damage = Math.max(1, Math.trunc((baseDamage * scale) / 100));
   def.hp = Math.max(0, def.hp - damage);
   def.comboHits++;
   def.flash = FLASH_TICKS;
@@ -123,7 +129,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   def.facing = -dir as 1 | -1;
   def.bounce = false;
   // '벽 쪽으로 날림' 기술에 맞아 날아가면 큰 물건에 부딪혀 무너뜨린다 (props.ts)
-  def.wallFly = d.wall === true;
+  def.wallFly = wall;
   s.events.push({ type: 'hit', who, x: ex, y: ey, heavy: d.heavy ?? false, combo: def.comboHits, move: mv.id });
 
   const airborne = isAirborne(def) || def.mode === 'airhit';
@@ -135,8 +141,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   // (추가 피해는 벽 낙법 구간이 지나 정말 박힌 뒤에: splatLands)
   const sx = Math.round(def.x / 256);
   const sh = Math.round(-def.y / 256) + 22;
-  const tower = d.wall === true && towerBehind(s, sx, sh);
-  if (d.wall && (tower || wallBehind(s, sx, sh))) {
+  const tower = wall && towerBehind(s, sx, sh);
+  if (wall && (tower || wallBehind(s, sx, sh))) {
     if (tower) damageCitadel(s, sx, KEEP_RULES.damage.splat, who);
     setMode(def, 'wallsplat', CITY.wallsplat.ticks);
     def.vx = 0;
@@ -152,8 +158,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
     def.bounce = true;
     return;
   }
-  if (airborne || mv.launch || d.knockdown || d.spike) {
-    const v = mv.launch ?? (d.knockdown || d.spike
+  if (airborne || launch || d.knockdown || d.spike) {
+    const v = launch ?? (d.knockdown || d.spike
       ? { vx: px(1.8), vy: px(-3.6) }
       : { vx: px(AIR_HIT_DEFAULT.vx), vy: px(AIR_HIT_DEFAULT.vy) });
     setMode(def, 'airhit', d.hitstun);
