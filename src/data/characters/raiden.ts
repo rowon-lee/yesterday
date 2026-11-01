@@ -37,6 +37,7 @@ export const RAIDEN: CharacterData = {
     wall_jump: 'raiden/wall_jump',
     wall_run: 'raiden/wall_run',
     wall_tech: 'raiden/wall_tech',
+    exhaust: 'raiden/exhaust',
   },
   // 기술: 그림과 바꾼 수치만 적는다 (나머지는 기본 스틱맨 기술 그대로)
   moves: {
@@ -72,7 +73,8 @@ export const RAIDEN: CharacterData = {
           { at: 0, damage: 70, guardDamage: 30, launch: { vx: 1.0, vy: -11.2 }, jumpCancel: true },
           { at: 20, damage: 90, guardDamage: 45, launch: { vx: 1.6, vy: -11.6 }, jumpCancel: true },
           { at: 40, damage: 115, guardDamage: 70, launch: { vx: 7.0, vy: -6.0 }, wall: true },
-          { at: 60, damage: 150, guardDamage: 110, launch: { vx: 11.0, vy: -5.0 }, wall: true },
+          // 4단계는 끝난 뒤 36틱 탈진 (기획서 '최고 단계로 쓰면 짧게 탈진')
+          { at: 60, damage: 150, guardDamage: 110, launch: { vx: 11.0, vy: -5.0 }, wall: true, exhaust: 36 },
         ],
       },
     },

@@ -9,7 +9,9 @@ export type MotionSlot =
   | 'idle' | 'intro' | 'win'
   | 'run_f' | 'run_b' | 'jump' | 'jump2' | 'fall' | 'land' | 'dash' | 'air_dash'
   | 'guard' | 'guard_hit'
-  | 'wall_cling' | 'wall_jump' | 'wall_run' | 'wall_tech';
+  | 'wall_cling' | 'wall_jump' | 'wall_run' | 'wall_tech'
+  /** 탈진 (강한 기술 뒤). 기본 스틱맨은 착지 그림으로 대신 */
+  | 'exhaust';
 
 /** 능력치 (px, px/틱, 틱). 이름과 뜻은 기본 스틱맨(base.ts)과 같다 */
 export type Stats = { -readonly [K in keyof typeof BASE_STATS]: number };

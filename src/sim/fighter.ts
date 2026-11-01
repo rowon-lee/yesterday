@@ -41,7 +41,7 @@ export function setMode(f: Fighter, mode: Mode, len = 0): void {
 export const isAirborne = (f: Fighter): boolean => f.y < f.floor || f.vy < 0;
 
 /** 땅에서만 있을 수 있는 상태 (발밑 바닥이 없어지면 떨어지는 상태로 바꾼다) */
-const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown', 'intro', 'charge']);
+const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown', 'intro', 'charge', 'exhaust']);
 
 /** 밀려나는 등 위치가 바뀐 뒤: 서 있던 발판이 발밑에 그대로 있는지 다시 본다 */
 export function settle(s: SimState, f: Fighter): void {
@@ -494,6 +494,8 @@ function chargeControl(s: SimState, f: Fighter, input: PlayerInput, controllable
     const level = f.chargeLv;
     startMove(s, f, 'charge');
     f.chargeLv = level;
+    // 최고 단계 투전승불 같은 강한 차지는 끝난 뒤 탈진한다
+    f.exhaust = c.levels[Math.max(0, level - 1)]?.exhaust ?? 0;
     // 동작 그림의 치는 부분부터
     f.t = ch.frames.cum[c.from - 1];
     s.events.push({ type: 'charge', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'release', combo: level });
@@ -593,10 +595,17 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
         else if (cin && !f.moveHit) {
           setMode(f, 'land', cin.whiff);
           s.events.push({ type: 'cine', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'whiff', move: mv.id });
+        } else if (f.move === 'charge' && f.exhaust > 0) {
+          setMode(f, 'exhaust', f.exhaust);
+          f.exhaust = 0;
         } else setMode(f, 'idle');
       }
       break;
     }
+    case 'exhaust':
+      f.vx = friction(f.vx);
+      if (f.t >= f.len) setMode(f, 'idle');
+      break;
     case 'blockstun':
       f.vx = friction(f.vx);
       if (controllable && trySkills(s, f, false, true)) break;

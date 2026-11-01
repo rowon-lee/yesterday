@@ -183,7 +183,7 @@ process.exit(failed ? 1 : 0);
  */
 function charChecks() {
   const out = [];
-  const SLOTS = ['idle', 'intro', 'win', 'run_f', 'run_b', 'jump', 'jump2', 'fall', 'land', 'dash', 'air_dash', 'guard', 'guard_hit', 'wall_cling', 'wall_jump', 'wall_run', 'wall_tech'];
+  const SLOTS = ['idle', 'intro', 'win', 'run_f', 'run_b', 'jump', 'jump2', 'fall', 'land', 'dash', 'air_dash', 'guard', 'guard_hit', 'wall_cling', 'wall_jump', 'wall_run', 'wall_tech', 'exhaust'];
   const missing = [];
   for (const c of sim.CHAR_IDS) {
     for (const slot of SLOTS) {
@@ -265,6 +265,18 @@ function charChecks() {
     }
     out.push(['라이덴 차지 투전승불: 4단계까지 모이고 떼면 맞힘 (4단계는 벽 쪽으로 날림)', maxLv === 4 && charged.length === 1 && charged[0] === true,
       `가장 높은 단계 ${maxLv}, 차지 맞힘 ${charged.length}번${charged.length ? `, 벽 쪽으로 ${charged[0]}` : ''}`]);
+  }
+  {
+    // 4단계로 치면 끝난 뒤 탈진(36틱): 아무것도 못 하다가 대기로
+    st = rfresh(3150, 3200);
+    let exT = 0;
+    let after = '';
+    for (let t = 0; t < 200; t++) {
+      sim.step(st, [t < 100 ? sim.IN_ATTACK : t % 3 === 0 ? sim.IN_ATTACK : 0, 0]);
+      if (st.fighters[0].mode === 'exhaust') exT++;
+      else if (exT > 0 && !after) after = st.fighters[0].mode;
+    }
+    out.push(['투전승불 4단계 뒤 탈진 36틱 (그동안 공격 버튼을 눌러도 못 움직임)', exT === 36 && after !== '', `탈진 ${exT}틱, 그 뒤 ${after || '-'}`]);
   }
   // 라이덴 고유 특성 금강: 합을 주고받을 때마다 1스택, 4스택이면 금강불괴(KONGO_TICKS): 맞아도 하던 동작을 이어 가고 밀림 80% 감소
   {

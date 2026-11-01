@@ -93,6 +93,8 @@ function pick(f: Fighter): [string, number] {
       return once('common/knockdown', f.t);
     case 'getup':
       return once('common/getup', f.t);
+    case 'exhaust':
+      return stretch(motionOf(f.char, 'exhaust'), f.t, Math.max(1, f.len));
     case 'tech':
       return once('common/tech', f.t);
     case 'walltech':

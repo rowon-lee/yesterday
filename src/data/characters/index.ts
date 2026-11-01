@@ -23,6 +23,7 @@ export const BASE_MOTION_SLOTS: Record<MotionSlot, string> = {
   wall_jump: 'base/wall_jump',
   wall_run: 'base/wall_run',
   wall_tech: 'base/wall_tech',
+  exhaust: 'base/land',
 };
 
 /** 기본 스틱맨: 시스템 확인용 (전용 동작 대신 기본형) */
