@@ -11,7 +11,8 @@ import { encodeGif } from './gif.mjs';
 
 /**
  * steps: [키 묶음, 틱 수]. 키 묶음은 그동안 누르고 있는 키 (KeyboardEvent.code). 빈 배열이면 모두 뗀다.
- * 1P는 왼쪽(오른쪽을 봄), 2P는 오른쪽.
+ * 1P는 왼쪽(오른쪽을 봄), 2P는 오른쪽. q: 주소 뒤 (기본 대련·상대 가만히), p1·p2가 없으면 자리를 옮기지 않는다.
+ * prep: 자리를 놓은 뒤 sim 상태(s)에 한 번 실행할 코드 (경기 끝 메뉴를 보려고 체력·승수를 바꾸는 등)
  */
 const SCENES = {
   // 대시(L) → 3틱 뒤 공격(J) → 맞히고 일어설 때까지
@@ -26,6 +27,27 @@ const SCENES = {
       [[], 6], [['KeyL'], 1], [[], 2], [['KeyJ'], 19], [[], 4], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 14],
       [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [[], 60],
     ],
+  },
+  // 타이틀: 메뉴를 내려갔다 올라오고, 대련(CPU 강도) 메뉴를 열었다 닫는다
+  title: {
+    q: 'scene=title', settle: 30,
+    steps: [[[], 50], [['KeyS'], 1], [[], 16], [['KeyS'], 1], [[], 16], [['KeyS'], 1], [[], 16], [['KeyW'], 1], [[], 16], [['KeyW'], 1], [[], 16], [['KeyW'], 1], [[], 20], [['KeyJ'], 1], [[], 36], [['KeyS'], 1], [[], 20], [['KeyK'], 1], [[], 40]],
+  },
+  // 일시정지(Esc): 메뉴를 옮겨 보고 계속하기
+  pause: {
+    q: 'scene=fight', settle: 10, p1: 3150, p2: 3260,
+    steps: [[[], 20], [['Escape'], 1], [[], 24], [['KeyS'], 1], [[], 14], [['KeyS'], 1], [[], 14], [['KeyW'], 1], [[], 14], [['KeyW'], 1], [[], 14], [['KeyJ'], 1], [[], 30]],
+  },
+  // 경기 끝: 1P가 한 판 이긴 2판째, 2P 체력이 거의 없을 때 4타로 쓰러뜨리고 → 다시 하기·타이틀로 메뉴
+  results: {
+    q: 'scene=fight&p2=idle', settle: 10, p1: 3150, p2: 3196,
+    prep: 's.fighters[0].wins = 1; s.round = 2; s.fighters[1].hp = 30;',
+    steps: [[[], 4], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 300], [['KeyS'], 1], [[], 30]],
+  },
+  // 연습: 시간 --, 상대 체력이 콤보가 끝나고 1초 뒤 다시 찬다
+  practice: {
+    q: 'scene=fight&mode=practice&dummy=stand', settle: 10, p1: 3150, p2: 3196,
+    steps: [[[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 200]],
   },
   // 필살기(O) 연출: 발동 정지·2배 확대·컷인 → 맞으면 난타 → 어퍼로 띄우기 → 내려찍기 → 끝 타격에 피해·파괴 (기력 가득)
   super: {
@@ -63,16 +85,19 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${server.resolvedUrls.local[0]}?scene=fight&p2=idle&stopAt=75&ff=1&quality=high`);
+await page.goto(`${server.resolvedUrls.local[0]}?${sc.q ?? 'scene=fight&p2=idle'}&stopAt=75&ff=1&quality=high`);
 await page.waitForFunction(() => window.__debug?.tick >= 75);
 await page.evaluate(() => window.__debug.unstop());
-await page.evaluate(([x1, x2, meter]) => {
-  const s = window.__fight();
-  const [a, b] = s.fighters;
-  Object.assign(a, { x: x1 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: 1 });
-  Object.assign(b, { x: x2 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: -1 });
-  if (meter) a.meter = 300;
-}, [sc.p1, sc.p2, !!sc.meter]);
+if (sc.p1 !== undefined) {
+  await page.evaluate(([x1, x2, meter, prep]) => {
+    const s = window.__fight();
+    const [a, b] = s.fighters;
+    Object.assign(a, { x: x1 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: 1 });
+    Object.assign(b, { x: x2 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: -1 });
+    if (meter) a.meter = 300;
+    if (prep) new Function('s', prep)(s);
+  }, [sc.p1, sc.p2, !!sc.meter, sc.prep ?? '']);
+}
 await page.evaluate((n) => window.__debug.benchTicks(n), sc.settle);
 
 const frames = [];
@@ -87,6 +112,7 @@ for (const [keys, n] of sc.steps) {
     if (tick % opt.every === 0 || i === 0) {
       frames.push(await page.evaluate((m) => window.__debug.frame(m), 1));
       log.push(await page.evaluate(() => {
+        if (window.__debug.scene !== 'fight') return window.__debug.scene;
         const s = window.__fight();
         return s.fighters.map((f) => `${f.mode}${f.move ? `/${f.move}` : ''}${f.t ? `@${f.t}` : ''}`).join(' | ');
       }));
