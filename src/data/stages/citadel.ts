@@ -39,6 +39,8 @@ export const CITADEL = {
    * fog: 안개 색, 바닥 안개(mist 0~1), 겹 사이 안개 배율(haze). ambient: 하늘 쪽·바닥 쪽 환경광
    * grade: 화면 색 보정 (그림자 쪽 색 shadow, 밝은 쪽 색 high, 채도 sat, 대비 contrast)
    * halo: 안개 속 빛 무리 세기, streak: 강한 빛의 가로 플레어 세기, lightning: 먼 번개 잦기 (0이면 없음)
+   * ramps: 구간 팔레트 (render/palette.ts의 계단 묶음 이름). 마지막 화면 색을 늘 쓰는 색(캐릭터·이펙트) + 이 묶음들로 줄인다.
+   *   구간 경계 양쪽 화면 반 칸(240px)은 두 구간 팔레트를 합친 완충 구간이다 (수직선으로 딱 잘리지 않게)
    */
   moods: {
     factory: {
@@ -47,6 +49,7 @@ export const CITADEL = {
       ambient: { sky: '#2a1a1a', ground: '#0c0606' },
       grade: { shadow: '#2a2440', high: '#ffb070', sat: 1.1, contrast: 0.2 },
       halo: 1.3, streak: 0.3, lightning: 0.2,
+      ramps: ['navy', 'gray', 'ember', 'amber', 'brick', 'umber', 'core'],
     },
     docks: {
       sky: { zenith: '#05070c', mid: '#121418', glow: '#8a5a2a', glowK: 1.0, cloud: '#0c0e12', cloudLit: '#5a4024', cover: 0.6 },
@@ -54,6 +57,7 @@ export const CITADEL = {
       ambient: { sky: '#1e2430', ground: '#08090c' },
       grade: { shadow: '#1e4048', high: '#ffc070', sat: 1.05, contrast: 0.12 },
       halo: 1.4, streak: 0.25, lightning: 0.6,
+      ramps: ['navy', 'gray', 'steel', 'sodium', 'amber', 'brick', 'umber', 'teal', 'core'],
     },
     pier: {
       sky: { zenith: '#05070d', mid: '#0d1621', glow: '#3e6a72', glowK: 0.9, cloud: '#0b1018', cloudLit: '#2c4a52', cover: 0.55 },
@@ -61,6 +65,7 @@ export const CITADEL = {
       ambient: { sky: '#1a2a3a', ground: '#070b10' },
       grade: { shadow: '#2a5560', high: '#ffd9a8', sat: 1.05, contrast: 0.12 },
       halo: 1.1, streak: 0.25, lightning: 0.8,
+      ramps: ['navy', 'gray', 'steel', 'teal', 'indigo', 'amber', 'umber', 'core'],
     },
     theater: {
       sky: { zenith: '#07050e', mid: '#160c1e', glow: '#7a2a5a', glowK: 1.0, cloud: '#120a16', cloudLit: '#5a2a4a', cover: 0.6 },
@@ -68,6 +73,7 @@ export const CITADEL = {
       ambient: { sky: '#241a38', ground: '#0a0610' },
       grade: { shadow: '#1c3a5c', high: '#ffc0d8', sat: 1.15, contrast: 0.15 },
       halo: 1.2, streak: 0.3, lightning: 0.3,
+      ramps: ['navy', 'gray', 'indigo', 'pink', 'pinkfog', 'amber', 'brick', 'umber', 'core'],
     },
     plaza: {
       sky: { zenith: '#04060c', mid: '#0c1220', glow: '#4a5a7a', glowK: 0.8, cloud: '#0a0e18', cloudLit: '#3a4a66', cover: 0.65 },
@@ -75,6 +81,7 @@ export const CITADEL = {
       ambient: { sky: '#1a2236', ground: '#06080e' },
       grade: { shadow: '#1e3050', high: '#e8f0ff', sat: 0.95, contrast: 0.2 },
       halo: 1.0, streak: 0.35, lightning: 0.5,
+      ramps: ['navy', 'gray', 'steel', 'cyan', 'teal', 'amber', 'umber', 'brick', 'core'],
     },
     apartments: {
       sky: { zenith: '#06050c', mid: '#140d16', glow: '#7a4228', glowK: 0.9, cloud: '#100a10', cloudLit: '#5a3020', cover: 0.6 },
@@ -82,6 +89,7 @@ export const CITADEL = {
       ambient: { sky: '#221a30', ground: '#09060a' },
       grade: { shadow: '#1a3452', high: '#ffcf9a', sat: 1.1, contrast: 0.15 },
       halo: 1.1, streak: 0.25, lightning: 0.3,
+      ramps: ['navy', 'gray', 'indigo', 'amber', 'brick', 'umber', 'pink', 'teal', 'core'],
     },
     park: {
       sky: { zenith: '#04070a', mid: '#0a1414', glow: '#4a5a32', glowK: 0.7, cloud: '#081010', cloudLit: '#2e3a22', cover: 0.5 },
@@ -89,6 +97,7 @@ export const CITADEL = {
       ambient: { sky: '#16222a', ground: '#060a0a' },
       grade: { shadow: '#1e4040', high: '#fff0b0', sat: 1.0, contrast: 0.1 },
       halo: 1.3, streak: 0.2, lightning: 0.4,
+      ramps: ['navy', 'gray', 'sodium', 'fluo', 'teal', 'amber', 'umber', 'core'],
     },
     elrail: {
       sky: { zenith: '#04080a', mid: '#0a1616', glow: '#2a6a5a', glowK: 0.8, cloud: '#081010', cloudLit: '#204a40', cover: 0.6 },
@@ -96,6 +105,7 @@ export const CITADEL = {
       ambient: { sky: '#142a2a', ground: '#050a0a' },
       grade: { shadow: '#14403a', high: '#d8fff0', sat: 1.05, contrast: 0.18 },
       halo: 1.1, streak: 0.35, lightning: 0.3,
+      ramps: ['navy', 'gray', 'fluo', 'teal', 'amber', 'brick', 'umber', 'pink', 'core'],
     },
     wall: {
       sky: { zenith: '#05060a', mid: '#10131a', glow: '#5a5e6a', glowK: 0.8, cloud: '#0c0e14', cloudLit: '#40444e', cover: 0.7 },
@@ -103,6 +113,7 @@ export const CITADEL = {
       ambient: { sky: '#1a1e2a', ground: '#06070a' },
       grade: { shadow: '#24304a', high: '#f0f4ff', sat: 0.85, contrast: 0.25 },
       halo: 1.2, streak: 0.4, lightning: 0.7,
+      ramps: ['navy', 'gray', 'steel', 'amber', 'ember', 'umber', 'core'],
     },
   },
 

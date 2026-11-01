@@ -1,12 +1,42 @@
 import * as THREE from 'three';
-import { COLORS, RAMPS } from '../palette';
+import { CITADEL as D } from '../../data/stages/citadel';
+import { COLORS, COMMON, RAMP_SETS, type RampName } from '../palette';
+import { SCREEN_W } from '../screen';
 import { FAR, MARGIN, NEAR, RT_H, RT_W, type Placed } from './core';
 import { LIGHT_N, loadedLights } from './lights';
 
 /**
+ * 구간 팔레트 (맵 아트 지침서 '팔레트'): 구간마다 늘 쓰는 색(캐릭터·이펙트) + 그 구간이 고른 계단 묶음 (data/stages moods[구간].ramps).
+ * 경계 양쪽 PAL_HALF는 두 구간 팔레트를 합친 완충 구간 (화면 반 칸).
+ */
+const PAL_HALF = SCREEN_W / 4;
+const SECTION_N = D.sections.length;
+const BOUNDS = D.sections.slice(1).map((s) => s.x0 as number);
+const hexRgb = (h: string): [number, number, number] => {
+  const n = parseInt(h.slice(1), 16);
+  return [n >> 16, (n >> 8) & 255, n & 255];
+};
+const SECTION_PALETTES: string[][] = D.sections.map((s) => {
+  const m = (D.moods as Record<string, { ramps?: readonly string[] } | undefined>)[s.id];
+  const names = (m?.ramps ?? Object.keys(RAMP_SETS)) as RampName[];
+  return [...new Set([...COMMON.map((n) => COLORS[n]), ...names.flatMap((n) => RAMP_SETS[n])])];
+});
+/**
+ * 늘 쓰는 색(캐릭터·이펙트)은 거리를 이만큼 늘려 본다: 무대의 어두운 하늘·안개가 이펙트의 진한 파랑·그을음 색으로 튀지 않고
+ * 구간 계단으로 가게 (캐릭터·이펙트의 진한 색은 구간 계단과 멀어 그대로 남는다)
+ */
+const COMMON_WEIGHT = 2.5;
+const COMMON_SET = new Set<string>(COMMON.map((n) => COLORS[n]));
+/** 표 순서: 구간 0..N-1, 그다음 경계 k(구간 k와 k+1)의 합친 팔레트 */
+const LUT_PALETTES: string[][] = [
+  ...SECTION_PALETTES,
+  ...BOUNDS.map((_, k) => [...new Set([...SECTION_PALETTES[k], ...SECTION_PALETTES[k + 1]])]),
+];
+
+/**
  * 후처리 (렌더 전용, 낮은 해상도 화면에서). 순서는 CLAUDE.md '2.5D 렌더 규칙'대로:
  *   젖은 바닥 반사 → 빛 번짐(밝은 곳에만: 네 겹 크기로 넓게, 강한 빛은 가로로 길게 번지는 플레어) → 안개 속 빛 무리
- *   → 구간 분위기 색 보정·대비·가장자리 어둡게 → 제한 팔레트 (색 단계가 바뀌는 경계 2~3칸에서만 8×8 디더링).
+ *   → 구간 분위기 색 보정·대비·가장자리 어둡게 → 구간 팔레트 (색 단계가 바뀌는 경계 2~3칸에서만 8×8 디더링).
  * 무대에는 외곽선을 긋지 않는다 (무테, 맵 아트 지침서). 넓은 면은 디더 없이 단색이다.
  * 흐림은 빛(번짐·플레어·빛 무리)과 반사에만 쓴다. 그림(텍스처)은 흐리지 않는다.
  * 마지막에 팔레트 화면을 같은 크기 캔버스에 옮기고, 정수배 확대와 카메라의 남는 소수점 밀기는 CSS가 맡는다 (view.ts).
@@ -201,6 +231,8 @@ void main() {
  * 넓은 면과 물체의 윤곽(원래 색이 크게 다른 경계)은 단색으로 깨끗하다.
  */
 const PALETTE_FRAG = /* glsl */ `
+#define SECTION_N ${SECTION_N}
+#define BOUND_N ${BOUNDS.length}
 uniform sampler2D graded;
 uniform sampler2D lut;
 uniform vec2 texel;
@@ -208,7 +240,14 @@ uniform vec2 ditherOrigin;
 uniform float ditherAmount;
 uniform float smoothLimit;
 uniform float curveLimit;
+uniform float gradLimit;
+/** 구간 경계 (월드 x), 완충 구간 반폭, 화면 칸 → 싸우는 면의 월드 x */
+uniform float bounds[BOUND_N];
+uniform float palHalf;
+uniform float viewX;
 varying vec2 vUv;
+/** 이 칸이 쓰는 팔레트 표 (구간 또는 경계의 합친 팔레트) */
+float lutRow = 0.0;
 /** 8×8 바이어 무늬 (-0.5~0.5): 2×2 무늬를 세 번 겹쳐 계산 (표를 찾지 않는다) */
 float m2(vec2 v) { return mod(2.0 * v.x + 3.0 * v.y, 4.0); }
 float bayer8(vec2 p) {
@@ -219,8 +258,15 @@ float bayer8(vec2 p) {
 vec3 palette(vec3 c) {
   vec3 q = clamp(c, 0.0, 1.0) * 31.0;
   vec3 i = floor(q + 0.5);
-  vec2 uv = vec2((i.b * 32.0 + i.r + 0.5) / 1024.0, (i.g + 0.5) / 32.0);
+  vec2 uv = vec2((i.b * 32.0 + i.r + 0.5) / 1024.0, (lutRow * 32.0 + i.g + 0.5) / (32.0 * float(SECTION_N + BOUND_N)));
   return texture2D(lut, uv).rgb;
+}
+float lutFor(float wx) {
+  for (int k = 0; k < BOUND_N; k++) {
+    if (wx < bounds[k] - palHalf) return float(k);
+    if (wx < bounds[k] + palHalf) return float(SECTION_N + k);
+  }
+  return float(SECTION_N - 1);
 }
 float maxc(vec3 v) { return max(v.r, max(v.g, v.b)); }
 float same(vec3 a, vec3 b) { vec3 d = abs(a - b); return step(d.r + d.g + d.b, 0.002); }
@@ -237,6 +283,8 @@ float band(vec3 s, vec3 p, vec2 off) {
   if (smooth1 * straight < 0.5) return 0.0;
   vec3 a2 = texture2D(graded, vUv - 2.0 * off * texel).rgb;
   vec3 b2 = texture2D(graded, vUv + 2.0 * off * texel).rgb;
+  // 느린 그러데이션만 (칸당 변화가 작아 띠가 넓은 곳): 띠가 좁으면 띠마다 양 끝이 섞여 넓은 바둑판이 된다
+  if (maxc(abs(b2 - a2)) * 0.25 > gradLimit) return 0.0;
   vec3 pa1 = palette(a1);
   vec3 pb1 = palette(b1);
   vec3 pa2 = palette(a2);
@@ -247,6 +295,8 @@ float band(vec3 s, vec3 p, vec2 off) {
   return max(right, left);
 }
 void main() {
+  // 이 칸의 팔레트: 화면 칸이 가리키는 싸우는 면의 월드 x로 고른다. 팔레트가 바뀌는 자리는 3칸 폭만 바이어 무늬로 섞는다
+  lutRow = lutFor(viewX + gl_FragCoord.x + bayer8(gl_FragCoord.xy + ditherOrigin) * 3.0);
   vec3 s = texture2D(graded, vUv).rgb;
   vec3 p = palette(s);
   float e = band(s, p, vec2(1.0, 0.0)) + band(s, p, vec2(0.0, 1.0));
@@ -316,39 +366,39 @@ void main() {
 }
 `;
 
-/** 팔레트(COLORS + RAMPS) → 32×32×32 색 상자마다 가장 가까운 팔레트 색 (가로 1024 = 파랑 32칸 × 빨강 32칸, 세로 초록 32칸) */
-export const PALETTE: ReadonlyArray<[number, number, number]> = [...new Set([...Object.values(COLORS), ...RAMPS])].map((h) => {
-  const n = parseInt(h.slice(1), 16);
-  return [n >> 16, (n >> 8) & 255, n & 255];
-});
-
-function buildLut(): THREE.DataTexture {
-  const data = new Uint8Array(1024 * 32 * 4);
-  for (let g = 0; g < 32; g++) {
-    for (let b = 0; b < 32; b++) {
-      for (let r = 0; r < 32; r++) {
-        const R = (r / 31) * 255;
-        const G = (g / 31) * 255;
-        const B = (b / 31) * 255;
-        let best = 0;
-        let bd = Infinity;
-        for (let k = 0; k < PALETTE.length; k++) {
-          const p = PALETTE[k];
-          const d = 3 * (p[0] - R) ** 2 + 4 * (p[1] - G) ** 2 + 2 * (p[2] - B) ** 2;
-          if (d < bd) {
-            bd = d;
-            best = k;
+/** 팔레트 여럿 → 32×32×32 색 상자마다 가장 가까운 팔레트 색 표를 세로로 쌓은 그림 (가로 1024 = 파랑 32칸 × 빨강 32칸, 표마다 세로 초록 32칸) */
+function buildLut(palettes: string[][]): THREE.DataTexture {
+  const n = palettes.length;
+  const data = new Uint8Array(1024 * 32 * n * 4);
+  palettes.forEach((pal, L) => {
+    const P = pal.map(hexRgb);
+    const W = pal.map((h) => (COMMON_SET.has(h) ? COMMON_WEIGHT : 1));
+    for (let g = 0; g < 32; g++) {
+      for (let b = 0; b < 32; b++) {
+        for (let r = 0; r < 32; r++) {
+          const R = (r / 31) * 255;
+          const G = (g / 31) * 255;
+          const B = (b / 31) * 255;
+          let best = 0;
+          let bd = Infinity;
+          for (let k = 0; k < P.length; k++) {
+            const p = P[k];
+            const d = (3 * (p[0] - R) ** 2 + 4 * (p[1] - G) ** 2 + 2 * (p[2] - B) ** 2) * W[k];
+            if (d < bd) {
+              bd = d;
+              best = k;
+            }
           }
+          const o = ((L * 32 + g) * 1024 + b * 32 + r) * 4;
+          data[o] = P[best][0];
+          data[o + 1] = P[best][1];
+          data[o + 2] = P[best][2];
+          data[o + 3] = 255;
         }
-        const o = (g * 1024 + b * 32 + r) * 4;
-        data[o] = PALETTE[best][0];
-        data[o + 1] = PALETTE[best][1];
-        data[o + 2] = PALETTE[best][2];
-        data[o + 3] = 255;
       }
     }
-  }
-  const t = new THREE.DataTexture(data, 1024, 32);
+  });
+  const t = new THREE.DataTexture(data, 1024, 32 * n);
   t.magFilter = THREE.NearestFilter;
   t.minFilter = THREE.NearestFilter;
   t.generateMipmaps = false;
@@ -484,12 +534,16 @@ export class Post {
     });
     this.palette = mat(PALETTE_FRAG, {
       graded: { value: this.graded.texture },
-      lut: { value: buildLut() },
+      lut: { value: buildLut(LUT_PALETTES) },
       texel: { value: new THREE.Vector2(1 / RT_W, 1 / RT_H) },
+      bounds: { value: BOUNDS },
+      palHalf: { value: PAL_HALF },
+      viewX: { value: 0 },
       ditherOrigin: { value: new THREE.Vector2() },
       ditherAmount: { value: 0.05 },
       smoothLimit: { value: 0.035 },
       curveLimit: { value: 0.012 },
+      gradLimit: { value: 0.006 },
     });
     this.blit = mat(BLIT_FRAG, { src: { value: this.final.texture } });
     this.haloGeo = new THREE.InstancedBufferGeometry();
@@ -585,6 +639,7 @@ export class Post {
     this.pass(renderer, this.composite, this.graded);
     // 디더 무늬는 싸우는 면에 붙여 카메라가 움직여도 지글거리지 않게
     this.palette.uniforms.ditherOrigin.value.set(placed.ix, -placed.iy);
+    this.palette.uniforms.viewX.value = placed.ix - MARGIN - 0.5;
     this.pass(renderer, this.palette, this.final);
     this.pass(renderer, this.blit, null);
   }
