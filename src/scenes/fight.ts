@@ -1,7 +1,7 @@
 import type { TickInput } from '../core/input';
 import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
-import { drawCutin } from '../render/cutin';
+import { drawCutin, playCutscene } from '../render/cutin';
 import { drawDust, Effects, type Dust } from '../render/effects';
 import { FightVfx } from '../render/fightvfx';
 import { VfxLayer } from '../render/vfx';
@@ -93,7 +93,8 @@ export function fightScene(app?: App): Scene {
   let vfx: VfxLayer;
   let fightVfx: FightVfx;
   let hud: Hud;
-  let cutin: { who: number; text: string; t: number } | null = null;
+  /** 필살 컷인 (video: 컷씬 영상 훅이 영상을 틀어 기본 띠를 그리지 않음) */
+  let cutin: { who: number; text: string; t: number; video: boolean } | null = null;
   /** 카메라: 화면 왼쪽 위의 월드 좌표 (px, 렌더 전용). x가 -1이면 아직 안 정함 */
   let cam = { x: -1, y: 0 };
   let camVy = 0;
@@ -217,6 +218,27 @@ export function fightScene(app?: App): Scene {
    * 먼지·잔상·무너지는 조각·Sprite Fusion 이펙트는 지금까지의 2D 그림을 싸우는 면 바로 뒤·앞의 평면 층에 그린다.
    * 화면 흔들림은 카메라를 반대로 민다.
    */
+  /**
+   * 필살기 확대 (렌더 전용, 캐릭터 기획서 '필살기 연출'): 발동해서 맞을지 정해질 때까지는 발동자를 2배로,
+   * 맞아서 연출이 도는 동안은 두 사람 가운데를 2배로 잡는다. 빗나가거나 막히면 풀린다
+   */
+  let cineStart = 0;
+  const applyZoom = (v: { x: number; y: number }) => {
+    const g = gl();
+    const at = (f: Fighter): [number, number] => [f.x / 256 - v.x, GROUND_Y + f.y / 256 - v.y - 26];
+    if (s.cine) {
+      const [ax, ay] = at(s.fighters[0]);
+      const [bx, by] = at(s.fighters[1]);
+      g.view.setZoom(2, (ax + bx) / 2, (ay + by) / 2);
+      return;
+    }
+    const caster = s.fighters.find((f) => f.mode === 'attack' && f.move && MOVES[f.move].data.cinematic && !f.moveHit);
+    if (caster) {
+      const [x, y] = at(caster);
+      g.view.setZoom(2, x + caster.facing * 20, y);
+    } else g.view.setZoom(1);
+  };
+
   const render3d = (ctx: CanvasRenderingContext2D) => {
     const g = gl();
     const [ox, oy] = fx.offset();
@@ -276,6 +298,7 @@ export function fightScene(app?: App): Scene {
         order: order.indexOf(f),
       };
     }));
+    applyZoom(v);
     g.view.render();
     ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
     if (showBoxes) {
@@ -287,8 +310,10 @@ export function fightScene(app?: App): Scene {
       ctx.fillStyle = COLORS.white;
       for (let y = 0; y < SCREEN_H; y += 2) for (let x = (y >> 1) & 1; x < SCREEN_W; x += 2) ctx.fillRect(x, y, 1, 1);
     }
-    if (cutin) drawCutin(ctx, { ...cutin, length: RULES.SUPER_FREEZE });
-    hud.draw(ctx, s);
+    if (cutin && !cutin.video) drawCutin(ctx, { ...cutin, length: RULES.SUPER_FREEZE });
+    // 필살기 발동 정지·연출 중: 위아래 검은 띠, HUD는 감춘다
+    if (s.cine) letterbox(ctx, s.tick - cineStart);
+    else if (!cutin) hud.draw(ctx, s);
     if (s.phase === 'matchEnd' && s.phaseT > 120 && !p1Cpu) {
       panel(ctx, SCREEN_W / 2 - 60, 150, 120, endMenu.items.length * 16 + 12);
       endMenu.draw(ctx, SCREEN_W / 2, 157, s.tick);
@@ -340,10 +365,16 @@ export function fightScene(app?: App): Scene {
       const p2 = dummy === 'stand' ? 0 : dummy === 'guard' ? (s.phase === 'fight' ? IN_DOWN : 0) : cpuInput(cpus[1], s, 1);
       step(s, [p1, p2]);
       fx.push(s.events);
+      for (const e of s.events) if (e.type === 'cine' && e.text === 'start') cineStart = s.tick;
       fightVfx.tick(s);
       fx.tick();
       hud.tick(s);
-      for (const e of s.events) if (e.type === 'cutin') cutin = { who: e.who, text: e.text ?? '', t: 0 };
+      for (const e of s.events) {
+        if (e.type !== 'cutin') continue;
+        // 나중에 AI 컷씬 영상을 끼울 자리: 훅이 영상을 틀면 기본 컷인 띠는 그리지 않는다
+        const video = playCutscene({ who: e.who, move: e.move ?? '', text: e.text ?? '', ticks: RULES.SUPER_FREEZE });
+        cutin = { who: e.who, text: e.text ?? '', t: 0, video };
+      }
       watchMotion();
       followCamera();
       // 터치 공격 버튼: 길게 눌러 모으는 중이면 빛낸다
@@ -368,6 +399,14 @@ interface Snapshot {
   y: number;
   facing: 1 | -1;
   fast: boolean;
+}
+
+/** 필살기 연출 중 위아래 검은 띠 (처음 6틱 동안 밀려 들어온다) */
+function letterbox(ctx: CanvasRenderingContext2D, t: number): void {
+  const h = Math.round(22 * Math.min(1, t / 6));
+  ctx.fillStyle = COLORS.ink;
+  ctx.fillRect(0, 0, SCREEN_W, h);
+  ctx.fillRect(0, SCREEN_H - h, SCREEN_W, h);
 }
 
 /**

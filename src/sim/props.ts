@@ -85,14 +85,19 @@ export function hitProps(s: SimState): void {
     const hb = activeHitOf(f);
     if (!hb) continue;
     const d = MOVES[f.move!].data;
-    const smash = 'cutin' in d && d.cutin ? SMASH_SUPER : 0;
-    for (let i = 0; i < s.props.length; i++) {
-      if (s.props[i].stage === 2 || f.propHits.includes(i)) continue;
-      const box = boxOf(s, i);
-      if (!box || !overlap(hb, box)) continue;
-      f.propHits.push(i);
-      damage(s, i, box, d.damage, f.facing, false, smash);
-    }
+    smashProps(s, f, hb, d.damage, 'cutin' in d && !!d.cutin);
+  }
+}
+
+/** 상자에 닿은 물건을 깎는다 (super: 필살기라 큰 물건도 한 번에). 필살기 연출 끝 타격도 이걸 쓴다 */
+export function smashProps(s: SimState, f: Fighter, hb: WBox, amount: number, isSuper: boolean): void {
+  const smash = isSuper ? SMASH_SUPER : 0;
+  for (let i = 0; i < s.props.length; i++) {
+    if (s.props[i].stage === 2 || f.propHits.includes(i)) continue;
+    const box = boxOf(s, i);
+    if (!box || !overlap(hb, box)) continue;
+    f.propHits.push(i);
+    damage(s, i, box, amount, f.facing, false, smash);
   }
 }
 

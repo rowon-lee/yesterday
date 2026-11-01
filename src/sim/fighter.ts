@@ -526,12 +526,15 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       if (controllable && tryCharge(s, f)) break;
       groundControl(s, f, input);
       break;
-    case 'land':
+    case 'land': {
       f.vx = 0;
-      if (controllable && tryCharge(s, f)) break;
-      if (f.t >= 2 && controllable && (f.buf.some((b) => b > 0) || input & (IN_LEFT | IN_RIGHT | IN_DOWN))) groundControl(s, f, input);
+      // 긴 굳음(필살기 빗나감 등)은 끝날 때까지 아무것도 못 한다. 보통 착지는 2틱 뒤부터 바로 움직일 수 있다
+      const stuck = f.len > 20 && f.t < f.len;
+      if (!stuck && controllable && tryCharge(s, f)) break;
+      if (!stuck && f.t >= 2 && controllable && (f.buf.some((b) => b > 0) || input & (IN_LEFT | IN_RIGHT | IN_DOWN))) groundControl(s, f, input);
       else if (f.t >= f.len) setMode(f, 'idle');
       break;
+    }
     case 'charge':
       chargeControl(s, f, input, controllable);
       break;
@@ -582,8 +585,13 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
         else if (!isAirborne(f)) f.vx = friction(f.vx);
       } else if (!isAirborne(f)) f.vx = friction(f.vx);
       if (f.t >= mv.total) {
+        const cin = mv.data.cinematic;
         if (isAirborne(f)) setMode(f, 'air');
-        else setMode(f, 'idle');
+        // 필살기가 빗나가면 큰 빈틈: 한참 굳는다
+        else if (cin && !f.moveHit) {
+          setMode(f, 'land', cin.whiff);
+          s.events.push({ type: 'cine', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'whiff', move: mv.id });
+        } else setMode(f, 'idle');
       }
       break;
     }

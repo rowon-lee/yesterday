@@ -27,6 +27,16 @@ const SCENES = {
       [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [[], 60],
     ],
   },
+  // 필살기(O) 연출: 발동 정지·2배 확대·컷인 → 맞으면 난타 → 어퍼로 띄우기 → 내려찍기 → 끝 타격에 피해·파괴 (기력 가득)
+  super: {
+    p1: 3150, p2: 3196, settle: 70, meter: true,
+    steps: [[[], 8], [['KeyO'], 1], [[], 236]],
+  },
+  // 필살기가 빗나감: 확대가 풀리고 발동자가 한참 굳는다
+  super_whiff: {
+    p1: 3000, p2: 3260, settle: 70, meter: true,
+    steps: [[[], 8], [['KeyO'], 1], [[], 130]],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,
@@ -56,12 +66,13 @@ page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(`${server.resolvedUrls.local[0]}?scene=fight&p2=idle&stopAt=75&ff=1&quality=high`);
 await page.waitForFunction(() => window.__debug?.tick >= 75);
 await page.evaluate(() => window.__debug.unstop());
-await page.evaluate(([x1, x2]) => {
+await page.evaluate(([x1, x2, meter]) => {
   const s = window.__fight();
   const [a, b] = s.fighters;
   Object.assign(a, { x: x1 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: 1 });
   Object.assign(b, { x: x2 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: -1 });
-}, [sc.p1, sc.p2]);
+  if (meter) a.meter = 300;
+}, [sc.p1, sc.p2, !!sc.meter]);
 await page.evaluate((n) => window.__debug.benchTicks(n), sc.settle);
 
 const frames = [];

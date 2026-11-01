@@ -144,8 +144,24 @@ function tick(): void {
     scene.render(ctx);
     let d: Uint8ClampedArray = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     if (GL_MODE) {
-      // 3D 화면 위에 HUD를 겹친 그림
-      const base = gl().view.read();
+      // 3D 화면 위에 HUD를 겹친 그림 (필살기 확대 중이면 화면에 보이는 것처럼 3D 화면만 키운다)
+      let base = gl().view.read();
+      const zr = gl().view.zoomRect();
+      if (zr.z > 1) {
+        const src = base;
+        base = new Uint8ClampedArray(src.length);
+        for (let y = 0; y < SCREEN_H; y++) {
+          const sy = zr.y + Math.floor(y / zr.z);
+          for (let x = 0; x < SCREEN_W; x++) {
+            const si = (sy * SCREEN_W + zr.x + Math.floor(x / zr.z)) * 4;
+            const di = (y * SCREEN_W + x) * 4;
+            base[di] = src[si];
+            base[di + 1] = src[si + 1];
+            base[di + 2] = src[si + 2];
+            base[di + 3] = 255;
+          }
+        }
+      }
       for (let i = 0; i < SCREEN_W * SCREEN_H; i++) {
         if (d[i * 4 + 3] > 0) {
           base[i * 4] = d[i * 4];

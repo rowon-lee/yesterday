@@ -67,6 +67,26 @@ export interface MoveData {
     auto: number;
     levels: ReadonlyArray<ChargeLevel>;
   };
+  /** 필살기 연출 (맞으면 장면 재생, 빗나가면 큰 빈틈) */
+  cinematic?: Cinematic;
+}
+
+/**
+ * 필살기 연출 (캐릭터 기획서 '필살기 연출'): 맞으면 두 사람을 sim에서 고정하고 장면들을 차례로 재생한 뒤,
+ * 끝에 피해·날리기·파괴를 한 번에 준다. 장면 하나 = 발동자 동작 하나 + 상대 반응 동작 하나 (표시 틱 합이 같다).
+ */
+export interface Cinematic {
+  scenes: ReadonlyArray<{ a: CineActor; d: CineActor }>;
+  /** 빗나가면 기술이 끝난 뒤 이만큼 더 굳는다 (큰 빈틈) */
+  whiff: number;
+  /** 연출 끝에 상대를 날리는 힘과 벽 쪽으로 날림 */
+  end: { launch: { vx: number; vy: number }; wall?: boolean };
+}
+
+/** 연출 장면 속 한 사람: 동작과 자리 키 [장면 진행 0~1, x, y] (맞힌 순간 발동자 자리 기준 px, 바라보는 쪽이 +x, 위가 -y) */
+export interface CineActor {
+  motion: string;
+  pos: ReadonlyArray<readonly [number, number, number]>;
 }
 
 /** 차지 한 단계 */
@@ -165,6 +185,25 @@ export const BASE_MOVES = {
     motion: 'base/super', active: [6, 7, 8], limb: ['eF', 'hF'], damage: 280, guardDamage: 60,
     hitstun: 40, blockstun: 24, hitstop: 12, push: 3.6, launch: { vx: 11.0, vy: -8.0 },
     step: { from: 4, to: 8, speed: 5.0 }, meterCost: 3, heavy: true, wall: true, cutin: 'SUPER',
+    // 임시 필살기 연출: 난타 → 어퍼로 띄우기 → 내려찍기 (약 2.1초, 각 장면 14프레임)
+    cinematic: {
+      whiff: 40,
+      end: { launch: { vx: 5.0, vy: -4.5 }, wall: true },
+      scenes: [
+        {
+          a: { motion: 'base/super_rush', pos: [[0, 0, 0], [1, 6, 0]] },
+          d: { motion: 'base/super_rush_hit', pos: [[0, 26, 0], [1, 34, 0]] },
+        },
+        {
+          a: { motion: 'base/super_rise', pos: [[0, 6, 0], [0.3, 8, 0], [1, 14, -70]] },
+          d: { motion: 'base/super_rise_hit', pos: [[0, 34, 0], [0.36, 34, 0], [1, 44, -118]] },
+        },
+        {
+          a: { motion: 'base/super_slam', pos: [[0, 14, -70], [0.3, 40, -150], [0.5, 42, -110], [0.68, 40, 0], [1, 38, 0]] },
+          d: { motion: 'base/super_slam_hit', pos: [[0, 44, -118], [0.33, 46, -126], [0.62, 50, 0], [1, 54, 0]] },
+        },
+      ],
+    },
   },
 } as const satisfies Record<string, MoveData>;
 

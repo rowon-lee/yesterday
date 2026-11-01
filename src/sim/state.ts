@@ -1,6 +1,7 @@
 import { motionFrames, STATS } from './frames';
 import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isAirborne } from './fighter';
 import { resolveHits, splatLands } from './combat';
+import { stepCine } from './cine';
 import { crashProps, createProps, hitProps } from './props';
 import { createCitadel, hitCitadel } from './citadel';
 import { createCity, flyThroughCity } from './city';
@@ -21,7 +22,7 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
     move: null, moveHit: false, moveConnected: false, queued: null, dir: 1, jumpKind: 0,
     hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
-    runDist: 0, wins: 0, atkDir: 0, atkHold: 0, chargeArm: false, chargeLv: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
+    runDist: 0, wins: 0, atkDir: 0, atkHold: 0, chargeArm: false, chargeLv: 0, cineMotion: '', buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
     wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false, citadelHit: false,
   };
 }
@@ -45,6 +46,7 @@ export function createState(seed: number, opts: MatchOptions = {}): SimState {
     slow: 0,
     practice: opts.practice === true,
     calm: [0, 0],
+    cine: null,
   };
   resetRound(s);
   return s;
@@ -82,6 +84,11 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   // 필살 컷인: 둘 다 멈춘다
   if (s.freeze > 0) {
     s.freeze--;
+    return;
+  }
+  // 필살기 연출: 두 사람은 연출 장면대로 고정되고, 시간·도시 시계도 멈춘다 (끝에 피해·파괴를 한 번에)
+  if (s.cine) {
+    stepCine(s);
     return;
   }
   // 건물이 무너질 때: 게임 시간이 반 속도 (한 틱 걸러 한 번만 진행)

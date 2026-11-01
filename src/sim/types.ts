@@ -17,7 +17,9 @@ export type Mode =
   /** 벽 달리기: 벽 쪽으로 대시해 벽에 닿아, 벽을 바라보며 달려 오름 */
   | 'wallrun'
   /** 차지 모으기: 공격을 길게 누르고 있는 동안 (무방비, 맞으면 취소). 떼면 차지가 나간다 */
-  | 'charge';
+  | 'charge'
+  /** 필살기 연출 중: 두 사람이 고정되어 연출 장면을 재생한다 (cineMotion의 t틱째) */
+  | 'cine';
 
 /** 직렬화 가능한 평범한 객체. 위치·속도는 1/256px 정수. */
 export interface Fighter {
@@ -70,6 +72,8 @@ export interface Fighter {
   chargeArm: boolean;
   /** 차지 단계: 모으는 동안 오르고, 떼면 그 단계로 친다 (0 없음) */
   chargeLv: number;
+  /** 필살기 연출 중 재생하는 동작 이름 (연출이 아니면 '') */
+  cineMotion: string;
   /** 버튼별 남은 버퍼 틱 [공격, 점프, 대시, 스킬 1, 스킬 2, 필살기] */
   buf: number[];
   prevInput: number;
@@ -164,6 +168,8 @@ export interface SimEvent {
     | 'walltech'
     /** 차지: who = 모으는 사람, text = 'start' (모으기 시작) | 'level' (단계가 오름) | 'release' (뗌), combo = 단계 */
     | 'charge'
+    /** 필살기 연출: who = 발동자, text = 'start' | 'scene' (combo = 장면 번호) | 'end' | 'whiff' (빗나감) */
+    | 'cine'
     /**
      * 시타델 본관: text = 'damage' (combo = 깎인 양) | 'stage' (combo = 새 단계 1~3) | 'collapse' (무너짐).
      * who = 깎은 사람, x = 그 자리
@@ -214,4 +220,9 @@ export interface SimState {
   practice: boolean;
   /** 연습: 사람마다 조용히(콤보가 끝난 채) 지난 틱 */
   calm: [number, number];
+  /**
+   * 필살기 연출 중 (아니면 null): 발동자, 기술, 장면 번호, 장면 안 틱, 맞힌 순간 발동자 자리(1/256px)와 바라보는 쪽.
+   * 연출 동안 두 사람은 고정되고 시간·도시 시계도 멈춘다. 피해·날리기·파괴는 끝에 한 번에
+   */
+  cine: { who: number; move: MoveId; scene: number; t: number; ox: number; oy: number; dir: 1 | -1 } | null;
 }

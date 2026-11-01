@@ -22,6 +22,10 @@ export class GlView {
   private shift = '';
   placed: Placed = { ix: 0, iy: 0, fx: 0, fy: 0 };
   bloom = true;
+  /** 확대 (필살기 연출, 렌더 전용): 정수 배율과 보이는 칸의 왼쪽 위 (게임 화면 px) */
+  private zoomZ = 1;
+  private zoomX = 0;
+  private zoomY = 0;
 
   /**
    * 캔버스는 482×272(둘레 1px 여유) 그대로 두고, 확대는 브라우저 합성기에 맡긴다 (CSS 정수배 + pixelated).
@@ -95,14 +99,32 @@ export class GlView {
     // 바닥선: 싸우는 면의 바닥(높이 0)이 렌더 타깃 위에서부터 몇째 줄인지
     this.post.horizon = RT_H / 2 + this.camera.position.y;
     this.post.run(this.renderer, p, { bloom: this.bloom }, shared.uTime.value, this.camera);
-    // 남는 소수점만큼 캔버스를 민다 (둘레 여유 1px 포함, 물리 픽셀로 반올림)
-    const tx = Math.round((MARGIN + p.fx) * this.scale) / this.dpr;
-    const ty = Math.round((MARGIN + p.fy) * this.scale) / this.dpr;
-    const shift = `translate(${-tx}px, ${-ty}px)`;
+    // 남는 소수점만큼 캔버스를 민다 (둘레 여유 1px 포함, 물리 픽셀로 반올림). 확대 중이면 보이는 칸이 화면을 채우게 키운다
+    const z = this.zoomZ;
+    const tx = Math.round(z * (MARGIN + p.fx + this.zoomX) * this.scale) / this.dpr;
+    const ty = Math.round(z * (MARGIN + p.fy + this.zoomY) * this.scale) / this.dpr;
+    const shift = z > 1 ? `translate(${-tx}px, ${-ty}px) scale(${z})` : `translate(${-tx}px, ${-ty}px)`;
     if (shift !== this.shift) {
       this.canvas.style.transform = shift;
       this.shift = shift;
     }
+  }
+
+  /**
+   * 확대 (필살기 발동·연출): z배(정수만, 도트가 고르게 커지도록)로 (cx, cy)를 가운데에 둔다. 화면 밖으로는 나가지 않게
+   * 보이는 칸을 화면 안으로 민다. z = 1이면 풀린다. 확대는 캔버스를 CSS로 키우는 것이라 3D 그리기 비용은 그대로다.
+   */
+  setZoom(z: number, cx = SCREEN_W / 2, cy = SCREEN_H / 2): void {
+    this.zoomZ = Math.max(1, Math.round(z));
+    const w = SCREEN_W / this.zoomZ;
+    const h = SCREEN_H / this.zoomZ;
+    this.zoomX = Math.round(Math.max(0, Math.min(SCREEN_W - w, cx - w / 2)));
+    this.zoomY = Math.round(Math.max(0, Math.min(SCREEN_H - h, cy - h / 2)));
+  }
+
+  /** 지금 확대 (확인 도구가 캡처에 같은 확대를 입힐 때) */
+  zoomRect(): { z: number; x: number; y: number } {
+    return { z: this.zoomZ, x: this.zoomX, y: this.zoomY };
   }
 
   /** 확인 도구용: 마지막 화면(팔레트 화면 480×270) */
