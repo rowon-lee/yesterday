@@ -330,6 +330,19 @@ function buildLut(): THREE.DataTexture {
   return t;
 }
 
+/** 확인 도구용: 깊이 버퍼 → 카메라에서의 거리(0~FAR)를 16비트로 나눠 담는다 (빨강 = 위 8비트, 초록 = 아래 8비트). 아무것도 안 그린 칸은 FAR */
+const DEPTH_PACK_FRAG = /* glsl */ `
+uniform sampler2D depthTex;
+varying vec2 vUv;
+void main() {
+  float d = texture2D(depthTex, vUv).r;
+  float v = d >= 0.999999 ? 1.0 : ${NEAR.toFixed(1)} * ${FAR.toFixed(1)} / (${FAR.toFixed(1)} - d * (${FAR.toFixed(1)} - ${NEAR.toFixed(1)})) / ${FAR.toFixed(1)};
+  float q = floor(clamp(v, 0.0, 1.0) * 65535.0 + 0.5);
+  float hi = floor(q / 256.0);
+  gl_FragColor = vec4(hi / 255.0, (q - hi * 256.0) / 255.0, 0.0, 1.0);
+}
+`;
+
 function target(w: number, h: number, type: THREE.TextureDataType, depth = false, linear = false): THREE.WebGLRenderTarget {
   const t = new THREE.WebGLRenderTarget(w, h, {
     type,
@@ -572,6 +585,32 @@ export class Post {
   }
 
   /** 확인 도구용: 팔레트 화면(여유 칸 뺀 480×270)을 RGBA로 (위에서 아래로) */
+  /**
+   * 확인 도구용: 마지막 프레임의 칸마다 카메라에서의 거리 (화면 w×h, 위 줄부터). 아무것도 안 그린 칸(하늘)은 FAR.
+   * 맵 검사(tools/mapcheck.mjs)가 겹(하늘·먼 겹·중간 겹·싸우는 줄·앞겹)을 나누고 형태 경계를 찾는 데 쓴다
+   */
+  readDepth(renderer: THREE.WebGLRenderer, w: number, h: number): Float32Array {
+    if (!this.depthRT) {
+      this.depthRT = target(RT_W, RT_H, THREE.UnsignedByteType);
+      this.depthPack = new THREE.ShaderMaterial({
+        vertexShader: FULL_VERT, fragmentShader: DEPTH_PACK_FRAG, uniforms: { depthTex: { value: this.hdr.depthTexture } }, depthTest: false, depthWrite: false,
+      });
+    }
+    this.pass(renderer, this.depthPack!, this.depthRT);
+    const buf = new Uint8Array(w * h * 4);
+    renderer.readRenderTargetPixels(this.depthRT, MARGIN, MARGIN, w, h, buf);
+    const out = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = ((h - 1 - y) * w + x) * 4;
+        out[y * w + x] = ((buf[i] * 256 + buf[i + 1]) / 65535) * FAR;
+      }
+    }
+    return out;
+  }
+  private depthRT: THREE.WebGLRenderTarget | null = null;
+  private depthPack: THREE.ShaderMaterial | null = null;
+
   read(renderer: THREE.WebGLRenderer, w: number, h: number): Uint8ClampedArray {
     const buf = new Uint8Array(w * h * 4);
     renderer.readRenderTargetPixels(this.final, MARGIN, MARGIN, w, h, buf);

@@ -4,6 +4,8 @@
 //   npm run compare -- --new "quality=low"       지금 버전 주소에 옵션을 붙인다 (--base-query는 이전 버전 주소에)
 //   npm run compare -- --only theater            그 지점만
 //   npm run compare -- --base-shift 1600         이전 버전은 카메라 x를 이만큼 빼서 찍는다 (맵이 넓어져 좌표가 옮겨졌을 때)
+//   npm run compare -- --map                     맵 전체: 지면(y=270)·위층(y=0) CAM 0부터 460 간격 (지침서 12장 5)
+//                                                → out/compare/map-<지면|위층>-<color|gray>.png (한 줄에 이전·지금 두 쌍), map-stats.md
 // 결과: out/compare/<지점>-color.png, <지점>-gray.png (왼쪽 이전, 오른쪽 지금), out/compare/stats.md
 // 아트 규칙 '명도'를 숫자로 본다: 벽과 바닥이 같은 밝기로 뭉치면 안 되고, 광원(주인공 간판)이 가장 밝아야 한다.
 import { execSync } from 'node:child_process';
@@ -13,13 +15,14 @@ import { preview, build } from 'vite';
 import { chromium } from 'playwright';
 
 const argv = process.argv.slice(2);
-const opt = { base: 'origin/main', new: '', only: '', baseQuery: '', baseShift: 0 };
+const opt = { base: 'origin/main', new: '', only: '', baseQuery: '', baseShift: 0, map: false };
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--base') opt.base = argv[++i];
   else if (argv[i] === '--new') opt.new = argv[++i];
   else if (argv[i] === '--base-query') opt.baseQuery = argv[++i];
   else if (argv[i] === '--only') opt.only = argv[++i];
   else if (argv[i] === '--base-shift') opt.baseShift = Number(argv[++i]);
+  else if (argv[i] === '--map') opt.map = true;
 }
 
 /**
@@ -64,6 +67,102 @@ async function shoot(url) {
   await page.close();
   if (errors.length) throw new Error(`${url}: ${errors.join(' / ')}`);
   return png.toString('base64');
+}
+
+if (opt.map) {
+  await mapSheets();
+  await browser.close();
+  baseServer.httpServer.close();
+  newServer.httpServer.close();
+  execSync(`git worktree remove --force ${tmp}`, { stdio: 'ignore' });
+  process.exit(0);
+}
+
+/**
+ * 맵 전체 전후: 높이마다 CAM 0부터 460 간격 14칸을 이전·지금 둘씩 찍어, 한 줄에 (이전 | 지금) 두 쌍씩 놓은 그림 (컬러·흑백).
+ * 칸은 화면 1배(480×270), 쌍 사이 회색 줄. 칸마다 흑백 평균과 광원(200 이상) 비율도 표로
+ */
+async function mapSheets() {
+  const cams = Array.from({ length: 14 }, (_, i) => Math.min(i * 460, 5920));
+  const md = ['| 높이 | CAM | 이전 평균 | 지금 평균 | 이전 광원 % | 지금 광원 % |', '| --- | --- | --- | --- | --- | --- |'];
+  for (const H of [{ id: 'ground', name: '지면', camy: 270 }, { id: 'upper', name: '위층', camy: 0 }]) {
+    const pairs = [];
+    for (const cam of cams) {
+      const bq = `?scene=stage&cam=${Math.max(0, cam - opt.baseShift)}&camy=${H.camy}&quality=high${opt.baseQuery ? `&${opt.baseQuery}` : ''}&stopAt=300&ff=1`;
+      const nq = `?scene=stage&cam=${cam}&camy=${H.camy}&quality=high${opt.new ? `&${opt.new}` : ''}&stopAt=300&ff=1`;
+      pairs.push([await shoot(`http://localhost:4301/${bq}`), await shoot(`http://localhost:4302/${nq}`)]);
+    }
+    const page = await browser.newPage();
+    const out = await page.evaluate(async ({ pairs }) => {
+      const W = 480;
+      const H = 270;
+      const G = 2;
+      const decode = async (b64) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${b64}`;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, img.width, img.height).data;
+        const k = img.width / W;
+        const o = new Uint8ClampedArray(W * H * 4);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const s = (Math.floor(y * k) * img.width + Math.floor(x * k)) * 4;
+          o.set(d.subarray(s, s + 4), (y * W + x) * 4);
+        }
+        return o;
+      };
+      const luma = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      const frames = [];
+      for (const [a, b] of pairs) frames.push([await decode(a), await decode(b)]);
+      const stat = (d) => {
+        let s = 0;
+        let hi = 0;
+        for (let i = 0; i < W * H; i++) {
+          const l = luma(d, i * 4);
+          s += l;
+          if (l >= 200) hi++;
+        }
+        return { mean: s / (W * H), lights: (hi / (W * H)) * 100 };
+      };
+      const sheet = (gray) => {
+        const rows = Math.ceil(frames.length / 2);
+        const c = document.createElement('canvas');
+        c.width = W * 4 + G * 3 + 6;
+        c.height = H * rows + G * (rows - 1);
+        const g = c.getContext('2d');
+        g.fillStyle = '#5a5a5a';
+        g.fillRect(0, 0, c.width, c.height);
+        frames.forEach((pair, n) => {
+          pair.forEach((d, k) => {
+            const img = new ImageData(W, H);
+            for (let i = 0; i < W * H; i++) {
+              const l = luma(d, i * 4);
+              img.data[i * 4] = gray ? l : d[i * 4];
+              img.data[i * 4 + 1] = gray ? l : d[i * 4 + 1];
+              img.data[i * 4 + 2] = gray ? l : d[i * 4 + 2];
+              img.data[i * 4 + 3] = 255;
+            }
+            const col = (n % 2) * 2 + k;
+            const x = col * (W + G) + (n % 2) * 6;
+            const y = Math.floor(n / 2) * (H + G);
+            g.putImageData(img, x, y);
+          });
+        });
+        return c.toDataURL('image/png');
+      };
+      return { color: sheet(false), gray: sheet(true), stats: frames.map(([a, b]) => [stat(a), stat(b)]) };
+    }, { pairs });
+    await page.close();
+    for (const kind of ['color', 'gray']) writeFileSync(`out/compare/map-${H.id}-${kind}.png`, Buffer.from(out[kind].split(',')[1], 'base64'));
+    out.stats.forEach(([a, b], n) => md.push(`| ${H.name} | ${cams[n]} | ${a.mean.toFixed(1)} | ${b.mean.toFixed(1)} | ${a.lights.toFixed(1)} | ${b.lights.toFixed(1)} |`));
+    console.log(`맵 ${H.name} → out/compare/map-${H.id}-color.png, map-${H.id}-gray.png (한 줄에 이전·지금 두 쌍)`);
+  }
+  writeFileSync('out/compare/map-stats.md', md.join('\n') + '\n');
+  console.log('맵 흑백 평균·광원 비율 → out/compare/map-stats.md');
 }
 
 const rows = [];

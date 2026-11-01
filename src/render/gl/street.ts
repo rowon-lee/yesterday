@@ -11,6 +11,7 @@ import { KEEP_Z } from './plaza';
 import { Details, plane } from './kit';
 import { fgMaterial, floorMaterial, litMaterial, pixelTexture } from './shaders';
 import { neonText, paintPuddles, paintStreet } from './tex';
+import { registerSign } from './signs';
 
 /**
  * 길 (렌더 전용): 구간마다 다른 바닥(부두 돌 포장·아스팔트·광장 돌판·공원 자갈길), 전차 가공선, 부서지지 않는 길가 소품,
@@ -122,6 +123,7 @@ function props(det: Details, g: THREE.Group): void {
         neonText(cg, null, text, Math.floor((pw - textWidth(text, 2)) / 2), 30, 2, C.paintCream, C.paintCream);
         ditherRect(cg, 2, 2, Math.floor(pw * 0.4), 20, C.posterRedDark, 3);
         g.add(plane(x, x + pw, 30, 78, -34, litMaterial(pixelTexture(c))));
+        registerSign(text, '거리 선전판', x + (pw - textWidth(text, 2)) / 2, x + (pw + textWidth(text, 2)) / 2, 38, 48, -34, textWidth(text, 2), pw - 4);
         break;
       }
     }

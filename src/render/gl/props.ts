@@ -4,10 +4,12 @@ import { CITADEL as D } from '../../data/stages/citadel';
 import { BREAKABLES, chunkIndex, FRONT, GLASS_BOTTOM, GRIDS, marqueeOf, type Breakable } from '../../stage/citadel';
 import { COLORS as C } from '../palette';
 import { hash } from '../dither';
+import { textWidth } from '../font';
 import { FRONT_Z } from './buildings';
 import { Flame, Puffs, Sparks, WaterColumn } from './fx';
 import { box, Details, facedBox, Geo, plane } from './kit';
 import { lightPool } from './lights';
+import { registerSign } from './signs';
 import {
   boardStrip, NEON_HEX, paintBillboard, paintGlass, paintMarquee, paintNewsstand, paintNewsWreck, paintPapers, paintPuddle, paintScorch,
   paintShards, paintSign, type SignTex,
@@ -401,6 +403,7 @@ class SignView implements View {
       for (const x of [b.x + 6, b.x + w - 8]) det.add(x, x + 2, D.ledges.awning, b.bottom, FRONT_Z + 1, FRONT_Z + 3, C.iron);
     }
     this.mesh = box(b.x, b.x + w, b.bottom, b.bottom + h, z0, this.z1, this.mat);
+    if (b.text) registerSign(b.text, `간판(${b.style ?? 'flat'})`, b.x, b.x + w, b.bottom, b.bottom + h, this.z1, w, w);
     // 깨진 뒤 늘어진 전선
     this.wire = box(b.x + w - 6, b.x + w - 5, b.bottom - 14, b.bottom, this.z1 - 1, this.z1, litMaterial(pixelTexture(solid(C.iron))));
     this.wire.visible = false;
@@ -442,6 +445,7 @@ class MarqueeView implements View {
     this.tex = { map: pixelTexture(t.map), broken: pixelTexture(t.broken), glows: t.glows.map(pixelTexture), damaged: pixelTexture(t.damaged) };
     this.mat = litMaterial(this.tex.map, { emissive: this.tex.glows[0], emissiveStrength: 1.1, attached: true });
     const m = marqueeOf(FRONT[b.b])!;
+    if (b.text) registerSign(b.text, '극장 차양', m.x0, m.x1, m.h - 22, m.h, 8, textWidth(b.text, 2), m.x1 - m.x0 - 4);
     const geo = new Geo();
     geo.attachedBox(b.b, 'm', m.x0, m.x1, m.h - 22, m.h, FRONT_Z, 8, (f, x, y) => [(x - m.x0) / w, f === 'py' ? 0.95 : (y - (m.h - 22)) / 22]);
     owner.group.add(geo.build({ m: this.mat }));
@@ -490,6 +494,8 @@ class BillboardView implements View {
     this.text = scrollMaterial(this.strips[1], cols);
     const ty = b.bottom + h - Math.floor((h - 15) / 2) - 15;
     this.group.add(plane(b.x + 3, b.x + 3 + cols * 3, ty, ty + 15, this.z + 0.3, this.text));
+    // 흘러가는 글씨: 글자 전체 폭 (한 글자 = 4칸 × 3px)과 판에 보이는 폭
+    if (b.text) registerSign(b.text, '옥상 전광판', b.x, b.x + w, ty, ty + 15, this.z, b.text.length * 12, cols * 3);
     // 쇠다리와 버팀대 (지붕에서 판 밑까지)
     const roof = b.bottom - 12;
     for (const lx of [b.x + 10, b.x + w - 14]) {

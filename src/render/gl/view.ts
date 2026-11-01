@@ -110,6 +110,11 @@ export class GlView {
     return this.post.read(this.renderer, SCREEN_W, SCREEN_H);
   }
 
+  /** 확인 도구용: 마지막 프레임의 칸마다 카메라에서의 거리 (화면 480×270, 하늘은 FAR) */
+  readDepth(): Float32Array {
+    return this.post.readDepth(this.renderer, SCREEN_W, SCREEN_H);
+  }
+
   /** 확인 도구용: 그리기 호출 수와 삼각형 수 (마지막 프레임 전체) */
   info(): { calls: number; triangles: number } {
     const r = this.renderer.info.render;

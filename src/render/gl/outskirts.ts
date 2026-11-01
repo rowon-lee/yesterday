@@ -11,6 +11,7 @@ import { box, Details, facedBox, plane } from './kit';
 import { lightPool } from './lights';
 import { FLUO, FURNACE, figure, glowRect, PINK, roomWall, sil, TV, WARM, type RoomLamp, type RoomRamp } from './rooms';
 import { detailEnabled, litMaterial, pixelTexture } from './shaders';
+import { registerSign } from './signs';
 import { star } from './backdrops';
 import { brickWall, neonText, weather } from './tex';
 
@@ -593,6 +594,7 @@ function paintMill(w: number, h: number, sk: number, seed: number, mill: boolean
     rect(g, tx - 6, ty + 5 * s2 + 3, twd + 12, 1, C.iron);
     const [lc, lg] = canvas(twd, 5 * s2);
     neonText(lg, null, text, 0, 0, s2, '#fff', '#fff');
+    registerSign(text, '제철소 전구 간판', MAP_ENDS.left + tx / sk, MAP_ENDS.left + (tx + twd) / sk, 196 - (5 * s2) / sk, 196, MILL.z, twd / sk, (twd + 12) / sk);
     const img = lg.getImageData(0, 0, lc.width, lc.height).data;
     for (let j = 1; j < lc.height; j += 2) {
       for (let q = 1; q < lc.width; q += 2) {
@@ -735,6 +737,7 @@ function paintWarehouse(w: number, h: number): { map: HTMLCanvasElement; glow: H
   }
   rect(g, 20, 24, 210, 22, C.smog1);
   neonText(g, null, 'WAREHOUSE 7', 26, 28, 3, C.paintCream, C.paintCream);
+  registerSign('WAREHOUSE 7', '창고 페인트 글씨', 1336 + 26, 1336 + 26 + textWidth('WAREHOUSE 7', 3), h - 43, h - 28, -72, textWidth('WAREHOUSE 7', 3), 210);
   // 왼쪽 셔터: 반쯤 올라갔다 (위 셔터 판, 아래는 불 켜진 창고 안)
   const lx = 30;
   const open = 46;
@@ -955,6 +958,7 @@ function paintUnderShops(w: number, h: number): { map: HTMLCanvasElement; glow: 
     rect(g, x0, Y(86), 120, 18, C.smog1);
     rect(g, x0, Y(86), 120, 1, C.ironLight);
     const tx = x0 + Math.round((120 - textWidth(u.name, 2)) / 2);
+    registerSign(u.name, '고가철도 가게 간판', SHOPS_X0 + tx, SHOPS_X0 + tx + textWidth(u.name, 2), 72, 82, -70, textWidth(u.name, 2), 120);
     if (u.sign === 'off') neonText(g, null, u.name, tx, Y(82), 2, u.tubeDark, u.tubeDark);
     else neonText(g, e, u.name, tx, Y(82), 2, u.sign === 'hero' ? u.tube : DIM[u.tube] ?? u.tube, u.tubeDark);
     if (u.awning) awning(g, x0 + 2, Y(68), 88, 8, u.awning);
@@ -1099,6 +1103,7 @@ function paintColossalWall(x0: number, w: number, h: number, sk: number, main: b
     neonText(tg, null, text, 0, 0, s, '#868b98', '#868b98');
     const tx = X(5698);
     const ty = Y(232);
+    registerSign(text, '장벽 스텐실', 5698, 5698 + tc.width / sk, 232 - tc.height / sk, 232, WALL.z, tc.width / sk, (WALL.buttress[1] - WALL.buttress[0] - 36));
     const img = tg.getImageData(0, 0, tc.width, tc.height).data;
     for (let j = 0; j < tc.height; j++) {
       for (let i = 0; i < tc.width; i++) {

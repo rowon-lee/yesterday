@@ -13,6 +13,7 @@ import { box, Details, facedBox, facedInto, FREE, Geo, matKeys, plane, type UvFn
 import { lightPool } from './lights';
 import { litMaterial, pixelTexture } from './shaders';
 import { figure, roomWall, WARM, type Figure } from './rooms';
+import { registerSign } from './signs';
 import { neonText } from './tex';
 
 /**
@@ -260,6 +261,12 @@ export class Plaza {
     this.signMat = litMaterial(pixelTexture(t.map), { emissive: pixelTexture(t.glow), emissiveStrength: 1.8 });
     const x0 = S.x - t.plateX0;
     this.signMesh = box(x0, x0 + t.w, S.bottom, S.bottom + S.h, KEEP_Z + 1, KEEP_Z + 6, this.signMat);
+    // 글자 자리 (간판 그림은 월드 1:1, 위가 S.bottom + S.h)
+    const top = S.bottom + S.h;
+    const tw = textWidth(S.text, 4);
+    const sw = textWidth(S.sub, 2);
+    registerSign(S.text, '시타델 간판', S.x + (S.w - tw) / 2, S.x + (S.w + tw) / 2, top - 30, top - 10, KEEP_Z + 6, tw, S.w);
+    registerSign(S.sub, '시타델 간판', S.x + (S.w - sw) / 2, S.x + (S.w + sw) / 2, top - 46, top - 36, KEEP_Z + 6, sw, S.w);
     this.group.add(this.signMesh);
     this.fixed.push({ x: S.x + S.w / 2, y: S.bottom + S.h / 2, z: KEEP_Z + 60, range: 200, color: C.beam, power: 1.6 });
   }

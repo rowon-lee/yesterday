@@ -4,6 +4,7 @@ import { drawText, textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_H, SCREEN_W } from '../screen';
 import { canvas, disc, dither, ditherRect, hash, line, paint, rect } from '../dither';
+import { registerLayerSign } from './signs';
 
 /**
  * 먼 겹(하늘과 바다·1구역 마천루·시타델 탑 윗부분·중간 건물)의 도트 그림 (렌더 전용, 오프스크린 Canvas 2D에 미리 그린다).
@@ -354,6 +355,7 @@ export function buildMid(): Layer {
       const px = x + Math.floor((bw - tw - 8) / 2);
       ditherRect(g, px, top + 24, tw + 8, 18, index % 2 ? C.paintTeal : C.paintOchre, 12);
       drawText(g, text, px + 4, top + 28, C.paintCream, 2);
+      registerLayerSign(text, '중간 겹 간판', M.speed, px + 4, px + 4 + tw, top + 28, top + 38, tw, tw + 8);
     }
     x += bw + 3 + Math.floor(hash(k++) * 6);
     index++;
