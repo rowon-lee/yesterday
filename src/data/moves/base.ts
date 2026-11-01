@@ -52,6 +52,12 @@ export interface MoveData {
    * (중력 없음, px/틱). 맞히거나 막히면 멈춘다
    */
   dive?: { from: number; to: number; vx: number; vy: number };
+  /**
+   * 순간이동 (라이덴 스킬 1 잔흔): at 프레임이 시작하는 틱에 바라보는 쪽으로 최대 dist px 순간이동한다.
+   * 상대가 앞에 있고 그 사이면 상대 바로 앞(가운데끼리 gap px)에서 멈춘다. 떠난 자리부터 나타난 자리까지 잔상이 남는다 (rules ZAN_*).
+   * 공중에서 쓰면 마지막 판정 프레임까지 그 높이에 멈춰 떠 있다
+   */
+  blink?: { at: number; dist: number; gap: number };
   /** 맞히거나 막히면 (히트스톱이 끝난 뒤) 때린 쪽이 뒤로 튕겨 오르고 판정 뒤 회복 프레임으로 넘어간다 (px/틱) */
   rebound?: { vx: number; vy: number };
   /** 헛치고 땅·발판에 닿으면 굳는 틱 (없으면 공중 공격 착지 굳음) */

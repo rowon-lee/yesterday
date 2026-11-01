@@ -109,6 +109,17 @@ export interface Fighter {
   kongoT: number;
   /** 지금 기술이 끝나면 탈진할 틱 (0 없음) */
   exhaust: number;
+  /**
+   * 이 사람이 남긴 잔상 (라이덴 스킬 1 잔흔): 떠난 자리 x0부터 나타난 자리 x1까지 이어진 띠, 발 높이 y (1/256px),
+   * 남은 틱(0 없음), 이미 상대에 닿았나 (한 번만)
+   */
+  zanX0: number;
+  zanX1: number;
+  zanY: number;
+  zanT: number;
+  zanHit: boolean;
+  /** 잔상에 닿아 느려진 남은 틱 (0 보통). 스스로 움직이는 상태는 반 속도 */
+  slowT: number;
 }
 
 /** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */
@@ -180,6 +191,10 @@ export interface SimEvent {
     | 'walltech'
     /** 차지: who = 모으는 사람, text = 'start' (모으기 시작) | 'level' (단계가 오름) | 'release' (뗌), combo = 단계 */
     | 'charge'
+    /** 순간이동 (라이덴 스킬 1 잔흔): who = 사라진 사람, x·y = 떠난 자리, to = 나타난 자리 x */
+    | 'blink'
+    /** 잔상에 닿아 느려짐: who = 잔상을 남긴 사람, x·y = 닿은 사람 자리 */
+    | 'slowed'
     /** 필살기 연출: who = 발동자, text = 'start' | 'scene' (combo = 장면 번호) | 'end' | 'whiff' (빗나감) */
     | 'cine'
     /**
@@ -195,6 +210,8 @@ export interface SimEvent {
   combo?: number;
   move?: MoveId;
   text?: string;
+  /** 순간이동해 나타난 자리 x (blink) */
+  to?: number;
 }
 
 export interface SimState {

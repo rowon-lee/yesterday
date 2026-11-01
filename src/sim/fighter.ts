@@ -3,12 +3,12 @@ import { motionFrames, motionOf, MOVES, movesOf, statsOf } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
-import { canDropThrough, findWall, findWallCross, floorBelow, landingY, wallHolds, wallTop } from './platforms';
+import { canDropThrough, findWall, findWallCross, floorBelow, landingY, wallHolds, wallLeft, wallTop } from './platforms';
 import {
   BOUNCE_VY, BUFFER_TICKS, CHARGE_HOLD, DROP_TICKS, GETUP_INVULN, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
   JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SAME_WALL_MAX, SUPER_FREEZE, TECH_HITS, TECH_INVULN, TECH_TICKS, TECH_VX, TECH_VY,
   WALL_GRAB_H, WALL_JUMP_LOCK, WALL_PUSH, WALL_REACH, WALL_TECH_INVULN, WALL_TECH_TICKS, WALL_TECH_VX, WALL_TECH_VY,
-  WALL_TOP_VX, WALL_TOP_VY, px,
+  WALL_TOP_VX, WALL_TOP_VY, WALL_R, ZAN_TICKS, px,
 } from './rules';
 import type { Fighter, Mode, SimState } from './types';
 
@@ -114,6 +114,11 @@ function startMove(s: SimState, f: Fighter, id: MoveId): void {
   // 공격 버튼을 누르고 있는 채 땅에서 평타가 나가면, 계속 누르고 있을 때 차지로 이어질 수 있다
   f.chargeArm = f.atkHold > 0 && CHARGE_FROM.has(id) && !isAirborne(f);
   if (!isAirborne(f)) f.vx = 0;
+  // 순간이동 기술은 공중에서도 그 자리에 멈춰 웅크렸다 사라진다
+  if (mv.blink) {
+    f.vx = 0;
+    f.vy = 0;
+  }
   if (mv.data.cutin) {
     s.freeze = SUPER_FREEZE;
     s.events.push({ type: 'cutin', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: mv.data.cutin, move: id });
@@ -582,7 +587,8 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       const mv = movesOf(f.char)[f.move!];
       if (attackControl(s, f, input)) break;
       if (controllable && tryCharge(s, f)) break;
-      if (mv.dive) diveControl(s, f, mv);
+      if (mv.blink) blinkControl(s, f, mv);
+      else if (mv.dive) diveControl(s, f, mv);
       else if (mv.step) {
         const fr = frameOf(mv, f.t);
         if (fr >= mv.step.from && fr <= mv.step.to) f.vx = f.facing * mv.step.speed;
@@ -702,6 +708,46 @@ function wallTech(s: SimState, f: Fighter): void {
 }
 
 /**
+ * 순간이동 기술 (라이덴 스킬 1 잔흔): blink 프레임이 시작하는 틱에 앞으로 순간이동한다 (blinkMove).
+ * 공중이면 마지막 판정 프레임까지 그 높이에 멈춰 떠 있다 (weightless). 땅에서는 내디딤(step)대로
+ */
+function blinkControl(s: SimState, f: Fighter, mv: (typeof MOVES)[MoveId]): void {
+  if (f.t === mv.blink!.tick) blinkMove(s, f, mv);
+  const fr = frameOf(mv, f.t);
+  if (isAirborne(f) && fr <= mv.data.active[mv.data.active.length - 1]) {
+    f.vx = 0;
+    f.vy = 0;
+    return;
+  }
+  if (mv.step && fr >= mv.step.from && fr <= mv.step.to) f.vx = f.facing * mv.step.speed;
+  else if (!isAirborne(f)) f.vx = friction(f.vx);
+}
+
+/**
+ * 순간이동: 바라보는 쪽으로 최대 dist. 상대가 앞에 있고 그 사이(높이 차이 60px 안)면 상대 바로 앞(가운데끼리 gap)에서 멈춘다.
+ * 이미 그보다 가까우면 제자리. 맵 끝 벽 안으로. 떠난 자리부터 나타난 자리까지 잔상을 남기고 (combat.ts zanTouch), 사라진 틱부터 2틱 무적
+ */
+function blinkMove(s: SimState, f: Fighter, mv: (typeof MOVES)[MoveId]): void {
+  const b = mv.blink!;
+  const who = s.fighters.indexOf(f);
+  const o = s.fighters[1 - who];
+  const from = f.x;
+  let to = from + f.facing * b.dist;
+  const ahead = (o.x - from) * f.facing;
+  if (o.mode !== 'ko' && ahead > 0 && ahead <= b.dist + b.gap && Math.abs(o.y - f.y) < px(60)) to = o.x - f.facing * b.gap;
+  if ((to - from) * f.facing < 0) to = from;
+  to = Math.max(wallLeft(f.y), Math.min(WALL_R, to));
+  f.x = to;
+  f.zanX0 = from;
+  f.zanX1 = to;
+  f.zanY = f.y;
+  f.zanT = ZAN_TICKS;
+  f.zanHit = false;
+  f.invuln = Math.max(f.invuln, 2);
+  s.events.push({ type: 'blink', who, x: from, y: f.y, to, move: mv.id });
+}
+
+/**
  * 벽 박차기 공격 (기획서 '벽 기동과 구조물'): dive.from 프레임 전까지는 벽에 머물러 웅크리고, from~to 프레임 동안
  * 바라보는 쪽 아래 대각선으로 곧게 날아간다 (중력 없음). 맞히거나 막히면 히트스톱이 끝난 뒤 남은 판정 프레임을
  * 건너뛰고 뒤로 튕겨 오르며 회복 프레임으로 이어진다 (그 사이 점프로 끊으면 2단 점프로 쫓아간다: attackControl).
@@ -737,6 +783,8 @@ function weightless(f: Fighter): boolean {
   if (f.mode === 'airdash' || f.mode === 'wallcling' || f.mode === 'wallrun') return true;
   if (f.mode !== 'attack' || f.moveHit || !f.move) return false;
   const mv = movesOf(f.char)[f.move];
+  // 순간이동 기술은 공중에서 마지막 판정 프레임까지 떠 있다
+  if (mv.blink) return frameOf(mv, f.t) <= mv.data.active[mv.data.active.length - 1];
   return mv.dive !== undefined && frameOf(mv, f.t) <= mv.dive.to;
 }
 

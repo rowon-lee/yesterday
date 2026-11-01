@@ -12,6 +12,7 @@ import { fighterPose } from './pose';
 import {
   AIR_HIT_DEFAULT, BLOCK_HITSTOP_CUT, CRUSH_TICKS, FLASH_TICKS, KONGO_MAX, KONGO_PUSH, KONGO_TICKS, METER_BLOCK, METER_BLOCKED, METER_HIT, METER_HURT,
   METER_MAX, px, SCALE_MIN, SCALE_STEP, SPIKE_VY, STUN_DECAY_FROM, STUN_DECAY_MIN, STUN_DECAY_STEP, WALL_R, WALL_TECH_TICKS,
+  ZAN_H, ZAN_PAD, ZAN_SLOW,
 } from './rules';
 import type { Fighter, SimState } from './types';
 
@@ -222,6 +223,31 @@ function gainKongo(s: SimState, f: Fighter): void {
     f.kongoT = KONGO_TICKS;
     s.events.push({ type: 'kongo', who: s.fighters.indexOf(f), x: f.x, y: f.y });
   }
+}
+
+/**
+ * 라이덴 스킬 1 잔흔: 남긴 잔상(떠난 자리~나타난 자리 띠)이 남아 있는 동안 상대 몸이 닿으면 상대가 느려진다 (잔상 하나에 한 번).
+ * 무적(다운·대시 무적 등)이면 닿지 않는다. 틱마다 판정 뒤에 부른다
+ */
+export function zanTouch(s: SimState): void {
+  s.fighters.forEach((f, i) => {
+    if (f.zanT <= 0) return;
+    f.zanT--;
+    if (f.zanHit) return;
+    const o = s.fighters[1 - i];
+    const hu = hurtOf(o);
+    if (!hu) return;
+    const zone: WBox = {
+      x0: Math.min(f.zanX0, f.zanX1) - px(ZAN_PAD),
+      x1: Math.max(f.zanX0, f.zanX1) + px(ZAN_PAD),
+      y0: f.zanY - px(ZAN_H),
+      y1: f.zanY,
+    };
+    if (!overlap(zone, hu)) return;
+    f.zanHit = true;
+    o.slowT = ZAN_SLOW;
+    s.events.push({ type: 'slowed', who: i, x: o.x, y: o.y });
+  });
 }
 
 /**

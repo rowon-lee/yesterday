@@ -122,6 +122,16 @@ export const KONGO_MAX = 4;
 export const KONGO_TICKS = 120;
 /** 금강불괴 동안 밀리는 힘 (%) */
 export const KONGO_PUSH = 20;
+/**
+ * 라이덴 스킬 1 잔흔 (캐릭터 기획서): 붉은 잔상을 남기며 앞으로 순간이동해 들어간다. 상대가 잔상에 닿으면 잠깐 느려진다.
+ * 잔상은 떠난 자리부터 나타난 자리까지 이어진 띠로 ZAN_TICKS 동안 남는다 (높이 ZAN_H, 양옆 ZAN_PAD px 더).
+ * 닿으면 ZAN_SLOW 동안 느려짐: 스스로 움직이는 상태(서기·걷기·점프·대시·공격…)는 두 틱에 한 번만 진행한다 (반 속도).
+ * 맞거나 막는 경직 동안은 보통 속도 (경직이 길어져 콤보가 늘어나지 않게). 잔상 하나는 한 번만 닿는다.
+ */
+export const ZAN_TICKS = 45;
+export const ZAN_SLOW = 60;
+export const ZAN_H = 50;
+export const ZAN_PAD = 8;
 /** 막았을 때 히트스톱은 이만큼 짧게 (최소 4) */
 export const BLOCK_HITSTOP_CUT = 3;
 /** 필살 컷인 동안 둘 다 멈춤 */

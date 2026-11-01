@@ -278,6 +278,56 @@ function charChecks() {
     }
     out.push(['투전승불 4단계 뒤 탈진 36틱 (그동안 공격 버튼을 눌러도 못 움직임)', exT === 36 && after !== '', `탈진 ${exT}틱, 그 뒤 ${after || '-'}`]);
   }
+  // 라이덴 스킬 1 잔흔: 붉은 잔상을 남기며 앞으로 순간이동(상대가 앞에 있으면 바로 앞에서 멈춤) → 하이킥. 잔상에 닿은 상대는 느려진다
+  {
+    const K = sim.RULES;
+    const zan = (x0, x1, pre = [], n = 50) => {
+      const s2 = rfresh(x0, x1);
+      s2.fighters[0].meter = K.METER_MAX;
+      const r = { blink: null, slowed: false, slowT: 0, hits: [], ys: [] };
+      for (const inp of [...pre, sim.IN_SKILL1, ...Array(n).fill(0)]) {
+        sim.step(s2, [inp, 0]);
+        const f = s2.fighters[0];
+        for (const e of s2.events) {
+          if (e.type === 'blink' && e.who === 0) r.blink = { from: e.x / 256, to: e.to / 256, y: e.y / 256 };
+          if (e.type === 'slowed' && e.who === 0) {
+            r.slowed = true;
+            r.slowT = s2.fighters[1].slowT;
+          }
+          if (e.type === 'hit' && e.who === 0) r.hits.push(e.move);
+        }
+        if (r.blink && f.mode === 'attack' && f.move === 'skill1') r.ys.push(f.y / 256);
+      }
+      return r;
+    };
+    const gap = sim.movesOf('raiden').skill1.data.blink;
+    const near = zan(3000, 3120);
+    out.push([`잔흔: 앞의 상대에게 순간이동해 바로 앞(${gap.gap}px)에서 나타나고, 잔상에 닿은 상대가 느려지고, 하이킥이 맞음`,
+      near.blink && near.blink.to === 3120 - gap.gap && near.slowed && near.slowT > 0 && near.hits[0] === 'skill1',
+      near.blink ? `${near.blink.from} → ${near.blink.to}, 느려짐 ${near.slowed ? `${near.slowT}틱` : '없음'}, 맞힌 기술 ${near.hits.join(',') || '없음'}` : '순간이동 없음']);
+    const far = zan(3000, 3400);
+    out.push([`잔흔: 상대가 멀면 ${gap.dist}px 순간이동하고 헛침 (잔상이 닿지 않아 느려지지 않음)`,
+      far.blink && far.blink.to - far.blink.from === gap.dist && !far.slowed && far.hits.length === 0,
+      far.blink ? `${far.blink.from} → ${far.blink.to} (${far.blink.to - far.blink.from}px), 느려짐 ${far.slowed}, 맞힘 ${far.hits.length}` : '순간이동 없음']);
+    // 공중: 점프하고 10틱 뒤 쓰면 그 높이로 순간이동하고, 차는 동안 그 높이에 떠 있다
+    const air = zan(3000, 3400, [sim.IN_JUMP, ...Array(12).fill(0)], 30);
+    const mv = sim.movesOf('raiden').skill1;
+    const lastActive = mv.frames.cum[mv.data.active[mv.data.active.length - 1]];
+    const hover = air.ys.slice(0, lastActive - mv.blink.tick);
+    out.push(['잔흔: 공중에서도 쓰고, 차는 동안 그 높이에 떠 있음', air.blink && air.blink.y < -10 && hover.length > 0 && hover.every((y) => y === air.blink.y),
+      air.blink ? `높이 ${-air.blink.y}px, 떠 있는 동안 높이 ${[...new Set(hover.map((y) => -y))].join('·')}px` : '순간이동 없음']);
+    // 느려짐: 반 속도. 2P가 같은 틱 동안 앞으로 걸은 거리가 보통의 절반쯤
+    const walk = (slow) => {
+      const s2 = rfresh(2800, 3300);
+      if (slow) s2.fighters[1].slowT = K.ZAN_SLOW;
+      const x0 = s2.fighters[1].x;
+      for (let t = 0; t < 40; t++) sim.step(s2, [0, sim.IN_LEFT]);
+      return (x0 - s2.fighters[1].x) / 256;
+    };
+    const normal = walk(false);
+    const slowed = walk(true);
+    out.push([`느려짐 (${K.ZAN_SLOW}틱): 같은 시간에 걷는 거리가 보통의 절반`, Math.abs(slowed / normal - 0.5) < 0.1, `보통 ${normal.toFixed(1)}px, 느려짐 ${slowed.toFixed(1)}px`]);
+  }
   // 라이덴 고유 특성 금강: 합을 주고받을 때마다 1스택, 4스택이면 금강불괴(KONGO_TICKS): 맞아도 하던 동작을 이어 가고 밀림 80% 감소
   {
     const K = sim.RULES;

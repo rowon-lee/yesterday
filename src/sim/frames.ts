@@ -91,6 +91,8 @@ export interface Move {
   step?: { from: number; to: number; speed: number };
   dive?: { from: number; to: number; vx: number; vy: number };
   rebound?: { vx: number; vy: number };
+  /** 순간이동: 그 프레임이 시작하는 틱, 최대 거리·멈추는 간격 (1/256px) */
+  blink?: { tick: number; dist: number; gap: number };
 }
 
 /** 기술 하나를 만든다: 기술 수치(data)와 그 기술을 그리는 동작 그림(motion) */
@@ -110,6 +112,7 @@ function buildMove(id: MoveId, data: MoveData, motion: string): Move {
     step: data.step && { ...data.step, speed: px(data.step.speed) },
     dive: data.dive && { ...data.dive, vx: px(data.dive.vx), vy: px(data.dive.vy) },
     rebound: data.rebound && { vx: px(data.rebound.vx), vy: px(data.rebound.vy) },
+    blink: data.blink && { tick: frames.cum[data.blink.at - 1], dist: px(data.blink.dist), gap: px(data.blink.gap) },
   };
 }
 

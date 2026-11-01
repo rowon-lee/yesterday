@@ -160,6 +160,20 @@ function silhouette(f: Fighter, skin: SkinId = 'base') {
   return { x: Math.round(f.x / 256) - FOOT_X, y: Math.round(GROUND_Y + f.y / 256) - FOOT_Y, w: 64, h: 64, data };
 }
 
+/** 정해진 동작·프레임을 월드 자리(wx, wy: 발밑, px)에 놓은 실루엣 (순간이동으로 떠난 자리에 남는 잔상) */
+function silhouetteAt(motion: string, frame: number, facing: number, skin: SkinId, wx: number, wy: number) {
+  const key = `${skin}/${motion}/${frame}/${facing}`;
+  let data = silCache.get(key);
+  if (!data) {
+    const g = silCanvas.getContext('2d', { willReadFrequently: true })!;
+    g.clearRect(0, 0, 64, 64);
+    motionByName.get(motion)!.draw(g, frame, 0, 0, { look: 'p1', flip: facing < 0, skin });
+    data = new Uint32Array(g.getImageData(0, 0, 64, 64).data.buffer.slice(0));
+    silCache.set(key, data);
+  }
+  return { x: Math.round(wx) - FOOT_X, y: Math.round(wy) - FOOT_Y, w: 64, h: 64, data };
+}
+
 const feet = (f: Fighter): [number, number] => [(f.x / 256) * FX_PX, (GROUND_Y + f.y / 256) * FX_PX];
 
 export class FightVfx {
@@ -291,6 +305,14 @@ export class FightVfx {
         if (e.move === 'super') {
           this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.5, surface: fxColor('street'), seed: this.seed++, shake: shake(0.3) }));
         }
+      } else if (e.type === 'blink' && att && e.to !== undefined) {
+        this.teleport(att, e.x, e.y, e.to, e.move);
+      } else if (e.type === 'slowed' && def) {
+        // 잔상에 닿아 느려짐: 닿은 사람 몸에서 붉은 전격이 튀고 잠깐 붉게 비춘다
+        const [dx, dy] = feet(def);
+        this.boltBurst(dx, dy - 26 * FX_PX, -att!.facing, 4, 12);
+        this.layer.add(glint({ x: dx, y: dy - 26 * FX_PX, size: 0.7, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep']) }));
+        this.glow(dx / FX_PX, dy / FX_PX - 26, 70, COLORS.raiden, 0.8, 14);
       } else if (e.type === 'kongo' && att) {
         // 라이덴 금강불괴 발동: 몸에서 붉은 빛이 한 번 크게 반짝이고 둘레를 비춘다
         const [fx, fy] = feet(att);
@@ -401,6 +423,14 @@ export class FightVfx {
           this.layer.add(glint({ x: fx + f.facing * step.dx * FX_PX, y: fy - 2 * FX_PX, size: 0.35, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark']) }));
         }
       }
+      // 잔상에 닿아 느려진 동안: 몸 둘레에서 짧은 붉은 전격이 지직거린다
+      if (f.slowT > 0 && s.tick % 7 === 0) {
+        const [fx, fy] = feet(f);
+        const k = this.seed % 4;
+        const x0 = fx + (k - 1.5) * 6 * FX_PX;
+        const y0 = fy - (14 + ((this.seed * 7) % 20)) * FX_PX;
+        this.layer.add(arc({ path: [[x0, y0], [x0 + (k % 2 ? 9 : -9) * FX_PX, y0 + (k < 2 ? -7 : 6) * FX_PX]], ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.02, hold: 0.04, width: 0, jag: 2, forks: 0, sparks: 2 }));
+      }
       // 벽을 달려 오르는 동안: 발이 벽을 딛는 자리에서 먼지가 인다
       if (f.mode === 'wallrun' && f.t % 5 === 2) {
         const fy = GROUND_Y + f.y / 256;
@@ -484,6 +514,40 @@ export class FightVfx {
     const dt = s.slow > 0 ? 0.5 : 1;
     this.debris.tick(dt);
     this.layer.tick(dt);
+  }
+
+  /**
+   * 순간이동 (라이덴 스킬 1 잔흔, Dash & Blink 붉은색): 떠난 자리에 웅크린 실루엣이 붉은 잔상으로 남아 어두워지다 사라지고
+   * (sim 잔상과 같은 시간), 떠난 자리에서 나타난 자리까지 붉은 번개 한 줄기가 지나가며, 나타난 자리에서 불꽃이 터진다.
+   * x·y: 떠난 자리, to: 나타난 자리 x (1/256px)
+   */
+  private teleport(f: Fighter, x: number, y: number, to: number, move?: string): void {
+    const mv = move ? movesOf(f.char)[move as keyof ReturnType<typeof movesOf>] : undefined;
+    const frame = Math.max(0, (mv?.data.blink?.at ?? 1) - 1);
+    const wx = x / 256;
+    const wy = GROUND_Y + y / 256;
+    const tx = to / 256;
+    const sil = mv ? silhouetteAt(mv.data.motion, frame, f.facing, this.skinOf(f), wx, wy) : null;
+    this.layer.add(dashBlink({
+      kind: 'blink',
+      actor: { feet: () => [wx * FX_PX, wy * FX_PX], silhouette: () => sil },
+      to: tx * FX_PX,
+      colors: fxRamp(RAIDEN_RAMP),
+      seed: this.seed++,
+      shake: (t) => this.fx.shake(t * 0.6),
+      blinkTimes: { out: 0.02, in: 0.02, arrive: 0.06, linger: RULES.ZAN_TICKS / 60 - 0.03 },
+      ghostSolid: true,
+    }));
+    // 지나간 길: 허리 높이로 붉은 번개 한 줄기
+    if (Math.abs(tx - wx) > 4) {
+      this.layer.add(arc({
+        path: [[wx * FX_PX, (wy - 22) * FX_PX], [tx * FX_PX, (wy - 22) * FX_PX]],
+        ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.03, hold: 0.08, width: 2, jag: 3, forks: 3, sparks: 6,
+      }));
+    }
+    this.glow(wx, wy - 24, 70, COLORS.raiden, 0.9, 12);
+    this.glow(tx, wy - 24, 80, COLORS.raidenLight, 0.9, 10);
+    this.debris.dustCloud(tx - 8, tx + 8, 0.3, wy);
   }
 
   /**

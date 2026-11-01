@@ -64,6 +64,12 @@ export const RAIDEN: CharacterData = {
     // 내려찍기 해머 피스트
     slam: { motion: 'raiden/hammer', active: [5, 6, 7], limb: ['eF', 'hF'], reach: 16 },
     wallKick: { motion: 'raiden/wall_kick', reach: 12 },
+    // 스킬 1 잔흔: 붉은 잔상을 남기며 앞으로 순간이동(3프레임 시작 틱, 최대 150px, 상대가 앞에 있으면 가운데끼리 18px 앞)해
+    // 나타나자마자 뒷다리 하이킥 (뒷무릎→발). 공중에서도 쓴다 (그 높이에 떠서 찬다). 피해·띄우기·기력은 기본 스킬 1 그대로
+    skill1: {
+      motion: 'raiden/zanhen', active: [4, 5], limb: ['kB', 'fB'], reach: 18,
+      step: { from: 3, to: 5, speed: 2.0 }, blink: { at: 2, dist: 150, gap: 18 },
+    },
     // 차지 투전승불: 4단계 (설정의 신체능력 4·5·6·7배). 단계가 높을수록 방어를 많이 깎고 멀리 날린다.
     // 1·2단계는 띄워 점프로 쫓고, 3·4단계는 벽 쪽으로 날린다. 뒷주먹 (기본 차지는 앞주먹)
     charge: {

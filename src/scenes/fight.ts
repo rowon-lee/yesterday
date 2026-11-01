@@ -316,8 +316,8 @@ export function fightScene(app?: App): Scene {
         h: -f.y / 256,
         floor: -floorBelow(s, f.x, f.y) / 256,
         rim: !white,
-        // 대시 중 순간이동 구간은 깜빡인다
-        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2),
+        // 대시 중 순간이동 구간은 깜빡인다. 순간이동 기술(라이덴 잔흔)은 사라지는 틱에 한 번 보이지 않는다
+        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f),
         order: order.indexOf(f),
       };
     }));
@@ -453,6 +453,13 @@ function chargeGlow(f: Fighter): 0 | 1 | 2 {
   if (f.mode !== 'charge') return 0;
   const since = f.t - chargeLevelAt(f)[Math.max(0, f.chargeLv - 1)];
   return since >= 0 && since < 3 ? 2 : 1;
+}
+
+/** 순간이동 기술이 사라지는 틱인가 (그 틱은 Dash & Blink 이펙트만 보인다) */
+function blinkingNow(f: Fighter): boolean {
+  if (f.mode !== 'attack' || !f.move) return false;
+  const b = movesOf(f.char)[f.move].blink;
+  return b !== undefined && f.t === b.tick;
 }
 
 /** 잔상을 남길 만큼 빠른가: 3px/틱 이상으로 움직일 때 (대시는 Sprite Fusion 잔상이 따로 있어 뺀다) */
