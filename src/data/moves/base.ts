@@ -11,6 +11,8 @@ export interface MoveData {
   active: readonly number[];
   /** 판정 구간: 팔꿈치→주먹, 무릎→발. 없으면 몸 둘레 전체 (밀쳐내기류) */
   limb?: readonly [JointName, JointName];
+  /** 번개 사거리 (px): 판정 구간 끝에서 그 방향으로 이만큼 더 닿는다 (라이덴: 타격마다 뻗는 붉은 전격) */
+  reach?: number;
   damage: number;
   /** 막았을 때 깎이는 방어 내구도 */
   guardDamage: number;

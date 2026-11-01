@@ -120,14 +120,14 @@ function startMove(s: SimState, f: Fighter, id: MoveId): void {
   }
 }
 
-const canAfford = (f: Fighter, id: MoveId): boolean => f.meter >= (MOVES[id].data.meterCost ?? 0) * METER_BAR;
+const canAfford = (f: Fighter, id: MoveId): boolean => f.meter >= (movesOf(f.char)[id].data.meterCost ?? 0) * METER_BAR;
 
 /** 스킬 1·2·필살기를 쓸 수 있으면 쓴다 */
 function trySkills(s: SimState, f: Fighter, air: boolean, fromGuard = false): boolean {
   const options: Array<[number, MoveId]> = [[B_SUPER, 'super'], [B_SKILL1, 'skill1'], [B_SKILL2, 'skill2']];
   for (const [b, id] of options) {
     if (!has(f, b)) continue;
-    const d = MOVES[id].data;
+    const d = movesOf(f.char)[id].data;
     if (air && !('alsoAir' in d && d.alsoAir)) continue;
     if (fromGuard && !('fromGuard' in d && d.fromGuard)) continue;
     if (!canAfford(f, id)) continue;
@@ -550,7 +550,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       // 대시 공격: 앞으로 대시하는 중에 공격하면 그 자리에서 바로, 미끄러지는 힘을 실어서 (뒤로 대시하는 중이면 대시가 끝난 뒤 평타)
       if (f.dir > 0 && take(f, B_ATTACK)) {
         startMove(s, f, 'dashAttack');
-        f.vx = f.facing * MOVES.dashAttack.step!.speed;
+        f.vx = f.facing * movesOf(f.char).dashAttack.step!.speed;
         break;
       }
       if (f.t >= statsOf(f.char).dashMoveFrom && f.t < statsOf(f.char).dashMoveTo) {
@@ -801,7 +801,7 @@ function land(s: SimState, f: Fighter): void {
       break;
     case 'attack': {
       // 벽 박차기 공격을 헛치고 땅·발판에 닿으면 오래 굳는다
-      const lag = MOVES[f.move!].data.landLag;
+      const lag = movesOf(f.char)[f.move!].data.landLag;
       setMode(f, 'land', !f.moveHit && lag !== undefined ? lag : statsOf(f.char).airAttackLandTicks);
       f.vx = 0;
       break;

@@ -143,7 +143,7 @@ export function moveHitBox(mv: Move, t: number): Box | null {
     const b = hurtBox(j);
     return { x: b.x - 10, y: b.y - 4, w: b.w + 20, h: b.h + 8 };
   }
-  return hitBox(j, f, { frames: mv.data.active, limb: mv.data.limb });
+  return hitBox(j, f, { frames: mv.data.active, limb: mv.data.limb, reach: mv.data.reach });
 }
 
 /** 능력치를 sim 단위로: 거리·속도·가속은 1/256px 정수, 시간은 틱 */

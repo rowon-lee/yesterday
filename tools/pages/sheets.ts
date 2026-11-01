@@ -68,7 +68,7 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
   m.draw(ctx, i, 0, LABEL_H, { skin: skinForMotion(m.name, skin), look });
   // 느린 판: 판정 프레임이면 공격 상자 (팔꿈치→주먹 / 무릎→발 구간 끝쪽)
   if (slow && active && mv?.limb && m.joints) {
-    const b = hitBox(m.joints[i], i, { frames: mv.active, limb: mv.limb });
+    const b = hitBox(m.joints[i], i, { frames: mv.active, limb: mv.limb, reach: mv.reach });
     if (b) {
       ctx.strokeStyle = '#ff6a4a';
       ctx.lineWidth = 1;
