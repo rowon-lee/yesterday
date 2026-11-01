@@ -1,6 +1,9 @@
 // 아주 작은 GIF89a 인코더 (색 번호 그림 → 움직이는 GIF). 의존성 없이 확인 도구에서만 쓴다.
 
-/** frames: [{ data: Uint8Array(색 번호), colors: number[] }], 모든 프레임이 같은 팔레트를 쓰도록 미리 맞춰 둔다 */
+/**
+ * frames: [{ data: Uint8Array(색 번호), colors: number[] }], 모든 프레임이 같은 팔레트를 쓰도록 미리 맞춰 둔다.
+ * delayCs: 프레임 사이 시간(1/100초). 숫자 하나면 모든 프레임이 같고, 배열이면 프레임마다
+ */
 export function encodeGif(w, h, palette, frames, delayCs) {
   const out = [];
   const byte = (b) => out.push(b & 255);
@@ -24,8 +27,9 @@ export function encodeGif(w, h, palette, frames, delayCs) {
   }
   // 무한 반복
   byte(0x21); byte(0xff); byte(11); str('NETSCAPE2.0'); byte(3); byte(1); word(0); byte(0);
-  for (const f of frames) {
-    byte(0x21); byte(0xf9); byte(4); byte(0); word(delayCs); byte(0); byte(0);
+  frames.forEach((f, idx) => {
+    const delay = Array.isArray(delayCs) ? delayCs[idx] : delayCs;
+    byte(0x21); byte(0xf9); byte(4); byte(0); word(delay); byte(0); byte(0);
     byte(0x2c); word(0); word(0); word(w); word(h); byte(0);
     byte(bits);
     const lzw = lzwEncode(f, bits);
@@ -35,7 +39,7 @@ export function encodeGif(w, h, palette, frames, delayCs) {
       for (let k = 0; k < n; k++) out.push(lzw[i + k]);
     }
     byte(0);
-  }
+  });
   byte(0x3b);
   return Uint8Array.from(out);
 }
