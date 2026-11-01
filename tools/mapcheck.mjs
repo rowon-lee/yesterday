@@ -156,39 +156,32 @@ export function analyze(probe) {
       let signs = 0;
       for (let y = y0; y < y0 + B; y++) for (let x = x0; x < x0 + B; x++) signs += signMask[y * w + x];
       if (signs > (B * B) / 4) continue;
-      let total = 0;
-      let one = 0;
-      let mid = 0;
-      const count = (len) => {
-        total++;
-        if (len === 1) one++;
-        else if (len <= 4) mid++;
+      // 가로 줄과 세로 줄을 따로 센다: 키운 그림은 두 방향 모두 2~4칸 덩어리다
+      // (넓은 단색 벽에 2~3칸 굵기 가로 띠만 있는 곳은 세로로만 2~3칸이라 빠진다)
+      const runs = (horizontal) => {
+        const r = { total: 0, one: 0, mid: 0 };
+        for (let a = 0; a < B; a++) {
+          let len = 1;
+          let first = true;
+          for (let b = 1; b < B; b++) {
+            const i = horizontal ? (y0 + a) * w + x0 + b : (y0 + b) * w + x0 + a;
+            const j = horizontal ? i - 1 : i - w;
+            if (col[i] === col[j]) len++;
+            else {
+              if (!first) {
+                r.total++;
+                if (len === 1) r.one++;
+                else if (len <= 4) r.mid++;
+              }
+              first = false;
+              len = 1;
+            }
+          }
+        }
+        return r;
       };
-      for (let y = y0; y < y0 + B; y++) {
-        let len = 1;
-        let first = true;
-        for (let x = x0 + 1; x < x0 + B; x++) {
-          if (col[y * w + x] === col[y * w + x - 1]) len++;
-          else {
-            if (!first) count(len);
-            first = false;
-            len = 1;
-          }
-        }
-      }
-      for (let x = x0; x < x0 + B; x++) {
-        let len = 1;
-        let first = true;
-        for (let y = y0 + 1; y < y0 + B; y++) {
-          if (col[y * w + x] === col[(y - 1) * w + x]) len++;
-          else {
-            if (!first) count(len);
-            first = false;
-            len = 1;
-          }
-        }
-      }
-      if (total >= 16 && one / total < 0.05 && mid / total >= 0.6) {
+      const big = (r) => r.total >= 8 && r.one / r.total < 0.05 && r.mid / r.total >= 0.6;
+      if (big(runs(true)) && big(runs(false))) {
         bigWin++;
         for (let y = y0; y < y0 + B; y++) for (let x = x0; x < x0 + B; x++) bigMask[y * w + x] = 1;
       }
