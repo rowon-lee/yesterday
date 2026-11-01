@@ -12,7 +12,7 @@ import { drawPlatforms } from '../render/platforms';
 import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
-  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, MOVES, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
+  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, MOVES, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
@@ -77,7 +77,8 @@ const CAMERA_DAMP = 0.35;
  *   ?cpu=easy|normal|hard  대련 CPU 강도 (방어 실력)
  *   ?dummy=stand|guard|cpu 연습 상대: 가만히 / 막기만 / CPU
  *   ?p2=tech 확인용: 상대가 가만히 서 있다가 공중에서 맞는 중 낙법이 가능해지면 바로 점프 (낙법 동작 캡처용)
- *   ?p1skin=raiden&p2skin=… 확인용: 캐릭터 겉모습(장식·색)만 바꿔 그린다 (동작·기술은 아직 기본 스틱맨)
+ *   ?p1char=raiden&p2char=… 캐릭터 고르기 (능력치·전용 동작이 캐릭터 것으로, 겉모습도 따라간다. 기본은 기본 스틱맨)
+ *   ?p1skin=raiden&p2skin=… 확인용: 캐릭터 겉모습(장식·색)만 바꿔 그린다 (동작·기술은 그 캐릭터 것 그대로)
  * Esc·P로 일시정지 (계속 / 처음부터 / 조작법 / 타이틀로). 경기가 끝나면 다시 하기 / 타이틀로.
  */
 export function fightScene(app?: App): Scene {
@@ -88,11 +89,18 @@ export function fightScene(app?: App): Scene {
   const cpuSkill = ({ easy: 25, normal: 55, hard: 85 } as Record<string, number>)[params.get('cpu') ?? 'normal'] ?? 55;
   let seed = Number(params.get('seed') ?? 1) | 0;
   let showBoxes = params.get('boxes') === '1';
-  /** 두 사람의 캐릭터 겉모습 (렌더 전용) */
-  const skins: [SkinId, SkinId] = [
-    isSkin(params.get('p1skin')) ? (params.get('p1skin') as SkinId) : 'base',
-    isSkin(params.get('p2skin')) ? (params.get('p2skin') as SkinId) : 'base',
-  ];
+  /** 두 사람의 캐릭터 (sim) */
+  const charParam = (k: string): CharId => {
+    const v = params.get(k);
+    return isChar(v) ? v : 'base';
+  };
+  const chars: [CharId, CharId] = [charParam('p1char'), charParam('p2char')];
+  /** 두 사람의 캐릭터 겉모습 (렌더 전용): 따로 정하지 않으면 캐릭터를 따라간다 */
+  const skinParam = (k: string, c: CharId): SkinId => {
+    const v = params.get(k);
+    return isSkin(v) ? v : isSkin(c) ? c : 'base';
+  };
+  const skins: [SkinId, SkinId] = [skinParam('p1skin', chars[0]), skinParam('p2skin', chars[1])];
 
   let s: SimState;
   let cpus: [CpuState, CpuState];
@@ -127,7 +135,7 @@ export function fightScene(app?: App): Scene {
     { label: 'TITLE', act: toTitle },
   ]);
   const reset = () => {
-    s = createState(seed, { practice });
+    s = createState(seed, { practice, chars });
     if (startX !== null && Number.isFinite(startX)) {
       s.fighters[0].x = Math.round(startX - 60) * 256;
       s.fighters[1].x = Math.round(startX + 60) * 256;
@@ -168,7 +176,7 @@ export function fightScene(app?: App): Scene {
       const air = isAirborne(f);
       if (was.air && !air) dust.push({ x, y: f.y / 256, dir: 0, t: 0, life: 14 });
       // 뛰는 중에는 발이 땅을 박찰 때마다 (반 바퀴마다) 뒤로 먼지
-      const half = (f.dir > 0 ? STATS.runCycle : STATS.runBackCycle) / 2;
+      const half = (f.dir > 0 ? statsOf(f.char).runCycle : statsOf(f.char).runBackCycle) / 2;
       const stepNo = Math.floor(f.runDist / half);
       if (f.mode === 'run' && stepNo !== was.step) dust.push({ x, y: f.y / 256, dir: -f.facing * f.dir, t: 0, life: 10 });
       prev[i] = { mode: f.mode, air, step: stepNo };

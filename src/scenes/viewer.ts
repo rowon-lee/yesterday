@@ -2,7 +2,7 @@ import { hitBox, hurtBox, type Box } from '../anim/boxes';
 import { DEFAULT_CELL, FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import type { LookName } from '../anim/skeleton';
-import { isSkin, SKINS, type SkinId } from '../anim/skins';
+import { isSkin, skinForMotion, SKINS, type SkinId } from '../anim/skins';
 import { drawText } from '../render/font';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
@@ -20,6 +20,7 @@ const PANEL_X = 260;
 /**
  * 개발용 모션 뷰어 (?scene=viewer).
  * 키보드: ↑↓ 동작, ←→ 한 프레임, Space 재생/정지, S 속도, H 판정 상자, C 색, F 좌우, K 캐릭터 겉모습 (?skin=raiden)
+ * 캐릭터 전용 동작('raiden/…')은 늘 그 캐릭터 겉모습으로 보인다. K는 기본·공통 동작에 입혀 볼 겉모습을 바꾼다.
  */
 export function viewerScene(): Scene {
   const v = {
@@ -145,7 +146,7 @@ export function viewerScene(): Scene {
       }
       ctx.fillStyle = COLORS.gridLight;
       ctx.fillRect(VIEW_X, VIEW_Y + (FOOT_Y + 1) * ZOOM, size, ZOOM);
-      ctx.drawImage(sprite(m, v.frame, v.look, v.flip, v.skin), VIEW_X, VIEW_Y, size, size);
+      ctx.drawImage(sprite(m, v.frame, v.look, v.flip, skinForMotion(m.name, v.skin)), VIEW_X, VIEW_Y, size, size);
 
       if (v.boxes && m.joints) {
         const j = m.joints[v.frame];

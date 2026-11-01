@@ -1,4 +1,4 @@
-import { RULES, STATS, type SimState } from '../sim';
+import { RULES, statsOf, type SimState } from '../sim';
 import { drawText, textWidth } from './font';
 import { COLORS } from './palette';
 import { SCREEN_H, SCREEN_W } from './screen';
@@ -22,9 +22,8 @@ export class Hud {
   ];
 
   tick(s: SimState): void {
-    const max = hpMax(s);
     s.fighters.forEach((f, i) => {
-      const r = f.hp / max;
+      const r = f.hp / statsOf(f.char).hp;
       if (this.lag[i] < r) this.lag[i] = r;
       else if (s.fighters[i].hitstop === 0) this.lag[i] = Math.max(r, this.lag[i] - 0.006);
     });
@@ -47,8 +46,8 @@ export class Hud {
   }
 
   draw(ctx: CanvasRenderingContext2D, s: SimState): void {
-    const max = hpMax(s);
     s.fighters.forEach((f, i) => {
+      const max = statsOf(f.char).hp;
       const left = i === 0;
       const x = left ? 8 : SCREEN_W - 8 - BAR_W;
       const fill = (ratio: number, color: string, y: number, h: number) => {
@@ -124,7 +123,3 @@ export class Hud {
   }
 }
 
-function hpMax(s: SimState): number {
-  void s;
-  return STATS.hp;
-}

@@ -8,7 +8,7 @@ import { checkMotion, drawStrip, scaleCanvas } from '../../src/anim/sheet';
 import { BASE_MOVES, type MoveData } from '../../src/data/moves/base';
 import { drawText, GLYPH_H, textWidth } from '../../src/render/font';
 import { SELFTEST_MOTIONS } from './selftest';
-import { isSkin, type SkinId } from '../../src/anim/skins';
+import { isSkin, skinForMotion, type SkinId } from '../../src/anim/skins';
 
 const params = new URLSearchParams(location.search);
 const scale = Number(params.get('scale') ?? 4);
@@ -54,7 +54,7 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
   ctx.beginPath();
   ctx.rect(0, LABEL_H, cell, cell);
   ctx.clip();
-  m.draw(ctx, i, 0, LABEL_H, { skin });
+  m.draw(ctx, i, 0, LABEL_H, { skin: skinForMotion(m.name, skin) });
   // 느린 판: 판정 프레임이면 공격 상자 (팔꿈치→주먹 / 무릎→발 구간 끝쪽)
   if (slow && active && mv?.limb && m.joints) {
     const b = hitBox(m.joints[i], i, { frames: mv.active, limb: mv.limb });
@@ -78,7 +78,7 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
     name: m.name,
     dur: m.dur,
     errors,
-    png: errors.length ? null : scaleCanvas(drawStrip(m, { skin }), scale).toDataURL('image/png'),
+    png: errors.length ? null : scaleCanvas(drawStrip(m, { skin: skinForMotion(m.name, skin) }), scale).toDataURL('image/png'),
     gif: errors.length || !wantGif ? null : {
       w: cell,
       h: LABEL_H + cell,

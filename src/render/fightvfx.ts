@@ -1,6 +1,6 @@
 import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
-import { BREAKABLES, GRIDS, fighterPose, MOVES, RULES, STATS, tramRestX, type Fighter, type SimState } from '../sim';
+import { BREAKABLES, GRIDS, fighterPose, MOVES, RULES, statsOf, tramRestX, type Fighter, type SimState } from '../sim';
 import { CITADEL as D } from '../data/stages/citadel';
 import { KNOCKDOWN_RELAND } from '../data/poses/common';
 import type { SkinId } from '../anim/skins';
@@ -326,8 +326,9 @@ export class FightVfx {
       // 대시·공중 대시가 시작되는 틱: 잔상과 박차는 먼지
       if ((f.mode === 'dash' || f.mode === 'airdash') && this.prevMode[i] !== f.mode) {
         const air = f.mode === 'airdash';
-        const ticks = air ? STATS.airDashMoveTo : STATS.dashMoveTo - STATS.dashMoveFrom;
-        const speed = air ? STATS.airDashSpeed : STATS.dashSpeed;
+        const st = statsOf(f.char);
+        const ticks = air ? st.airDashMoveTo : st.dashMoveTo - st.dashMoveFrom;
+        const speed = air ? st.airDashSpeed : st.dashSpeed;
         const fighter = f;
         this.layer.add(dashBlink({
           kind: 'dash',

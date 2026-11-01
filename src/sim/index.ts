@@ -4,7 +4,8 @@ export * from './hash';
 export * from './cpu';
 export { boxesOf } from './combat';
 export { fighterPose } from './pose';
-export { MOVES, STATS, motionFrames, frameFitted } from './frames';
+export { MOVES, STATS, CHAR_IDS, isChar, motionFrames, motionOf, statsOf, frameFitted, type SimStats } from './frames';
+export type { CharId } from '../data/characters';
 export { cineTicks } from './cine';
 export * as RULES from './rules';
 export {

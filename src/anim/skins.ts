@@ -47,6 +47,12 @@ export type SkinId = keyof typeof SKINS;
 
 export const isSkin = (s: string | null | undefined): s is SkinId => !!s && s in SKINS;
 
+/** 캐릭터 전용 동작('raiden/…')은 그 캐릭터 겉모습으로 그린다. 기본·공통 동작('base/…', 'common/…')은 fallback */
+export function skinForMotion(name: string, fallback: SkinId = 'base'): SkinId {
+  const who = name.slice(0, name.indexOf('/'));
+  return isSkin(who) && who !== 'base' ? who : fallback;
+}
+
 /** 이 캐릭터의 색 묶음 (없으면 공통) */
 export function lookOf(skin: SkinId, look: LookName): Look {
   return (SKINS[skin].looks as Partial<Record<LookName, Look>>)[look] ?? LOOKS[look];

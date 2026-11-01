@@ -98,6 +98,11 @@ for (const [name, ok, note] of [...hitMotionChecks(), ...commonMotionChecks()]) 
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 맞는 동작 시험: ${name}${note ? ` (${note})` : ''}`);
 }
+// 5-5) 캐릭터: 캐릭터마다 자기 동작 그림과 능력치, 라이덴이 낀 CPU 대전도 결정론
+for (const [name, ok, note] of charChecks()) {
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 캐릭터 시험: ${name}${note ? ` (${note})` : ''}`);
+}
 // 5-3) 필살기 연출 (정해진 입력으로)
 for (const [name, ok, note] of cineChecks()) {
   if (!ok) failed++;
@@ -172,8 +177,55 @@ console.log(failed ? `실패 ${failed}건` : '모두 통과');
 process.exit(failed ? 1 : 0);
 
 /** CPU 둘이 싸우고, 틱마다 넣은 입력을 기록한다. 틱마다 규칙 범위를 검사한다. */
-function runCpuMatch(seed, ticks, setup = null) {
-  const state = sim.createState(seed);
+/**
+ * 캐릭터 시험: 캐릭터마다 자기 동작 그림(아직 없는 자리는 기본 스틱맨 동작)과 능력치를 쓴다.
+ * 모든 캐릭터의 모든 자리에 동작 그림이 있고, 라이덴 대기가 12프레임 모두 차례로 돌고, 라이덴이 낀 CPU 대전도 결정론이다.
+ */
+function charChecks() {
+  const out = [];
+  const SLOTS = ['idle', 'intro', 'win', 'run_f', 'run_b', 'jump', 'jump2', 'fall', 'land', 'dash', 'air_dash', 'guard', 'guard_hit', 'wall_cling', 'wall_jump', 'wall_run', 'wall_tech'];
+  const missing = [];
+  for (const c of sim.CHAR_IDS) {
+    for (const slot of SLOTS) {
+      try {
+        sim.motionFrames(sim.motionOf(c, slot));
+      } catch {
+        missing.push(`${c}.${slot}`);
+      }
+    }
+  }
+  out.push([`모든 캐릭터(${sim.CHAR_IDS.join('·')})의 동작 자리 ${SLOTS.length}개에 그림이 있음`, missing.length === 0, missing.join(', ')]);
+  // 라이덴(1P)과 기본 스틱맨(2P): 싸움이 시작되면 각자 자기 대기
+  const s = sim.createState(1, { chars: ['raiden', 'base'] });
+  while (s.phase === 'intro') sim.step(s, [0, 0]);
+  const p0 = sim.fighterPose(s.fighters[0]).motion;
+  const p1 = sim.fighterPose(s.fighters[1]).motion;
+  out.push(['라이덴은 라이덴 대기, 기본 스틱맨은 기본 대기', p0 === 'raiden/idle' && p1 === 'base/idle', `${p0} · ${p1}`]);
+  // 라이덴 대기: 한 바퀴(44틱) 동안 12프레임이 차례로 한 번씩, 다음 바퀴는 1번부터
+  const m = sim.motionFrames('raiden/idle');
+  const seen = [];
+  for (let t = 0; t < m.total * 2 + 1; t++) {
+    const fr = sim.fighterPose(s.fighters[0]).frame;
+    if (seen[seen.length - 1] !== fr) seen.push(fr);
+    sim.step(s, [0, 0]);
+  }
+  // 대기는 등장 연출 동안 이미 돌기 시작했으므로, 처음 나온 1번 프레임부터 한 바퀴를 본다
+  const order = seen.slice(seen.indexOf(0), seen.indexOf(0) + 13).join(',');
+  out.push([`라이덴 대기 ${m.dur.length}프레임 ${m.total}틱 되풀이`, s.fighters[0].mode === 'idle' && order.startsWith('0,1,2,3,4,5,6,7,8,9,10,11,0'), `프레임 차례 ${order}`]);
+  // 라이덴이 낀 CPU 대전: 예외 없이 끝나고, 같은 입력 재생·저장/복원 뒤 같은 해시
+  for (const chars of [['raiden', 'base'], ['base', 'raiden'], ['raiden', 'raiden']]) {
+    const opts = { chars };
+    const a = runCpuMatch(7, args.ticks, null, opts);
+    const b = replay(7, a.log, null, null, opts);
+    const c = replay(7, a.log, Math.floor(a.log.length / 2), null, opts);
+    out.push([`CPU 대전 ${chars.join(' 대 ')}`, a.hash === b && a.hash === c && a.ended && a.problems.length === 0,
+      `${a.log.length}틱 ${a.rounds}라운드, 히트 ${a.stats.hit}, 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.problems.length ? ` 문제 ${a.problems[0]}` : ''}`]);
+  }
+  return out;
+}
+
+function runCpuMatch(seed, ticks, setup = null, opts = {}) {
+  const state = sim.createState(seed, opts);
   if (setup) setup(state);
   let keepRound = -1;
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
@@ -282,8 +334,8 @@ function check(s, problems) {
 }
 
 /** 기록한 입력만으로 다시 돌린다. saveAt이 있으면 그 틱에 상태를 직렬화했다가 복원해서 이어 간다. */
-function replay(seed, log, saveAt, setup = null) {
-  let state = sim.createState(seed);
+function replay(seed, log, saveAt, setup = null, opts = {}) {
+  let state = sim.createState(seed, opts);
   if (setup) setup(state);
   log.forEach((inputs, i) => {
     if (i === saveAt) state = JSON.parse(JSON.stringify(state));

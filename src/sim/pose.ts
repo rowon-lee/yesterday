@@ -1,7 +1,7 @@
 import type { Joints } from '../anim/pose';
 import { HIT_AIR_LOOP_FROM, HIT_STRETCH } from '../data/poses/common';
 import { WALL_CLING_LOOP_FROM, WALL_RUN_TOP_FROM } from '../data/poses/wall';
-import { frameAtTick, frameFitted, frameStretched, motionFrames, MOVES, STATS } from './frames';
+import { frameAtTick, frameFitted, frameStretched, motionFrames, motionOf, MOVES, statsOf } from './frames';
 import type { Fighter } from './types';
 
 /**
@@ -40,21 +40,21 @@ function holdLoop(name: string, t: number, from: number): [string, number] {
 function pick(f: Fighter): [string, number] {
   switch (f.mode) {
     case 'idle':
-      return loop('base/idle', f.t);
+      return loop(motionOf(f.char, 'idle'), f.t);
     case 'intro':
-      return once('base/intro', f.t);
+      return once(motionOf(f.char, 'intro'), f.t);
     case 'run': {
       // 뛴 거리로 프레임을 넘긴다 (발이 미끄러지지 않게)
       const fwd = f.dir > 0;
-      const cycle = fwd ? STATS.runCycle : STATS.runBackCycle;
-      const n = motionFrames('base/run_f').dur.length;
+      const cycle = fwd ? statsOf(f.char).runCycle : statsOf(f.char).runBackCycle;
+      const n = motionFrames(motionOf(f.char, 'run_f')).dur.length;
       const i = Math.floor(((f.runDist % cycle) * n) / cycle);
-      return [fwd ? 'base/run_f' : 'base/run_b', i];
+      return [fwd ? motionOf(f.char, 'run_f') : motionOf(f.char, 'run_b'), i];
     }
     case 'guard':
-      return once('base/guard', f.t);
+      return once(motionOf(f.char, 'guard'), f.t);
     case 'blockstun':
-      return stretch('base/guard_hit', f.t, f.len);
+      return stretch(motionOf(f.char, 'guard_hit'), f.t, f.len);
     case 'crush':
       // 가드 크러시 (공통 동작): 크러시 길이가 기본 44틱과 다르면 7번 프레임이 늘거나 준다
       return fitted('common/guard_crush', f.t, f.len);
@@ -62,24 +62,24 @@ function pick(f: Fighter): [string, number] {
       // 정면에 박혀 팔다리를 벌린 모습 (가드 크러시에서 두 팔이 위·뒤로 벌어진 3번 프레임)
       return ['common/guard_crush', 2];
     case 'jumpsquat':
-      return ['base/jump', 0];
+      return [motionOf(f.char, 'jump'), 0];
     case 'air':
       // 벽 점프는 그 그림이 끝날 때까지 (꼭대기를 지나 떨어지는 자세로 이어진다)
-      if (f.jumpKind === 3 && f.t < motionFrames('base/wall_jump').total) return once('base/wall_jump', f.t);
+      if (f.jumpKind === 3 && f.t < motionFrames(motionOf(f.char, 'wall_jump')).total) return once(motionOf(f.char, 'wall_jump'), f.t);
       // 벽 달리기로 꼭대기를 넘어가는 중: 벽 달리기 그림의 뒷부분 (모서리를 잡고 넘어감)
       if (f.jumpKind === 4) {
-        const m = motionFrames('base/wall_run');
+        const m = motionFrames(motionOf(f.char, 'wall_run'));
         const from = m.cum[WALL_RUN_TOP_FROM - 1];
-        if (from + f.t < m.total) return once('base/wall_run', from + f.t);
+        if (from + f.t < m.total) return once(motionOf(f.char, 'wall_run'), from + f.t);
       }
-      if (f.vy < 0) return f.jumpKind === 2 ? once('base/jump2', f.t) : once('base/jump', f.t + 2);
-      return once('base/fall', Math.floor(f.vy / 64));
+      if (f.vy < 0) return f.jumpKind === 2 ? once(motionOf(f.char, 'jump2'), f.t) : once(motionOf(f.char, 'jump'), f.t + 2);
+      return once(motionOf(f.char, 'fall'), Math.floor(f.vy / 64));
     case 'land':
-      return stretch('base/land', f.t, Math.max(1, f.len));
+      return stretch(motionOf(f.char, 'land'), f.t, Math.max(1, f.len));
     case 'dash':
-      return stretch('base/dash', f.t, STATS.dashTicks);
+      return stretch(motionOf(f.char, 'dash'), f.t, statsOf(f.char).dashTicks);
     case 'airdash':
-      return stretch('base/air_dash', f.t, STATS.airDashTicks);
+      return stretch(motionOf(f.char, 'air_dash'), f.t, statsOf(f.char).airDashTicks);
     case 'attack':
       return once(MOVES[f.move!].frames.name, f.t);
     case 'hitstun':
@@ -96,22 +96,22 @@ function pick(f: Fighter): [string, number] {
     case 'tech':
       return once('common/tech', f.t);
     case 'walltech':
-      return once('base/wall_tech', f.t);
+      return once(motionOf(f.char, 'wall_tech'), f.t);
     case 'ko':
       // 쓰러짐: 날아가는 동안은 공중에서 맞음, 바닥에 닿으면 (t가 0부터 다시) 다운
       return f.y < f.floor ? holdLoop('common/hit_air', f.t, HIT_AIR_LOOP_FROM) : once('common/knockdown', f.t);
     case 'win':
-      return once('base/win', f.t);
+      return once(motionOf(f.char, 'win'), f.t);
     case 'wallcling':
-      return holdLoop('base/wall_cling', f.t, WALL_CLING_LOOP_FROM);
+      return holdLoop(motionOf(f.char, 'wall_cling'), f.t, WALL_CLING_LOOP_FROM);
     case 'wallrun': {
       // 달려 오르는 구간만 (꼭대기 앞까지), 길게 달리면 마지막 걸음에 머문다
-      const m = motionFrames('base/wall_run');
-      return ['base/wall_run', Math.min(WALL_RUN_TOP_FROM - 1, frameAtTick(m, f.t))];
+      const m = motionFrames(motionOf(f.char, 'wall_run'));
+      return [motionOf(f.char, 'wall_run'), Math.min(WALL_RUN_TOP_FROM - 1, frameAtTick(m, f.t))];
     }
     case 'cine': {
       // 필살기 연출: 연출 장면의 동작 t틱째 (sim/cine.ts가 정한다)
-      const name = f.cineMotion || 'base/idle';
+      const name = f.cineMotion || motionOf(f.char, 'idle');
       return [name, frameAtTick(motionFrames(name), f.t)];
     }
     case 'charge': {

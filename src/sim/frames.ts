@@ -1,7 +1,7 @@
 import { hitBox, hurtBox, type Box } from '../anim/boxes';
 import { MOTIONS } from '../anim/motions';
 import type { Joints } from '../anim/pose';
-import { BASE_STATS } from '../data/characters/base';
+import { BASE_MOTION_SLOTS, CHARACTERS, type CharId, type MotionSlot, type Stats } from '../data/characters';
 import { BASE_MOVES, type MoveData, type MoveId } from '../data/moves/base';
 import { px } from './rules';
 
@@ -127,37 +127,61 @@ export function moveHitBox(mv: Move, t: number): Box | null {
   return hitBox(j, f, { frames: mv.data.active, limb: mv.data.limb });
 }
 
-/** 능력치 (1/256px 정수) */
-export const STATS = {
-  hp: BASE_STATS.hp,
-  runForward: px(BASE_STATS.runForward),
-  runBack: px(BASE_STATS.runBack),
-  runCycle: px(BASE_STATS.runCycle),
-  runBackCycle: px(BASE_STATS.runBackCycle),
-  jumpSquat: BASE_STATS.jumpSquat,
-  jumpVy: -px(BASE_STATS.jumpVy),
-  jumpVx: px(BASE_STATS.jumpVx),
-  doubleJumpVy: -px(BASE_STATS.doubleJumpVy),
-  chaseJumpVy: -px(BASE_STATS.chaseJumpVy),
-  chaseJumpVx: px(BASE_STATS.chaseJumpVx),
-  gravity: px(BASE_STATS.gravity),
-  maxFall: px(BASE_STATS.maxFall),
-  airAccel: px(BASE_STATS.airAccel),
-  airMaxVx: px(BASE_STATS.airMaxVx),
-  dashTicks: BASE_STATS.dashTicks,
-  dashMoveFrom: BASE_STATS.dashMoveFrom,
-  dashMoveTo: BASE_STATS.dashMoveTo,
-  dashSpeed: px(BASE_STATS.dashSpeed),
-  airDashTicks: BASE_STATS.airDashTicks,
-  airDashMoveTo: BASE_STATS.airDashMoveTo,
-  airDashSpeed: px(BASE_STATS.airDashSpeed),
-  landTicks: BASE_STATS.landTicks,
-  airAttackLandTicks: BASE_STATS.airAttackLandTicks,
-  wallSlide: px(BASE_STATS.wallSlide),
-  wallSlideAccel: px(BASE_STATS.wallSlideAccel),
-  wallJumpVx: px(BASE_STATS.wallJumpVx),
-  wallJumpVy: -px(BASE_STATS.wallJumpVy),
-  wallRunSpeed: px(BASE_STATS.wallRunSpeed),
-  /** 벽 달리기 틱 수 (달려 오르는 높이 ÷ 속도) */
-  wallRunTicks: Math.ceil(BASE_STATS.wallRunHeight / BASE_STATS.wallRunSpeed),
-};
+/** 능력치를 sim 단위로: 거리·속도·가속은 1/256px 정수, 시간은 틱 */
+function simStats(b: Stats) {
+  return {
+    hp: b.hp,
+    runForward: px(b.runForward),
+    runBack: px(b.runBack),
+    runCycle: px(b.runCycle),
+    runBackCycle: px(b.runBackCycle),
+    jumpSquat: b.jumpSquat,
+    jumpVy: -px(b.jumpVy),
+    jumpVx: px(b.jumpVx),
+    doubleJumpVy: -px(b.doubleJumpVy),
+    chaseJumpVy: -px(b.chaseJumpVy),
+    chaseJumpVx: px(b.chaseJumpVx),
+    gravity: px(b.gravity),
+    maxFall: px(b.maxFall),
+    airAccel: px(b.airAccel),
+    airMaxVx: px(b.airMaxVx),
+    dashTicks: b.dashTicks,
+    dashMoveFrom: b.dashMoveFrom,
+    dashMoveTo: b.dashMoveTo,
+    dashSpeed: px(b.dashSpeed),
+    airDashTicks: b.airDashTicks,
+    airDashMoveTo: b.airDashMoveTo,
+    airDashSpeed: px(b.airDashSpeed),
+    landTicks: b.landTicks,
+    airAttackLandTicks: b.airAttackLandTicks,
+    wallSlide: px(b.wallSlide),
+    wallSlideAccel: px(b.wallSlideAccel),
+    wallJumpVx: px(b.wallJumpVx),
+    wallJumpVy: -px(b.wallJumpVy),
+    wallRunSpeed: px(b.wallRunSpeed),
+    /** 벽 달리기 틱 수 (달려 오르는 높이 ÷ 속도) */
+    wallRunTicks: Math.ceil(b.wallRunHeight / b.wallRunSpeed),
+  };
+}
+export type SimStats = ReturnType<typeof simStats>;
+
+const CHAR_STATS = Object.fromEntries(
+  (Object.keys(CHARACTERS) as CharId[]).map((c) => [c, simStats(CHARACTERS[c].stats)]),
+) as Record<CharId, SimStats>;
+
+/** 캐릭터 목록 (data/characters 순서) */
+export const CHAR_IDS = Object.keys(CHARACTERS) as CharId[];
+export const isChar = (s: string | null | undefined): s is CharId => !!s && s in CHARACTERS;
+
+/** 이 캐릭터의 능력치 (1/256px 정수) */
+export function statsOf(c: CharId): SimStats {
+  return CHAR_STATS[c];
+}
+
+/** 기본 스틱맨 능력치 (캐릭터와 상관없는 확인 도구용) */
+export const STATS = CHAR_STATS.base;
+
+/** 이 캐릭터가 이 자리(상태)에 쓰는 동작 이름. 아직 전용 동작이 없으면 기본 스틱맨 동작 */
+export function motionOf(c: CharId, slot: MotionSlot): string {
+  return (CHARACTERS[c].motions as Partial<Record<MotionSlot, string>>)[slot] ?? BASE_MOTION_SLOTS[slot];
+}

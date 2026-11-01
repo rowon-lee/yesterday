@@ -1,3 +1,4 @@
+import type { CharId } from '../data/characters';
 import type { MoveId } from '../data/moves/base';
 
 /** 싸우는 사람의 상태 이름 */
@@ -23,6 +24,8 @@ export type Mode =
 
 /** 직렬화 가능한 평범한 객체. 위치·속도는 1/256px 정수. */
 export interface Fighter {
+  /** 캐릭터 (능력치와 동작 그림이 캐릭터마다 다르다). 경기 내내 그대로 */
+  char: CharId;
   x: number;
   y: number;
   vx: number;
