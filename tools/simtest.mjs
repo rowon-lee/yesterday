@@ -210,8 +210,9 @@ function charChecks() {
     sim.step(s, [0, 0]);
   }
   // 대기는 등장 연출 동안 이미 돌기 시작했으므로, 처음 나온 1번 프레임부터 한 바퀴를 본다
-  const order = seen.slice(seen.indexOf(0), seen.indexOf(0) + 13).join(',');
-  out.push([`라이덴 대기 ${m.dur.length}프레임 ${m.total}틱 되풀이`, s.fighters[0].mode === 'idle' && order.startsWith('0,1,2,3,4,5,6,7,8,9,10,11,0'), `프레임 차례 ${order}`]);
+  const order = seen.slice(seen.indexOf(0), seen.indexOf(0) + m.dur.length + 1).join(',');
+  const want = [...m.dur.keys(), 0].join(',');
+  out.push([`라이덴 대기 ${m.dur.length}프레임 ${m.total}틱 되풀이`, s.fighters[0].mode === 'idle' && order === want, `프레임 차례 ${order}`]);
   // 라이덴이 낀 CPU 대전: 예외 없이 끝나고, 같은 입력 재생·저장/복원 뒤 같은 해시
   for (const chars of [['raiden', 'base'], ['base', 'raiden'], ['raiden', 'raiden']]) {
     const opts = { chars };
