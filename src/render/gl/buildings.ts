@@ -280,7 +280,8 @@ export class Buildings {
    */
   private alley(x: number, w: number, det: Details): void {
     const seed = Math.round(x);
-    this.group.add(plane(x - 2, x + w + 2, 0, 330, BACK_Z + 2, litMaterial(pixelTexture(paintSide(w + 4, 330, seed, 2)), { tint: 0.6 })));
+    // 안쪽 벽은 양옆 건물 뒤로 넉넉히 (원근 때문에 벽 판 가장자리 열이 건물 모서리 옆으로 1칸 드러나 어두운 세로줄이 되지 않게)
+    this.group.add(plane(x - 10, x + w + 10, 0, 330, BACK_Z + 2, litMaterial(pixelTexture(paintSide(w + 20, 330, seed, 2)), { tint: 0.6 })));
     det.add(x + 3, x + w - 3, 0, 18, FRONT_Z - 70, FRONT_Z - 40, C.paintTeal);
     det.add(x + 2, x + w - 2, 18, 20, FRONT_Z - 72, FRONT_Z - 38, C.iron);
     det.add(x + 2, x + 9, 0, 7, FRONT_Z - 30, FRONT_Z - 22, C.smog1);
