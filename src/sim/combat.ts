@@ -32,7 +32,8 @@ const overlap = (a: WBox, b: WBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y
 
 /** 피격 상자: 지금 프레임의 몸 관절을 감싼 상자. 무적이면 null */
 export function hurtOf(f: Fighter): WBox | null {
-  if (f.invuln > 0 || f.mode === 'knockdown' || f.mode === 'getup' || f.mode === 'ko' || f.mode === 'wallsplat' || f.mode === 'cine') return null;
+  // 다운은 내내 무적. 기상은 무적 틱(앞 20틱)이 지나면 다시 맞는다 (공통 동작 사양서)
+  if (f.invuln > 0 || f.mode === 'knockdown' || f.mode === 'ko' || f.mode === 'wallsplat' || f.mode === 'cine') return null;
   return toWorld(f, hurtBox(fighterPose(f).joints));
 }
 

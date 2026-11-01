@@ -94,7 +94,7 @@ for (const [name, ok, note] of structureChecks()) {
   console.log(`${ok ? 'OK ' : 'NG '} 등장 시험: 첫 라운드 시작 연출 동안 등장 동작, 싸움 전에 대기로, 두 번째 라운드는 등장 없음 (처음 ${first}, 싸움 전 대기 ${idleBeforeFight}, 둘째 라운드 ${second})`);
 }
 // 5-4) 공통 맞는 동작: 프레임 수는 그대로, 늘어나는 프레임의 표시 틱만 바꿔 경직 길이에 맞춘다 (공통 동작 사양서)
-for (const [name, ok, note] of hitMotionChecks()) {
+for (const [name, ok, note] of [...hitMotionChecks(), ...commonMotionChecks()]) {
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 맞는 동작 시험: ${name}${note ? ` (${note})` : ''}`);
 }
@@ -922,7 +922,6 @@ function attackChecks() {
   return results;
 }
 
-/** 필살기 연출 (캐릭터 기획서 '필살기 연출'): 맞으면 고정·장면 재생·끝에 한 번에, 빗나가면 큰 빈틈, 막히면 연출 없음 */
 /**
  * 공통 맞는 동작 (docs/공통동작사양서.md): 약하게 맞음은 12프레임·기본 20틱, 늘어나는 프레임은 5번.
  * 경직이 길면 5번만 늘고, 짧으면 줄여서 모든 프레임을 차례로 보이고 기준 자세(12번)로 끝난다.
@@ -979,6 +978,152 @@ function hitMotionChecks() {
   return results;
 }
 
+/**
+ * 공통 동작 2~7 (docs/공통동작사양서.md): 프레임 수·길이, 늘어나는 프레임, 되풀이, 무적 구간, 다음 동작을 실제 대전 상태로 확인
+ */
+function commonMotionChecks() {
+  const results = [];
+  const R = sim.RULES;
+  const I = sim;
+  const mf = (n) => sim.motionFrames(n);
+  // 1) 프레임 수와 기본 길이 (사양서 표)
+  const spec = [['hit_light', 12, 20], ['hit_heavy', 14, 32], ['guard_crush', 12, 44], ['hit_air', 12, 24], ['knockdown', 14, 32], ['getup', 12, 24], ['tech', 12, 18]];
+  const got = spec.map(([n, f, t]) => [n, mf(`common/${n}`).dur.length === f && mf(`common/${n}`).total === t, `${mf(`common/${n}`).dur.length}·${mf(`common/${n}`).total}`]);
+  results.push(['공통 동작 7개의 프레임 수·기본 길이가 사양서대로', got.every((g) => g[1]), got.map((g) => `${g[0]} ${g[2]}`).join(', ')]);
+  // 2) sim 길이·무적이 동작과 맞는다
+  const cum = (n, k) => mf(`common/${n}`).cum[k - 1];
+  const timing = R.CRUSH_TICKS === 44 && R.KNOCKDOWN_TICKS === mf('common/knockdown').total + R.KNOCKDOWN_WAIT && R.GETUP_TICKS === mf('common/getup').total
+    && R.GETUP_INVULN === cum('getup', 10) && R.TECH_TICKS === mf('common/tech').total && R.TECH_INVULN === cum('tech', 8);
+  results.push(['sim 길이·무적이 사양서 값과 같다', timing,
+    `크러시 ${R.CRUSH_TICKS}, 다운 ${R.KNOCKDOWN_TICKS} (그림 32 + 대기 ${R.KNOCKDOWN_WAIT}), 기상 ${R.GETUP_TICKS} (무적 ${R.GETUP_INVULN} = 1~10번), 낙법 ${R.TECH_TICKS} (무적 ${R.TECH_INVULN} = 1~8번)`]);
+  // 3) 세게 맞음: 경직이 짧으면(26틱) 14프레임이 차례로 다 보이고 14번으로 끝나고, 길면(40틱) 6번만 늘어난다
+  const mh = mf('common/hit_heavy');
+  const fit = (m, len, k) => Array.from({ length: len }, (_, t) => sim.frameFitted(m, t, len, k));
+  const spans = (m, fr) => {
+    const c = Array(m.dur.length).fill(0);
+    for (const i of fr) c[i]++;
+    return c;
+  };
+  const h26 = fit(mh, 26, 5);
+  const h40 = spans(mh, fit(mh, 40, 5));
+  results.push(['세게 맞음: 경직 26틱이면 14프레임이 차례로 다 보이고, 40틱이면 6번 프레임만 8틱 늘어난다',
+    spans(mh, h26).every((n) => n >= 1) && h26[25] === 13 && h40.every((n, i) => (i === 5 ? n === mh.dur[5] + 8 : n === mh.dur[i])), `26틱 ${spans(mh, h26).join(' ')} / 40틱 ${h40.join(' ')}`]);
+
+  /** 대전 상태: 1P x0, 2P x1 (서로 마주 봄) */
+  const fresh = (x0, x1) => {
+    const s = sim.createState(1);
+    while (s.phase !== 'fight') sim.step(s, [0, 0]);
+    s.fighters[0].x = x0 * 256;
+    s.fighters[1].x = x1 * 256;
+    return s;
+  };
+  /** n틱 동안 [1P, 2P] 입력을 넣으며 2P의 모드·그림·프레임·맞는 상자를 모은다 */
+  const watch = (s, n, inputs) => {
+    const log = [];
+    for (let t = 0; t < n; t++) {
+      sim.step(s, inputs(t, s));
+      const d = s.fighters[1];
+      const p = sim.fighterPose(d);
+      log.push({ mode: d.mode, motion: p.motion, frame: p.frame + 1, hurt: !!sim.boxesOf(d).hurt, hitstop: d.hitstop, ev: s.events });
+    }
+    return log;
+  };
+  const framesOf = (log, motion) => log.filter((l) => l.motion === motion).map((l) => l.frame);
+  const ordered = (fr) => fr.length > 0 && fr.every((v, i) => i === 0 || v === fr[i - 1] || v === fr[i - 1] + 1);
+
+  // 4) 세게 맞음 실제: 대시 공격(경직 26틱)에 맞으면 1번부터 14번까지
+  {
+    const s = fresh(2400, 2500);
+    const log = watch(s, 70, (t) => [t === 0 ? I.IN_DASH | I.IN_RIGHT : t === 3 ? I.IN_ATTACK : 0, 0]);
+    const fr = framesOf(log, 'common/hit_heavy');
+    results.push(['세게 맞음: 대시 공격에 맞으면 1번부터 14번까지 차례로', ordered(fr) && fr[0] === 1 && fr[fr.length - 1] === 14, [...new Set(fr)].join(' ')]);
+  }
+  // 5) 가드 크러시 실제: 막다가 방어가 깨지면 44틱 동안 1번부터 12번까지, 그동안 맞는 판정은 켜져 있다
+  {
+    const s = fresh(2400, 2440);
+    s.fighters[1].guard = 1;
+    const log = watch(s, 90, (t) => [t === 2 ? I.IN_ATTACK : 0, I.IN_DOWN]);
+    const crush = log.filter((l) => l.mode === 'crush' && l.hitstop === 0);
+    const fr = framesOf(log.filter((l) => l.mode === 'crush'), 'common/guard_crush');
+    // 히트스톱이 끝난 뒤 44틱 (히트스톱 동안은 1번 프레임에 멈춰 있다)
+    results.push(['가드 크러시: 방어가 깨지면 히트스톱 뒤 44틱 동안 1번부터 12번까지, 무적 없음', crush.length === R.CRUSH_TICKS && ordered(fr) && fr[0] === 1 && fr[fr.length - 1] === 12 && crush.every((l) => l.hurt),
+      `크러시 ${crush.length}틱, 프레임 ${[...new Set(fr)].join(' ')}`]);
+  }
+  // 6) 공중에서 맞음 실제: 띄우기에 맞으면 1~9번은 한 번, 그 뒤 떨어지는 동안 10·11·12번을 되풀이, 바닥에 닿으면 다운
+  {
+    const s = fresh(2400, 2440);
+    const log = watch(s, 140, (t) => [t === 0 ? I.IN_ATTACK | I.IN_UP : 0, 0]);
+    const air = log.filter((l) => l.mode === 'airhit' && l.hitstop === 0).map((l) => l.frame);
+    const head = air.slice(0, air.indexOf(10));
+    const tail = air.slice(air.indexOf(10));
+    const loops = tail.every((v, i) => i === 0 || v === tail[i - 1] || v === (tail[i - 1] === 12 ? 10 : tail[i - 1] + 1));
+    const kd = log.findIndex((l) => l.mode === 'knockdown');
+    results.push(['공중에서 맞음: 1~9번은 한 번, 그 뒤 10·11·12번을 되풀이하다 바닥에 닿으면 다운', ordered(head) && head[0] <= 2 && tail.length > 8 && tail.includes(12) && loops && kd > 0 && log[kd].motion === 'common/knockdown',
+      `앞 ${[...new Set(head)].join(' ')} / 되풀이 ${tail.slice(0, 12).join(' ')}… (${tail.length}틱) → ${kd > 0 ? log[kd].motion : '다운 없음'}`]);
+  }
+  // 7) 공중에서 다시 맞으면 1번부터: 연속 장면(대시 공격 → 차지 → 점프 → 공중 3타)의 공중 타격마다 2P가 1번 프레임
+  {
+    const st = sim.createState(1);
+    while (st.tick < 75) sim.step(st, [0, 0]);
+    Object.assign(st.fighters[0], { x: 2196 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: 1 });
+    Object.assign(st.fighters[1], { x: 2296 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: -1 });
+    for (let i = 0; i < 70; i++) sim.step(st, [0, 0]);
+    const RT = I.IN_RIGHT;
+    const seq = [[0, 6], [I.IN_DASH, 1], [0, 2], [I.IN_ATTACK, 19], [0, 4], [I.IN_JUMP | RT, 1], [RT, 14], [I.IN_ATTACK | RT, 1], [RT, 6], [I.IN_ATTACK | RT, 1], [RT, 6], [I.IN_ATTACK | RT, 1], [0, 30]].flatMap(([b, n]) => Array(n).fill(b));
+    const at = [];
+    for (const inp of seq) {
+      sim.step(st, [inp, 0]);
+      if (st.events.some((e) => e.type === 'hit' && e.who === 0 && String(e.move).startsWith('air'))) at.push(sim.fighterPose(st.fighters[1]));
+    }
+    results.push(['공중에서 다시 맞으면 1번부터 다시', at.length === 3 && at.every((p) => p.motion === 'common/hit_air' && p.frame === 0), at.map((p) => `${p.motion.split('/')[1]}#${p.frame + 1}`).join(' ')]);
+  }
+  // 8) 다운·기상 실제: 쓸기에 맞아 넘어지면 다운 1번부터 14번에서 멈춰 누워 있고 (내내 무적), 기상 24틱 중 앞 20틱만 무적
+  {
+    const s = fresh(2400, 2440);
+    const log = watch(s, 200, (t) => [t === 0 ? I.IN_ATTACK | I.IN_DOWN : 0, 0]);
+    const kd = log.filter((l) => l.mode === 'knockdown');
+    const fr = kd.map((l) => l.frame);
+    const gu = log.filter((l) => l.mode === 'getup');
+    const guHurt = gu.map((l) => (l.hurt ? 1 : 0)).join('');
+    const after = log.findIndex((l, i) => i > 0 && log[i - 1].mode === 'getup' && l.mode !== 'getup');
+    results.push(['다운: 1번부터 14번까지 한 번, 14번에서 멈춘 채 누워 기다리고 내내 무적', ordered(fr) && fr[0] === 1 && fr[fr.length - 1] === 14 && fr.filter((v) => v === 14).length >= R.KNOCKDOWN_WAIT && kd.length === R.KNOCKDOWN_TICKS && kd.every((l) => !l.hurt),
+      `다운 ${kd.length}틱, 14번 ${fr.filter((v) => v === 14).length}틱, 맞는 판정 ${kd.some((l) => l.hurt) ? '있음' : '없음'}`]);
+    results.push(['기상: 24틱, 1~10번(20틱)은 무적이고 11~12번은 맞는다, 끝나면 대기', gu.length === R.GETUP_TICKS && guHurt === '0'.repeat(R.GETUP_INVULN) + '1'.repeat(R.GETUP_TICKS - R.GETUP_INVULN) && after > 0 && log[after].mode === 'idle',
+      `기상 ${gu.length}틱, 맞는 판정 ${guHurt}, 다음 ${after > 0 ? log[after].mode : '-'}`]);
+  }
+  // 9) 낙법 실제: 콤보 다섯 대째가 넘은 채 공중에서 맞고 있을 때 점프 → 18틱, 1~8번(12틱) 무적, 끝나면 낙하
+  {
+    const s = fresh(2400, 2440);
+    let pressed = -1;
+    const log = watch(s, 60, (t, st) => {
+      const d = st.fighters[1];
+      // 띄우기에 맞아 공중에 뜨면 콤보를 다섯 대째로 (낙법 가능), 히트스톱이 끝나면 점프
+      if (d.mode === 'airhit' && d.comboHits < R.TECH_HITS) d.comboHits = R.TECH_HITS;
+      const go = pressed < 0 && d.mode === 'airhit' && d.hitstop === 0;
+      if (go) pressed = t;
+      return [t === 0 ? I.IN_ATTACK | I.IN_UP : 0, go ? I.IN_JUMP : 0];
+    });
+    const tech = log.filter((l) => l.mode === 'tech');
+    const fr = tech.map((l) => l.frame);
+    const hurt = tech.map((l) => (l.hurt ? 1 : 0)).join('');
+    const end = log.findIndex((l, i) => i > 0 && log[i - 1].mode === 'tech' && l.mode !== 'tech');
+    results.push(['낙법: 18틱 동안 1번부터 12번까지, 1~8번(12틱)은 무적, 끝나면 낙하(공중)', tech.length === R.TECH_TICKS && ordered(fr) && fr[0] <= 2 && fr[fr.length - 1] === 12
+      && hurt.startsWith('0'.repeat(R.TECH_INVULN - 1)) && hurt.endsWith('1'.repeat(R.TECH_TICKS - R.TECH_INVULN)) && end > 0 && ['air', 'land'].includes(log[end].mode),
+      `낙법 ${tech.length}틱, 프레임 ${[...new Set(fr)].join(' ')}, 맞는 판정 ${hurt}, 다음 ${end > 0 ? log[end].mode : '-'}`]);
+  }
+  // 10) 쓰러짐: 공중에서 쓰러져 바닥에 닿으면 다운 그림을 1번부터
+  {
+    const s = fresh(2400, 2440);
+    s.fighters[1].hp = 1;
+    const log = watch(s, 140, (t) => [t === 0 ? I.IN_ATTACK | I.IN_UP : 0, 0]);
+    const landAt = log.findIndex((l, i) => i > 0 && l.mode === 'ko' && l.motion === 'common/knockdown' && log[i - 1].motion !== 'common/knockdown');
+    results.push(['쓰러짐: 날아가는 동안 공중에서 맞음, 바닥에 닿으면 다운 1번부터', landAt > 0 && log[landAt].frame === 1 && log.slice(0, landAt).some((l) => l.mode === 'ko' && l.motion === 'common/hit_air'),
+      landAt > 0 ? `바닥에 닿은 틱 다운 ${log[landAt].frame}번` : '바닥에 닿지 않음']);
+  }
+  return results;
+}
+
+/** 필살기 연출 (캐릭터 기획서 '필살기 연출'): 맞으면 고정·장면 재생·끝에 한 번에, 빗나가면 큰 빈틈, 막히면 연출 없음 */
 function cineChecks() {
   const results = [];
   const I = sim;

@@ -56,7 +56,8 @@ export const GUARD_MAX = 100;
 export const GUARD_REGEN_DELAY = 40;
 /** 이 틱마다 1씩 참 */
 export const GUARD_REGEN_EVERY = 3;
-export const CRUSH_TICKS = 50;
+/** 가드 크러시 길이 (공통 동작 사양서 '가드 크러시' 기본 44틱, 그동안 아무것도 못 한다) */
+export const CRUSH_TICKS = 44;
 
 // 기력 (3칸)
 export const METER_BAR = 100;
@@ -79,7 +80,9 @@ export const STUN_DECAY_STEP = 2;
 export const STUN_DECAY_MIN = 50;
 /** 콤보 중 이만큼 맞으면 낙법 가능 */
 export const TECH_HITS = 5;
-export const TECH_TICKS = 14;
+/** 낙법 길이와 무적 (공통 동작 사양서 '낙법': 18틱, 회전하는 1~8번 = 12틱 무적) */
+export const TECH_TICKS = 18;
+export const TECH_INVULN = 12;
 /** 낙법: 뒤로 몸을 돌려 빠져나가는 속도 */
 export const TECH_VX = px(2.6);
 export const TECH_VY = px(-5.5);
@@ -99,8 +102,14 @@ export const AIR_HIT_DEFAULT = { vx: 1.6, vy: -4.0 };
 export const SPIKE_VY = px(11);
 export const BOUNCE_VY = px(-5);
 
-export const KNOCKDOWN_TICKS = 40;
-export const GETUP_TICKS = 26;
+/**
+ * 다운과 기상 (공통 동작 사양서): 다운 동작 32틱 + 누운 채 대기 30틱 (내내 무적).
+ * 기상 24틱, 그중 1~10번(20틱)만 무적이고 11~12번은 다시 맞는다
+ */
+export const KNOCKDOWN_WAIT = 30;
+export const KNOCKDOWN_TICKS = 32 + KNOCKDOWN_WAIT;
+export const GETUP_TICKS = 24;
+export const GETUP_INVULN = 20;
 /** 맞은 쪽이 하얗게 번쩍이는 틱 */
 export const FLASH_TICKS = 6;
 /** 막았을 때 히트스톱은 이만큼 짧게 (최소 4) */
