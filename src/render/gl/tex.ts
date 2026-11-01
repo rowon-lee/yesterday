@@ -142,7 +142,10 @@ function upperWindow(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingC
     const hot = warm ? C.windowLight : '#7a8478';
     rect(g, x, y, ww, hh, col);
     rect(e, x, y, ww, hh, glowCol);
-    ditherRect(e, x, y, ww, 6, hot, 8);
+    ditherRect(e, x, y + 2, ww, 4, hot, 8);
+    // 천장 등 줄: 창 안에서 가장 밝은 곳 (하얗게 날아간 빛: 켜진 창은 광원)
+    rect(g, x, y, ww, 2, warm ? '#ffe2a8' : '#e8fff8');
+    rect(e, x, y, ww, 2, warm ? '#fff4d8' : '#c8f6ff');
     f.lit.push({ x: x + ww / 2, y: y + hh / 2, warm });
     const kind = rnd(seed, 23);
     if (kind < 0.35) {
@@ -429,8 +432,11 @@ function paintTheater(f: Facade, g: CanvasRenderingContext2D, e: CanvasRendering
   for (let i = 0; i < 4; i++) {
     const dx = 36 + i * 26 + (i >= 2 ? 6 : 0);
     rect(g, dx, yOf(66), 20, T(66), C.iron);
+    // 로비 유리문: 샹들리에 빛이 쏟아지는 문 윗부분은 하얗게 날아간 빛 (극장 입구는 거리에서 가장 밝은 곳)
     rect(g, dx + 2, yOf(64), 16, T(40), C.windowLit);
-    rect(e, dx + 2, yOf(64), 16, T(40), C.windowLit);
+    rect(e, dx + 2, yOf(64), 16, T(40), '#ad5a20');
+    rect(g, dx + 2, yOf(64), 16, T(14), '#ffe2a8');
+    rect(e, dx + 2, yOf(64), 16, T(14), '#fff4d8');
     rect(g, dx + 9, yOf(64), 2, T(64), C.iron);
     rect(g, dx + 4, yOf(30), 12, 1, C.chrome);
   }
@@ -503,8 +509,8 @@ export function paintCornice(w: number, h: number, seed: number): HTMLCanvasElem
 export function paintAwning(w: number, h: number, stripe: string, base: string): HTMLCanvasElement {
   const [c, g] = canvas(Math.max(2, w), Math.max(2, h));
   for (let x = 0; x < w; x++) rect(g, x, 0, 1, h - 2, Math.floor(x / 6) % 2 ? stripe : base);
-  for (let x = 0; x < w; x += 6) rect(g, x, h - 2, 3, 2, base);
-  rect(g, 0, 0, w, 1, C.smog1);
+  // 물결 단: 위 줄무늬 색을 그대로 이어서 (어두운 이빨 줄이 외곽선처럼 서지 않게)
+  for (let x = 0; x < w; x += 6) rect(g, x, h - 2, 3, 2, Math.floor(x / 6) % 2 ? stripe : base);
   ditherRect(g, 0, 0, w, h, C.smog1, 4);
   return c;
 }
@@ -614,7 +620,8 @@ export function paintCar(w: number, h: number, paint: string, seed: number, dent
   }
   // 빗물 얼룩과 녹
   for (let k = 0; k < 5; k++) rect(g, 6 + Math.floor(rnd(seed, 700 + k) * (w - 12)), base - 6 + Math.floor(rnd(seed, 710 + k) * 3), 2, 1, C.rust);
-  line(g, 4, base - 3, w - 4, base - 3, C.smog0);
+  // 차 밑 그늘 (선이 아니라 두 줄 면)
+  rect(g, 4, base - 3, w - 8, 2, C.smog0);
   return { map, glow };
 }
 

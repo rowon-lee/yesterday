@@ -130,10 +130,11 @@ export function paintTram(dir: number): { map: HTMLCanvasElement; glow: HTMLCanv
   rect(g, 10, G - 12, L - 20, 2, C.iron);
   rect(g, 30, G - 59, L - 60, 3, C.chromeDark);
   for (let wx = 14, k = 0; wx + 10 < L - 14; wx += 13, k++) {
+    // 줄지어 빛나는 창 띠: 천장 등 바로 밑 세 줄은 하얗게 날아간 빛 (광원)
     rect(g, wx, G - 46, 11, 13, C.windowLit);
-    rect(e, wx, G - 46, 11, 13, C.windowLit);
-    rect(g, wx, G - 46, 11, 2, C.windowLight);
-    rect(e, wx, G - 46, 11, 2, C.windowLight);
+    rect(e, wx, G - 46, 11, 13, '#ad5a20');
+    rect(g, wx, G - 46, 11, 3, '#ffe2a8');
+    rect(e, wx, G - 46, 11, 3, '#fff4d8');
     if (hash(k * 31 + 7) < 0.6) {
       const px = wx + 3 + Math.floor(hash(k * 17) * 5);
       disc(g, px, G - 40, 2, C.iron);
@@ -256,7 +257,7 @@ export class Life {
   readonly group = new THREE.Group();
   private readonly tram: THREE.Mesh;
   private readonly tramMats: THREE.ShaderMaterial[];
-  private readonly headBeam = new Beam(150, 18, C.lampGlow, 0.3, 2);
+  private readonly headBeam = new Beam(150, 18, C.lampGlow, 0.2, 2);
   private readonly sparks = new Sparks(160);
   private readonly walkers = new Walkers();
   private readonly walkerSprites: FarSprites;

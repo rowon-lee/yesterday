@@ -189,10 +189,12 @@ function neonSigns(): Breakable[] {
       const w = textW(b.sign, 3) + 20;
       add(bi, 'board', b.sign, 'red', b.x + Math.floor((b.w - w) / 2), w, a.h + 10, 30, true);
     } else if (a && b.sign) {
-      const w = textW(b.sign, 2) + 10;
+      // 호텔은 위층 세로 네온이 HOTEL이라 1층 간판은 ROOMS (같은 글자가 한 화면에 두 번 나오지 않게)
+      const shopText = b.sign === 'HOTEL' ? 'ROOMS' : b.sign;
+      const w = textW(shopText, 2) + 10;
       const sec = D.sections.find((s) => s.id === b.section)!;
       const towardRight = b.x + b.w / 2 < (sec.x0 + sec.x1) / 2;
-      add(bi, 'shop', b.sign, color, towardRight ? a.x1 - w - 6 : a.x0 + 6, w, a.h + 1, 14, false);
+      add(bi, 'shop', shopText, color, towardRight ? a.x1 - w - 6 : a.x0 + 6, w, a.h + 1, 14, false);
     }
     // 호텔은 위층에 세로 네온을 하나 더 단다
     if (b.sign === 'HOTEL') add(bi, 'blade', 'HOTEL', 'cyan', b.x + b.w - 26, 16, 100, SIGN_TOP - 100, false);

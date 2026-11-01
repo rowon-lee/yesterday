@@ -7,7 +7,7 @@ import { hash } from '../dither';
 import { textWidth } from '../font';
 import { FRONT_Z } from './buildings';
 import { Flame, Puffs, Sparks, WaterColumn } from './fx';
-import { box, Details, facedBox, Geo, plane } from './kit';
+import { box, Details, facedBox, FREE, Geo, plane, type UvFn } from './kit';
 import { lightPool } from './lights';
 import { registerSign } from './signs';
 import {
@@ -33,7 +33,7 @@ const SIGN_ROLE: Record<string, SignRole> = {
   'marquee:TONIGHT': 'marquee',
   'board:DINER': 'dim',
   'blade:HOTEL': 'flicker',
-  'shop:HOTEL': 'off',
+  'shop:ROOMS': 'off',
   'shop:BAKERY': 'off',
   'shop:RADIO': 'hero',
   'shop:LAUNDRY': 'flicker',
@@ -218,10 +218,15 @@ class LampView implements View {
   /** 쓰러진 머리 쪽 길에 흩어진 유리 조각 (오른쪽·왼쪽으로 쓰러졌을 때) */
   private readonly bits: THREE.Mesh[];
 
+  private readonly dark: boolean;
+  private readonly faulty: boolean;
+
   constructor(private readonly owner: Props, b: Breakable, private readonly i: number, det: Details) {
     const cx = b.x + b.w / 2;
     this.cx = cx;
     this.side = i % 2 ? -1 : 1;
+    this.dark = (D.breakables.lampsDark as readonly number[]).includes(Math.round(cx));
+    this.faulty = (D.breakables.lampsFlicker as readonly number[]).includes(Math.round(cx));
     // 밑동 (쓰러져도 남는다)
     det.add(cx - 4, cx + 5, 0, 4, LAMP_Z - 4, LAMP_Z + 4, C.iron);
     // 기둥 아래 (밑동 위 4에서 돌아 쓰러진다)
@@ -274,7 +279,9 @@ class LampView implements View {
       this.bits[0].visible = p.stage === 2 && dir > 0;
       this.bits[1].visible = p.stage === 2 && dir < 0;
     }
-    const flick = p.stage === 1 ? hash((tick >> 2) * 31 + this.i * 7) < 0.45 : hash((tick >> 3) * 31 + this.i * 7) < 0.03;
+    // 꺼진 가로등은 켜지지 않고, 낡은 가로등은 자주 끊긴다 (데이터 lampsDark·lampsFlicker)
+    const base = this.dark ? 1 : this.faulty ? 0.3 : 0.03;
+    const flick = p.stage === 1 ? hash((tick >> 2) * 31 + this.i * 7) < 0.45 : hash((tick >> 3) * 31 + this.i * 7) < base;
     const on = p.stage < 2 && !flick;
     this.lens.uniforms.emissiveStrength.value = on ? 3 : 0;
     this.shaft.visible = on;
@@ -362,7 +369,8 @@ function signLevel(role: SignRole, p: PropState, tick: number, i: number): numbe
     on = hash((tick >> 2) * 131 + i * 17) > (p.stage === 1 ? 0.45 : 0.22);
   }
   if (!on) return 0;
-  return role === 'hero' ? 2.4 : role === 'dim' ? 0.9 : role === 'board' ? 1.3 : 1.5;
+  // 주인공만 세게, 나머지는 한 단계 낮게 (청록·호박 간판은 색만으로도 밝아 더 낮춘다)
+  return role === 'hero' ? 2.4 : role === 'dim' ? 0.6 : role === 'board' ? 1.0 : 0.95;
 }
 
 function brokenSparks(owner: Props, p: PropState, tick: number, i: number, x: number, y: number, z: number, color: string): void {
@@ -386,9 +394,9 @@ class SignView implements View {
   private readonly wire: THREE.Mesh;
 
   constructor(private readonly owner: Props, private readonly b: Breakable, private readonly i: number, det: Details) {
-    const t: SignTex = paintSign(b, i);
-    this.tex = { map: pixelTexture(t.map), broken: pixelTexture(t.broken), glows: t.glows.map(pixelTexture), damaged: pixelTexture(t.damaged) };
     this.role = roleOf(b);
+    const t: SignTex = paintSign(b, i, this.role === 'hero');
+    this.tex = { map: pixelTexture(t.map), broken: pixelTexture(t.broken), glows: t.glows.map(pixelTexture), damaged: pixelTexture(t.damaged) };
     this.mat = litMaterial(this.tex.map, { emissive: this.tex.glows[0], emissiveStrength: 0 });
     const w = Math.round(b.w);
     const h = Math.round(b.h);
@@ -403,7 +411,13 @@ class SignView implements View {
       // 다이너 판: 차양 위 받침 두 개
       for (const x of [b.x + 6, b.x + w - 8]) det.add(x, x + 2, D.ledges.awning, b.bottom, FRONT_Z + 1, FRONT_Z + 3, C.iron);
     }
-    this.mesh = box(b.x, b.x + w, b.bottom, b.bottom + h, z0, this.z1, this.mat);
+    if (b.style === 'blade') {
+      // 세로 간판 옆면은 빛나는 테두리 관 줄을 쓴다 (어두운 1px 옆면이 외곽선처럼 서지 않게: 옆면도 네온 빛을 받는다)
+      const geo = new Geo();
+      const uv: UvFn = (f, x, y) => [f === 'px' || f === 'nx' ? 1.5 / w : (x - b.x) / w, (y - b.bottom) / h];
+      geo.box('s', b.x, b.x + w, b.bottom, b.bottom + h, z0, this.z1, uv, FREE);
+      this.mesh = geo.build({ s: this.mat });
+    } else this.mesh = box(b.x, b.x + w, b.bottom, b.bottom + h, z0, this.z1, this.mat);
     if (b.text) registerSign(b.text, `간판(${b.style ?? 'flat'})`, b.x, b.x + w, b.bottom, b.bottom + h, this.z1, w, w);
     // 깨진 뒤 늘어진 전선
     this.wire = box(b.x + w - 6, b.x + w - 5, b.bottom - 14, b.bottom, this.z1 - 1, this.z1, litMaterial(pixelTexture(solid(C.iron))));
@@ -448,7 +462,8 @@ class MarqueeView implements View {
     const m = marqueeOf(FRONT[b.b])!;
     if (b.text) registerSign(b.text, '극장 차양', m.x0, m.x1, m.h - 22, m.h, 8, textWidth(b.text, 2), m.x1 - m.x0 - 4);
     const geo = new Geo();
-    geo.attachedBox(b.b, 'm', m.x0, m.x1, m.h - 22, m.h, FRONT_Z, 8, (f, x, y) => [(x - m.x0) / w, f === 'py' ? 0.95 : (y - (m.h - 22)) / 22]);
+    // 아랫면(처마 밑)은 전구가 박힌 밝은 판 줄을 쓴다: 어두운 1px 띠가 아니라 불 켜진 처마 (극장 입구가 거리에서 가장 밝다)
+    geo.attachedBox(b.b, 'm', m.x0, m.x1, m.h - 22, m.h, FRONT_Z, 8, (f, x, y) => [(x - m.x0) / w, f === 'py' ? 0.95 : f === 'ny' ? 0.55 : (y - (m.h - 22)) / 22]);
     owner.group.add(geo.build({ m: this.mat }));
   }
 

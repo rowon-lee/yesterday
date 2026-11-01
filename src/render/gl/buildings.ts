@@ -120,7 +120,8 @@ export class Buildings {
     const geo = new Geo();
     for (const id of ['theater', 'apartments'] as const) {
       const sec = D.sections.find((s) => s.id === id)!;
-      const uv: UvFn = (f, x, y, z) => (f === 'py' ? [x / 64, (z - FRONT_Z) / 16] : [x / 64, (y + 2) / 16]);
+      // 연석 앞면은 밝은 연석 줄 (젖은 모서리가 빛을 받는다: 어두운 1px 턱이 외곽선처럼 서지 않게)
+      const uv: UvFn = (f, x, y, z) => (f === 'py' ? [x / 64, (z - FRONT_Z) / 16] : f === 'pz' ? [x / 64, 0.97] : [x / 64, (y + 2) / 16]);
       geo.box('w', sec.x0 - (id === 'theater' ? 20 : 0), sec.x1, -2, 2, FRONT_Z, -24, uv);
     }
     walk.uniforms.map.value.wrapS = THREE.RepeatWrapping;
@@ -186,8 +187,9 @@ export class Buildings {
       const aw = a.x1 - a.x0;
       const tex = litMaterial(pixelTexture(paintAwning(aw, 14, stripe, base)), { attached: true });
       const ag = new Geo();
-      const auv: UvFn = (fc, x, y) => [(x - a.x0) / aw, fc === 'py' ? 0.9 : (y - (a.h - 14)) / 14];
-      ag.attachedBox(bi, 'a', a.x0, a.x1, a.h - 3, a.h, FRONT_Z, 4, auv, ['py', 'px', 'nx']);
+      // 아랫면(천 안쪽)도 둔다: 진열창 불빛을 받는 줄무늬 천 (어두운 1px 틈이 아니라 면)
+      const auv: UvFn = (fc, x, y) => [(x - a.x0) / aw, fc === 'py' ? 0.9 : fc === 'ny' ? 0.5 : (y - (a.h - 14)) / 14];
+      ag.attachedBox(bi, 'a', a.x0, a.x1, a.h - 3, a.h, FRONT_Z, 4, auv, ['py', 'ny', 'px', 'nx']);
       ag.attachedBox(bi, 'a', a.x0, a.x1, a.h - 14, a.h, 4, 5, auv, ['pz', 'py', 'px', 'nx']);
       group.add(ag.build({ a: tex }));
     }

@@ -62,7 +62,8 @@ export function paintGlass(b: Breakable, i: number, shop: string, stage: number)
   }
   // 가게 안: 천장 등마다 벽에 떨어지는 빛 웅덩이 (rooms.ts), 가게마다 다른 살림과 사람 실루엣
   const ramp = shop === 'LAUNDRY' ? FLUO : WARM;
-  roomWall(g, e, 0, 0, w, h, [[w * 0.28, 1, w * 0.3, h * 0.9, 0.62], [w * 0.74, 1, w * 0.28, h * 0.9, 0.55], [w * 0.5, h, w * 0.6, h * 0.3, 0.25]], 0.26, ramp, 8);
+  // 천장 등 바로 밑은 하얗게 날아간 빛의 심 (불 켜진 가게 창은 광원)
+  roomWall(g, e, 0, 0, w, h, [[w * 0.28, 1, w * 0.3, h * 0.9, 0.85], [w * 0.74, 1, w * 0.28, h * 0.9, 0.78], [w * 0.5, h, w * 0.6, h * 0.3, 0.25]], 0.26, ramp, 8);
   const foot = h - 3;
   if (shop === 'LAUNDRY') {
     // 세탁기 줄 (둥근 유리문), 의자에 앉아 기다리는 사람
@@ -228,8 +229,21 @@ export interface SignTex {
   damaged: HTMLCanvasElement;
 }
 
-export function paintSign(b: Breakable, i: number): SignTex {
-  const [bright, dark] = NEON_HEX[b.color ?? 'pink'];
+/** 주인공 간판 관의 심 (하얗게 날아간 빛: 흑백 200 이상)과 관 둘레 번짐 (그 색의 진한 빛) */
+const NEON_HERO: Record<string, [string, string]> = {
+  pink: ['#ffd6ee', '#b42d86'],
+  cyan: ['#c8f6ff', '#2c9cbe'],
+  amber: ['#ffe2a8', '#ad5a20'],
+  green: ['#b0f0c8', '#338c66'],
+  red: ['#ffd0c8', '#a82c2a'],
+};
+
+/**
+ * 네온 간판 그림. hero(구간의 주인공 간판)면 네온 네 겹의 앞 두 겹을 세게: 관은 하얗게 날아간 심, 관 둘레는 그 색의 진한 번짐
+ * (분홍·빨강은 색만으로는 흑백 밝기가 낮아 주인공인데도 청록 간판보다 어두워 보인다)
+ */
+export function paintSign(b: Breakable, i: number, hero = false): SignTex {
+  const [bright, dark] = hero ? NEON_HERO[b.color ?? 'pink'] : NEON_HEX[b.color ?? 'pink'];
   const w = Math.round(b.w);
   const h = Math.round(b.h);
   const text = b.text ?? '';
@@ -243,8 +257,9 @@ export function paintSign(b: Breakable, i: number): SignTex {
       }
       neonText(gg, dead(k) || broken ? SCRATCH : ee, ch, x, y, s, bright, dark);
     };
+    // 간판 바깥 테두리는 어두운 선이 아니라 네온 빛을 받은 쇠 모서리 (무테: 형태는 빛으로 세운다)
     if (b.style === 'blade') {
-      rect(g, 0, 0, w, h, C.iron);
+      rect(g, 0, 0, w, h, C.chrome);
       rect(g, 1, 1, w - 2, h - 2, '#1a1418');
       for (const [x, y, ww, hh] of [[1, 1, w - 2, 1], [1, h - 2, w - 2, 1], [1, 1, 1, h - 2], [w - 2, 1, 1, h - 2]] as const) {
         rect(g, x, y, ww, hh, dark);
@@ -261,7 +276,8 @@ export function paintSign(b: Breakable, i: number): SignTex {
         rect(e, w - 2, h - 1 - y, 1, 1, C.lampCore);
       }
     } else if (b.style === 'board') {
-      rect(g, 0, 0, w, h, C.iron);
+      rect(g, 0, 0, w, h, C.chromeDark);
+      rect(g, 0, 0, w, 1, C.chrome);
       rect(g, 2, 2, w - 4, h - 4, '#1c1216');
       for (let x = 2, k = 0; x < w - 2; x += 4, k++) {
         for (const y of [0, h - 2]) {
@@ -275,7 +291,7 @@ export function paintSign(b: Breakable, i: number): SignTex {
       // 다이너는 N 한 글자가 죽어 있다 ("DI ER")
       if (text === 'DINER') rect(e, Math.floor((w - tw) / 2) + 2 * 12, 0, 11, h, '#000000');
     } else {
-      rect(g, 0, 0, w, h, C.iron);
+      rect(g, 0, 0, w, h, C.chromeDark);
       rect(g, 1, 1, w - 2, h - 2, C.smog0);
       [...text].forEach((ch, k) => tube(g, e, ch, 4 + k * 8, Math.floor((h - 10) / 2), 2, k));
     }
@@ -298,6 +314,9 @@ export function paintMarquee(w: number, text: string, i: number): SignTex {
   const draw = (phase: number, alive: (k: number) => boolean, broken: boolean): Pair => {
     const [map, g, glow, e] = pair(w, h);
     rect(g, 0, 0, w, h, C.iron);
+    // 위·아래 모서리는 전구 빛을 받은 쇠 (어두운 1px 띠가 외곽선처럼 서지 않게)
+    rect(g, 0, 0, w, 1, C.chrome);
+    rect(g, 0, h - 1, w, 1, C.chrome);
     rect(g, 2, 5, w - 4, 12, C.paintCream);
     if (!broken) rect(e, 2, 5, w - 4, 12, '#2c271f');
     for (let x = 2, k = 0; x < w - 2; x += 4, k++) {
