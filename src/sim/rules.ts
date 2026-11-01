@@ -15,7 +15,8 @@ export const WALL_R = px(MAP_ENDS.right);
 /** 두 사람은 화면 한 칸 안에서 벗어날 수 없다 */
 export const MAX_SEPARATION = px(440);
 /** 몸끼리 겹치지 않는 폭 */
-export const PUSH_W = px(14);
+/** 두 캐릭터 몸 중심의 최소 거리 (동작연출지침서 4장 '최소 16px', 이전 14px) */
+export const PUSH_W = px(16);
 export const PUSH_H = px(40);
 
 // 라운드 (3판 2선승, 60초)

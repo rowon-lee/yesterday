@@ -31,6 +31,16 @@ export interface MoveData {
   heavy?: boolean;
   /** 이 프레임 동안 앞으로 이동 */
   step?: { from: number; to: number; speed: number };
+  /**
+   * 몸 이동 (동작연출지침서 4장): 프레임마다 앞으로 움직이는 거리 (px, 길이 = 프레임 수, 뒤로는 음수).
+   * 그 프레임의 표시 틱 동안 고르게 나눠 움직인다 (1/256px 정수, 땅·공중 모두). 있으면 step은 쓰지 않는다
+   */
+  advance?: readonly number[];
+  /**
+   * 궤적 상자 (동작연출지침서 4장·7-1장): 판정 프레임 동안 팔다리 구간 판정에 더하는 상자 (발밑 기준, 오른쪽 보는 기준 px).
+   * 라이덴은 번개가 이 상자를 그대로 채운다 (번개 범위 = 판정 범위). shape는 번개·궤적 모양 (렌더가 읽는다)
+   */
+  box?: TrailBox;
   /** 맞히면 점프로 끊고 쫓아갈 수 있다 */
   jumpCancel?: boolean;
   /** 기력 소모 (칸) */
@@ -95,6 +105,19 @@ export interface Cinematic {
 export interface CineActor {
   motion: string;
   pos: ReadonlyArray<readonly [number, number, number]>;
+}
+
+/**
+ * 궤적 상자와 그 안을 채우는 번개·궤적 모양.
+ * line: 앞으로 곧게 뻗는 줄기, arc: 반원(발차기), rise: 아래→위 세로, fall: 위→아래 반원, ground: 바닥을 쓰는 반원,
+ * circle: 원(공중 돌려차기), tail: 몸 뒤로 끌리는 꼬리(대시)
+ */
+export interface TrailBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  shape: 'line' | 'arc' | 'rise' | 'fall' | 'ground' | 'circle' | 'tail';
 }
 
 /** 차지 한 단계 */

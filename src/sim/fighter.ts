@@ -587,7 +587,11 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       const mv = movesOf(f.char)[f.move!];
       if (attackControl(s, f, input)) break;
       if (controllable && tryCharge(s, f)) break;
-      if (mv.blink) blinkControl(s, f, mv);
+      // 몸 이동 (동작연출지침서 4장): 프레임별 이동값대로 자리를 옮긴다 (땅에서는 미끄러지던 속도를 줄인다)
+      if (mv.advance) {
+        f.x += f.facing * (mv.advance[f.t] ?? 0);
+        if (!isAirborne(f)) f.vx = friction(f.vx);
+      } else if (mv.blink) blinkControl(s, f, mv);
       else if (mv.dive) diveControl(s, f, mv);
       else if (mv.step) {
         const fr = frameOf(mv, f.t);

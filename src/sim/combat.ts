@@ -54,7 +54,8 @@ export function hitOf(f: Fighter): WBox | null {
 
 /** 상자 두 개 다 (렌더의 판정 표시용) */
 export function boxesOf(f: Fighter): { hurt: WBox | null; hit: WBox | null } {
-  return { hurt: hurtOf(f), hit: hitOf(f) };
+  // 판정 표시(디버그): 이미 맞혔어도 판정 프레임 동안의 상자를 보인다 (번개 범위와 겹쳐 확인하려고)
+  return { hurt: hurtOf(f), hit: activeHitOf(f) };
 }
 
 /** 둘의 공격을 동시에 판정한다 (서로 맞으면 둘 다 맞음). */
