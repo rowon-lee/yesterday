@@ -33,5 +33,12 @@ export const RAIDEN: CharacterData = {
     guard_hit: 'raiden/guard_hit',
     intro: 'raiden/intro',
     win: 'raiden/win',
+    wall_cling: 'raiden/wall_cling',
+    wall_jump: 'raiden/wall_jump',
+    wall_run: 'raiden/wall_run',
+    wall_tech: 'raiden/wall_tech',
+  },
+  moveMotions: {
+    wallKick: 'raiden/wall_kick',
   },
 };

@@ -213,6 +213,11 @@ function charChecks() {
   const order = seen.slice(seen.indexOf(0), seen.indexOf(0) + m.dur.length + 1).join(',');
   const want = [...m.dur.keys(), 0].join(',');
   out.push([`라이덴 대기 ${m.dur.length}프레임 ${m.total}틱 되풀이`, s.fighters[0].mode === 'idle' && order === want, `프레임 차례 ${order}`]);
+  // 캐릭터가 자기 그림을 쓰는 기술(라이덴 벽 박차기 공격): 그림은 라이덴 것, 판정 프레임·시간은 기본 기술과 같다
+  const rk = sim.movesOf('raiden').wallKick;
+  const bk = sim.movesOf('base').wallKick;
+  out.push(['라이덴 벽 박차기 공격은 라이덴 그림, 시간은 기본 기술과 같음', rk.frames.name === 'raiden/wall_kick' && rk.activeStart === bk.activeStart && rk.activeEnd === bk.activeEnd && rk.total === bk.total,
+    `${rk.frames.name} 판정 ${rk.activeStart}~${rk.activeEnd}틱 / 기본 ${bk.activeStart}~${bk.activeEnd}틱, 전체 ${rk.total}/${bk.total}`]);
   // 라이덴이 낀 CPU 대전: 예외 없이 끝나고, 같은 입력 재생·저장/복원 뒤 같은 해시
   for (const chars of [['raiden', 'base'], ['base', 'raiden'], ['raiden', 'raiden']]) {
     const opts = { chars };

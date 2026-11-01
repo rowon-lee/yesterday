@@ -1,6 +1,6 @@
 import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
-import { BREAKABLES, GRIDS, fighterPose, MOVES, RULES, statsOf, tramRestX, type Fighter, type SimState } from '../sim';
+import { BREAKABLES, GRIDS, fighterPose, MOVES, movesOf, RULES, statsOf, tramRestX, type Fighter, type SimState } from '../sim';
 import { CITADEL as D } from '../data/stages/citadel';
 import { KNOCKDOWN_RELAND } from '../data/poses/common';
 import type { SkinId } from '../anim/skins';
@@ -347,7 +347,7 @@ export class FightVfx {
       // 휘두르는 공격의 궤적
       if (f.mode === 'attack' && f.move) {
         const swing = SWINGS[f.move];
-        const mv = MOVES[f.move];
+        const mv = movesOf(f.char)[f.move];
         if (swing && f.t >= mv.activeStart && this.prevMoveT[i] < mv.activeStart) {
           const [fx, fy] = feet(f);
           this.layer.add(slash({

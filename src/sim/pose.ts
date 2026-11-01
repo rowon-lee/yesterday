@@ -1,7 +1,7 @@
 import type { Joints } from '../anim/pose';
 import { HIT_AIR_LOOP_FROM, HIT_STRETCH } from '../data/poses/common';
 import { WALL_CLING_LOOP_FROM, WALL_RUN_TOP_FROM } from '../data/poses/wall';
-import { frameAtTick, frameFitted, frameStretched, motionFrames, motionOf, MOVES, statsOf } from './frames';
+import { frameAtTick, frameFitted, frameStretched, motionFrames, motionOf, movesOf, statsOf } from './frames';
 import type { Fighter } from './types';
 
 /**
@@ -81,7 +81,7 @@ function pick(f: Fighter): [string, number] {
     case 'airdash':
       return stretch(motionOf(f.char, 'air_dash'), f.t, statsOf(f.char).airDashTicks);
     case 'attack':
-      return once(MOVES[f.move!].frames.name, f.t);
+      return once(movesOf(f.char)[f.move!].frames.name, f.t);
     case 'hitstun':
       // 약하게 맞음·세게 맞음 (공통 동작): 경직이 길면 늘어나는 프레임(5번·6번)이 늘고, 짧으면 줄인다
       return fitted(f.heavyHit ? 'common/hit_heavy' : 'common/hit_light', f.t, f.len);
@@ -116,7 +116,7 @@ function pick(f: Fighter): [string, number] {
     }
     case 'charge': {
       // 모으기: 끌어 모으는 프레임은 한 번, 그 뒤 모으는 프레임(windup ~ loopTo)을 되풀이 (떼면 기술의 치는 프레임으로)
-      const mv = MOVES.charge;
+      const mv = movesOf(f.char).charge;
       const c = mv.data.charge!;
       const m = mv.frames;
       const head = m.cum[c.windup - 1];

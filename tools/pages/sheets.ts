@@ -5,7 +5,8 @@ import type { Motion } from '../../src/anim/motion';
 import { DEFAULT_CELL, FOOT_X, FOOT_Y } from '../../src/anim/motion';
 import { MOTIONS } from '../../src/anim/motions';
 import { checkMotion, drawStrip, scaleCanvas } from '../../src/anim/sheet';
-import { BASE_MOVES, type MoveData } from '../../src/data/moves/base';
+import { BASE_MOVES, type MoveData, type MoveId } from '../../src/data/moves/base';
+import { CHARACTERS } from '../../src/data/characters';
 import { drawText, GLYPH_H, textWidth } from '../../src/render/font';
 import { SELFTEST_MOTIONS } from './selftest';
 import { isSkin, skinForMotion, type SkinId } from '../../src/anim/skins';
@@ -26,6 +27,10 @@ if (only.length) list = list.filter((m) => only.includes(m.name));
 /** 이 동작 그림을 쓰는 기술 (판정 프레임·판정 구간을 느린 판에 표시) */
 const moveOf = new Map<string, MoveData>();
 for (const d of Object.values(BASE_MOVES) as MoveData[]) moveOf.set(d.motion, d);
+// 캐릭터가 기술에 자기 그림을 쓰면 그 그림에도 같은 기술 수치 (판정 프레임 표시)
+for (const c of Object.values(CHARACTERS) as { moveMotions?: Partial<Record<MoveId, string>> }[]) {
+  for (const [id, motion] of Object.entries(c.moveMotions ?? {})) moveOf.set(motion!, BASE_MOVES[id as MoveId]);
+}
 
 const LABEL_H = GLYPH_H + 3;
 

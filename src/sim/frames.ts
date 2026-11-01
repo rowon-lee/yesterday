@@ -93,13 +93,12 @@ export interface Move {
   rebound?: { vx: number; vy: number };
 }
 
-export const MOVES = {} as Record<MoveId, Move>;
-for (const id of Object.keys(BASE_MOVES) as MoveId[]) {
-  const data: MoveData = BASE_MOVES[id];
-  const frames = motionFrames(data.motion);
+/** 기술 하나를 만든다: 기술 수치(data)와 그 기술을 그리는 동작 그림(motion) */
+function buildMove(id: MoveId, data: MoveData, motion: string): Move {
+  const frames = motionFrames(motion);
   const first = data.active[0];
   const last = data.active[data.active.length - 1];
-  MOVES[id] = {
+  return {
     id,
     data,
     frames,
@@ -113,6 +112,23 @@ for (const id of Object.keys(BASE_MOVES) as MoveId[]) {
     rebound: data.rebound && { vx: px(data.rebound.vx), vy: px(data.rebound.vy) },
   };
 }
+
+/** 캐릭터별 기술 표: 기술 수치는 기본 스틱맨 것, 그림은 캐릭터가 정한 것(moveMotions)이 있으면 그것 */
+const MOVE_SETS = Object.fromEntries(
+  (Object.keys(CHARACTERS) as CharId[]).map((c) => {
+    const own = (CHARACTERS[c] as { moveMotions?: Partial<Record<MoveId, string>> }).moveMotions ?? {};
+    const set = {} as Record<MoveId, Move>;
+    for (const id of Object.keys(BASE_MOVES) as MoveId[]) set[id] = buildMove(id, BASE_MOVES[id], own[id] ?? BASE_MOVES[id].motion);
+    return [c, set];
+  }),
+) as Record<CharId, Record<MoveId, Move>>;
+
+/** 이 캐릭터의 기술 표 (판정·시간은 그 캐릭터 그림의 프레임으로) */
+export function movesOf(c: CharId): Record<MoveId, Move> {
+  return MOVE_SETS[c];
+}
+/** 기본 스틱맨 기술 표 (기술 수치만 볼 때: 기력·연출·히트스톱처럼 캐릭터와 상관없는 값) */
+export const MOVES = MOVE_SETS.base;
 
 /** 이 기술의 t틱째 공격 상자 (발밑 기준, 오른쪽 보는 기준). 판정 프레임이 아니면 null */
 export function moveHitBox(mv: Move, t: number): Box | null {

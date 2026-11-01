@@ -1,5 +1,5 @@
 import { AIR_CHAIN, CHARGE_FROM, GROUND_CHAIN, type MoveId } from '../data/moves/base';
-import { motionFrames, motionOf, MOVES, statsOf } from './frames';
+import { motionFrames, motionOf, MOVES, movesOf, statsOf } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
@@ -101,7 +101,7 @@ const take = (f: Fighter, b: number): boolean => {
 const has = (f: Fighter, b: number): boolean => f.buf[b] > 0;
 
 function startMove(s: SimState, f: Fighter, id: MoveId): void {
-  const mv = MOVES[id];
+  const mv = movesOf(f.char)[id];
   const cost = (mv.data.meterCost ?? 0) * METER_BAR;
   f.meter -= cost;
   setMode(f, 'attack');
@@ -401,7 +401,7 @@ function airControl(s: SimState, f: Fighter, input: PlayerInput): void {
 
 /** 기술 도중: 연타 다음 타, 점프 끊기, 기술 끊기 */
 function attackControl(s: SimState, f: Fighter, input: PlayerInput): boolean {
-  const mv = MOVES[f.move!];
+  const mv = movesOf(f.char)[f.move!];
   const air = mv.data.air === true;
   // 맞히거나 막히면 스킬 1·2·필살기로 끊을 수 있다
   if (f.moveHit && trySkills(s, f, isAirborne(f))) return true;
@@ -452,7 +452,7 @@ const friction = (v: number): number => Math.trunc((v * 13) / 16);
 function tryCharge(s: SimState, f: Fighter): boolean {
   if (!f.chargeArm || f.atkHold < CHARGE_HOLD || isAirborne(f)) return false;
   if (f.mode === 'attack') {
-    const mv = MOVES[f.move!];
+    const mv = movesOf(f.char)[f.move!];
     if (f.queued || f.t < mv.activeEnd) return false;
   } else if (f.mode !== 'idle' && f.mode !== 'land') return false;
   setMode(f, 'charge');
@@ -575,7 +575,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       if (f.t >= f.len) setMode(f, 'air');
       break;
     case 'attack': {
-      const mv = MOVES[f.move!];
+      const mv = movesOf(f.char)[f.move!];
       if (attackControl(s, f, input)) break;
       if (controllable && tryCharge(s, f)) break;
       if (mv.dive) diveControl(s, f, mv);
@@ -725,7 +725,7 @@ function diveControl(s: SimState, f: Fighter, mv: (typeof MOVES)[MoveId]): void 
 function weightless(f: Fighter): boolean {
   if (f.mode === 'airdash' || f.mode === 'wallcling' || f.mode === 'wallrun') return true;
   if (f.mode !== 'attack' || f.moveHit || !f.move) return false;
-  const mv = MOVES[f.move];
+  const mv = movesOf(f.char)[f.move];
   return mv.dive !== undefined && frameOf(mv, f.t) <= mv.dive.to;
 }
 

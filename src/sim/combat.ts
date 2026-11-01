@@ -1,6 +1,6 @@
 import { hurtBox, type Box } from '../anim/boxes';
 import type { MoveId } from '../data/moves/base';
-import { MOVES, moveHitBox } from './frames';
+import { MOVES, movesOf, moveHitBox } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
 import { CITY_RULES as CITY, KEEP_RULES } from '../stage/citadel';
 import { damageCitadel, superCitadel, towerBehind } from './citadel';
@@ -41,13 +41,13 @@ export function hurtOf(f: Fighter): WBox | null {
 /** 지금 기술의 판정 상자 (이미 맞혔어도). 부서지는 물건 판정용 */
 export function activeHitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || !f.move) return null;
-  const b = moveHitBox(MOVES[f.move], f.t);
+  const b = moveHitBox(movesOf(f.char)[f.move], f.t);
   return b && toWorld(f, b);
 }
 
 export function hitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || f.moveHit || !f.move) return null;
-  const b = moveHitBox(MOVES[f.move], f.t);
+  const b = moveHitBox(movesOf(f.char)[f.move], f.t);
   return b && toWorld(f, b);
 }
 
@@ -82,7 +82,7 @@ function blocks(def: Fighter, att: Fighter): boolean {
 function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId, final = false): void {
   // 연출 중에는 판정이 없다 (같은 틱에 둘 다 맞혔으면 먼저 연출을 시작한 쪽만)
   if (s.cine) return;
-  const mv = MOVES[id];
+  const mv = movesOf(att.char)[id];
   const d = mv.data;
   // 차지는 모은 단계마다 피해·방어 깎기·날리기·벽 쪽으로 날림이 다르다
   const lvl = d.charge ? d.charge.levels[Math.max(0, Math.min(d.charge.levels.length, att.chargeLv) - 1)] : undefined;

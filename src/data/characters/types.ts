@@ -1,3 +1,4 @@
+import type { MoveId } from '../moves/base';
 import type { BASE_STATS } from './base';
 
 /**
@@ -19,4 +20,9 @@ export interface CharacterData {
   label: string;
   stats: Stats;
   motions: Partial<Record<MotionSlot, string>>;
+  /**
+   * 기술마다 쓰는 동작 그림 (없으면 기본 스틱맨 기술의 그림). 지금은 기술 수치(피해·판정 프레임·발동 틱)는 기본 스틱맨 것을 그대로 쓰므로,
+   * 같은 프레임 수·표시 틱으로 만든다 (캐릭터별 기술 수치는 평타·기술 단계에서).
+   */
+  moveMotions?: Partial<Record<MoveId, string>>;
 }
