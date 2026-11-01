@@ -8,6 +8,7 @@
 //   npm run sheets -- --selftest          도구 확인용 가짜 동작
 //   npm run sheets -- --only base/idle --skin raiden   캐릭터 겉모습(장식·색)으로 → out/sheets/raiden/look-base-idle.png
 //                                                    (--approve와 함께면 previews/raiden/look-base-idle.gif)
+//   npm run sheets -- --approve raiden/idle --look p2   2P 색으로 → previews/raiden/idle-p2.gif
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { encodeGif } from './gif.mjs';
 import { dirname } from 'node:path';
@@ -19,13 +20,16 @@ const only = valuesOf('--only');
 const approve = valuesOf('--approve');
 const selftest = argv.includes('--selftest');
 const skin = valuesOf('--skin')[0] ?? '';
+/** 색 묶음: --look p2면 2P 색으로 그리고 이름 끝에 -p2 */
+const look = valuesOf('--look')[0] ?? 'p1';
 /** 출력 이름: 캐릭터 겉모습으로 그린 것은 <캐릭터>/look-<동작 이름> */
-const outName = (name) => (skin ? `${skin}/look-${name.replace('/', '-')}` : name);
+const outName = (name) => (skin ? `${skin}/look-${name.replace('/', '-')}` : name) + (look === 'p1' ? '' : `-${look}`);
 
 const query = new URLSearchParams();
 for (const n of [...only, ...approve]) query.append('only', n);
 if (selftest) query.set('selftest', '');
 if (skin) query.set('skin', skin);
+if (look !== 'p1') query.set('look', look);
 if (only.length || approve.length) query.set('gif', '');
 
 const vite = await createServer({ logLevel: 'error', server: { port: 5181 } });

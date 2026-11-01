@@ -13,21 +13,21 @@ export interface Skin {
   looks: Partial<Record<LookName, Look>>;
 }
 
-/** 라이덴 1P: 붉은 몸, 검은 보랏빛 정장 재킷, 흰 셔츠 깃과 붉은 넥타이, 검은 머리(붉은 안쪽 머리, 붉은 윤기 테두리) */
+/** 라이덴 1P: 붉은 몸, 검은 보랏빛 정장 재킷, 흰 셔츠 깃과 붉은 넥타이, 흰 머리(회색 안쪽 머리) */
 const RAIDEN_P1: Look = {
   outline: 'ink', shadow: 'raidenDark', base: 'raiden', light: 'raidenLight',
-  hair: ['raidenDark', 'suitDark', 'raiden'],
+  hair: ['paleGrey', 'white', 'fxWhite'],
   cloth: ['suitDark', 'suit', 'suitLight'],
   accent: ['raiden', 'raidenLight'],
   trim: 'white',
 };
-/** 라이덴 2P (같은 캐릭터끼리 붙을 때): 검붉은 몸, 회색 재킷 */
+/** 라이덴 2P (같은 캐릭터끼리 붙을 때): 검붉은 몸, 회색 재킷, 검은 머리(붉은 윤기 테두리, 안쪽 머리는 몸보다 한 단계 어두운 검붉은색) */
 const RAIDEN_P2: Look = {
   outline: 'ink', shadow: 'raidenDeep', base: 'raidenDark', light: 'raiden',
-  hair: ['raidenDeep', 'suitDark', 'raidenDark'],
+  hair: ['raidenDeep', 'suitDark', 'raiden'],
   cloth: ['suitGreyDark', 'suitGrey', 'suitGreyLight'],
   accent: ['raidenDark', 'raiden'],
-  trim: 'shirtGrey',
+  trim: 'paleGrey',
 };
 /** 검붉은 잔상 (대시·돌진) */
 const RAIDEN_GHOST: Look = { outline: 'raidenDark', shadow: 'raidenDark', base: 'raidenDark', light: 'raidenDark' };
