@@ -242,7 +242,8 @@ class LampView implements View {
     this.upper.add(up.build());
     this.lens = litMaterial(pixelTexture(solid(C.sodium)), { emissive: pixelTexture(solid(C.sodium)), emissiveStrength: 3 });
     this.upper.add(box(hx - 5, hx + 5, 28.5, 30, -3, 3, this.lens));
-    const smat = shaftMaterial(C.sodium, 0.22);
+    // 빛줄기는 나트륨 불빛보다 한 단계 노랗게 (어두운 남색 공기에 더해져도 분홍으로 바래지 않게)
+    const smat = shaftMaterial(C.lampGlow, 0.26);
     smat.transparent = false;
     this.shaft = new THREE.Mesh(new THREE.ConeGeometry(42, 102, 20, 1, true), smat);
     this.shaft.renderOrder = 2;

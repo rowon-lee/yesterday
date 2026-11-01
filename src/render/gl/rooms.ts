@@ -11,14 +11,14 @@ import { paint, rect } from '../dither';
 /** 밝기 단계 [바탕, 발광]: 어두운 쪽 → 등 바로 옆 */
 export type RoomRamp = ReadonlyArray<readonly [string, string]>;
 
-/** 백열등 (호박색) */
+/** 백열등 (호박색): 등 바로 옆 마지막 단계는 하얗게 날아간 빛의 심 (흑백 200 이상: 광원) */
 export const WARM: RoomRamp = [
-  ['#3e2a1f', '#1e0c04'],
-  ['#4e3527', '#3a1a08'],
+  ['#3e2a1f', '#24120a'],
   ['#614231', '#5e2c12'],
   ['#78523d', '#844018'],
   ['#93664c', '#ad5a20'],
   [C.windowLight, '#d4792c'],
+  ['#ffe2a8', '#fff4d8'],
 ];
 /** 형광등 (창백한 청록) */
 export const FLUO: RoomRamp = [

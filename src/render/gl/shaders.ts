@@ -483,8 +483,9 @@ export function scrollMaterial(strip: THREE.Texture, cols: number): THREE.Shader
 }
 
 /**
- * 빛줄기 (가로등·전조등 아래로 쏟아지는 빛): 원뿔 표면을 가산으로. 꼭짓점 쪽이 밝고 끝으로 옅어지며,
- * 원뿔 가장자리(시선과 비스듬한 곳)는 흐리게 (연기 속을 지나는 빛). 화면 알파는 건드리지 않는다.
+ * 빛줄기 (가로등·전조등 아래로 쏟아지는 빛, 서치라이트): 원뿔 표면을 가산으로. 빛은 물체가 아니다 —
+ * 광원 쪽이 밝고 끝으로 길게 옅어지며, 원뿔 가장자리(시선과 비스듬한 곳)는 넓게 부드럽게 사라진다.
+ * 광원 바로 옆은 빛 무리(후처리)가 맡으므로 눌러 둔다 (하얀 심이 박힌 물방울 모양이 되지 않게). 화면 알파는 건드리지 않는다.
  */
 export function shaftMaterial(color: string, strength: number): THREE.ShaderMaterial {
   const c = new THREE.Color(color).convertSRGBToLinear();
@@ -513,15 +514,15 @@ export function shaftMaterial(color: string, strength: number): THREE.ShaderMate
       varying float vFacing;
       varying vec3 vWorld;
       void main() {
-        // 광원 쪽이 밝고 끝으로 갈수록 옅어진다. 원뿔 가장자리(시선과 비스듬한 면)는 부드럽게 사라진다
-        float along = pow(vAlong, 1.3) * smoothstep(0.0, 0.3, vAlong);
-        float edge = pow(vFacing, 2.6);
+        // 광원에서 3할쯤 내려온 곳이 가장 밝고, 광원 바로 옆은 눌러 두고, 끝은 길게 옅어진다
+        float along = smoothstep(0.0, 0.75, vAlong) * (1.0 - 0.55 * smoothstep(0.7, 1.0, vAlong));
+        // 원뿔 가장자리는 넓게 부드럽게 (가운데가 조금 더 밝을 뿐)
+        float edge = smoothstep(0.0, 1.0, vFacing);
+        edge *= edge;
         // 빛 속 안개가 천천히 흐르고 뭉친다 (칸 단위 잡음)
         vec2 p = floor(vWorld.xy);
         float mist = 0.45 + 0.55 * texture2D(bankNoise, vec2(p.x / 200.0 + uTime * 0.0009, p.y / 140.0 - uTime * 0.0004)).r;
-        // 빛의 심은 색이 조금 빠져 하얗게
-        vec3 c = mix(color, vec3(dot(color, vec3(0.3, 0.59, 0.11))) * 1.25, 0.25 * along);
-        gl_FragColor = vec4(c * strength * along * edge * mist, 1.0);
+        gl_FragColor = vec4(color * strength * along * edge * mist, 1.0);
       }
     `,
     side: THREE.DoubleSide,

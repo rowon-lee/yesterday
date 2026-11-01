@@ -196,7 +196,7 @@ void main() {
 
 /**
  * 제한 팔레트 + 경계에서만 디더링. 색 보정까지 마친 화면(graded)을 칸마다 팔레트 색으로 줄이고,
- * 바로 옆(가로·세로) 칸과 팔레트 색이 다른데 원래 색은 거의 같은 곳 — 부드러운 그러데이션이 색 단계를 넘는 경계 — 에서만
+ * 바로 옆(가로·세로) 칸과 팔레트 색이 다른데 원래 색은 매끄럽게 이어지는 곳 — 빛의 그러데이션이 색 단계를 넘는 경계 — 에서만
  * 8×8 바이어 무늬를 더한다. 그래서 디더는 두 색이 만나는 경계 양쪽 한 칸씩(2칸 띠)에만 생기고,
  * 넓은 면과 물체의 윤곽(원래 색이 크게 다른 경계)은 단색으로 깨끗하다.
  */
@@ -207,6 +207,7 @@ uniform vec2 texel;
 uniform vec2 ditherOrigin;
 uniform float ditherAmount;
 uniform float smoothLimit;
+uniform float curveLimit;
 varying vec2 vUv;
 /** 8×8 바이어 무늬 (-0.5~0.5): 2×2 무늬를 세 번 겹쳐 계산 (표를 찾지 않는다) */
 float m2(vec2 v) { return mod(2.0 * v.x + 3.0 * v.y, 4.0); }
@@ -221,18 +222,34 @@ vec3 palette(vec3 c) {
   vec2 uv = vec2((i.b * 32.0 + i.r + 0.5) / 1024.0, (i.g + 0.5) / 32.0);
   return texture2D(lut, uv).rgb;
 }
-/** 이웃 칸 하나: 팔레트 색이 다르고 원래 색은 가까우면 (그러데이션의 단계 경계) 1 */
+float maxc(vec3 v) { return max(v.r, max(v.g, v.b)); }
+float same(vec3 a, vec3 b) { vec3 d = abs(a - b); return step(d.r + d.g + d.b, 0.002); }
+/**
+ * 한 방향(off)으로 양옆 두 칸씩: 원래 색이 매끄럽게 이어지고 (양옆 차이가 작고 거의 곧게 변한다 — 빛의 그러데이션),
+ * 바로 옆이 다른 팔레트 색인 경계이며, 경계 양쪽 띠가 모두 넓을 때(이쪽 띠 3칸 이상, 저쪽 띠 2칸 이상)만 1.
+ * 도트 그림의 1칸짜리 무늬·윤곽은 곧게 변하지 않아 빠지고, 폭 1~2칸짜리 좁은 띠가 촘촘한 곳은 섞지 않는다 (넓은 바둑판이 되지 않게).
+ */
 float band(vec3 s, vec3 p, vec2 off) {
-  vec3 n = texture2D(graded, vUv + off * texel).rgb;
-  vec3 d = abs(n - s);
-  float near = step(max(d.r, max(d.g, d.b)), smoothLimit);
-  vec3 pd = abs(palette(n) - p);
-  return near * step(0.002, pd.r + pd.g + pd.b);
+  vec3 a1 = texture2D(graded, vUv - off * texel).rgb;
+  vec3 b1 = texture2D(graded, vUv + off * texel).rgb;
+  float smooth1 = step(max(maxc(abs(a1 - s)), maxc(abs(b1 - s))), smoothLimit);
+  float straight = step(maxc(abs(a1 + b1 - 2.0 * s)), curveLimit);
+  if (smooth1 * straight < 0.5) return 0.0;
+  vec3 a2 = texture2D(graded, vUv - 2.0 * off * texel).rgb;
+  vec3 b2 = texture2D(graded, vUv + 2.0 * off * texel).rgb;
+  vec3 pa1 = palette(a1);
+  vec3 pb1 = palette(b1);
+  vec3 pa2 = palette(a2);
+  vec3 pb2 = palette(b2);
+  // 오른쪽(아래쪽) 경계: 이쪽 띠가 왼쪽으로 두 칸 더, 저쪽 띠가 한 칸 더 이어진다. 왼쪽 경계는 거꾸로
+  float right = (1.0 - same(pb1, p)) * same(pa1, p) * same(pa2, p) * same(pb2, pb1);
+  float left = (1.0 - same(pa1, p)) * same(pb1, p) * same(pb2, p) * same(pa2, pa1);
+  return max(right, left);
 }
 void main() {
   vec3 s = texture2D(graded, vUv).rgb;
   vec3 p = palette(s);
-  float e = band(s, p, vec2(1.0, 0.0)) + band(s, p, vec2(-1.0, 0.0)) + band(s, p, vec2(0.0, 1.0)) + band(s, p, vec2(0.0, -1.0));
+  float e = band(s, p, vec2(1.0, 0.0)) + band(s, p, vec2(0.0, 1.0));
   if (e > 0.5) p = palette(s + bayer8(gl_FragCoord.xy + ditherOrigin) * ditherAmount);
   gl_FragColor = vec4(p, 1.0);
 }
@@ -471,7 +488,8 @@ export class Post {
       texel: { value: new THREE.Vector2(1 / RT_W, 1 / RT_H) },
       ditherOrigin: { value: new THREE.Vector2() },
       ditherAmount: { value: 0.05 },
-      smoothLimit: { value: 0.008 },
+      smoothLimit: { value: 0.035 },
+      curveLimit: { value: 0.012 },
     });
     this.blit = mat(BLIT_FRAG, { src: { value: this.final.texture } });
     this.haloGeo = new THREE.InstancedBufferGeometry();

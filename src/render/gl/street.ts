@@ -105,8 +105,10 @@ function props(det: Details, g: THREE.Group): void {
         det.add(x, x + 30, 0, 16, -44, -28, C.stone);
         det.add(x, x + 30, 15, 16, -44, -28, C.paintCream);
         const [c, cg] = canvas(28, 22);
+        // 둥근 관목: 어두운 덩어리 위에 빛 받는 왼쪽 위 덩어리 (점무늬 없이 두 단계)
         disc(cg, 14, 12, 11, C.iron);
-        disc(cg, 11, 9, 7, C.paintTeal, 7);
+        disc(cg, 11, 9, 7, C.smog3);
+        disc(cg, 9, 7, 3, C.paintTeal);
         g.add(plane(x + 1, x + 29, 12, 34, -36, litMaterial(pixelTexture(c), { side: THREE.DoubleSide })));
         break;
       }
