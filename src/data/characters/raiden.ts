@@ -31,5 +31,7 @@ export const RAIDEN: CharacterData = {
     air_dash: 'raiden/air_dash',
     guard: 'raiden/guard',
     guard_hit: 'raiden/guard_hit',
+    intro: 'raiden/intro',
+    win: 'raiden/win',
   },
 };
