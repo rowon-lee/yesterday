@@ -7,13 +7,15 @@ import { shared } from './lights';
  * - 구름: 가로로 길게 늘어진 층구름이 천천히 흐른다. 아랫면 가장자리와 지평선 쪽은 도시 불빛을 받아 밝다.
  * - 달: 구름이 옅을 때만 비치고, 둘레에 달무리.
  * - 번개 (가끔): 구름 속이 번쩍이고, 때로 갈지자 줄기가 내리친다.
- * - 바다: 지평선 가까이 하늘 빛이 비치고, 가로 물결 줄과 달빛 길이 반짝인다.
+ * - 바다: 지평선 가까이 하늘 빛이 비치고, 가로 물결 줄과 달빛 길·파도 마루가 반짝인다. 수평선에 먼 화물선, 하늘에 갈매기 떼.
  * 바닥에는 비치지 않는 판이라 화면 알파는 0.
  */
 const FRAG = /* glsl */ `
 uniform vec2 size;
 uniform float horizon;
 uniform vec3 moon;
+/** 먼 화물선 자리 (하늘 겹 x) */
+uniform vec2 ship;
 uniform float uTime;
 uniform vec3 zenith;
 uniform vec3 midSky;
@@ -67,16 +69,28 @@ void main() {
     float t = clamp(p.y / horizon, 0.0, 1.0);
     col = mix(zenith, midSky, smoothstep(0.0, 0.9, t));
     col += glow * glowK * (pow(t, 2.6) * 0.9 + pow(t, 8.0) * 0.8);
-    col += vec3(0.30, 0.34, 0.42) * 0.10 * smoothstep(moon.z * 4.5, 0.0, md);
+    // 달무리: 작게, 그 구간 하늘빛에 물들게 (붉은 제철소 하늘 위에 푸른 원판이 팔레트 단계 고리로 서지 않게)
+    vec3 halo = mix(vec3(0.30, 0.34, 0.42), glow, 0.5);
+    col += halo * 0.08 * smoothstep(moon.z * 3.0, 0.0, md);
     float d = cloudAt(p, t);
     // 아랫면 가장자리: 아래로 갈수록 옅어지는 곳. 바로 아래 칸과의 차로 칸마다 따로 계산한다
     // (화면 미분 dFdy는 2×2 칸 묶음마다 같은 값이라 테두리가 큰 네모 픽셀이 된다)
     float rim = clamp((d - cloudAt(p + vec2(0.0, 1.0), clamp((p.y + 1.0) / horizon, 0.0, 1.0))) * 3.0, 0.0, 1.0);
     vec3 cc = mix(cloud, cloudLit, clamp(smoothstep(0.25, 1.0, t) * 0.85 + rim * 1.6, 0.0, 1.0));
-    cc += vec3(0.20, 0.22, 0.27) * 0.25 * smoothstep(moon.z * 6.0, 0.0, md);
+    cc += mix(vec3(0.20, 0.22, 0.27), glow * 0.6, 0.5) * 0.25 * smoothstep(moon.z * 4.0, 0.0, md);
     cc += (cloudLit * 1.5 + vec3(0.35, 0.38, 0.55)) * flash * (0.4 + d);
     col = mix(col, cc, d);
     col = mix(col, vec3(0.62, 0.64, 0.66), step(md, moon.z) * (1.0 - smoothstep(0.15, 0.7, d)));
+    // 갈매기 떼: 바다 쪽 하늘을 천천히 건너는 작은 V 일곱 (어두운 실루엣, 날갯짓에 따라 V가 펴졌다 접힌다)
+    for (int i = 0; i < 7; i++) {
+      float fi = float(i);
+      vec2 b = vec2(mod(uTime * 0.05 + ship.x + fi * 9.0 + h12(vec2(fi, 3.0)) * 14.0, size.x + 40.0) - 20.0,
+                    horizon * 0.42 + fi * 3.0 + sin(uTime * 0.02 + fi) * 2.0 - abs(fi - 3.0) * 2.0);
+      vec2 q = floor(p) - floor(b);
+      float flap = step(0.5, fract(uTime * 0.04 + fi * 0.37));
+      float on = (q.y == 0.0 && (q.x == -1.0 || q.x == 1.0)) || (q.y == 1.0 - flap && q.x == 0.0) || (flap > 0.5 && q.y == -1.0 && (q.x == -2.0 || q.x == 2.0)) ? 1.0 : 0.0;
+      col = mix(col, vec3(0.05, 0.055, 0.07), on);
+    }
     if (bolt.y > 0.0) {
       float seg = floor(p.y / 7.0);
       float f = fract(p.y / 7.0);
@@ -93,8 +107,26 @@ void main() {
     float path = smoothstep(3.0 + d * 0.14, 0.0, abs(p.x - moon.x));
     float glint = step(0.86, h12(vec2(floor(p.x / 2.0), p.y) + floor(uTime / 7.0)));
     col += vec3(0.42, 0.45, 0.5) * path * glint * 0.5;
+    // 파도 반짝임: 물결 마루에 걸린 짧은 가로 반짝임 (달빛 길 밖에도 드문드문, 앞으로 올수록 길게). 몇 초마다 자리를 바꾼다
+    float seg = 3.0 + d * 0.18;
+    vec2 cellW = vec2(floor(p.x / seg), floor(p.y / 2.0));
+    float wave = step(0.955, h12(cellW + floor(uTime / 13.0 + h12(cellW.yx) * 5.0)) ) * step(0.5, fract(p.y / 2.0));
+    col += vec3(0.3, 0.33, 0.38) * wave * (0.3 + 0.7 * path) * (1.0 - 0.6 * smoothstep(20.0, 90.0, d));
+
     col += (cloudLit + vec3(0.2)) * flash * 0.3 * (1.0 - smoothstep(0.0, 30.0, d));
   }
+  // 먼 화물선: 수평선에 걸린 어두운 선체(지평선 빛에 실루엣)와 선실, 불 켜진 둥근 창 줄 (빈 바다에 사는 흔적)
+  float sx = p.x - ship.x;
+  float dd = p.y - horizon;
+  if (dd >= -3.0 && dd < 1.0 && abs(sx) < 22.0 - max(0.0, dd + 1.0) * 2.0) {
+    col = vec3(0.02, 0.024, 0.032);
+    if (dd >= -2.0 && dd < -1.0 && abs(sx) < 18.0 && mod(floor(sx + 22.0), 4.0) < 1.0) col = vec3(1.0, 0.8, 0.5);
+  }
+  if (sx > 3.0 && sx < 13.0 && dd >= -8.0 && dd < -3.0) {
+    col = vec3(0.025, 0.03, 0.04);
+    if (dd >= -6.0 && dd < -5.0 && mod(floor(sx), 3.0) < 1.0) col = vec3(1.0, 0.82, 0.55);
+  }
+  if (abs(sx - 8.0) < 0.5 && dd >= -12.0 && dd < -8.0) col = vec3(0.03, 0.03, 0.04);
   gl_FragColor = vec4(col, 0.0);
 }
 `;
@@ -111,6 +143,8 @@ export function skyMaterial(w: number, h: number, horizon: number, moon: { x: nu
       size: { value: new THREE.Vector2(w, h) },
       horizon: { value: horizon },
       moon: { value: new THREE.Vector3(moon.x, moon.y, moon.r) },
+      // 먼 화물선: 달 오른쪽 바다 (해안 부두에서 보이는 자리)
+      ship: { value: new THREE.Vector2(moon.x + 80, 0) },
       zenith: { value: new THREE.Color() },
       midSky: { value: new THREE.Color() },
       glow: { value: new THREE.Color() },

@@ -65,9 +65,19 @@ export function brickWall(g: CanvasRenderingContext2D, x0: number, y0: number, w
 }
 
 /** 낡음: 꼭대기 그을음, 창턱 아래 빗물 자국, 땅 가까운 소금기, 금 */
-export function weather(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, seed: number): void {
-  // 꼭대기 그을음 (아래로 갈수록 옅게)
-  for (let k = 0; k < 4; k++) ditherRect(g, x0, y0 + k * 6, w, 6, C.smog0, 9 - k * 2, seed & 3);
+export function weather(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, seed: number, plain = false): void {
+  if (plain) {
+    // 처마 없이 꼭대기가 다 보이는 벽 (창고·제철소): 맨 위 한 띠와 2~4칸 폭 그을음 줄
+    // (띠 경계의 점선 줄이 넓은 벽 꼭대기에 그대로 드러나 넓은 면 디더로 잡혔다)
+    ditherRect(g, x0, y0, w, 7, C.smog0, 8, 0, 0, false);
+    for (let x = x0 + (seed % 3); x < x0 + w; x += 3 + Math.floor(rnd(seed, 900 + x) * 6)) {
+      const len = 3 + Math.floor(rnd(seed, 950 + x) * 12);
+      ditherRect(g, x, y0 + 7, 2 + Math.floor(rnd(seed, 990 + x) * 3), len, C.smog0, 4, 0, 0, false);
+    }
+  } else {
+    // 꼭대기 그을음 (아래로 갈수록 옅게). 길가 건물은 처마가 맨 위를 가리고, 띠가 처마 밑 그늘 면과 이어진다
+    for (let k = 0; k < 4; k++) ditherRect(g, x0, y0 + k * 6, w, 6, C.smog0, 9 - k * 2, seed & 3);
+  }
   // 처마에서 흘러내린 빗물 자국 (가늘고 긴 어두운 줄)
   for (let k = 0; k < Math.floor(w / 9); k++) {
     if (rnd(seed, 300 + k) < 0.4) continue;
@@ -75,8 +85,8 @@ export function weather(g: CanvasRenderingContext2D, x0: number, y0: number, w: 
     const len = 20 + Math.floor(rnd(seed, 320 + k) * 70);
     for (let y = 0; y < len; y++) if (hash(seed + sx * 13 + y * 7) < 0.75 - (y / len) * 0.6) rect(g, sx, y0 + 8 + y, 1, 1, C.smog1);
   }
-  // 땅 가까운 소금기 얼룩 (밝게 번진 자국)
-  ditherRect(g, x0, y0 + h - 14, w, 10, C.stone, 2, seed & 3);
+  // 땅 가까운 소금기 얼룩 (밝게 번진 자국, 가장자리 점선 없이)
+  ditherRect(g, x0, y0 + h - 14, w, 10, C.stone, 2, 0, 0, false);
   // 금 (지그재그)
   for (let k = 0; k < 2; k++) {
     if (rnd(seed, 400 + k) < 0.45) continue;
@@ -91,8 +101,27 @@ export function weather(g: CanvasRenderingContext2D, x0: number, y0: number, w: 
   }
 }
 
+/**
+ * 켜진 창 몫: 씨앗으로 켜진 창이 20%보다 적으면 꺼진 보통 창(판자·깨짐·TV가 아닌 창) 중 씨앗 값이 큰 것부터 켜고,
+ * 40%보다 많으면 켜진 창 중 씨앗 값이 작은 것부터 끈다.
+ */
+function litQuota(wins: Array<{ seed: number; force?: 'lit' | 'dark' }>): void {
+  const n = wins.length;
+  if (!n) return;
+  const r = (w: { seed: number }) => rnd(w.seed, 20);
+  const lit = wins.filter((w) => r(w) > 0.72);
+  const lo = Math.max(1, Math.ceil(n * 0.2));
+  const hi = Math.max(lo, Math.floor(n * 0.4));
+  if (lit.length < lo) {
+    const cands = wins.filter((w) => r(w) >= 0.14 && r(w) < 0.66).sort((a, b) => r(b) - r(a));
+    for (const w of cands.slice(0, lo - lit.length)) w.force = 'lit';
+  } else if (lit.length > hi) {
+    for (const w of lit.sort((a, b) => r(a) - r(b)).slice(0, lit.length - hi)) w.force = 'dark';
+  }
+}
+
 /** 위층 창 하나 (텍스처 칸 좌표). 상태는 씨앗으로: 꺼짐, 켜짐(커튼·블라인드·사람 그림자), 형광등, TV, 판자, 깨짐 */
-function upperWindow(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, seed: number): void {
+function upperWindow(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, seed: number, force?: 'lit' | 'dark'): void {
   // 일부러 조금씩 비뚤게: 폭·높이·높낮이 ±1
   const jx = rnd(seed, 1) < 0.3 ? 1 : 0;
   const jy = rnd(seed, 2) < 0.3 ? (rnd(seed, 3) < 0.5 ? -1 : 1) : 0;
@@ -111,7 +140,8 @@ function upperWindow(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingC
     const len = 6 + Math.floor(rnd(seed, 12 + k) * 18);
     for (let yy = 0; yy < len; yy++) if (hash(seed * 3 + sx + yy * 5) < 0.8 - (yy / len) * 0.7) rect(g, sx, y + hh + 3 + yy, 1, 1, C.smog1);
   }
-  const r = rnd(seed, 20);
+  // 건물마다 켜진 창 20~40%: 정면을 그릴 때 정한 몫(force)이 있으면 그대로 켜거나 끈다
+  const r = force === 'lit' ? 0.8 : force === 'dark' ? 0.4 : rnd(seed, 20);
   const frame = rnd(seed, 21) < 0.5 ? C.iron : '#2f2a2a';
   rect(g, x, y, ww, hh, C.windowDark);
   if (r < 0.1) {
@@ -142,7 +172,10 @@ function upperWindow(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingC
     const hot = warm ? C.windowLight : '#7a8478';
     rect(g, x, y, ww, hh, col);
     rect(e, x, y, ww, hh, glowCol);
-    ditherRect(e, x, y, ww, 6, hot, 8);
+    ditherRect(e, x, y + 2, ww, 4, hot, 8);
+    // 천장 등 줄: 창 안에서 가장 밝은 곳 (하얗게 날아간 빛: 켜진 창은 광원)
+    rect(g, x, y, ww, 2, warm ? '#ffe2a8' : '#e8fff8');
+    rect(e, x, y, ww, 2, warm ? '#fff4d8' : '#c8f6ff');
     f.lit.push({ x: x + ww / 2, y: y + hh / 2, warm });
     const kind = rnd(seed, 23);
     if (kind < 0.35) {
@@ -283,15 +316,19 @@ export function paintFacade(b: FrontBuildingPlace, o: FacadeOpts): Facade {
     const pw = b.poster && b.floors >= 3 ? Math.max(34, b.poster.length * 8 + 10) : 0;
     const px = posterX(b, tw, pw, T);
     const posterRect = pw ? [px, yOf(SHOP_H + FLOOR_H) + T(22), pw + 4, 50] : null;
+    // 창 목록을 먼저 만들고 켜진 창 몫을 정한다 (건물마다 20~40%: 씨앗만으로는 한 건물이 다 꺼지거나 다 켜질 수 있다)
+    const wins: Array<{ wx: number; top: number; seed: number; force?: 'lit' | 'dark' }> = [];
     for (let fl = 1; fl < b.floors; fl++) {
       const top = yOf(SHOP_H + fl * FLOOR_H) + T(20);
       rect(g, 0, yOf(SHOP_H + (fl - 1) * FLOOR_H) - 2, tw, 2, C.stoneDark);
       for (let k = 0; k < cols; k++) {
         const wx = left + k * gap;
         if (posterRect && wx + ww + 3 > posterRect[0] && wx - 3 < posterRect[0] + posterRect[2] && top + wh + 3 > posterRect[1] && top - 3 < posterRect[1] + posterRect[3]) continue;
-        upperWindow(f, g, e, wx, top, ww, wh, b.seed * 13 + fl * 101 + k * 7);
+        wins.push({ wx, top, seed: b.seed * 13 + fl * 101 + k * 7 });
       }
     }
+    litQuota(wins);
+    for (const w of wins) upperWindow(f, g, e, w.wx, w.top, ww, wh, w.seed, w.force);
     // 1층 가게, 다이너, 아파트 현관
     if (b.kind === 'diner') paintDiner(g, e, b, T, yOf);
     else if (b.kind === 'apartment' && !b.sign) paintEntrance(f, g, e, b, T, yOf);
@@ -429,8 +466,11 @@ function paintTheater(f: Facade, g: CanvasRenderingContext2D, e: CanvasRendering
   for (let i = 0; i < 4; i++) {
     const dx = 36 + i * 26 + (i >= 2 ? 6 : 0);
     rect(g, dx, yOf(66), 20, T(66), C.iron);
+    // 로비 유리문: 샹들리에 빛이 쏟아지는 문 윗부분은 하얗게 날아간 빛 (극장 입구는 거리에서 가장 밝은 곳)
     rect(g, dx + 2, yOf(64), 16, T(40), C.windowLit);
-    rect(e, dx + 2, yOf(64), 16, T(40), C.windowLit);
+    rect(e, dx + 2, yOf(64), 16, T(40), '#ad5a20');
+    rect(g, dx + 2, yOf(64), 16, T(14), '#ffe2a8');
+    rect(e, dx + 2, yOf(64), 16, T(14), '#fff4d8');
     rect(g, dx + 9, yOf(64), 2, T(64), C.iron);
     rect(g, dx + 4, yOf(30), 12, 1, C.chrome);
   }
@@ -495,7 +535,8 @@ export function paintCornice(w: number, h: number, seed: number): HTMLCanvasElem
   rect(g, 0, 0, w, 1, C.paintCream);
   rect(g, 0, h - 2, w, 2, C.stoneDark);
   for (let x = 2; x < w - 2; x += 6) rect(g, x, h - 4, 3, 2, C.stoneDark);
-  ditherRect(g, 0, 1, w, h - 1, C.smog1, 4, seed & 3);
+  // 그을음은 띠 무늬(가장자리 점선이 1px 어두운 선처럼 보인다) 대신 길이가 제각각인 세로 얼룩으로
+  for (let x = 1 + (seed % 5); x < w - 1; x += 7 + ((x * 13 + seed) % 9)) rect(g, x, 1, 2, 2 + ((x + seed) % 3), C.stoneDark);
   return c;
 }
 
@@ -503,8 +544,8 @@ export function paintCornice(w: number, h: number, seed: number): HTMLCanvasElem
 export function paintAwning(w: number, h: number, stripe: string, base: string): HTMLCanvasElement {
   const [c, g] = canvas(Math.max(2, w), Math.max(2, h));
   for (let x = 0; x < w; x++) rect(g, x, 0, 1, h - 2, Math.floor(x / 6) % 2 ? stripe : base);
-  for (let x = 0; x < w; x += 6) rect(g, x, h - 2, 3, 2, base);
-  rect(g, 0, 0, w, 1, C.smog1);
+  // 물결 단: 위 줄무늬 색을 그대로 이어서 (어두운 이빨 줄이 외곽선처럼 서지 않게)
+  for (let x = 0; x < w; x += 6) rect(g, x, h - 2, 3, 2, Math.floor(x / 6) % 2 ? stripe : base);
   ditherRect(g, 0, 0, w, h, C.smog1, 4);
   return c;
 }
@@ -614,7 +655,8 @@ export function paintCar(w: number, h: number, paint: string, seed: number, dent
   }
   // 빗물 얼룩과 녹
   for (let k = 0; k < 5; k++) rect(g, 6 + Math.floor(rnd(seed, 700 + k) * (w - 12)), base - 6 + Math.floor(rnd(seed, 710 + k) * 3), 2, 1, C.rust);
-  line(g, 4, base - 3, w - 4, base - 3, C.smog0);
+  // 차 밑 그늘 (선이 아니라 두 줄 면)
+  rect(g, 4, base - 3, w - 8, 2, C.smog0);
   return { map, glow };
 }
 

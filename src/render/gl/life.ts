@@ -11,7 +11,7 @@ import { depthOfSpeed } from './core';
 import { Beam, Sparks, upload } from './fx';
 import { plane } from './kit';
 import { lightPool, shared } from './lights';
-import { litMaterial, pixelTexture } from './shaders';
+import { keepAlpha, litMaterial, pixelTexture } from './shaders';
 
 /**
  * 움직이는 도시 (모두 렌더 전용, sim과 무관): 노면전차, 멀리 도망치는 행인, 분수 물줄기, 먼 공장 매연, 바다 위 먼 등대 불빛,
@@ -34,8 +34,13 @@ class FarSprites {
   private n = 0;
   private readonly m4 = new THREE.Matrix4();
 
-  constructor(private readonly max: number, atlas: HTMLCanvasElement, cells: number, tint: number, fog: number, emissive = 0) {
+  /**
+   * soft: 연기·매연 덩어리. 그림을 키워 쓰지 않고(픽셀 크기 하나) 칸마다 둥근 짙기를 계산해 가장자리가 부드럽게 사라진다
+   * (바이어 무늬로 성기게 버리는 대신 반투명으로: 넓은 바둑판이 되지 않게). 색은 그림의 가운데 색을 쓴다
+   */
+  constructor(private readonly max: number, atlas: HTMLCanvasElement, cells: number, tint: number, fog: number, emissive = 0, soft = false) {
     const mat = new THREE.ShaderMaterial({
+      defines: soft ? { SOFT: '' } : {},
       uniforms: { map: { value: pixelTexture(atlas) }, cells: { value: cells }, tint: { value: tint }, fogAmount: { value: fog }, uFogColor: shared.uFogColor, emissive: { value: emissive } },
       vertexShader: /* glsl */ `
         attribute float fade;
@@ -60,13 +65,22 @@ class FarSprites {
         float m2(vec2 v) { return mod(2.0 * v.x + 3.0 * v.y, 4.0); }
         float bayer(vec2 p) { vec2 q = mod(floor(p), 4.0); return 4.0 * m2(mod(q, 2.0)) + m2(floor(q * 0.5)); }
         void main() {
+        #ifdef SOFT
+          vec4 t = texture2D(map, vec2((0.5 + floor(vUv.x * cells)) / cells, 0.5));
+          vec2 d = vec2(fract(vUv.x * cells), vUv.y) - 0.5;
+          float a = smoothstep(0.5, 0.12, length(d)) * vFade * 0.75;
+          if (a < 0.02) discard;
+          gl_FragColor = vec4(mix(t.rgb * tint, uFogColor, fogAmount), a);
+        #else
           vec4 t = texture2D(map, vUv);
           if (t.a < 0.5 || bayer(gl_FragCoord.xy) >= vFade * 16.0) discard;
           vec3 c = emissive > 0.0 ? t.rgb * emissive : mix(t.rgb * tint, uFogColor, fogAmount);
           gl_FragColor = vec4(c, 0.0);
+        #endif
         }
       `,
     });
+    if (soft) keepAlpha(mat, false);
     const geo = new THREE.PlaneGeometry(1, 1);
     geo.translate(0, 0.5, 0);
     this.fade = new THREE.InstancedBufferAttribute(new Float32Array(max), 1);
@@ -130,10 +144,11 @@ export function paintTram(dir: number): { map: HTMLCanvasElement; glow: HTMLCanv
   rect(g, 10, G - 12, L - 20, 2, C.iron);
   rect(g, 30, G - 59, L - 60, 3, C.chromeDark);
   for (let wx = 14, k = 0; wx + 10 < L - 14; wx += 13, k++) {
+    // 줄지어 빛나는 창 띠: 천장 등 바로 밑 세 줄은 하얗게 날아간 빛 (광원)
     rect(g, wx, G - 46, 11, 13, C.windowLit);
-    rect(e, wx, G - 46, 11, 13, C.windowLit);
-    rect(g, wx, G - 46, 11, 2, C.windowLight);
-    rect(e, wx, G - 46, 11, 2, C.windowLight);
+    rect(e, wx, G - 46, 11, 13, '#ad5a20');
+    rect(g, wx, G - 46, 11, 3, '#ffe2a8');
+    rect(e, wx, G - 46, 11, 3, '#fff4d8');
     if (hash(k * 31 + 7) < 0.6) {
       const px = wx + 3 + Math.floor(hash(k * 17) * 5);
       disc(g, px, G - 40, 2, C.iron);
@@ -256,7 +271,7 @@ export class Life {
   readonly group = new THREE.Group();
   private readonly tram: THREE.Mesh;
   private readonly tramMats: THREE.ShaderMaterial[];
-  private readonly headBeam = new Beam(150, 18, C.lampGlow, 0.3, 2);
+  private readonly headBeam = new Beam(150, 18, C.lampGlow, 0.2, 2);
   private readonly sparks = new Sparks(160);
   private readonly walkers = new Walkers();
   private readonly walkerSprites: FarSprites;
@@ -280,10 +295,10 @@ export class Life {
     this.group.add(this.tram, this.headBeam.pivot, this.sparks.mesh);
     // 행인 (가운데 겹)
     this.walkerSprites = new FarSprites(24, walkerAtlas(), SWINGS * 3, 0.32, 0.3);
-    // 공장 매연 (먼 겹): 디더링 원 하나를 크게 늘려 쓴다
+    // 공장 매연 (먼 겹): 가장자리가 부드럽게 사라지는 반투명 덩어리 (그림은 가운데 색만 쓴다: 키운 디더 원이 넓은 바둑판이 되지 않게)
     const [sc, sg] = canvas(32, 32);
     disc(sg, 16, 16, 15, C.smoke);
-    this.smoke = new FarSprites(48, sc, 1, 0.4, 0.45);
+    this.smoke = new FarSprites(48, sc, 1, 0.4, 0.45, 0, true);
     // 시타델 탑 경고등과 먼 등대 불빛 (빛나는 점)
     const [bc, bg] = canvas(16, 8);
     rect(bg, 2, 2, 4, 4, C.neonRed);

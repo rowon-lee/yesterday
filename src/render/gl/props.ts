@@ -7,7 +7,7 @@ import { hash } from '../dither';
 import { textWidth } from '../font';
 import { FRONT_Z } from './buildings';
 import { Flame, Puffs, Sparks, WaterColumn } from './fx';
-import { box, Details, facedBox, Geo, plane } from './kit';
+import { box, Details, facedBox, FREE, Geo, plane, type UvFn } from './kit';
 import { lightPool } from './lights';
 import { registerSign } from './signs';
 import {
@@ -33,7 +33,7 @@ const SIGN_ROLE: Record<string, SignRole> = {
   'marquee:TONIGHT': 'marquee',
   'board:DINER': 'dim',
   'blade:HOTEL': 'flicker',
-  'shop:HOTEL': 'off',
+  'shop:ROOMS': 'off',
   'shop:BAKERY': 'off',
   'shop:RADIO': 'hero',
   'shop:LAUNDRY': 'flicker',
@@ -218,10 +218,15 @@ class LampView implements View {
   /** 쓰러진 머리 쪽 길에 흩어진 유리 조각 (오른쪽·왼쪽으로 쓰러졌을 때) */
   private readonly bits: THREE.Mesh[];
 
+  private readonly dark: boolean;
+  private readonly faulty: boolean;
+
   constructor(private readonly owner: Props, b: Breakable, private readonly i: number, det: Details) {
     const cx = b.x + b.w / 2;
     this.cx = cx;
     this.side = i % 2 ? -1 : 1;
+    this.dark = (D.breakables.lampsDark as readonly number[]).includes(Math.round(cx));
+    this.faulty = (D.breakables.lampsFlicker as readonly number[]).includes(Math.round(cx));
     // 밑동 (쓰러져도 남는다)
     det.add(cx - 4, cx + 5, 0, 4, LAMP_Z - 4, LAMP_Z + 4, C.iron);
     // 기둥 아래 (밑동 위 4에서 돌아 쓰러진다)
@@ -274,7 +279,9 @@ class LampView implements View {
       this.bits[0].visible = p.stage === 2 && dir > 0;
       this.bits[1].visible = p.stage === 2 && dir < 0;
     }
-    const flick = p.stage === 1 ? hash((tick >> 2) * 31 + this.i * 7) < 0.45 : hash((tick >> 3) * 31 + this.i * 7) < 0.03;
+    // 꺼진 가로등은 켜지지 않고, 낡은 가로등은 자주 끊긴다 (데이터 lampsDark·lampsFlicker)
+    const base = this.dark ? 1 : this.faulty ? 0.3 : 0.03;
+    const flick = p.stage === 1 ? hash((tick >> 2) * 31 + this.i * 7) < 0.45 : hash((tick >> 3) * 31 + this.i * 7) < base;
     const on = p.stage < 2 && !flick;
     this.lens.uniforms.emissiveStrength.value = on ? 3 : 0;
     this.shaft.visible = on;
@@ -362,7 +369,8 @@ function signLevel(role: SignRole, p: PropState, tick: number, i: number): numbe
     on = hash((tick >> 2) * 131 + i * 17) > (p.stage === 1 ? 0.45 : 0.22);
   }
   if (!on) return 0;
-  return role === 'hero' ? 2.4 : role === 'dim' ? 0.9 : role === 'board' ? 1.3 : 1.5;
+  // 주인공만 세게, 나머지는 한 단계 낮게 (청록·호박 간판은 색만으로도 밝아 더 낮춘다)
+  return role === 'hero' ? 2.4 : role === 'dim' ? 0.6 : role === 'board' ? 1.0 : 0.95;
 }
 
 function brokenSparks(owner: Props, p: PropState, tick: number, i: number, x: number, y: number, z: number, color: string): void {
@@ -386,9 +394,9 @@ class SignView implements View {
   private readonly wire: THREE.Mesh;
 
   constructor(private readonly owner: Props, private readonly b: Breakable, private readonly i: number, det: Details) {
-    const t: SignTex = paintSign(b, i);
-    this.tex = { map: pixelTexture(t.map), broken: pixelTexture(t.broken), glows: t.glows.map(pixelTexture), damaged: pixelTexture(t.damaged) };
     this.role = roleOf(b);
+    const t: SignTex = paintSign(b, i, this.role === 'hero');
+    this.tex = { map: pixelTexture(t.map), broken: pixelTexture(t.broken), glows: t.glows.map(pixelTexture), damaged: pixelTexture(t.damaged) };
     this.mat = litMaterial(this.tex.map, { emissive: this.tex.glows[0], emissiveStrength: 0 });
     const w = Math.round(b.w);
     const h = Math.round(b.h);
@@ -403,7 +411,13 @@ class SignView implements View {
       // 다이너 판: 차양 위 받침 두 개
       for (const x of [b.x + 6, b.x + w - 8]) det.add(x, x + 2, D.ledges.awning, b.bottom, FRONT_Z + 1, FRONT_Z + 3, C.iron);
     }
-    this.mesh = box(b.x, b.x + w, b.bottom, b.bottom + h, z0, this.z1, this.mat);
+    if (b.style === 'blade') {
+      // 세로 간판 옆면은 빛나는 테두리 관 줄을 쓴다 (어두운 1px 옆면이 외곽선처럼 서지 않게: 옆면도 네온 빛을 받는다)
+      const geo = new Geo();
+      const uv: UvFn = (f, x, y) => [f === 'px' || f === 'nx' ? 1.5 / w : (x - b.x) / w, (y - b.bottom) / h];
+      geo.box('s', b.x, b.x + w, b.bottom, b.bottom + h, z0, this.z1, uv, FREE);
+      this.mesh = geo.build({ s: this.mat });
+    } else this.mesh = box(b.x, b.x + w, b.bottom, b.bottom + h, z0, this.z1, this.mat);
     if (b.text) registerSign(b.text, `간판(${b.style ?? 'flat'})`, b.x, b.x + w, b.bottom, b.bottom + h, this.z1, w, w);
     // 깨진 뒤 늘어진 전선
     this.wire = box(b.x + w - 6, b.x + w - 5, b.bottom - 14, b.bottom, this.z1 - 1, this.z1, litMaterial(pixelTexture(solid(C.iron))));
@@ -448,7 +462,8 @@ class MarqueeView implements View {
     const m = marqueeOf(FRONT[b.b])!;
     if (b.text) registerSign(b.text, '극장 차양', m.x0, m.x1, m.h - 22, m.h, 8, textWidth(b.text, 2), m.x1 - m.x0 - 4);
     const geo = new Geo();
-    geo.attachedBox(b.b, 'm', m.x0, m.x1, m.h - 22, m.h, FRONT_Z, 8, (f, x, y) => [(x - m.x0) / w, f === 'py' ? 0.95 : (y - (m.h - 22)) / 22]);
+    // 아랫면(처마 밑)은 전구가 박힌 밝은 판 줄을 쓴다: 어두운 1px 띠가 아니라 불 켜진 처마 (극장 입구가 거리에서 가장 밝다)
+    geo.attachedBox(b.b, 'm', m.x0, m.x1, m.h - 22, m.h, FRONT_Z, 8, (f, x, y) => [(x - m.x0) / w, f === 'py' ? 0.95 : f === 'ny' ? 0.55 : (y - (m.h - 22)) / 22]);
     owner.group.add(geo.build({ m: this.mat }));
   }
 
@@ -473,8 +488,8 @@ class BillboardView implements View {
   private readonly mat: THREE.ShaderMaterial;
   private readonly text: THREE.ShaderMaterial;
   private readonly tex: { map: THREE.Texture; broken: THREE.Texture; glows: THREE.Texture[]; damaged: THREE.Texture };
-  private readonly strips: THREE.Texture[];
-  private readonly len: number;
+  /** 낱말마다 [꺼짐, 켜짐, 부서짐] 글씨 띠 (판 가운데에 맞춘 한 낱말) */
+  private readonly words: THREE.Texture[][];
   private readonly z = FRONT_Z - 70;
 
   constructor(private readonly owner: Props, private readonly b: Breakable, private readonly i: number, det: Details) {
@@ -484,19 +499,21 @@ class BillboardView implements View {
     this.tex = { map: pixelTexture(t.map), broken: pixelTexture(t.broken), glows: t.glows.map(pixelTexture), damaged: pixelTexture(t.damaged) };
     this.mat = litMaterial(this.tex.map, { emissive: this.tex.glows[0], emissiveStrength: 1.3 });
     this.group.add(box(b.x - 2, b.x + w + 2, b.bottom - 2, b.bottom + h + 2, this.z - 4, this.z, this.mat));
-    // 흘러가는 글씨 띠 (판 앞)
-    this.strips = [0, 1, 2].map((st) => {
-      const tx = pixelTexture(boardStrip(b.text ?? '', st, i));
-      tx.wrapS = THREE.RepeatWrapping;
-      return tx;
-    });
-    this.len = (this.strips[0].image as HTMLCanvasElement).width / 3;
+    // 글씨 판 (판 앞): 문구를 낱말 하나씩 판 가운데에 띄우고 차례로 바꾼다 (흘러가는 띠는 늘 반쯤 잘린 글자가 보여서)
     const cols = Math.floor((w - 6) / 3);
-    this.text = scrollMaterial(this.strips[1], cols);
+    const slots = Math.ceil(cols / 4);
+    const list = (b.text ?? '').trim().split(/\s+/).filter(Boolean);
+    this.words = list.map((word) => {
+      const left = Math.floor((slots - word.length) / 2);
+      const padded = ' '.repeat(Math.max(0, left)) + word + ' '.repeat(Math.max(0, slots - left - word.length));
+      return [0, 1, 2].map((st) => pixelTexture(boardStrip(padded, st, i)));
+    });
+    this.text = scrollMaterial(this.words[0]?.[1] ?? pixelTexture(boardStrip(' ', 0, i)), cols);
     const ty = b.bottom + h - Math.floor((h - 15) / 2) - 15;
     this.group.add(plane(b.x + 3, b.x + 3 + cols * 3, ty, ty + 15, this.z + 0.3, this.text));
-    // 흘러가는 글씨: 글자 전체 폭 (한 글자 = 4칸 × 3px)과 판에 보이는 폭
-    if (b.text) registerSign(b.text, '옥상 전광판', b.x, b.x + w, ty, ty + 15, this.z, b.text.length * 12, cols * 3);
+    // 글자 폭은 가장 긴 낱말 (한 글자 = 4칸 × 3px, 끝 칸 빼고)과 판에 보이는 폭
+    const longest = list.reduce((m, word) => Math.max(m, word.length), 0);
+    if (b.text) registerSign(b.text.trim(), '옥상 전광판', b.x, b.x + w, ty, ty + 15, this.z, longest * 12 - 3, cols * 3);
     // 쇠다리와 버팀대 (지붕에서 판 밑까지)
     const roof = b.bottom - 12;
     for (const lx of [b.x + 10, b.x + w - 14]) {
@@ -518,8 +535,15 @@ class BillboardView implements View {
     const on = p.stage < 2 && (p.stage === 0 || hash((tick >> 2) * 17 + this.i * 7) > 0.35);
     this.mat.uniforms.emissiveStrength.value = on ? 1.3 : 0;
     this.mat.uniforms.emissiveMap.value = this.tex.glows[Math.floor(tick / 6) % 3];
-    this.text.uniforms.strip.value = this.strips[p.stage === 2 ? 2 : on ? 1 : 0];
-    this.text.uniforms.offset.value = (Math.floor(tick / 5) % this.len) * 3;
+    // 낱말 하나를 48틱 띄우고, 바뀔 때 6틱 꺼진다
+    if (this.words.length) {
+      const k = Math.floor(tick / 48) % this.words.length;
+      const gap = tick % 48 < 6;
+      const t = this.words[k];
+      this.text.uniforms.strip.value = t[p.stage === 2 ? 2 : on && !gap ? 1 : 0];
+      this.text.uniforms.stripW.value = (t[0].image as HTMLCanvasElement).width;
+      this.text.uniforms.offset.value = 0;
+    }
     if (on) {
       lightPool.add(b.x + b.w * 0.3, b.bottom + b.h / 2, this.z + 30, 90, C.neonAmber, 0.9);
       lightPool.add(b.x + b.w * 0.7, b.bottom + b.h / 2, this.z + 30, 90, C.neonAmber, 0.9);

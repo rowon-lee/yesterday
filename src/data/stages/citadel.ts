@@ -97,7 +97,7 @@ export const CITADEL = {
       ambient: { sky: '#16222a', ground: '#060a0a' },
       grade: { shadow: '#1e4040', high: '#fff0b0', sat: 1.0, contrast: 0.1 },
       halo: 1.3, streak: 0.2, lightning: 0.4,
-      ramps: ['navy', 'gray', 'sodium', 'teal', 'amber', 'umber', 'core'],
+      ramps: ['navy', 'gray', 'taupe', 'teal', 'fluo', 'amber', 'umber', 'core'],
     },
     elrail: {
       sky: { zenith: '#04080a', mid: '#0a1616', glow: '#2a6a5a', glowK: 0.8, cloud: '#081010', cloudLit: '#204a40', cover: 0.6 },
@@ -295,12 +295,24 @@ export const CITADEL = {
   },
 
   /** 비상계단 아파트 옥상 전광판 (아파트 구간의 몇 번째 건물인지, 글씨) */
-  billboard: { building: 3, w: 124, h: 44, text: 'THE CITADEL PROTECTS YOU   ' },
+  billboard: { building: 3, w: 124, h: 44, text: 'THE CITADEL PROTECTS YOU' },
 
   /** 시타델 공원: 나무(가운데 x, 줄기 높이, 잎 반지름), 벤치, 동쪽 끝 철책 */
   park: {
-    trees: [{ x: 4446, h: 90, r: 44 }, { x: 4550, h: 120, r: 58 }, { x: 4650, h: 100, r: 50 }, { x: 4724, h: 84, r: 40 }],
-    benches: [4500, 4600, 4690],
+    /**
+     * 나무 (렌더 전용): 줄기 높이 h, 잎 반지름 r. 나무마다 실루엣이 다르다 (지침서 '나무가 둥근 덩어리 반복' 고침):
+     * poplar 좁고 키 큰 포플러, oak 옆으로 퍼진 울퉁불퉁한 참나무, bare 잎 진 마른 나무(가지만), young 어린 나무. 간격도 제각각
+     */
+    trees: [
+      { x: 4440, h: 92, r: 30, kind: 'poplar' },
+      { x: 4552, h: 104, r: 50, kind: 'oak' },
+      { x: 4628, h: 88, r: 0, kind: 'bare' },
+      { x: 4720, h: 66, r: 34, kind: 'young' },
+    ],
+    /** 벤치 (렌더 전용): 첫째에는 신문지를 덮고 잠든 사람, 둘째 옆에는 우산 쓴 사람 */
+    benches: [4492, 4690],
+    /** 공원의 주인공 (렌더 전용, 지침서 '낡은 분수'): 두 단 돌 분수와 그 위 등불. 가운데 x */
+    fountain: { x: 4598 },
     fence: { x0: 4756, h: 150 },
   },
 
@@ -320,7 +332,7 @@ export const CITADEL = {
       { kind: 'crates', x: 960 },
       { kind: 'barrel', x: 1330 },
       { kind: 'crates', x: 1670 },
-      { kind: 'posterboard', x: 2004, text: 'OBEY' },
+      { kind: 'posterboard', x: 2004, text: 'WORK' },
       { kind: 'mailbox', x: 2220 },
       { kind: 'manhole', x: 2340 },
       { kind: 'barrel', x: 2560 },
@@ -394,7 +406,10 @@ export const CITADEL = {
    * 네온 간판은 건물에서 생긴다: 가게 이름 간판, 극장 세로 간판과 전구 차양, 다이너 간판, 호텔 세로 네온, 옥상 전광판.
    */
   breakables: {
-    lamps: [110, 290, 470, 760, 860, 1140, 1330, 1520, 1716, 1934, 2074, 2262, 2484, 2662, 2826, 3510, 3728, 3862, 4112, 4342, 4480, 4680, 4960, 5140, 5330, 5480, 5680, 5860, 6020, 6240],
+    /** 꺼진 가로등과 깜빡이는 가로등 (렌더 전용: 지침서 '가로등 일부는 꺼져 있다'). 값은 lamps의 x */
+    lampsDark: [452, 1716],
+    lampsFlicker: [2262, 5492],
+    lamps: [84, 318, 452, 760, 860, 1140, 1330, 1520, 1716, 1934, 2074, 2262, 2484, 2662, 2826, 3510, 3728, 3884, 4074, 4342, 4480, 4680, 4960, 5104, 5330, 5492, 5680, 5860, 6020, 6240],
     /** 차가 길어져(120) 가로등·소화전·가판대와 겹치지 않게 옮김 */
     cars: [380, 1420, 1808, 2082, 2344, 3600, 3980, 5000, 5380, 5720],
     hydrants: [560, 1110, 1952, 2240, 2624, 4204, 5170, 5990],

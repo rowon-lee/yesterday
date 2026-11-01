@@ -4,13 +4,14 @@ import { BIG, BREAK_RULES } from '../../stage/citadel';
 import type { CitadelState, PropState } from '../../sim';
 import { textWidth } from '../font';
 import { COLORS as C } from '../palette';
-import { canvas, disc, ditherRect, hash, line, rect } from '../dither';
+import { canvas, disc, ditherRect, hash, line, rect, solidTex } from '../dither';
 import { star } from './backdrops';
 import { scaleAt } from './core';
 import { Beam } from './fx';
 import { KEEP_VIS_H, KeepFall } from './keepfall';
 import { box, Details, facedBox, facedInto, FREE, Geo, matKeys, plane, type UvFn } from './kit';
 import { lightPool } from './lights';
+import { paintPuddle } from './proptex';
 import { decalMaterial, litMaterial, pixelTexture } from './shaders';
 import { figure, roomWall, WARM, type Figure } from './rooms';
 import { registerSign } from './signs';
@@ -96,7 +97,9 @@ export class Plaza {
     this.sign();
     this.fountain();
     this.walls(det);
-    statue(this.group, det);
+    const st = statue(this.group, det);
+    this.fixed.push(...st.lights);
+    this.floods.push(...st.beams);
     this.gatePiers(det);
     this.checkLight = this.checkpoint(det);
     this.westPost(det);
@@ -125,6 +128,8 @@ export class Plaza {
     };
     // (싸우는 면에서 멀리 앞쪽에 깔아야 바닥 줄이 몇 칸으로 보인다: 거의 수평인 카메라에서 앞으로 100은 화면 4칸 남짓)
     flat(2790, 2814, 120, 200, paintWetPaper(24, 12), 0.55);
+    // 동상 앞 물웅덩이: 투광등과 동상이 비친다
+    flat(P.statue.x - 14, P.statue.x + 62, 40, 150, paintPuddle(76, 22), 0.95);
     for (const v of D.street.props) {
       if (v.kind !== 'manhole' || v.x < P.gatePiers[0] || v.x > P.gatePiers[1]) continue;
       flat(v.x, v.x + 18, 10, 70, paintGrate(18, 10), 0.3);
@@ -334,8 +339,10 @@ export class Plaza {
       this.group.add(box(px, px + 32, 0, 120, -34, -0.6, mat));
       det.add(px - 3, px + 35, 120, 126, -37, -0.5, C.stone);
       det.add(px - 3, px + 35, 125, 126, -37, -0.5, C.paintCream);
-      const lan = litMaterial(pixelTexture(solidTex(C.lampWarm)), { emissive: pixelTexture(solidTex(C.lampGlow)), emissiveStrength: 1.6 });
-      this.glows.push({ mat: lan, k: 1.6 });
+      // 등롱: 쇠틀과 살 사이 호박색 유리, 가운데 하얗게 날아간 전구 (빛나는 네모 덩어리가 아니라 등으로 보이게)
+      const lt = paintLantern();
+      const lan = litMaterial(pixelTexture(lt.map), { emissive: pixelTexture(lt.glow), emissiveStrength: 1.4 });
+      this.glows.push({ mat: lan, k: 1.4 });
       this.group.add(box(px + 10, px + 22, 126, 138, -24, -12, lan));
       det.add(px + 9, px + 23, 138, 140, -25, -11, C.iron);
       this.fixed.push({ x: px + 16, y: 132, z: -4, range: 60, color: C.lampGlow, power: 0.9 });
@@ -435,12 +442,6 @@ export class Plaza {
   }
 }
 
-function solidTex(color: string): HTMLCanvasElement {
-  const [c, g] = canvas(4, 4);
-  rect(g, 0, 0, 4, 4, color);
-  return c;
-}
-
 /**
  * 시타델 정면 대형 간판 그림: 쇠판(plateX0부터 판 폭 D.plaza.sign.w)에 빛나는 글자 CITADEL과 DISTRICT 1, 양옆에 붉은 별.
  * glow는 빛나는 부분만. 본관에 걸린 간판과 떨어지는 간판이 같이 쓴다.
@@ -485,6 +486,25 @@ function paintStep(): HTMLCanvasElement {
   rect(g, 0, 0, 16, 1, C.paintCream);
   rect(g, 9, 2, 1, 2, C.stoneDark);
   return c;
+}
+
+/** 등롱 (12 × 12): 쇠틀, 가운데 살, 호박색 유리, 전구 */
+function paintLantern(): { map: HTMLCanvasElement; glow: HTMLCanvasElement } {
+  const [map, g] = canvas(12, 12);
+  const [glow, e] = canvas(12, 12);
+  rect(g, 0, 0, 12, 12, C.iron);
+  rect(e, 0, 0, 12, 12, '#000');
+  rect(g, 1, 1, 10, 10, '#c27c44');
+  rect(e, 1, 1, 10, 10, '#78452a');
+  rect(g, 3, 3, 6, 7, '#ffc16e');
+  rect(e, 3, 3, 6, 7, '#ad5a20');
+  rect(g, 4, 4, 4, 5, '#fff4d8');
+  rect(e, 4, 4, 4, 5, '#fff4d8');
+  rect(g, 5, 1, 1, 10, C.iron);
+  rect(e, 5, 1, 1, 10, '#000');
+  rect(g, 1, 6, 10, 1, C.iron);
+  rect(e, 1, 6, 10, 1, '#000');
+  return { map, glow };
 }
 
 /** 젖은 신문지 한 장 (바닥 무늬): 빗물에 젖어 어두워진 귀퉁이, 접힌 자국, 단 사이 글줄 */
@@ -840,11 +860,26 @@ function officePane(g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, x:
 }
 
 /** 히어로 동상: 돌 받침 위에 주먹을 든 영웅 (어두운 청동 실루엣, 눈 없음). 받침은 상자, 동상은 빛을 받는 그림 판 */
-function statue(group: THREE.Group, det: Details): void {
+function statue(group: THREE.Group, det: Details): { lights: Glow[]; beams: Beam[] } {
   const x = P.statue.x;
-  det.add(x, x + 48, 0, 40, -70, -32, C.stone);
+  // 받침대: 화강암 몸통(빗물 자국·청동 명판), 비에 젖어 반짝이는 덮개 윗면, 아래 굽
+  group.add(box(x, x + 48, 0, 40, -70, -32, litMaterial(pixelTexture(paintPedestal()), { wet: 0.8 })));
   det.add(x - 3, x + 51, 36, 44, -73, -29, C.stoneDark);
+  det.add(x - 3, x + 51, 43, 44, -73, -29, C.paintCream);
   det.add(x - 3, x + 51, 0, 6, -73, -29, C.stoneDark);
+  // 아래에서 올려 비추는 투광등 둘 (받침대 앞 바닥): 쇠 함, 빛나는 유리, 동상 쪽으로 기운 부드러운 빛줄기
+  const lens = litMaterial(pixelTexture(solidTex('#ffe2a8')), { emissive: pixelTexture(solidTex('#fff4d8')), emissiveStrength: 1.4 });
+  const beams: Beam[] = [];
+  for (const [lx, aim] of [[x + 7, -0.26], [x + 37, 0.26]] as const) {
+    det.add(lx, lx + 5, 0, 4, -29, -24, C.iron);
+    group.add(box(lx + 1, lx + 4, 4, 5, -28, -25, lens));
+    // 가늘고 옅게, 동상 몸 쪽으로 모이게 (빛줄기가 동상을 덮지 않게)
+    const up = new Beam(120, 11, C.lampGlow, 0.055, 2);
+    up.pivot.position.set(lx + 2.5, 5, -27);
+    up.aim(aim);
+    group.add(up.pivot);
+    beams.push(up);
+  }
   const [c, g] = canvas(40, 72);
   const bx = 20;
   const by = 71;
@@ -862,5 +897,41 @@ function statue(group: THREE.Group, det: Details): void {
   for (let i = 0; i < 20; i++) rect(g, bx - 7 - Math.floor(i / 3), by - 46 + i, 3, 1, C.iron);
   // 빛 받는 왼쪽 가장자리
   for (let y = by - 48; y < by - 25; y++) rect(g, bx - 5, y, 1, 1, C.chromeDark);
-  group.add(plane(x + 4, x + 44, 44, 116, -50, litMaterial(pixelTexture(c), { side: THREE.DoubleSide })));
+  // 아래에서 올려 비추는 빛: 아래를 향한 가장자리(팔·몸통·턱 밑)는 따뜻한 테두리 빛, 아래쪽 바깥 가장자리는 한 단계 옅게
+  const [glowC, ge] = canvas(40, 72);
+  ge.fillStyle = '#000';
+  ge.fillRect(0, 0, 40, 72);
+  const px = g.getImageData(0, 0, 40, 72).data;
+  const solidAt = (xx: number, yy: number) => xx >= 0 && yy >= 0 && xx < 40 && yy < 72 && px[(yy * 40 + xx) * 4 + 3] > 0;
+  for (let yy = 0; yy < 72; yy++) {
+    for (let xx = 0; xx < 40; xx++) {
+      if (!solidAt(xx, yy)) continue;
+      if (!solidAt(xx, yy + 1) && yy < 70) rect(ge, xx, yy, 1, 1, '#d8924e');
+      else if ((!solidAt(xx - 1, yy) || !solidAt(xx + 1, yy)) && yy > 30) rect(ge, xx, yy, 1, 1, '#5e3622');
+    }
+  }
+  group.add(plane(x + 4, x + 44, 44, 116, -50, litMaterial(pixelTexture(c), { side: THREE.DoubleSide, emissive: pixelTexture(glowC), emissiveStrength: 1.2 })));
+  // 동상을 아래에서 비추는 빛 (받침대 앞 낮은 곳: 다리와 몸통 아래가 밝고 머리로 갈수록 어두워진다)
+  // (빛 자리를 받침대 윗면보다 높게, 동상 앞에 둔다: 받침대 정면이 하얗게 날아가지 않고 동상 몸이 빛을 받게)
+  const lights: Glow[] = [{ x: x + 24, y: 64, z: -34, range: 80, color: C.lampGlow, power: 1.3 }];
+  return { lights, beams };
+}
+
+/** 동상 받침대 몸통 (48 × 40): 화강암 블록, 덮개에서 흘러내린 빗물 자국, 가운데 청동 명판과 별 */
+function paintPedestal(): HTMLCanvasElement {
+  const [c, g] = canvas(48, 40);
+  rect(g, 0, 0, 48, 40, C.stone);
+  for (let y = 9; y < 40; y += 10) rect(g, 0, y, 48, 1, C.stoneDark);
+  for (let y = 0; y < 40; y += 10) for (let x = (y / 10) % 2 ? 8 : 20; x < 48; x += 24) rect(g, x, y, 1, 9, C.stoneDark);
+  // 빗물 자국: 덮개 아래에서 길이가 제각각인 어두운 줄
+  for (let k = 0; k < 9; k++) {
+    const x = 2 + Math.floor(hash(k * 13 + 5) * 44);
+    rect(g, x, 0, 1, 6 + Math.floor(hash(k * 7 + 1) * 22), C.stoneDark);
+  }
+  // 청동 명판 (테두리만 빛을 받는다)
+  rect(g, 15, 14, 18, 12, C.iron);
+  rect(g, 15, 14, 18, 1, C.paintOchre);
+  rect(g, 15, 14, 1, 12, C.paintOchre);
+  star(g, 24, 20, 2, C.paintOchre);
+  return c;
 }
