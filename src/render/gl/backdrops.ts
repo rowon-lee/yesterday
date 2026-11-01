@@ -3,13 +3,13 @@ import { MAP_H, MAP_W } from '../../stage/citadel';
 import { drawText, textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_H, SCREEN_W } from '../screen';
-import { canvas, disc, dither, ditherRect, hash, haze, line, paint, rect } from '../dither';
+import { canvas, disc, dither, ditherRect, hash, line, paint, rect } from '../dither';
 
 /**
  * 먼 겹(하늘과 바다·1구역 마천루·시타델 탑 윗부분·중간 건물)의 도트 그림 (렌더 전용, 오프스크린 Canvas 2D에 미리 그린다).
  * 겹마다 카메라 대비 움직이는 비율(speed)이 있고, 그 비율만큼 가로·세로로 작은 그림이 된다: 폭 = 화면 + (맵 - 화면) × speed.
  * 3D 화면은 이 그림을 그 겹 속도의 깊이에 판으로 세운다 (world.ts의 backdrop: 2D 시차와 똑같이 움직인다).
- * 겹 안의 바닥은 겹 아래 끝에서 groundFromBottom 위. 먼 겹은 매연 색 디더링(haze)으로 덮는다.
+ * 겹 안의 바닥은 겹 아래 끝에서 groundFromBottom 위. 안개는 그림에 칠하지 않고 셰이더가 덮는다 (shaders.ts backdropMaterial).
  */
 export interface Layer {
   canvas: HTMLCanvasElement;
@@ -115,7 +115,6 @@ export function buildFar(): Layer {
     rect(g, ch.x + 1, ch.top + 12, ch.w - 2, 1, C.smog2);
     rect(g, ch.x + Math.floor(ch.w / 2), ch.top - 2, 1, 2, C.posterRed);
   }
-  haze(c, C.smog3, F.haze);
   return { canvas: c, speed: F.speed };
 }
 
@@ -167,7 +166,6 @@ export function buildKeep(): Layer {
       rect(g, x0 + 10, top - 18, 18, 2, rib);
     } else rect(g, x0 + sl.w - 14, top - 26, 1, 23, rib);
   });
-  haze(c, C.smog3, K.haze);
   return { canvas: c, speed: K.speed };
 }
 
@@ -215,7 +213,6 @@ export function buildKeepTower(): Layer {
   for (let y = top - K.mast + 8; y < top; y += 9) rect(g, cx - 3, y, 6, 1, dark);
   for (const b of keepBeacons()) rect(g, b.x - 1, b.y - 1, 3, 2, C.neonRedDark);
   for (const lx of keepLights()) rect(g, lx.x - 5, lx.y, 10, 5, C.ironLight);
-  haze(c, C.smog3, K.haze);
   return { canvas: c, speed: K.speed };
 }
 
@@ -306,7 +303,6 @@ export function buildMid(): Layer {
   rect(g, sea, gl, w - sea, 3, C.sidewalk);
   rect(g, sea, gl + 3, w - sea, 1, C.curb);
   ditherRect(g, sea, gl + 4, w - sea, h - gl - 4, C.streetLine, 3);
-  haze(c, C.smog3, M.haze);
   return { canvas: c, speed: M.speed };
 }
 

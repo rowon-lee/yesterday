@@ -29,6 +29,51 @@ export const CITADEL = {
     { id: 'park', name: '시타델 공원', x0: 2800, x1: 3200 },
   ],
 
+  /**
+   * 구간마다 다른 밤 (렌더 전용, 카메라가 있는 구간의 값을 경계에서 섞어 쓴다). 색은 '#rrggbb'.
+   * sky: 하늘 꼭대기(zenith)와 중간(mid), 지평선 빛 번짐(glow, 세기 glowK), 구름 어두운 면(cloud)과 도시 불빛을 받은 아랫면(cloudLit), 구름 양(cover 0~1)
+   * fog: 안개 색, 바닥 안개(mist 0~1), 겹 사이 안개 배율(haze). ambient: 하늘 쪽·바닥 쪽 환경광
+   * grade: 화면 색 보정 (그림자 쪽 색 shadow, 밝은 쪽 색 high, 채도 sat, 대비 contrast)
+   * halo: 안개 속 빛 무리 세기, streak: 강한 빛의 가로 플레어 세기, lightning: 먼 번개 잦기 (0이면 없음)
+   */
+  moods: {
+    pier: {
+      sky: { zenith: '#05070d', mid: '#0d1621', glow: '#3e6a72', glowK: 0.9, cloud: '#0b1018', cloudLit: '#2c4a52', cover: 0.55 },
+      fog: { color: '#2a3e48', mist: 0.55, haze: 1.3 },
+      ambient: { sky: '#1a2a3a', ground: '#070b10' },
+      grade: { shadow: '#2a5560', high: '#ffd9a8', sat: 1.05, contrast: 0.12 },
+      halo: 1.1, streak: 0.25, lightning: 0.8,
+    },
+    theater: {
+      sky: { zenith: '#07050e', mid: '#160c1e', glow: '#7a2a5a', glowK: 1.0, cloud: '#120a16', cloudLit: '#5a2a4a', cover: 0.6 },
+      fog: { color: '#3a2442', mist: 0.4, haze: 1.0 },
+      ambient: { sky: '#241a38', ground: '#0a0610' },
+      grade: { shadow: '#1c3a5c', high: '#ffc0d8', sat: 1.15, contrast: 0.15 },
+      halo: 1.2, streak: 0.3, lightning: 0.3,
+    },
+    plaza: {
+      sky: { zenith: '#04060c', mid: '#0c1220', glow: '#4a5a7a', glowK: 0.8, cloud: '#0a0e18', cloudLit: '#3a4a66', cover: 0.65 },
+      fog: { color: '#28344a', mist: 0.35, haze: 1.0 },
+      ambient: { sky: '#1a2236', ground: '#06080e' },
+      grade: { shadow: '#1e3050', high: '#e8f0ff', sat: 0.95, contrast: 0.2 },
+      halo: 1.0, streak: 0.35, lightning: 0.5,
+    },
+    apartments: {
+      sky: { zenith: '#06050c', mid: '#140d16', glow: '#7a4228', glowK: 0.9, cloud: '#100a10', cloudLit: '#5a3020', cover: 0.6 },
+      fog: { color: '#382630', mist: 0.4, haze: 1.0 },
+      ambient: { sky: '#221a30', ground: '#09060a' },
+      grade: { shadow: '#1a3452', high: '#ffcf9a', sat: 1.1, contrast: 0.15 },
+      halo: 1.1, streak: 0.25, lightning: 0.3,
+    },
+    park: {
+      sky: { zenith: '#04070a', mid: '#0a1414', glow: '#4a5a32', glowK: 0.7, cloud: '#081010', cloudLit: '#2e3a22', cover: 0.5 },
+      fog: { color: '#283a34', mist: 0.7, haze: 1.5 },
+      ambient: { sky: '#16222a', ground: '#060a0a' },
+      grade: { shadow: '#1e4040', high: '#fff0b0', sat: 1.0, contrast: 0.1 },
+      halo: 1.3, streak: 0.2, lightning: 0.4,
+    },
+  },
+
   /** 1. 하늘과 바다: 수평선(바닥에서 seaTop 위)부터 아래가 바다, 멀리 깜빡이는 등대 불빛 */
   sky: { speed: 0.03, moon: { x: 120, fromTop: 60, r: 20 }, seaTop: 96, farLight: { x: 58, every: 90 } },
 

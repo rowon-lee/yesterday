@@ -26,9 +26,9 @@ interface RainLayer {
 }
 
 const LAYERS: readonly RainLayer[] = [
-  { z: -420, n: 150, v: 5, len: 5, cam: 0.3, order: 3, base: 0.05 },
-  { z: -20, n: 90, v: 8, len: 8, cam: 0.8, order: 3, base: 0.07 },
-  { z: 900, n: 26, v: 13, len: 14, cam: 1.4, order: 20, base: 0.09 },
+  { z: -420, n: 160, v: 5, len: 5, cam: 0.3, order: 3, base: 0.012 },
+  { z: -20, n: 110, v: 8, len: 8, cam: 0.8, order: 3, base: 0.016 },
+  { z: 900, n: 30, v: 13, len: 15, cam: 1.4, order: 20, base: 0.02 },
 ];
 
 const RAIN_VERT = /* glsl */ `
@@ -53,14 +53,18 @@ void main() {
   float py = sy + position.y * len;
   float px = sx + position.y * len * ${SLANT.toFixed(2)} + position.x;
   vec3 world = vec3(camCenter.x + (px - ${(SCREEN_W / 2).toFixed(1)}) / scale, camCenter.y - (py - ${(SCREEN_H / 2).toFixed(1)}) / scale, depth);
+  // 빛 밖에서는 거의 보이지 않고, 광원 가까이(아래로 비추는 등은 그 아래)에서만 그 빛 색으로 반짝인다
+  // 비를 비추는 빛은 센 것부터 4개까지만 (광원 배열은 센 순서로 실린다)
   vec3 lit = vec3(0.0);
-  for (int i = 0; i < LIGHT_N; i++) {
+  for (int i = 0; i < 4; i++) {
     if (float(i) >= uLightCount) break;
-    float d = length(uLightPos[i].xyz - world);
-    float k = clamp(1.0 - d / (uLightPos[i].w * 1.15), 0.0, 1.0);
-    lit += uLightCol[i].rgb * k * k;
+    vec3 L = uLightPos[i].xyz - world;
+    float d = length(L);
+    float k = clamp(1.0 - d / (uLightPos[i].w * 0.95), 0.0, 1.0);
+    float spot = uLightCol[i].w > 1.5 ? smoothstep(0.2, 0.7, L.y / max(d, 0.001)) : 1.0;
+    lit += uLightCol[i].rgb * k * k * k * spot;
   }
-  vColor = vec3(0.62, 0.66, 0.72) * base + lit * 0.9;
+  vColor = vec3(0.62, 0.66, 0.72) * base + lit * 1.6;
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
 `;
@@ -131,7 +135,7 @@ export class Rain {
             float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
             lit += uLightCol[i].rgb * k * k;
           }
-          vColor = vec3(0.5, 0.55, 0.62) * 0.18 + lit * 0.8;
+          vColor = vec3(0.5, 0.55, 0.62) * 0.03 + lit * 0.9;
           gl_Position = projectionMatrix * viewMatrix * wp;
         }
       `,

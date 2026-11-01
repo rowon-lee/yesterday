@@ -28,6 +28,30 @@ vec3 lightAt(vec3 p, vec3 n) {
   }
   return sum;
 }
+/**
+ * lightAt과 같고, 젖은 면의 반짝임(빛 쪽으로 기운 결에 맺히는 하이라이트)을 spec에 더한다. v: 카메라 쪽 방향
+ */
+vec3 lightAtSpec(vec3 p, vec3 n, vec3 v, float wet, inout vec3 spec) {
+  vec3 sum = mix(uAmbientGround, uAmbient, n.y * 0.5 + 0.5);
+  for (int i = 0; i < LIGHT_N; i++) {
+    if (float(i) >= uLightCount) break;
+    vec3 L = uLightPos[i].xyz - p;
+    float d = length(L);
+    float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
+    if (k <= 0.0) continue;
+    vec3 l = L / max(d, 0.001);
+    float ndl = clamp(dot(n, l) * 0.75 + 0.25, 0.0, 1.0);
+    float spot = uLightCol[i].w > 1.5 ? smoothstep(0.25, 0.75, l.y) : 1.0;
+    vec3 c = uLightCol[i].rgb * (k * k) * spot;
+    sum += c * ndl;
+    // 반짝임은 센 빛 4개까지만 (광원 배열은 센 순서로 실린다)
+    if (i < 4) {
+      vec3 h = normalize(l + v);
+      spec += c * pow(clamp(dot(n, h), 0.0, 1.0), 26.0) * wet;
+    }
+  }
+  return sum;
+}
 `;
 
 export const FOG_GLSL = /* glsl */ `
@@ -76,6 +100,8 @@ uniform sampler2D map;
 uniform sampler2D emissiveMap;
 uniform float emissiveStrength;
 uniform vec3 tint;
+uniform float bump;
+uniform float wet;
 ${LIGHT_GLSL}
 ${FOG_GLSL}
 varying vec2 vUv;
@@ -94,12 +120,49 @@ void main() {
   if (tex.a < 0.5) discard;
   // 바탕색은 채도를 낮춰 두고 (아트 규칙: 배경은 채도를 낮춘다) 색은 빛이 입힌다
   vec3 alb = mix(vec3(dot(tex.rgb, vec3(0.3, 0.59, 0.11))), tex.rgb, 0.55) * uAlbedo;
-  vec3 col = alb * tint * lightAt(vWorld, normalize(vNormal));
+  vec3 n = normalize(vNormal);
+#ifdef DETAIL
+  // 벽 결: 도트 그림의 밝기를 높이로 보고(줄눈·창틀 홈은 낮고 벽돌 면은 높다) 칸마다 면을 기울인다.
+  // 빛이 움직이면 벽돌 결과 창틀 모서리를 따라 밝고 어두운 면이 생긴다 (품질 높음에서만: setDetail)
+  if (bump > 0.0) {
+    vec2 ts = 1.0 / vec2(textureSize(map, 0));
+    vec3 W = vec3(0.3, 0.59, 0.11);
+    float h0 = dot(tex.rgb, W);
+    float hr = dot(texture2D(map, vUv + vec2(ts.x, 0.0)).rgb, W);
+    float hu = dot(texture2D(map, vUv + vec2(0.0, ts.y)).rgb, W);
+    vec3 nt = normalize(vec3((h0 - hr) * bump * 8.0, (h0 - hu) * bump * 8.0, 1.0));
+    // 면의 결 방향: 무대는 거의 상자와 판이라 면 방향만 보고 정한다 (상자 그림의 u·v 방향, 화면 미분 없이)
+    vec3 an = abs(n);
+    vec3 T = an.z >= max(an.x, an.y) ? vec3(sign(n.z), 0.0, 0.0) : an.x >= an.y ? vec3(0.0, 0.0, -sign(n.x)) : vec3(1.0, 0.0, 0.0);
+    vec3 B = an.y > max(an.x, an.z) ? vec3(0.0, 0.0, -sign(n.y)) : vec3(0.0, 1.0, 0.0);
+    n = normalize(mat3(T, B, n) * nt);
+  }
+  // 비에 젖은 면은 빛 쪽으로 기운 결마다 반짝인다
+  vec3 spec = vec3(0.0);
+  vec3 col = alb * tint * lightAtSpec(vWorld, n, normalize(cameraPosition - vWorld), wet, spec);
+  col += spec;
+#else
+  vec3 col = alb * tint * lightAt(vWorld, n);
+#endif
   col += texture2D(emissiveMap, vUv).rgb * emissiveStrength;
   // 알파 0: 바닥이 아니다 (화면 반사는 알파에 젖은 정도를 쓴 바닥에만 더한다)
   gl_FragColor = vec4(applyFog(col, vDepth, vWorld.y), 0.0);
 }
 `;
+
+/** 품질에 따라 벽 결·젖은 반짝임을 넣고 빼는 재질들 (DETAIL 정의를 바꿔 다시 컴파일한다) */
+const detailed: THREE.ShaderMaterial[] = [];
+let detailOn = true;
+/** 품질 높음이면 벽 결·젖은 반짝임을 켠다. 바뀔 때만 재질을 다시 컴파일한다 (품질은 보통 한 번만 바뀐다) */
+export function setDetail(on: boolean): void {
+  if (on === detailOn) return;
+  detailOn = on;
+  for (const m of detailed) {
+    if (on) m.defines.DETAIL = '';
+    else delete m.defines.DETAIL;
+    m.needsUpdate = true;
+  }
+}
 
 /** 아무것도 없는 발광 텍스처 (검정 1px) */
 const BLACK = (() => {
@@ -114,9 +177,14 @@ const BLACK = (() => {
  */
 export function litMaterial(
   map: THREE.Texture,
-  opts: { emissive?: THREE.Texture; emissiveStrength?: number; tint?: number; side?: THREE.Side; attached?: boolean; clip?: [number, number] } = {},
+  opts: {
+    emissive?: THREE.Texture; emissiveStrength?: number; tint?: number; side?: THREE.Side; attached?: boolean; clip?: [number, number];
+    /** 벽 결 세기 (0이면 끔), 젖은 반짝임 세기 */
+    bump?: number; wet?: number;
+  } = {},
 ): THREE.ShaderMaterial {
   const defines: Record<string, string> = {};
+  if (detailOn) defines.DETAIL = '';
   if (opts.attached) defines.ATTACHED = '';
   if (opts.clip) defines.CLIPX = '';
   const m = new THREE.ShaderMaterial({
@@ -128,6 +196,8 @@ export function litMaterial(
       emissiveStrength: { value: opts.emissiveStrength ?? 1 },
       tint: { value: new THREE.Color(opts.tint ?? 1, opts.tint ?? 1, opts.tint ?? 1) },
       clipX: { value: new THREE.Vector2(...(opts.clip ?? [-1e9, 1e9])) },
+      bump: { value: opts.bump ?? 1 },
+      wet: { value: opts.wet ?? 0.35 },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,
@@ -135,6 +205,7 @@ export function litMaterial(
   });
   // 붙은 자리가 없는 기하(보통 상자·판)에서는 '어디에도 붙지 않음'으로 읽게
   if (opts.attached) (m as unknown as { defaultAttributeValues: Record<string, number[]> }).defaultAttributeValues = { ...m.defaultAttributeValues, bc: [0, 0] };
+  detailed.push(m);
   return withLights(m);
 }
 
@@ -163,10 +234,74 @@ function keepAlpha(m: THREE.ShaderMaterial, additive: boolean): THREE.ShaderMate
   return m;
 }
 
-/** 먼 겹 판 (빛을 받지 않는 그림): 어둡게 누르고 안개에 묻는다. fog: 0~1 */
-export function backdropMaterial(map: THREE.Texture, tint: number, fog: number): THREE.ShaderMaterial {
+/** 먼 겹 안개 덩어리 무늬 (64×64 값 잡음, 부드럽게 늘여 쓴다: 안개는 흐림을 허용한다). 모든 먼 겹이 함께 쓴다 */
+let bankTex: THREE.DataTexture | null = null;
+function fogBankNoise(): THREE.DataTexture {
+  if (bankTex) return bankTex;
+  const N = 64;
+  const d = new Uint8Array(N * N * 4);
+  const h = (x: number, y: number): number => {
+    const s2 = Math.sin(((x % N) + N) % N * 127.1 + (((y % N) + N) % N) * 311.7) * 43758.5453;
+    return s2 - Math.floor(s2);
+  };
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      // 두 겹 값 잡음 (큰 덩어리 + 작은 덩어리), 끝이 이어지게
+      let v = 0;
+      for (const [cell, w] of [[16, 0.65], [8, 0.35]] as const) {
+        const gx = Math.floor(x / cell);
+        const gy = Math.floor(y / cell);
+        const fx = (x % cell) / cell;
+        const fy = (y % cell) / cell;
+        const sx = fx * fx * (3 - 2 * fx);
+        const sy = fy * fy * (3 - 2 * fy);
+        const n = N / cell;
+        const g = (a: number, b: number): number => h(((a % n) + n) % n * cell, ((b % n) + n) % n * cell);
+        const top = g(gx, gy) + (g(gx + 1, gy) - g(gx, gy)) * sx;
+        const bot = g(gx, gy + 1) + (g(gx + 1, gy + 1) - g(gx, gy + 1)) * sx;
+        v += (top + (bot - top) * sy) * w;
+      }
+      const o = (y * N + x) * 4;
+      d[o] = d[o + 1] = d[o + 2] = Math.round(v * 255);
+      d[o + 3] = 255;
+    }
+  }
+  bankTex = new THREE.DataTexture(d, N, N);
+  bankTex.wrapS = THREE.RepeatWrapping;
+  bankTex.wrapT = THREE.RepeatWrapping;
+  bankTex.magFilter = THREE.LinearFilter;
+  bankTex.minFilter = THREE.LinearFilter;
+  bankTex.needsUpdate = true;
+  return bankTex;
+}
+
+/** 칸 단위 값 잡음 (0~1). 셰이더 안개·구름에서 함께 쓴다 */
+export const NOISE_GLSL = /* glsl */ `
+float h12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h12(i), h12(i + vec2(1.0, 0.0)), f.x), mix(h12(i + vec2(0.0, 1.0)), h12(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+`;
+
+/**
+ * 먼 겹 판 (빛을 받지 않는 그림): 어둡게 누르고 안개에 묻는다. fog: 0~1, glowMix: 안개가 지평선 도시 불빛 색을 얼마나 띠는지.
+ * 안개는 그림에 칠하지 않고 여기서 덮는다 (점무늬 없이 이어지게): 겹 아래쪽(바닥 안개)이 짙고, 안개 덩어리가 천천히 흐른다.
+ * 불 켜진 창처럼 밝은 칸은 안개를 뚫고 빛난다.
+ */
+export function backdropMaterial(map: THREE.Texture, tint: number, fog: number, glowMix = 0.5): THREE.ShaderMaterial {
+  const img = map.image as HTMLCanvasElement;
   return new THREE.ShaderMaterial({
-    uniforms: { ...shared, map: { value: map }, tint: { value: tint }, fogAmount: { value: fog } },
+    uniforms: {
+      ...shared, map: { value: map }, tint: { value: tint }, fogAmount: { value: fog }, glowMix: { value: glowMix },
+      texSize: { value: new THREE.Vector2(img.width, img.height) }, bankNoise: { value: fogBankNoise() },
+    },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
       void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
@@ -175,12 +310,26 @@ export function backdropMaterial(map: THREE.Texture, tint: number, fog: number):
       uniform sampler2D map;
       uniform float tint;
       uniform float fogAmount;
+      uniform float glowMix;
+      uniform vec2 texSize;
       uniform vec3 uFogColor;
+      uniform vec3 uFogGlow;
+      uniform float uMist;
+      uniform float uTime;
+      uniform sampler2D bankNoise;
       varying vec2 vUv;
       void main() {
         vec4 t = texture2D(map, vUv);
         if (t.a < 0.5) discard;
-        gl_FragColor = vec4(mix(t.rgb * tint, uFogColor, fogAmount), 0.0);
+        vec2 p = floor(vUv * texSize);
+        float l = dot(t.rgb, vec3(0.3, 0.59, 0.11));
+        float resist = smoothstep(0.12, 0.4, l);
+        float mist = uMist * (1.0 - smoothstep(0.0, 0.42, vUv.y));
+        float bank = 0.72 + 0.56 * texture2D(bankNoise, vec2(p.x / 4480.0 + uTime * 0.00001, p.y / 1408.0)).r;
+        float f = clamp((fogAmount + mist * 0.55) * bank, 0.0, 0.96) * (1.0 - resist * 0.7);
+        vec3 fogCol = mix(uFogColor, uFogGlow, glowMix * (1.0 - vUv.y * 0.6));
+        vec3 c = t.rgb * tint * (1.0 + resist * 2.0);
+        gl_FragColor = vec4(mix(c, fogCol, f), 0.0);
       }
     `,
   });
@@ -327,7 +476,7 @@ export function scrollMaterial(strip: THREE.Texture, cols: number): THREE.Shader
 export function shaftMaterial(color: string, strength: number): THREE.ShaderMaterial {
   const c = new THREE.Color(color).convertSRGBToLinear();
   const m = new THREE.ShaderMaterial({
-    uniforms: { ...shared, color: { value: c }, strength: { value: strength } },
+    uniforms: { ...shared, color: { value: c }, strength: { value: strength }, bankNoise: { value: fogBankNoise() } },
     vertexShader: /* glsl */ `
       varying float vAlong;
       varying float vFacing;
@@ -346,14 +495,20 @@ export function shaftMaterial(color: string, strength: number): THREE.ShaderMate
       uniform vec3 color;
       uniform float strength;
       uniform float uTime;
+      uniform sampler2D bankNoise;
       varying float vAlong;
       varying float vFacing;
       varying vec3 vWorld;
       void main() {
-        float along = pow(vAlong, 1.6);
-        float edge = pow(vFacing, 2.0);
-        float dust = 0.8 + 0.2 * sin(vWorld.y * 0.21 + uTime * 0.05) * sin(vWorld.x * 0.17 - uTime * 0.03);
-        gl_FragColor = vec4(color * strength * along * edge * dust, 1.0);
+        // 광원 쪽이 밝고 끝으로 갈수록 옅어진다. 원뿔 가장자리(시선과 비스듬한 면)는 부드럽게 사라진다
+        float along = pow(vAlong, 1.3) * smoothstep(0.0, 0.3, vAlong);
+        float edge = pow(vFacing, 2.6);
+        // 빛 속 안개가 천천히 흐르고 뭉친다 (칸 단위 잡음)
+        vec2 p = floor(vWorld.xy);
+        float mist = 0.45 + 0.55 * texture2D(bankNoise, vec2(p.x / 200.0 + uTime * 0.0009, p.y / 140.0 - uTime * 0.0004)).r;
+        // 빛의 심은 색이 조금 빠져 하얗게
+        vec3 c = mix(color, vec3(dot(color, vec3(0.3, 0.59, 0.11))) * 1.25, 0.25 * along);
+        gl_FragColor = vec4(c * strength * along * edge * mist, 1.0);
       }
     `,
     side: THREE.DoubleSide,
@@ -471,12 +626,12 @@ export function spriteMaterial(): THREE.ShaderMaterial {
 }
 
 /**
- * 앞겹 실루엣 (카메라 앞을 스치는 기둥·전선): 아주 어둡게, 화면 가운데로 올수록 디더링으로 사라져
- * 가장자리에서만 보이게 한다 (아트 규칙 '앞겹').
+ * 앞겹 실루엣 (카메라 앞을 스치는 기둥·전선): 아주 어둡게, 화면 가운데로 올수록 투명해져
+ * 가장자리에서만 보이게 한다 (아트 규칙 '앞겹'). 사라지는 중간 단계는 마지막 팔레트 디더가 곱게 잇는다.
  */
 export function fgMaterial(color: string): THREE.ShaderMaterial {
   const c = new THREE.Color(color).convertSRGBToLinear();
-  return new THREE.ShaderMaterial({
+  return keepAlpha(new THREE.ShaderMaterial({
     uniforms: { color: { value: c }, screenW: { value: 482 } },
     vertexShader: /* glsl */ `
       void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
@@ -484,17 +639,12 @@ export function fgMaterial(color: string): THREE.ShaderMaterial {
     fragmentShader: /* glsl */ `
       uniform vec3 color;
       uniform float screenW;
-      float m2(vec2 v) { return mod(2.0 * v.x + 3.0 * v.y, 4.0); }
-      float bayer(vec2 p) {
-        vec2 q = mod(floor(p), 4.0);
-        return (4.0 * m2(mod(q, 2.0)) + m2(floor(q * 0.5)) + 0.5) / 16.0;
-      }
       void main() {
         float edge = abs(gl_FragCoord.x / screenW - 0.5) * 2.0;
-        float keep = smoothstep(0.45, 0.8, edge);
-        if (keep < bayer(gl_FragCoord.xy)) discard;
-        gl_FragColor = vec4(color, 0.0);
+        float keep = smoothstep(0.5, 0.85, edge);
+        if (keep < 0.02) discard;
+        gl_FragColor = vec4(color, keep);
       }
     `,
-  });
+  }), false);
 }

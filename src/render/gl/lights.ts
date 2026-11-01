@@ -41,6 +41,8 @@ const lightPos = Array.from({ length: LIGHT_N }, () => new THREE.Vector4(0, -1e5
 const lightCol = Array.from({ length: LIGHT_N }, () => new THREE.Vector4(0, 0, 0, 0));
 /** 실린 광원 수 (셰이더는 이만큼만 돈다: 품질 낮음이면 반) */
 const lightCount = new THREE.Uniform(0);
+/** 이번 프레임에 실린 광원 (후처리의 빛 무리가 화면 자리를 한 번만 계산해 쓴다) */
+export const loadedLights = { pos: lightPos, col: lightCol, count: (): number => lightCount.value as number };
 export const lightBlock = new THREE.UniformsGroup();
 lightBlock.setName('Lights');
 lightBlock.add(new THREE.Uniform(lightPos));
@@ -72,6 +74,9 @@ export const shared = {
   uFogNear: { value: 3200 },
   uFogFar: { value: 30000 },
   uGroundFog: { value: 0.18 },
+  /** 먼 겹 안개: 바닥 쪽 안개 세기, 지평선 도시 불빛에 물든 안개 색 (구간 분위기) */
+  uMist: { value: 0.4 },
+  uFogGlow: { value: new THREE.Color().setRGB(0.02, 0.02, 0.03) },
   uTime: { value: 0 },
   /** 건물마다 무너져 사라진 칸 (비트: 칸 번호). 붙은 기하는 그 칸 부분을 그리지 않는다 */
   uGone: { value: new Array<number>(GONE_N).fill(0) },
