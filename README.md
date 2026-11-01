@@ -10,20 +10,25 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 | 명령 | 하는 일 | 결과 |
 | --- | --- | --- |
 | `npm run sheets` | `src/anim/motions.ts`의 모든 동작을 가로 띠(4배, 프레임 번호)로 출력. 12~14프레임 규칙 검사 | `out/sheets/<캐릭터>/<동작>.png`, 같은 이름 `.md`에 프레임별 표시 틱 표 |
-| `npm run sheets -- --approve raiden/jab` | 위와 같고, 승인 요청용으로 `previews/`에 복사 | `previews/raiden/jab.png` |
+| `npm run sheets -- --approve raiden/jab` | 위와 같고, 승인 요청용 GIF(4배, 실제 속도 한 장 + 프레임 번호가 보이는 느린 판 한 장)를 `previews/`에 | `previews/raiden/jab.gif`, `jab-slow.gif` |
 | `npm run shot` | 장면을 PC·휴대폰 크기로 캡처. 오류·정수배·틱 속도·키 입력 확인 | `out/shots/<장면>-<화면>.png` |
 | `npm run shot -- blank --tick 300 --view pc-1280x720` | 장면·멈출 틱·화면 크기 지정 | |
 | `npm run shot -- "fight?p1=cpu" --tick 3000 --fast` | 주소 옵션을 붙인 장면, 멈출 틱까지 바로 돌려서 찍기 | |
 | `npm run clip -- "fight?p1=cpu&seed=5" --from 130 --ticks 200 --name 이름` | 장면 한 토막을 움직이는 GIF로 (2배, 30fps). 동작 느낌 확인·PR 미리보기용 | `out/clips/이름.gif` |
+| `npm run moveclip -- 장면 [--scale 1] [--every 2] [--to 경로]` | 정해 둔 키 입력으로 대전·메뉴 장면 한 토막을 GIF로 (`tools/moveclip.mjs`의 `SCENES`: 대시 공격, 차지, 연속 콤보, 필살기, 필살기 빗나감, 타이틀, 일시정지, 경기 끝, 연습) | `out/clips/장면.gif` |
 | `npm run simtest` | CPU끼리 N판 대전. 예외, 규칙 범위(체력·기력·방어 내구도·위치), 경기 종료, `sim/`의 무작위·시간 값 사용, 같은 입력 재생·저장/복원 후 상태 해시 일치 확인. 히트·띄우기·낙법·크러시 등 집계 | 콘솔 |
 | `npm run simtest -- --matches 50 --ticks 5400 --seed 7` | 판 수·판당 최대 틱·시작 시드 지정 | |
 | `npm run compare` | 무대를 바꿨을 때: 고정 카메라 지점 세 곳(극장·다이너 거리, 시타델 광장, 비상계단 아파트)을 이전 버전(기본 origin/main)과 지금 버전으로 찍어 컬러·흑백으로 나란히 놓고, 벽·바닥·주인공 간판의 흑백 밝기를 잰다. `--base 커밋`, `--only theater`, `--new "옵션"`(지금 버전 주소에 붙임) | `out/compare/<지점>-color.png`, `-gray.png`, `stats.md` |
 
 장면은 `src/scenes/index.ts`에 등록하고, 게임 주소 뒤 `?scene=이름`으로 열 수 있다.
 
-## 대련 (연습: 1P 대 CPU)
+## 대련
 
 배포 주소: https://rowon-lee.github.io/yesterday/
+
+주소를 열면 타이틀이 나온다(`?scene=title`). 메뉴: VERSUS CPU(강도 EASY · NORMAL · HARD, 3판 2선승 · 라운드 60초) / PRACTICE(연습: 시간 멈춤, 체력 1에서 멈춤, 콤보가 끝나고 1초 뒤 체력 · 기력 · 방어가 다시 참. 상대 가만히 · 막기만 · CPU) / OPTIONS(화면 품질, 조작법, 모션 뷰어) / ONLINE(준비 중). 경기 중 Esc · P로 일시정지(계속 · 처음부터 · 조작법 · 타이틀).
+
+휴대폰은 가로로 든다. 왼쪽 아래 8방향 패드, 오른쪽 아래 버튼 6개(위 스킬 1 · 스킬 2 · 필살기, 아래 공격 · 점프 · 대시), 위 가운데 Ⅱ 일시정지. 공격 버튼을 길게 누르면 차지(모으는 동안 버튼이 주황으로 빛난다). 터치 버튼이 뜬 기기는 기력 칸이 화면 위로 올라간다. PC에서 `?touch=1`이면 터치 버튼을 마우스로 눌러 볼 수 있다.
 
 | 버튼 | 키 |
 | --- | --- |
@@ -32,10 +37,11 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 | 점프 (공중에서 2단 점프, 맞고 있을 때 낙법) | K |
 | 대시 (← 누르고 대시 = 뒤로) | L |
 | 벽 기동: 공중에서 벽 쪽 대각선 위(↗·↖)로 붙기, 붙은 채 점프로 벽 점프, 붙은 채 공격으로 벽 박차기 공격, ↑+대시로 벽 쪽 달려 오르기, 벽꽝으로 건물 정면에 박히는 순간 점프로 벽 낙법. ↑ 없이 뛰거나 대시하면 구조물 앞을 지나간다 (맵 양 끝 벽은 ↑ 없이도 된다) | 방향 + J · K · L |
-| 스킬 1 · 스킬 2 · 필살기 | U · I · O |
+| 스킬 1 · 스킬 2 · 필살기 (기력 3칸: 시간이 멈추고 2배 확대·컷인, 맞으면 연출 뒤 한 번에 피해 · 파괴, 빗나가면 40틱 굳음) | U · I · O |
+| 일시정지 | Esc · P |
 | 판정 상자 켜고 끄기 | B |
 
-주소 옵션: `?p2=idle` 상대가 가만히 섬 (연습), `?p1=cpu` CPU끼리 (구경), `?boxes=1` 판정 상자, `?seed=n` CPU 시드.
+주소 옵션 (`?scene=fight` 뒤에): `&mode=practice&dummy=stand|guard|cpu` 연습, `&cpu=easy|normal|hard` CPU 강도, `&p2=idle` 상대가 가만히 섬, `&p1=cpu` CPU끼리 (구경), `&boxes=1` 판정 상자, `&seed=n` CPU 시드.
 
 ## 무대 보기
 
