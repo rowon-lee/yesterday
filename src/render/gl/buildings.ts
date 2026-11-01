@@ -236,9 +236,8 @@ export class Buildings {
 
     // 배관 (지붕에서 땅까지, 건물 한쪽 모서리)과 받침쇠, 실외기 몇 대, 지붕 위 굴뚝·물탱크·안테나
     const px = esc ? b.x + 3 : hash(b.seed * 3) < 0.5 ? b.x + 3 : b.x + b.w - 6;
-    // 젖은 쇠 배관: 빛 쪽 1칸이 밝아 어두운 1px 선(외곽선)처럼 서지 않는다
-    det.addAttached(bi, px, px + 3, 0, b.h - 6, FRONT_Z, FRONT_Z + 3, C.chromeDark);
-    det.addAttached(bi, px, px + 1, 0, b.h - 6, FRONT_Z + 3, FRONT_Z + 3.4, C.chrome);
+    // 젖은 쇠 배관: 벽돌과 비슷한 밝기 (어두우면 1px 외곽선, 밝으면 화면을 가르는 흰 줄이 된다)
+    det.addAttached(bi, px, px + 3, 0, b.h - 6, FRONT_Z, FRONT_Z + 3, '#4b4750');
     for (let y = 20; y < b.h - 10; y += 50) det.addAttached(bi, px - 1, px + 4, y, y + 2, FRONT_Z, FRONT_Z + 4, C.iron);
     for (let k = 0; k < 2; k++) {
       if (hash(b.seed + k * 13) < 0.4 || b.floors < 3) continue;
