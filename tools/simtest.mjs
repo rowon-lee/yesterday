@@ -810,6 +810,14 @@ function attackChecks() {
   log = run(s, hold(0, 40), I.IN_DOWN);
   const crushed = log.some((l) => l.ev.some((e) => e.type === 'crush' && e.move === 'charge'));
   results.push(['3단계 차지는 막혀도 방어를 깬다', crushed, crushed ? '가드 크러시' : log.flatMap((l) => l.ev.map((e) => e.type)).join(',')]);
+  // 7-1) 1단계 차지가 막히면 막은 쪽이 먼저 움직인다 (빈틈)
+  s = fresh(2400, 2456);
+  run(s, hold(I.IN_ATTACK, H + 12), I.IN_DOWN);
+  log = run(s, hold(0, 40), I.IN_DOWN);
+  const cBlock = log.findIndex((l) => l.ev.some((e) => e.type === 'block' && e.move === 'charge'));
+  const cG = log.findIndex((l, i) => i > cBlock && l.b === 'guard');
+  const cA = log.findIndex((l, i) => i > cBlock && !l.a.startsWith('attack'));
+  results.push(['1단계 차지가 막히면 막은 쪽이 먼저 움직인다 (빈틈)', cBlock >= 0 && cG >= 0 && cA > cG, `막힘 ${cBlock + 1}틱째, 막은 쪽 풀림 ${cG + 1}틱째, 차지 끝 ${cA + 1}틱째`]);
   // 8) 모으는 중에는 무방비: ↓를 눌러도 막지 못하고, 맞으면 취소된다 (차지는 나가지 않는다). 2P가 붙어서 1타
   s = fresh(2400, 2456);
   f = s.fighters[0];

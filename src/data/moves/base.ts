@@ -119,7 +119,7 @@ export const BASE_MOVES = {
    */
   charge: {
     motion: 'base/charge', active: [10, 11], limb: ['eF', 'hF'], damage: 70, guardDamage: 30,
-    hitstun: 30, blockstun: 18, hitstop: 12, push: 3.0, heavy: true, step: { from: 8, to: 10, speed: 5.0 },
+    hitstun: 30, blockstun: 9, hitstop: 12, push: 3.0, heavy: true, step: { from: 8, to: 10, speed: 5.0 },
     launch: { vx: 2.5, vy: -10.5 }, jumpCancel: true,
     charge: {
       windup: 4, loopTo: 7, from: 8, auto: 60,
