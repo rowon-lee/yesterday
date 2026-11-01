@@ -119,7 +119,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   att.moveConnected = true;
   const scale = Math.max(SCALE_MIN, 100 - SCALE_STEP * def.comboHits);
   const damage = Math.max(1, Math.trunc((baseDamage * scale) / 100));
-  def.hp = Math.max(0, def.hp - damage);
+  def.hp = Math.max(s.practice ? 1 : 0, def.hp - damage);
   def.comboHits++;
   def.flash = FLASH_TICKS;
   att.hitstop = d.hitstop;
@@ -187,7 +187,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
 export function splatLands(s: SimState): void {
   s.fighters.forEach((f, i) => {
     if (f.mode !== 'wallsplat' || f.hitstop > 0 || f.t !== WALL_TECH_TICKS + 1) return;
-    f.hp = Math.max(0, f.hp - CITY.wallsplat.damage);
+    f.hp = Math.max(s.practice ? 1 : 0, f.hp - CITY.wallsplat.damage);
     if (f.hp <= 0) knockOut(s, f, -f.facing, 1 - i);
   });
 }

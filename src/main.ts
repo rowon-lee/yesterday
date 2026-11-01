@@ -1,8 +1,9 @@
 import { Keyboard, type TickInput } from './core/input';
+import { Pointer } from './core/pointer';
 import { startLoop } from './core/loop';
 import { setupScreen } from './render/screen';
 import { bakeAllMotions } from './anim/motions';
-import { DEFAULT_SCENE, GL_SCENES, SCENES } from './scenes';
+import { DEFAULT_SCENE, GL_SCENES, SCENES, type App } from './scenes';
 import { measureFrame, quality } from './render/light';
 import { drawText, textWidth } from './render/font';
 import { SCREEN_H, SCREEN_W } from './render/screen';
@@ -10,7 +11,7 @@ import { gl, hasWebGL2, initGl } from './render/gl';
 import { SIGNS } from './render/gl/signs';
 
 const params = new URLSearchParams(location.search);
-const sceneName = params.get('scene') ?? DEFAULT_SCENE;
+let sceneName = params.get('scene') ?? DEFAULT_SCENE;
 const makeScene = SCENES[sceneName];
 if (!makeScene) throw new Error(`없는 장면: ${sceneName}`);
 /** 확인용: 이 틱에서 멈춘다 (?stopAt=120). 캡처를 매번 같은 순간에 찍기 위함. */
@@ -37,9 +38,26 @@ function noWebGL(c: HTMLCanvasElement): void {
   c.replaceWith(box);
 }
 const keyboard = new Keyboard();
+const pointer = new Pointer(canvas);
 // 모든 동작의 시트를 시작할 때 미리 그려 둔다.
 bakeAllMotions();
-const scene = makeScene();
+
+/** 다음 틱에 바꿀 장면 (장면 안에서 goto를 불러도 그 틱은 끝까지 돈다) */
+let nextScene: (() => void) | null = null;
+const app: App = {
+  goto(name, opts = {}) {
+    const q = new URLSearchParams({ scene: name, ...opts });
+    // 3D 화면 장면끼리는 다시 불러오지 않고 바꾼다 (주소만 바꿔 두어 새로 고치면 그 장면이 열린다)
+    if (GL_MODE && GL_SCENES.has(name) && SCENES[name]) {
+      nextScene = () => {
+        history.replaceState(null, '', `?${q}`);
+        sceneName = name;
+        scene = SCENES[name](app);
+      };
+    } else location.search = `?${q}`;
+  },
+};
+let scene = makeScene(app);
 
 let tickCount = 0;
 /** 확인 도구가 직접 틱을 넘길 때는 화면 루프가 틱을 돌리지 않는다 */
@@ -48,14 +66,18 @@ let lastInput: TickInput | null = null;
 
 function tick(): void {
   if (tickCount >= stopAt) return;
-  lastInput = keyboard.poll();
+  if (nextScene) {
+    nextScene();
+    nextScene = null;
+  }
+  lastInput = { ...keyboard.poll(), taps: pointer.poll() };
   scene.tick(lastInput);
   tickCount++;
 }
 
 // 확인 도구(tools/screenshot)가 읽는 값
 (window as unknown as { __debug: object }).__debug = {
-  scene: sceneName,
+  get scene() { return sceneName; },
   scenes: Object.keys(SCENES),
   get tick() { return tickCount; },
   get held() { return lastInput ? [...lastInput.held] : []; },

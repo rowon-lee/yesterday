@@ -122,7 +122,7 @@ export function crashProps(s: SimState): void {
       damage(s, i, box, BREAKABLES[i].hp, dir, true, big && f.wallFly ? SMASH_WALL : 0);
       if (big && f.wallFly) f.wallFly = false;
       if (f.mode !== 'ko') {
-        f.hp = Math.max(0, f.hp - BREAK_RULES.crashDamage);
+        f.hp = Math.max(s.practice ? 1 : 0, f.hp - BREAK_RULES.crashDamage);
         f.flash = 6;
         if (f.hp === 0) knockOut(s, f, dir, 1 - who);
       }

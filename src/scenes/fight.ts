@@ -10,7 +10,6 @@ import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
 import { drawPlatforms } from '../render/platforms';
 import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
-import { drawText, textWidth } from '../render/font';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
   IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, MOVES, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
@@ -19,7 +18,10 @@ import {
 import type { LookName } from '../anim/skeleton';
 import { gl } from '../render/gl';
 import { lights as lights2d } from '../render/light';
-import type { Scene } from './scene';
+import type { App, Scene } from './scene';
+import { hintBar, Menu, panel } from '../render/menu';
+import { drawControls } from './title';
+import { touch } from '../core/touch';
 
 /**
  * 1P 키보드 키 배치. 방향: 화살표 또는 WASD.
@@ -70,11 +72,17 @@ const CAMERA_DAMP = 0.35;
  *   ?boxes=1 판정 상자와 발판 표시 (B 키로도 켜고 끔)
  *   ?seed=n  CPU 시드
  *   ?x=n     확인용: 두 사람을 월드 x=n 양쪽(±60)에서 시작시킨다 (장면에서 시작 자리만 옮긴다, sim 규칙은 그대로)
+ *   ?mode=vs|practice  대련(3판 2선승) 또는 연습 (타이틀 메뉴가 붙인다)
+ *   ?cpu=easy|normal|hard  대련 CPU 강도 (방어 실력)
+ *   ?dummy=stand|guard|cpu 연습 상대: 가만히 / 막기만 / CPU
+ * Esc·P로 일시정지 (계속 / 처음부터 / 조작법 / 타이틀로). 경기가 끝나면 다시 하기 / 타이틀로.
  */
-export function fightScene(): Scene {
+export function fightScene(app?: App): Scene {
   const params = new URLSearchParams(location.search);
   const p1Cpu = params.get('p1') === 'cpu';
-  const p2Idle = params.get('p2') === 'idle';
+  const practice = params.get('mode') === 'practice';
+  const dummy = params.get('dummy') ?? (params.get('p2') === 'idle' ? 'stand' : practice ? 'stand' : 'cpu');
+  const cpuSkill = ({ easy: 25, normal: 55, hard: 85 } as Record<string, number>)[params.get('cpu') ?? 'normal'] ?? 55;
   let seed = Number(params.get('seed') ?? 1) | 0;
   let showBoxes = params.get('boxes') === '1';
 
@@ -95,19 +103,36 @@ export function fightScene(): Scene {
   let prev: Array<{ mode: Mode; air: boolean; step: number }> = [];
 
   const startX = params.has('x') ? Number(params.get('x')) : null;
+  // 일시정지와 경기 끝 메뉴
+  let paused = false;
+  let showControls = false;
+  const toTitle = () => app?.goto('title');
+  const pauseMenu = new Menu([
+    { label: 'RESUME', act: () => { paused = false; } },
+    { label: 'RESTART', act: () => reset() },
+    { label: 'CONTROLS', act: () => { showControls = true; } },
+    { label: 'TITLE', act: toTitle },
+  ], 'PAUSE');
+  const endMenu = new Menu([
+    { label: 'REMATCH', act: () => { seed++; reset(); } },
+    { label: 'TITLE', act: toTitle },
+  ]);
   const reset = () => {
-    s = createState(seed);
+    s = createState(seed, { practice });
     if (startX !== null && Number.isFinite(startX)) {
       s.fighters[0].x = Math.round(startX - 60) * 256;
       s.fighters[1].x = Math.round(startX + 60) * 256;
     }
-    cpus = [createCpu(seed * 2 + 1), createCpu(seed * 2 + 2)];
+    cpus = [createCpu(seed * 2 + 1), createCpu(seed * 2 + 2, cpuSkill)];
     fx = new Effects();
     vfx = new VfxLayer();
     fightVfx = new FightVfx(vfx, fx);
     fightVfx.reset(s);
     hud = new Hud();
-    hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', 'CPU'];
+    hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', practice ? 'DUMMY' : 'CPU'];
+    paused = false;
+    pauseMenu.sel = 0;
+    endMenu.sel = 0;
     cutin = null;
     cam = { x: -1, y: 0 };
     trails = [[], []];
@@ -115,6 +140,8 @@ export function fightScene(): Scene {
     prev = s.fighters.map((f) => ({ mode: f.mode, air: f.y < 0, step: 0 }));
   };
   reset();
+  // 휴대폰이면 터치 패드·버튼을 띄운다 (CPU끼리 구경할 때는 감춘다)
+  touch.enable(!p1Cpu);
   // 확인 도구가 읽는 값
   (window as unknown as { __fight: () => SimState }).__fight = () => s;
 
@@ -263,22 +290,54 @@ export function fightScene(): Scene {
     if (cutin) drawCutin(ctx, { ...cutin, length: RULES.SUPER_FREEZE });
     hud.draw(ctx, s);
     if (s.phase === 'matchEnd' && s.phaseT > 120 && !p1Cpu) {
-      const t = 'PRESS J';
-      if ((s.tick >> 5) % 2 === 0) drawText(ctx, t, Math.floor((SCREEN_W - textWidth(t, 2)) / 2), Math.floor(SCREEN_H * 0.55), COLORS.white, 2);
+      panel(ctx, SCREEN_W / 2 - 60, 150, 120, endMenu.items.length * 16 + 12);
+      endMenu.draw(ctx, SCREEN_W / 2, 157, s.tick);
+    }
+    if (paused) {
+      // 멈춘 화면 위에 어두운 판과 메뉴
+      if (showControls) drawControls(ctx);
+      else {
+        panel(ctx, SCREEN_W / 2 - 64, 88, 128, pauseMenu.items.length * 16 + 26);
+        pauseMenu.draw(ctx, SCREEN_W / 2, 95, s.tick);
+        hintBar(ctx, 'J: SELECT   P / ESC: RESUME', SCREEN_H - 14);
+      }
     }
   };
 
   return {
     tick(input) {
       if (input.pressed.has('KeyB')) showBoxes = !showBoxes;
-      // 경기가 끝나고 잠시 뒤 아무 버튼이나 누르면 다시 시작
-      if (s.phase === 'matchEnd' && s.phaseT > 120 && (p1Cpu || [...input.pressed].some((c) => KEYMAP[c] !== undefined))) {
-        seed++;
-        reset();
+      const taps = input.taps ?? [];
+      // 일시정지: Esc·P·터치 Ⅱ 버튼. 멈춘 동안은 메뉴만 받는다 (sim은 한 틱도 가지 않는다)
+      const pauseKey = input.pressed.has('Escape') || input.pressed.has('KeyP') || touch.takePause();
+      if (paused) {
+        // 멈춘 동안 누른 터치 버튼은 버린다 (다시 시작할 때 튀어나오지 않게)
+        touch.poll();
+        if (showControls) {
+          if (input.pressed.size || taps.length) showControls = false;
+          return;
+        }
+        if (pauseKey) paused = false;
+        else if (pauseMenu.handle(input, taps) === 'back') paused = false;
         return;
       }
-      const p1 = p1Cpu ? cpuInput(cpus[0], s, 0) : keyboardToInput(input);
-      const p2 = p2Idle ? 0 : cpuInput(cpus[1], s, 1);
+      if (pauseKey && s.phase !== 'matchEnd' && !p1Cpu) {
+        paused = true;
+        pauseMenu.sel = 0;
+        return;
+      }
+      // 경기가 끝나고 잠시 뒤: 다시 하기 / 타이틀로 (CPU끼리 구경이면 저절로 다시)
+      if (s.phase === 'matchEnd' && s.phaseT > 120) {
+        if (p1Cpu) {
+          seed++;
+          reset();
+          return;
+        }
+        endMenu.handle(input, taps);
+      }
+      const pad = touch.poll();
+      const p1 = p1Cpu ? cpuInput(cpus[0], s, 0) : keyboardToInput(input) | pad;
+      const p2 = dummy === 'stand' ? 0 : dummy === 'guard' ? (s.phase === 'fight' ? IN_DOWN : 0) : cpuInput(cpus[1], s, 1);
       step(s, [p1, p2]);
       fx.push(s.events);
       fightVfx.tick(s);
@@ -287,6 +346,8 @@ export function fightScene(): Scene {
       for (const e of s.events) if (e.type === 'cutin') cutin = { who: e.who, text: e.text ?? '', t: 0 };
       watchMotion();
       followCamera();
+      // 터치 공격 버튼: 길게 눌러 모으는 중이면 빛낸다
+      touch.setCharge(s.fighters[0].mode === 'charge' ? 2 : s.fighters[0].chargeArm ? 1 : 0);
       if (cutin) {
         cutin.t++;
         if (s.freeze === 0) cutin = null;
@@ -309,7 +370,6 @@ interface Snapshot {
   fast: boolean;
 }
 
-/** 잔상을 남길 만큼 빠른가: 3px/틱 이상으로 움직일 때 (대시는 Sprite Fusion 잔상이 따로 있어 뺀다) */
 /**
  * 차지를 모으는 동안 몸이 빛남 (렌더 전용): 0 그대로, 1 한 단계 밝게, 2 하얗게.
  * 모으는 동안은 한 단계 밝은 채로 있고, 모으기를 시작할 때와 단계가 오를 때마다 3틱 하얗게 '캉!' 번쩍인다
@@ -321,6 +381,7 @@ function chargeGlow(f: Fighter): 0 | 1 | 2 {
   return since >= 0 && since < 3 ? 2 : 1;
 }
 
+/** 잔상을 남길 만큼 빠른가: 3px/틱 이상으로 움직일 때 (대시는 Sprite Fusion 잔상이 따로 있어 뺀다) */
 function isFast(f: Fighter): boolean {
   return f.mode !== 'dash' && f.mode !== 'airdash' && Math.abs(f.vx) >= 3 * 256;
 }

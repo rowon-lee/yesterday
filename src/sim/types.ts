@@ -207,4 +207,11 @@ export interface SimState {
   citadel: CitadelState;
   /** 무너질 때 게임 시간이 반 속도로 가는 남은 틱 */
   slow: number;
+  /**
+   * 연습 (기획서 '모드'의 연습용): 시간이 흐르지 않고 쓰러지지 않는다(체력은 1에서 멈춤).
+   * 맞는 콤보가 끝나고 조용히 1초가 지나면 체력·기력·방어 내구도가 다시 찬다
+   */
+  practice: boolean;
+  /** 연습: 사람마다 조용히(콤보가 끝난 채) 지난 틱 */
+  calm: [number, number];
 }

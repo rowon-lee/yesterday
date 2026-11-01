@@ -93,6 +93,28 @@ for (const [name, ok, note] of structureChecks()) {
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 등장 시험: 첫 라운드 시작 연출 동안 등장 동작, 싸움 전에 대기로, 두 번째 라운드는 등장 없음 (처음 ${first}, 싸움 전 대기 ${idleBeforeFight}, 둘째 라운드 ${second})`);
 }
+// 5-2) 연습: 시간이 흐르지 않고, 쓰러지지 않으며(체력 1에서 멈춤), 맞는 콤보가 끝나고 1초 뒤 체력·기력·방어가 다시 찬다
+{
+  const s = sim.createState(1, { practice: true });
+  while (s.phase !== 'fight') sim.step(s, [0, 0]);
+  const t0 = s.timer;
+  const [a, d] = s.fighters;
+  a.x = 2400 * 256;
+  d.x = 2440 * 256;
+  d.hp = 5;
+  let minHp = d.hp;
+  let ko = false;
+  for (let k = 0; k < 40; k++) {
+    sim.step(s, [k % 4 === 0 ? sim.IN_ATTACK : 0, 0]);
+    minHp = Math.min(minHp, d.hp);
+    ko ||= d.mode === 'ko';
+  }
+  // 마지막 타에 벽꽝·다운·기상까지 가므로 넉넉히 기다린다
+  for (let k = 0; k < 320; k++) sim.step(s, [0, 0]);
+  const ok = s.timer === t0 && minHp === 1 && !ko && d.hp === HP && a.meter === R.METER_MAX && s.phase === 'fight';
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 연습 시험: 시간이 그대로, 체력 1에서 멈추고 쓰러지지 않음, 1초 뒤 체력·기력이 다시 참 (시간 ${t0} → ${s.timer}, 가장 낮은 체력 ${minHp}, 쓰러짐 ${ko}, 다시 찬 체력 ${d.hp}, 기력 ${a.meter})`);
+}
 // 6) 시타델 붕괴 (정해진 입력으로)
 for (const [name, ok, note] of keepChecks()) {
   if (!ok) failed++;

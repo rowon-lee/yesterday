@@ -7,7 +7,7 @@ import { createCity, flyThroughCity } from './city';
 import { wallLeft } from './platforms';
 import type { PlayerInput } from './input';
 import {
-  GUARD_MAX, INTRO_TICKS, MAX_SEPARATION, px, PUSH_H, PUSH_W, ROUND_END_TICKS, ROUND_TICKS, START_GAP,
+  GUARD_MAX, INTRO_TICKS, MAX_SEPARATION, METER_MAX, px, PUSH_H, PUSH_W, ROUND_END_TICKS, ROUND_TICKS, START_GAP,
   MAX_ROUNDS, STAGE_W, WALL_R, WINS_NEEDED,
 } from './rules';
 import type { Fighter, SimState } from './types';
@@ -26,7 +26,12 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
   };
 }
 
-export function createState(seed: number): SimState {
+export interface MatchOptions {
+  /** 연습: 시간이 흐르지 않고 쓰러지지 않으며, 콤보가 끝나면 체력·기력이 다시 찬다 */
+  practice?: boolean;
+}
+
+export function createState(seed: number, opts: MatchOptions = {}): SimState {
   const s: SimState = {
     tick: 0, clock: 0, rng: seed | 0, phase: 'intro', phaseT: 0, round: 1, timer: ROUND_TICKS, freeze: 0,
     roundWinner: -1, matchWinner: -1,
@@ -38,6 +43,8 @@ export function createState(seed: number): SimState {
     // 시타델 본관도 라운드가 넘어가도 남는다 (한 경기에 한 번 무너진다)
     citadel: createCitadel(),
     slow: 0,
+    practice: opts.practice === true,
+    calm: [0, 0],
   };
   resetRound(s);
   return s;
@@ -103,7 +110,21 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   settle(s, b);
   faceOpponent(a, b);
   faceOpponent(b, a);
+  if (s.practice) practiceRefill(s);
   roundFlow(s);
+}
+
+/** 연습: 맞는 콤보가 끝나고 조용히 1초가 지나면 체력·기력·방어 내구도를 다시 채운다 */
+const CALM: ReadonlySet<string> = new Set(['idle', 'run', 'guard', 'air', 'land', 'dash', 'airdash', 'jumpsquat', 'wallcling', 'wallrun', 'charge', 'attack']);
+function practiceRefill(s: SimState): void {
+  s.fighters.forEach((f, i) => {
+    s.calm[i] = CALM.has(f.mode) && f.comboHits === 0 ? s.calm[i] + 1 : 0;
+    if (s.calm[i] >= 60) {
+      f.hp = STATS.hp;
+      f.meter = METER_MAX;
+      f.guard = GUARD_MAX;
+    }
+  });
 }
 
 function stepFighter(s: SimState, f: Fighter, input: PlayerInput, controllable: boolean): void {
@@ -178,7 +199,8 @@ function roundFlow(s: SimState): void {
       }
       break;
     case 'fight': {
-      s.timer--;
+      // 연습은 시간이 흐르지 않는다 (쓰러지지도 않는다: combat의 체력 하한)
+      if (!s.practice) s.timer--;
       const koA = a.hp <= 0;
       const koB = b.hp <= 0;
       if (koA || koB || s.timer <= 0) {

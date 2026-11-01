@@ -33,7 +33,16 @@ export const lights = new LightList();
 export type Quality = 'high' | 'low';
 
 const params = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
-const forced = params.get('quality') as Quality | null;
+/** 품질 설정: 주소(?quality=)가 먼저, 없으면 설정 메뉴에서 고른 값(이 브라우저에 저장), 없으면 자동 */
+const saved = ((): Quality | null => {
+  try {
+    const v = typeof localStorage !== 'undefined' ? localStorage.getItem('yesterday.quality') : null;
+    return v === 'high' || v === 'low' ? v : null;
+  } catch {
+    return null;
+  }
+})();
+let forced = (params.get('quality') as Quality | null) ?? saved;
 let level: Quality = forced === 'low' ? 'low' : 'high';
 let frames = 0;
 let spent = 0;
@@ -43,6 +52,21 @@ let startAt = -1;
 
 /** 지금 품질. ?quality=low|high로 고정할 수 있다 */
 export const quality = (): Quality => level;
+
+/** 설정 메뉴: 품질을 자동·높음·낮음으로 (이 브라우저에 기억한다) */
+export function setQuality(q: Quality | 'auto'): void {
+  forced = q === 'auto' ? null : q;
+  if (forced) level = forced;
+  try {
+    if (q === 'auto') localStorage.removeItem('yesterday.quality');
+    else localStorage.setItem('yesterday.quality', q);
+  } catch {
+    // 저장이 막힌 브라우저 (사생활 보호 창 등): 이번에만
+  }
+}
+
+/** 설정 메뉴에 보이는 값 */
+export const qualitySetting = (): Quality | 'auto' => forced ?? 'auto';
 
 /**
  * 그래픽 칩 없이 CPU로 그리는 브라우저(소프트웨어 그래픽: 그래픽 가속이 꺼진 PC 등)면 처음부터 낮은 품질로 시작한다.

@@ -61,9 +61,12 @@ export class Hud {
       fill(this.lag[i], COLORS.red, 8, BAR_H);
       fill(f.hp / max, f.hp / max < 0.3 ? COLORS.goldDark : COLORS.gold, 8, BAR_H);
       fill(f.hp / max, COLORS.goldLight, 8, 1);
-      // 방어 내구도 (얇은 띠)
+      // 방어 내구도 (얇은 띠): 깨지면 빨갛게, 30% 아래면 금빛으로 깜빡인다
       fill(1, COLORS.panel, 15, 2);
-      fill(f.guard / RULES.GUARD_MAX, f.mode === 'crush' ? COLORS.red : COLORS.sky, 15, 2);
+      const g = f.guard / RULES.GUARD_MAX;
+      const blink = (s.tick >> 3) & 1;
+      const guardColor = f.mode === 'crush' ? (blink ? COLORS.red : COLORS.panel) : g < 0.3 ? (blink ? COLORS.gold : COLORS.sky) : COLORS.sky;
+      fill(f.mode === 'crush' ? 1 : g, guardColor, 15, 2);
       // 이름과 라운드 승수
       const name = this.names[i];
       drawText(ctx, name, left ? x : x + BAR_W - textWidth(name), 19, COLORS.white);
@@ -88,6 +91,11 @@ export class Hud {
         const w = Math.round(24 * r);
         ctx.fillRect(left ? bx : bx + 24 - w, SCREEN_H - 9, w, 4);
       }
+      // 기력이 꽉 차면 MAX (필살기를 쓸 수 있다)
+      if (full >= 3 && (s.tick >> 4) & 1) {
+        const mx = left ? 8 + 3 * 26 + 2 : SCREEN_W - 8 - 3 * 26 - 2 - textWidth('MAX');
+        drawText(ctx, 'MAX', mx, SCREEN_H - 10, COLORS.goldLight);
+      }
       // 콤보 수
       const [n, t] = this.combo[i];
       if (t > 0) {
@@ -95,9 +103,11 @@ export class Hud {
         drawText(ctx, txt, left ? 8 : SCREEN_W - 8 - textWidth(txt, 2), 32, COLORS.gold, 2);
       }
     });
-    // 남은 시간
-    const sec = String(Math.ceil(s.timer / 60)).padStart(2, '0');
-    drawText(ctx, sec, Math.floor((SCREEN_W - textWidth(sec, 2)) / 2), 6, COLORS.white, 2);
+    // 남은 시간 (연습은 시간이 흐르지 않아 --). 10초 아래면 빨갛게 깜빡인다
+    const left = Math.ceil(s.timer / 60);
+    const sec = s.practice ? '--' : String(left).padStart(2, '0');
+    const urgent = !s.practice && left <= 10 && s.phase === 'fight';
+    drawText(ctx, sec, Math.floor((SCREEN_W - textWidth(sec, 2)) / 2), 6, urgent && (s.tick >> 4) & 1 ? COLORS.red : COLORS.white, 2);
     drawText(ctx, `R${s.round}`, Math.floor((SCREEN_W - textWidth(`R${s.round}`)) / 2), 19, COLORS.white);
     // 가운데 큰 글씨
     if (this.bannerT > 0 && this.banner) {
