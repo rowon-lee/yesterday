@@ -16,7 +16,28 @@ export interface MotionData {
   loop?: boolean;
   keys: readonly Key[];
   hit?: HitSpec;
+  /** 큰 칸 128×96 (발밑 64, 93): 공격·기술·차지·필살기와 크게 날아가는 피격 (동작연출지침서 1장). 없으면 64×64 */
+  wide?: boolean;
+  /**
+   * 스미어 프레임 (동작연출지침서 3장 '팔다리를 1.3~1.5배 늘려 그린다'): 그 프레임만 치는 팔다리(limb)를 stretch배 길이로 그린다.
+   * 그림 전용 (판정 관절은 그대로)
+   */
+  smear?: { frame: number; limb: 'aF' | 'aB' | 'lF' | 'lB'; stretch: number };
 }
+
+/** 캐릭터 칸: 크기와 발밑 기준점 (칸 왼쪽 위 기준) */
+export interface Cell {
+  w: number;
+  h: number;
+  fx: number;
+  fy: number;
+}
+/** 보통 칸 64×64, 발밑 (32, 61) */
+export const SMALL_CELL: Cell = { w: 64, h: 64, fx: 32, fy: 61 };
+/** 큰 칸 128×96, 발밑 (64, 93). 보통 칸과 발밑을 맞춰 바꿔 그린다 */
+export const WIDE_CELL: Cell = { w: 128, h: 96, fx: 64, fy: 93 };
+/** 이 동작의 칸 */
+export const cellOf = (m: { cell?: Cell }): Cell => m.cell ?? SMALL_CELL;
 
 export interface DrawOptions {
   look?: LookName;
@@ -30,8 +51,8 @@ export interface DrawOptions {
 export interface Motion {
   name: string;
   label: string;
-  /** 칸 크기. 기본 64. 96은 허용 여부를 먼저 묻는다. */
-  cell?: number;
+  /** 칸 (크기와 발밑). 없으면 보통 칸 64×64 */
+  cell?: Cell;
   dur: readonly number[];
   loop?: boolean;
   /** 프레임별 관절 위치 (판정용) */
@@ -46,6 +67,6 @@ export interface Motion {
 export const MIN_FRAMES = 12;
 export const MAX_FRAMES = 14;
 export const DEFAULT_CELL = 64;
-/** 발밑 기준점 (64칸 기준). 서 있을 때 발바닥 맨 아랫줄이 이 줄이다. */
+/** 발밑 기준점 (보통 칸 64 기준, SMALL_CELL과 같다). 서 있을 때 발바닥 맨 아랫줄이 이 줄이다. 칸마다 다르면 cellOf(m)를 쓴다 */
 export const FOOT_X = 32;
 export const FOOT_Y = 61;

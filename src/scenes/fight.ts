@@ -1,5 +1,5 @@
 import type { TickInput } from '../core/input';
-import { FOOT_X, FOOT_Y } from '../anim/motion';
+import { cellOf } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import { drawCutin, playCutscene } from '../render/cutin';
 import { drawDust, Effects, type Dust } from '../render/effects';
@@ -468,16 +468,17 @@ function isFast(f: Fighter): boolean {
   return f.mode !== 'dash' && f.mode !== 'airdash' && Math.abs(f.vx) >= 3 * 256;
 }
 
+/** 잔상 캔버스 (가장 큰 칸 128×96) */
 const ghostCanvas = document.createElement('canvas');
-ghostCanvas.width = 64;
-ghostCanvas.height = 64;
+ghostCanvas.width = 128;
+ghostCanvas.height = 96;
 /** 바둑판 무늬 (반투명 대신 디더링) */
 const checker = (() => {
   const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 64;
+  c.width = 128;
+  c.height = 96;
   const g = c.getContext('2d')!;
-  for (let y = 0; y < 64; y++) for (let x = y & 1; x < 64; x += 2) g.fillRect(x, y, 1, 1);
+  for (let y = 0; y < 96; y++) for (let x = y & 1; x < 128; x += 2) g.fillRect(x, y, 1, 1);
   return c;
 })();
 
@@ -490,17 +491,18 @@ function drawGhost(
   skin: SkinId = 'base',
 ) {
   const m = motionByName.get(g.motion)!;
+  const cell = cellOf(m);
   const gc = ghostCanvas.getContext('2d')!;
   gc.globalCompositeOperation = 'source-over';
-  gc.clearRect(0, 0, 64, 64);
+  gc.clearRect(0, 0, 128, 96);
   m.draw(gc, g.frame, 0, 0, { look, flip: g.facing < 0, skin });
   gc.globalCompositeOperation = 'destination-in';
   gc.drawImage(checker, 0, 0);
   gc.globalCompositeOperation = 'source-over';
   // 더 오래된 잔상은 한 줄 걸러 지워 더 옅게
-  if (faint) for (let y = 0; y < 64; y += 2) gc.clearRect(0, y, 64, 1);
+  if (faint) for (let y = 0; y < cell.h; y += 2) gc.clearRect(0, y, cell.w, 1);
   const [sx, sy] = toScreen(g.x / 256, g.y / 256);
-  ctx.drawImage(ghostCanvas, sx - FOOT_X, sy - FOOT_Y);
+  ctx.drawImage(ghostCanvas, 0, 0, cell.w, cell.h, sx - cell.fx, sy - cell.fy, cell.w, cell.h);
 }
 
 /** 맞아서 멈춘 동안(히트스톱) 맞은 쪽이 좌우로 1px씩 떨린다 */

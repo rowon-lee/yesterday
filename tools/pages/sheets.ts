@@ -2,7 +2,7 @@
 // ?gif 이면 승인용 GIF에 쓸 프레임(1배 RGBA)도 넘긴다: 실제 속도용(작은 프레임 번호)과 느린 판용(번호·표시 틱·판정 상자)
 import { hitBox } from '../../src/anim/boxes';
 import type { Motion } from '../../src/anim/motion';
-import { DEFAULT_CELL, FOOT_X, FOOT_Y } from '../../src/anim/motion';
+import { cellOf } from '../../src/anim/motion';
 import { MOTIONS } from '../../src/anim/motions';
 import { checkMotion, drawStrip, scaleCanvas } from '../../src/anim/sheet';
 import { BASE_MOVES, type MoveData, type MoveId } from '../../src/data/moves/base';
@@ -39,31 +39,30 @@ const LABEL_H = GLYPH_H + 3;
 
 /** GIF 한 프레임 (1배): 위 글 줄 + 칸. slow면 번호·표시 틱·판정 표시 */
 function gifFrame(m: Motion, i: number, slow: boolean): string {
-  const cell = m.cell ?? DEFAULT_CELL;
-  const footY = Math.round((FOOT_Y / DEFAULT_CELL) * cell);
+  const { w: cw, h: ch, fx: footX, fy: footY } = cellOf(m);
   const c = document.createElement('canvas');
-  c.width = cell;
-  c.height = LABEL_H + cell;
+  c.width = cw;
+  c.height = LABEL_H + ch;
   const ctx = c.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#07040e';
   ctx.fillRect(0, 0, c.width, c.height);
   ctx.fillStyle = '#120a24';
-  ctx.fillRect(0, LABEL_H, cell, cell);
+  ctx.fillRect(0, LABEL_H, cw, ch);
   ctx.fillStyle = '#2a1f44';
-  ctx.fillRect(0, LABEL_H + footY + 1, cell, 1);
+  ctx.fillRect(0, LABEL_H + footY + 1, cw, 1);
   const mv = moveOf.get(m.name);
   const active = mv?.active.includes(i) ?? false;
   const n = m.dur.length;
   drawText(ctx, `${i + 1}/${n}`, 1, 1, active && slow ? '#ff6a4a' : '#ffd25e');
   if (slow) {
     const t = `${m.dur[i]}T`;
-    drawText(ctx, t, cell - textWidth(t) - 1, 1, '#9aa0c8');
-    if (active) drawText(ctx, 'HIT', Math.round((cell - textWidth('HIT')) / 2), 1, '#ff6a4a');
+    drawText(ctx, t, cw - textWidth(t) - 1, 1, '#9aa0c8');
+    if (active) drawText(ctx, 'HIT', Math.round((cw - textWidth('HIT')) / 2), 1, '#ff6a4a');
   }
   ctx.save();
   ctx.beginPath();
-  ctx.rect(0, LABEL_H, cell, cell);
+  ctx.rect(0, LABEL_H, cw, ch);
   ctx.clip();
   m.draw(ctx, i, 0, LABEL_H, { skin: skinForMotion(m.name, skin), look });
   // 느린 판: 판정 프레임이면 공격 상자 (팔꿈치→주먹 / 무릎→발 구간 끝쪽)
@@ -72,7 +71,7 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
     if (b) {
       ctx.strokeStyle = '#ff6a4a';
       ctx.lineWidth = 1;
-      ctx.strokeRect(FOOT_X + b.x + 0.5, LABEL_H + FOOT_Y + b.y + 0.5, b.w - 1, b.h - 1);
+      ctx.strokeRect(footX + b.x + 0.5, LABEL_H + footY + b.y + 0.5, b.w - 1, b.h - 1);
     }
   }
   ctx.restore();
@@ -84,15 +83,15 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
 
 (window as unknown as { __sheets: unknown }).__sheets = list.map((m) => {
   const errors = checkMotion(m);
-  const cell = m.cell ?? DEFAULT_CELL;
+  const cell = cellOf(m);
   return {
     name: m.name,
     dur: m.dur,
     errors,
     png: errors.length ? null : scaleCanvas(drawStrip(m, { skin: skinForMotion(m.name, skin), look }), scale).toDataURL('image/png'),
     gif: errors.length || !wantGif ? null : {
-      w: cell,
-      h: LABEL_H + cell,
+      w: cell.w,
+      h: LABEL_H + cell.h,
       real: m.dur.map((_, i) => gifFrame(m, i, false)),
       slow: m.dur.map((_, i) => gifFrame(m, i, true)),
     },

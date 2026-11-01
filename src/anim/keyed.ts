@@ -19,7 +19,7 @@ export function keyed(n: number, keys: readonly Key[]): Pose[] {
     if (i === 0 || i === keys.length - 1 || k.stop) return null;
     const dt = T[i + 1] - T[i - 1];
     const o = {} as Pose;
-    for (const q of POSE_KEYS) o[q] = (V[i + 1][q] - V[i - 1][q]) / dt;
+    for (const q of POSE_KEYS) o[q] = ((V[i + 1][q] ?? 0) - (V[i - 1][q] ?? 0)) / dt;
     return o;
   });
   const out: Pose[] = [];
@@ -34,7 +34,7 @@ export function keyed(n: number, keys: readonly Key[]): Pose[] {
     const h11 = u ** 3 - u ** 2;
     const o = {} as Pose;
     for (const q of POSE_KEYS) {
-      o[q] = h00 * V[j][q] + h10 * h * (M[j]?.[q] ?? 0) + h01 * V[j + 1][q] + h11 * h * (M[j + 1]?.[q] ?? 0);
+      o[q] = h00 * (V[j][q] ?? 0) + h10 * h * (M[j]?.[q] ?? 0) + h01 * (V[j + 1][q] ?? 0) + h11 * h * (M[j + 1]?.[q] ?? 0);
     }
     out.push(o);
   }

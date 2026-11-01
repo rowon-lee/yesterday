@@ -164,19 +164,21 @@ export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number, de
   decor?.behind?.(pen, j);
   group((m) => leg(m, j.kB, j.fB), BACK);
   group((m) => {
-    seg(m, j.sh, j.eB, LIMB_W);
+    seg(m, j.shB, j.eB, LIMB_W);
     seg(m, j.eB, j.hB, LIMB_W);
   }, BACK);
   group((m) => {
     seg(m, j.hip, j.neck, TORSO_W);
     seg(m, j.neck, j.head, LIMB_W);
     stampDisc(m, ...P(j.head), HEAD_R);
+    // 어깨 비틀기: 뒷어깨에서 앞어깨까지 어깨선 (비틀지 않으면 한 점이라 그대로)
+    if (j.shF[0] !== j.shB[0] || j.shF[1] !== j.shB[1]) seg(m, j.shB, j.shF, LIMB_W);
   }, FRONT);
   group((m) => leg(m, j.kF, j.fF), FRONT);
   decor?.body?.(pen, j);
   decor?.head?.(pen, j);
   group((m) => {
-    seg(m, j.sh, j.eF, LIMB_W);
+    seg(m, j.shF, j.eF, LIMB_W);
     seg(m, j.eF, j.hF, LIMB_W);
     seg(m, j.hF, j.hF, FIST_W);
   }, FRONT);
