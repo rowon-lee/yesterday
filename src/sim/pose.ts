@@ -1,6 +1,7 @@
 import type { Joints } from '../anim/pose';
+import { HIT_STRETCH } from '../data/poses/common';
 import { WALL_CLING_LOOP_FROM, WALL_RUN_TOP_FROM } from '../data/poses/wall';
-import { frameAtTick, frameStretched, motionFrames, MOVES, STATS } from './frames';
+import { frameAtTick, frameFitted, frameStretched, motionFrames, MOVES, STATS } from './frames';
 import { GETUP_TICKS, KNOCKDOWN_TICKS } from './rules';
 import type { Fighter } from './types';
 
@@ -22,6 +23,10 @@ function once(name: string, t: number): [string, number] {
 }
 function stretch(name: string, t: number, len: number): [string, number] {
   return [name, frameStretched(motionFrames(name), t, len)];
+}
+/** 공통 맞는 동작: 늘어나는 프레임의 표시 틱만 바꿔 상태 길이에 맞춘다 (공통 동작 사양서) */
+function fitted(name: string, t: number, len: number): [string, number] {
+  return [name, frameFitted(motionFrames(name), t, len, HIT_STRETCH[name])];
 }
 /** 앞 프레임들은 한 번, from번째 프레임부터는 되풀이 (벽 붙기: 붙는 순간 뒤 미끄러지는 동안) */
 function holdLoop(name: string, t: number, from: number): [string, number] {
@@ -78,7 +83,8 @@ function pick(f: Fighter): [string, number] {
     case 'attack':
       return once(MOVES[f.move!].frames.name, f.t);
     case 'hitstun':
-      return stretch(f.heavyHit ? 'base/hit_heavy' : 'base/hit_light', f.t, f.len);
+      // 약하게 맞음은 공통 동작 (경직이 길면 5번 프레임이 늘어난다). 세게 맞음은 아직 임시 동작
+      return f.heavyHit ? stretch('base/hit_heavy', f.t, f.len) : fitted('common/hit_light', f.t, f.len);
     case 'airhit':
       return loop('base/hit_air', f.t);
     case 'knockdown':

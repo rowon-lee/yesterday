@@ -93,6 +93,11 @@ for (const [name, ok, note] of structureChecks()) {
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 등장 시험: 첫 라운드 시작 연출 동안 등장 동작, 싸움 전에 대기로, 두 번째 라운드는 등장 없음 (처음 ${first}, 싸움 전 대기 ${idleBeforeFight}, 둘째 라운드 ${second})`);
 }
+// 5-4) 공통 맞는 동작: 프레임 수는 그대로, 늘어나는 프레임의 표시 틱만 바꿔 경직 길이에 맞춘다 (공통 동작 사양서)
+for (const [name, ok, note] of hitMotionChecks()) {
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 맞는 동작 시험: ${name}${note ? ` (${note})` : ''}`);
+}
 // 5-3) 필살기 연출 (정해진 입력으로)
 for (const [name, ok, note] of cineChecks()) {
   if (!ok) failed++;
@@ -918,6 +923,62 @@ function attackChecks() {
 }
 
 /** 필살기 연출 (캐릭터 기획서 '필살기 연출'): 맞으면 고정·장면 재생·끝에 한 번에, 빗나가면 큰 빈틈, 막히면 연출 없음 */
+/**
+ * 공통 맞는 동작 (docs/공통동작사양서.md): 약하게 맞음은 12프레임·기본 20틱, 늘어나는 프레임은 5번.
+ * 경직이 길면 5번만 늘고, 짧으면 줄여서 모든 프레임을 차례로 보이고 기준 자세(12번)로 끝난다.
+ */
+function hitMotionChecks() {
+  const results = [];
+  const m = sim.motionFrames('common/hit_light');
+  const STRETCH = 4;
+  /** 길이 len틱 동안 틱마다 보이는 프레임 (0부터) */
+  const frames = (len) => Array.from({ length: len }, (_, t) => sim.frameFitted(m, t, len, STRETCH));
+  /** 프레임마다 보인 틱 수 */
+  const spans = (fr) => {
+    const c = Array(m.dur.length).fill(0);
+    for (const i of fr) c[i]++;
+    return c;
+  };
+  const inOrder = (fr) => fr.every((v, i) => i === 0 || v === fr[i - 1] || v === fr[i - 1] + 1);
+  results.push(['약하게 맞음은 12프레임, 기본 20틱', m.dur.length === 12 && m.total === 20, `${m.dur.length}프레임, ${m.total}틱 (${m.dur.join(' ')})`]);
+
+  const base = spans(frames(20));
+  results.push(['경직 20틱이면 사양서 표시 틱 그대로', base.every((n, i) => n === m.dur[i]), base.join(' ')]);
+
+  const long = spans(frames(26));
+  const onlyFive = long.every((n, i) => (i === STRETCH ? n === m.dur[i] + 6 : n === m.dur[i]));
+  results.push(['경직 26틱이면 5번 프레임만 6틱 늘어난다', onlyFive && frames(26)[25] === 11, long.join(' ')]);
+
+  const ok16 = frames(16);
+  const s16 = spans(ok16);
+  results.push(['경직 16틱(평타 1·2타)이면 줄여서 12프레임이 모두 차례로 보이고 12번으로 끝난다', inOrder(ok16) && s16.every((n) => n >= 1) && ok16[15] === 11, s16.join(' ')]);
+
+  const ok8 = frames(8);
+  results.push(['콤보 보정으로 8틱까지 줄어도 앞으로만 넘어간다 (고르게 건너뜀)', ok8[0] === 0 && ok8.every((v, i) => i === 0 || v > ok8[i - 1]) && ok8[7] <= 11, ok8.map((v) => v + 1).join(' ')]);
+
+  // 실제 대전: 평타 1타에 맞으면 약하게 맞음을 처음부터 끝까지 (히트스톱 동안 1번, 경직 마지막 틱에 12번)
+  const s = sim.createState(1);
+  while (s.phase !== 'fight') sim.step(s, [0, 0]);
+  s.fighters[0].x = 2400 * 256;
+  s.fighters[1].x = 2440 * 256;
+  const d = s.fighters[1];
+  const seen = [];
+  let len = 0;
+  for (let t = 0; t < 60; t++) {
+    sim.step(s, [t === 0 ? sim.IN_ATTACK : 0, 0]);
+    if (d.mode === 'hitstun') {
+      len = d.len;
+      const p = sim.fighterPose(d);
+      seen.push(`${p.motion}#${p.frame + 1}`);
+    }
+  }
+  const fr = seen.map((v) => Number(v.split('#')[1]));
+  const allLight = seen.length > 0 && seen.every((v) => v.startsWith('common/hit_light#'));
+  results.push(['평타 1타에 맞으면 약하게 맞음을 1번부터 12번까지 재생한다', allLight && fr[0] === 1 && fr[fr.length - 1] === 12 && fr.every((v, i) => i === 0 || v >= fr[i - 1]),
+    `경직 ${len}틱, 히트스톱 포함 ${seen.length}틱: ${[...new Set(fr)].join(' ')}`]);
+  return results;
+}
+
 function cineChecks() {
   const results = [];
   const I = sim;

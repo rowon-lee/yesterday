@@ -38,7 +38,6 @@ const GS = P({ hx: -2, tl: -2, hd: -4, aFx: 7, aFy: -10, aBx: 8, aBy: -6 });
 const GS_R = P({ hx: -5, tl: -9, hd: -8, aFx: 5, aFy: -9, aBx: 6, aBy: -5, lFx: 9, lBx: -9 });
 const CRUSH = P({ hx: -6, hy: -22, tl: -20, hd: -16, aFx: 2, aFy: -19, aBx: -9, aBy: -16, lFx: 10, lBx: -7 });
 
-const HS = P({ hx: -5, tl: -18, hd: -24, aFx: 0, aFy: 7, aBx: -7, aBy: 5, lFx: 9, lBx: -7 });
 const HS2 = P({ hx: -7, tl: -24, hd: -28, aFx: -3, aFy: 8, aBx: -9, aBy: 6, lFx: 9, lBx: -8 });
 const HS3 = P({ hx: -3, tl: -6, hd: -10, aFx: 6, aFy: 2, aBx: 0, aBy: 6 });
 const HH = P({ hx: -9, hy: -18, tl: -32, hd: -26, aFx: -5, aFy: 9, aBx: -11, aBy: 7, lFx: 11, lBx: -6 });
@@ -103,7 +102,6 @@ export const TEMP_COMMON: MotionData[] = [
   m('guard', '방어', r(1, 12), [{ at: 0, pose: STANCE }, { at: 3, pose: GS }, { at: 11, pose: GS }]),
   m('guard_hit', '방어 막힘', r(1, 12), [{ at: 0, pose: GS_R }, { at: 5, pose: GS }, { at: 11, pose: GS }]),
   m('guard_crush', '가드 크러시', r(2, 12), [{ at: 0, pose: GS_R }, { at: 3, pose: CRUSH }, { at: 7, pose: CRUSH, stop: true }, { at: 11, pose: HS3 }]),
-  m('hit_light', '약하게 맞음', r(1, 12), [{ at: 0, pose: HS }, { at: 2, pose: HS2 }, { at: 6, pose: HS3 }, { at: 11, pose: STANCE }]),
   m('hit_heavy', '세게 맞음', r(1, 12), [{ at: 0, pose: HS2 }, { at: 3, pose: HH }, { at: 6, pose: HH, stop: true }, { at: 11, pose: HS3 }]),
   m('hit_air', '공중에서 맞음', r(2, 12), [{ at: 0, pose: KD_A }, { at: 5, pose: KD_B }, { at: 11, pose: KD_A }]),
   m('knockdown', '다운', r(3, 14), [

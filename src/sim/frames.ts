@@ -36,6 +36,41 @@ export function frameAtTick(m: MotionFrames, t: number): number {
   return m.cum.length - 1;
 }
 
+/**
+ * 맞는 동작 (공통 동작 사양서): 프레임 수는 그대로 두고 표시 틱만 바꿔 상태 길이(length틱)에 맞춘다.
+ * - 기본 길이보다 길면 늘어나는 프레임(stretch, 0부터 센 번호)에 남는 틱을 더한다.
+ * - 짧으면 늘어나는 프레임부터 1틱까지 줄이고, 그래도 길면 회복 쪽(뒤) 프레임부터, 그다음 앞쪽 프레임을 1틱씩 줄인다
+ *   (모든 프레임이 한 번은 보이고 마지막 기준 자세로 끝난다).
+ * - 프레임 수보다도 짧으면 (콤보 보정으로 경직이 줄었을 때) 고르게 건너뛴다.
+ * 판정(관절 위치)도 이 프레임으로 계산하므로 정수 계산만 쓴다.
+ */
+export function frameFitted(m: MotionFrames, t: number, length: number, stretch: number): number {
+  const n = m.dur.length;
+  const len = Math.max(1, length);
+  if (len < n) return Math.min(n - 1, Math.floor((t * n) / len));
+  const dur = m.dur.slice();
+  if (len >= m.total) dur[stretch] += len - m.total;
+  else {
+    let cut = m.total - len;
+    const order = [stretch];
+    for (let i = n - 2; i > stretch; i--) order.push(i);
+    for (let i = stretch - 1; i >= 1; i--) order.push(i);
+    order.push(n - 1, 0);
+    for (const i of order) {
+      if (cut <= 0) break;
+      const c = Math.min(cut, dur[i] - 1);
+      dur[i] -= c;
+      cut -= c;
+    }
+  }
+  let acc = 0;
+  for (let i = 0; i < n; i++) {
+    acc += dur[i];
+    if (t < acc) return i;
+  }
+  return n - 1;
+}
+
 /** 길이가 정해지지 않은 상태(경직 등)는 그림을 상태 길이에 맞춰 늘인다 */
 export function frameStretched(m: MotionFrames, t: number, length: number): number {
   const n = m.dur.length;
