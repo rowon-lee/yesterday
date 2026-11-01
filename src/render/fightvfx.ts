@@ -7,6 +7,7 @@ import { KNOCKDOWN_RELAND } from '../data/poses/common';
 import type { SkinId } from '../anim/skins';
 import { Debris } from './debris';
 import arc from '../vfx/arc';
+import raidenAura, { type AuraJoints } from '../vfx/raiden-aura';
 import raidenBolt from '../vfx/raiden-bolt';
 import trail from '../vfx/trail';
 import dashBlink from '../vfx/dash-blink';
@@ -150,6 +151,16 @@ const HEAVY_SWEEP: ReadonlySet<string> = new Set(['atk4', 'launcher', 'dashAttac
 const BOLT_RANGE: ColorName[] = ['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep'];
 /** 적뢰 세기 (지침서 7-1장 '단계 차이': 1→4타로 갈수록 굵고 길고 가지가 많다) */
 const RANGE_POWER: Partial<Record<string, number>> = { atk1: 1, atk2: 2, atk3: 2, atk4: 4, launcher: 3, sweep: 3, dashAttack: 3, air1: 1, air2: 2, air3: 3, slam: 4, charge: 4, skill1: 3 };
+/**
+ * 전신 전격 세기 (0~1): 감기 동안 0.45에서 0.9까지 오르고, 판정 프레임 동안 1, 그 뒤 여운·복귀에서 0.2까지 내려간다
+ */
+function auraLevelOf(mv: MoveOf, t: number): number {
+  const a = mv.activeStart;
+  const b = mv.activeEnd;
+  if (t < a) return 0.45 + 0.45 * (t / Math.max(1, a));
+  if (t < b) return 1;
+  return Math.max(0.2, 1 - (0.8 * (t - b)) / Math.max(1, mv.total - b));
+}
 /** 라이덴 번개 색 (흰 심지 → 붉은 빛 → 검붉은 테두리) */
 const BOLT: ColorName[] = ['fxWhite', 'raiden', 'fxRed', 'raidenDark', 'raidenDeep'];
 
@@ -228,6 +239,11 @@ export class FightVfx {
       const k = 1 - g.t / g.life;
       lights.point(g.x, g.y, g.r * (0.7 + 0.3 * k), g.color, g.a * k * k);
     }
+    // 전신 전격: 몸 둘레를 붉게 비춘다 (세기만큼)
+    s.fighters.forEach((f, i) => {
+      const k = this.auraLevel[i];
+      if (k > 0.05) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 40 + 30 * k, COLORS.raiden, 0.3 * k * (s.tick % 3 === 0 ? 0.75 : 1));
+    });
     // 적뢰는 무대의 실제 광원 (지침서 7-1장 '빛'): 섬광은 범위 가운데 센 흰 빛 + 화면 전체가 살짝 밝아지는 넓은 빛,
     // 방전은 줄기를 따라 붉은 빛 세 개가 떨리며 벽·젖은 바닥·상대를 비추고, 잔광은 어둡게 남는다
     this.bolts = this.bolts.filter((b) => !b.fx.done());
@@ -259,6 +275,10 @@ export class FightVfx {
   }
 
   private lastCutin = 0;
+  /** 공격마다 새 번호 (전신 전격이 자기 공격이 끝났는지 안다), 지금 전신 전격 세기 (빛) */
+  private attackSerial = [0, 0];
+  private auraLevel = [0, 0];
+  private prevMoveId: Array<string | null> = [null, null];
   /** 지금 살아 있는 적뢰 (누가 쳤는지): 맞으면 섬광으로 되돌리고, 빛을 낸다 */
   private bolts: Array<{ who: number; fx: ReturnType<typeof raidenBolt> }> = [];
   /** 나중 틱에 낼 연출 (큰 물건이 쓰러져 땅에 닿는 순간 등). at은 sim 틱 */
@@ -487,6 +507,13 @@ export class FightVfx {
       // 휘두르는 공격의 궤적. 번개 사거리가 있는 기술(라이덴)은 치는 팔다리 끝이 지나간 길을 따라 붉은 번개가 휩쓴다
       if (f.mode === 'attack' && f.move) {
         const mv = movesOf(f.char)[f.move];
+        // 새 공격이 시작됐다 (연타로 다음 타가 이어져도): 라이덴은 공격 내내 전격이 전신을 휘감는다
+        if (this.prevMoveT[i] < 0 || f.t < this.prevMoveT[i] || f.move !== this.prevMoveId[i]) {
+          this.attackSerial[i]++;
+          if (f.char === 'raiden') this.raidenAura(f, i, mv);
+        }
+        this.prevMoveId[i] = f.move;
+        if (f.char === 'raiden') this.auraLevel[i] = auraLevelOf(mv, f.t);
         const swing = mv.data.reach || mv.data.box ? undefined : SWINGS[f.move];
         const starts = f.t >= mv.activeStart && this.prevMoveT[i] < mv.activeStart;
         // 라이덴 적뢰 (동작연출지침서 7-1장): 궤적 상자가 있는 기술은 타격 프레임에 번개가 범위를 통째로 채운다 (헛쳐도)
@@ -505,7 +532,11 @@ export class FightVfx {
           }));
         }
         this.prevMoveT[i] = f.t;
-      } else this.prevMoveT[i] = -1;
+      } else {
+        this.prevMoveT[i] = -1;
+        this.prevMoveId[i] = null;
+        this.auraLevel[i] = 0;
+      }
       // 기력 3칸이 찬 순간: 오라가 켜지고, 찬 동안 유지된다
       if (f.meter >= RULES.METER_MAX && this.prevMeter[i] < RULES.METER_MAX) {
         const fighter = f;
@@ -645,6 +676,28 @@ export class FightVfx {
     this.glow(tx / FX_PX, ty / FX_PX, heavy ? 60 + 10 * lv : 40, COLORS.raiden, heavy ? 0.9 : 0.7, heavy ? 10 : 7);
   }
 
+  /** 전신 전격: 이 공격이 이어지는 동안 팔다리·몸통을 휘감는 붉은 전격 (사용자 피드백 '전신을 휘감고') */
+  private raidenAura(f: Fighter, i: number, mv: MoveOf): void {
+    const serial = this.attackSerial[i];
+    const limbEnd = mv.data.limb?.[1];
+    const limb = limbEnd === 'hF' ? 'aF' : limbEnd === 'hB' ? 'aB' : limbEnd === 'fF' || limbEnd === 'kF' ? 'lF' : limbEnd ? 'lB' : undefined;
+    this.layer.add(raidenAura({
+      joints: () => {
+        const p = fighterPose(f);
+        const ox = f.x / 256;
+        const oy = GROUND_Y + f.y / 256;
+        const W = (q: readonly [number, number]) => [(ox + f.facing * q[0]) * FX_PX, (oy + q[1]) * FX_PX] as const;
+        const j = p.joints;
+        return { hip: W(j.hip), neck: W(j.neck), head: W(j.head), shF: W(j.shF), eF: W(j.eF), hF: W(j.hF), shB: W(j.shB), eB: W(j.eB), hB: W(j.hB), kF: W(j.kF), fF: W(j.fF), kB: W(j.kB), fB: W(j.fB) } as AuraJoints;
+      },
+      level: () => this.auraLevel[i],
+      alive: () => f.mode === 'attack' && this.attackSerial[i] === serial,
+      limb,
+      ramp: fxRamp(BOLT_RANGE),
+      seed: this.seed++,
+    }));
+  }
+
   /**
    * 라이덴 적뢰 (동작연출지침서 7-1장): 타격 프레임에 주먹·발 끝에서 번개가 터져 궤적 상자(= sim 판정)를 섬광 → 방전 → 잔광으로 채운다.
    * 1타 → 4타·차지로 갈수록 굵고 가지가 많다 (power). 히트스톱 동안은 멈춘다
@@ -657,7 +710,19 @@ export class FightVfx {
     const tipJoint = mv.data.limb ? mv.frames.joints[mv.data.active[0]][mv.data.limb[1]] : [b.x, b.y + b.h / 2];
     const power = RANGE_POWER[id] ?? 1;
     const fighter = f;
+    // 몸을 휘감아 도는 길: 엉덩이 뒤 아래에서 몸통을 한 바퀴 감아 올라 치는 어깨로, 거기서 팔다리를 타고 끝까지
+    const J = mv.frames.joints[mv.data.active[0]];
+    const W = (p: readonly [number, number]): [number, number] => [(ox + f.facing * p[0]) * FX_PX, (oy + p[1]) * FX_PX];
+    const limb = mv.data.limb?.[1] ?? 'hF';
+    const chain = limb === 'hF' ? [J.shF, J.eF, J.hF] : limb === 'hB' ? [J.shB, J.eB, J.hB] : limb === 'fF' || limb === 'kF' ? [J.hip, J.kF, J.fF] : [J.hip, J.kB, J.fB];
+    const mid: [number, number] = [(J.hip[0] + J.neck[0]) / 2, (J.hip[1] + J.neck[1]) / 2];
+    const coil = [
+      [J.hip[0] - 10, J.hip[1] + 3], [mid[0] + 9, J.hip[1] - 2], [mid[0] + 10, mid[1] + 2], [mid[0] - 9, mid[1] - 3],
+      [J.neck[0] - 8, J.neck[1] + 1], [J.neck[0] + 2, J.neck[1] - 5], ...chain,
+    ].map((p) => W(p as [number, number]));
     const fx = raidenBolt({
+      coil,
+      spread: { center: W(mid), count: 6 + power * 2, len: (26 + power * 8) * FX_PX },
       box: { x0: x0 * FX_PX, y0: (oy + b.y) * FX_PX, x1: (x0 + b.w) * FX_PX, y1: (oy + b.y + b.h) * FX_PX },
       shape: b.shape,
       origin: [(ox + f.facing * tipJoint[0]) * FX_PX, (oy + tipJoint[1]) * FX_PX],

@@ -27,6 +27,13 @@ export interface Options {
   held?: () => boolean;
   /** 바닥 높이 (2단위): 잔광 불꽃이 떨어져 튀는 곳 */
   ground?: number;
+  /**
+   * 몸을 휘감아 도는 길 (2단위, 처음 → 주먹·발 끝): 몸 둘레를 감고 치는 팔다리를 타고 끝까지 (사용자 피드백 '전신을 휘감고 휘두르듯이').
+   * 섬광에 하얗게 번쩍이고, 방전 동안 붉은 줄기 두 가닥이 꼬여 돌며, 잔광에 깜빡이며 사라진다. 판정이 아니라 꾸밈이다
+   */
+  coil?: ReadonlyArray<readonly [number, number]>;
+  /** 섬광 순간 몸에서 사방으로 퍼져 나가는 갈래 (가운데·수·길이, 2단위). 판정이 아니라 꾸밈이다 */
+  spread?: { center: readonly [number, number]; count: number; len: number };
 }
 
 const PX = 2;
@@ -104,6 +111,28 @@ export default function raidenBolt(o: Options) {
   const ground = (o.ground ?? o.box.y1 + 40) / PX;
   const base = resample(trunk(o.shape, box, origin, o.facing), 3);
   const total = base.length - 1;
+  /** 몸을 휘감는 길 (1px 단위, 3px 간격) */
+  const coil = o.coil && o.coil.length > 1 ? resample(o.coil.map(([x, y]) => [x / PX, y / PX] as P), 3) : null;
+  /** 사방으로 퍼지는 갈래: 방향과 길이 (앞쪽 줄기 자리 ±25°는 비켜 간다) */
+  const rays = (() => {
+    if (!o.spread) return [];
+    const rand = (() => {
+      let r = ((o.seed ?? 1) * 4099 + 7) & 0x7fffffff;
+      return () => {
+        r = (r * 1103515245 + 12345) & 0x7fffffff;
+        return r / 0x7fffffff;
+      };
+    })();
+    const fwd = o.facing > 0 ? 0 : Math.PI;
+    const c: P = [o.spread.center[0] / PX, o.spread.center[1] / PX];
+    const L = o.spread.len / PX;
+    return Array.from({ length: o.spread.count }, (_, k) => {
+      let a = ((k + 0.5) / o.spread!.count) * Math.PI * 2 + (rand() - 0.5) * 0.5;
+      const d = Math.atan2(Math.sin(a - fwd), Math.cos(a - fwd));
+      if (Math.abs(d) < 0.45) a += Math.sign(d || 1) * 0.6;
+      return { c, a, len: L * (0.6 + rand() * 0.5) };
+    });
+  })();
   /** 섬광 띠의 두께 (px): 세기마다, 직선은 상자 높이를 넘지 않게 */
   const width = Math.min(o.shape === 'line' || o.shape === 'tail' ? box.y1 - box.y0 : 99, [6, 8, 10, 12][power - 1]);
   /** 방전 줄기 수와 가지 수 */
@@ -241,6 +270,57 @@ export default function raidenBolt(o: Options) {
     }
   };
 
+  /** 몸을 휘감는 줄기: 섬광은 흰 두 줄, 방전은 붉은 두 가닥이 길 둘레를 꼬여 돌고(2틱마다 돈다), 잔광은 깜빡이며 옅어진다 */
+  const drawCoil = (f: Frame, tt: number, k: number) => {
+    if (!coil || k <= 0 || tt >= LIFE) return;
+    if (tt >= DISCHARGE && Math.floor(tt * 40) % 3 === 1) return;
+    const spin = Math.floor(tt * 30);
+    for (let strand = 0; strand < 2; strand++) {
+      const pts: P[] = coil.map((q, i) => {
+        const n: P = [-q.d[1], q.d[0]];
+        const off = tt < FLASH ? (strand ? 1 : -1) : Math.sin(i * 0.9 + spin * 1.3 + strand * Math.PI) * (2 + power * 0.5);
+        return [Math.round(q.p[0] + n[0] * off), Math.round(q.p[1] + n[1] * off)];
+      });
+      const core = tt < FLASH || (strand === 0 && tt < DISCHARGE) ? C[0]! : C[1]!;
+      const w = tt < DISCHARGE && strand === 0 ? 1 : 0;
+      for (let i = 0; i + 1 < pts.length; i++) line(f, pts[i]!, pts[i + 1]!, w, core, tt < DISCHARGE ? 0.4 * k : 0);
+    }
+  };
+  /** 사방으로 퍼지는 갈래: 섬광에 반쯤, 방전 동안 끝까지 자라며 갈라지고, 잔광에 안쪽부터 끊겨 바깥으로 흩어진다 */
+  const drawRays = (f: Frame, tt: number) => {
+    if (!rays.length || tt >= LIFE) return;
+    const grow = tt < FLASH ? 0.5 : tt < DISCHARGE ? 0.5 + ((tt - FLASH) / (DISCHARGE - FLASH)) * 0.5 : 1;
+    const cut = tt < DISCHARGE ? 0.15 : 0.15 + ((tt - DISCHARGE) / (LIFE - DISCHARGE)) * 0.85;
+    if (tt >= DISCHARGE && Math.floor(tt * 40) % 3 === 1) return;
+    let r = (seed + Math.floor(tt * 30) * 7717) & 0x7fffffff;
+    const rand = () => {
+      r = (r * 1103515245 + 12345) & 0x7fffffff;
+      return r / 0x7fffffff;
+    };
+    for (const ray of rays) {
+      const dx = Math.cos(ray.a);
+      const dy = Math.sin(ray.a);
+      const len = ray.len * grow;
+      const seg = 4;
+      const pts: P[] = [];
+      for (let q = 0; q <= seg; q++) {
+        const u = q / seg;
+        if (u < cut) continue;
+        const j = q === 0 ? 0 : (rand() - 0.5) * 4;
+        pts.push([Math.round(ray.c[0] + dx * len * u - dy * j), Math.round(ray.c[1] + dy * len * u + dx * j)]);
+      }
+      if (pts.length < 2) continue;
+      const core = tt < DISCHARGE ? C[0]! : C[2]!;
+      for (let i = 0; i + 1 < pts.length; i++) line(f, pts[i]!, pts[i + 1]!, tt < FLASH ? 0 : i === 0 ? 1 : 0, core, tt < DISCHARGE ? 0.3 : 0);
+      // 끝에서 한 번 갈라진다
+      if (tt >= FLASH && tt < DISCHARGE) {
+        const e = pts[pts.length - 1]!;
+        const fa = ray.a + (rand() < 0.5 ? -0.7 : 0.7);
+        line(f, e, [Math.round(e[0] + Math.cos(fa) * 4), Math.round(e[1] + Math.sin(fa) * 4)], 0, C[1]!, 0);
+      }
+    }
+  };
+
   return {
     /** 맞힌 순간: 섬광으로 되돌린다 (히트스톱 동안 이 순간이 멈춰 보인다) */
     rewind() {
@@ -281,8 +361,12 @@ export default function raidenBolt(o: Options) {
         const sh = shapeAt(0);
         const mid = sh.strands[Math.floor(sh.strands.length / 2)];
         for (let i = 0; i + 1 < mid.length; i++) line(f, mid[i]!, mid[i + 1]!, 0, C[0]!, 0);
+        drawCoil(f, 0, 1);
+        drawRays(f, 0);
         return;
       }
+      drawCoil(f, t, t < DISCHARGE ? 1 : Math.max(0, 1 - (t - DISCHARGE) / (LIFE - DISCHARGE)));
+      drawRays(f, t);
       if (t < LIFE) {
         const disc = t < DISCHARGE;
         const k = disc ? 1 - ((t - FLASH) / (DISCHARGE - FLASH)) * 0.5 : 1 - (t - DISCHARGE) / (LIFE - DISCHARGE);
