@@ -157,7 +157,7 @@ export class Plaza {
     }
     // 높은 층(화면 위)에서 광장으로 내리쬐는 서치라이트 둘: 80층 가까운 본관의 꼭대기는 보이지 않고 빛줄기만 내려온다
     K.lights.forEach((lx) => {
-      const beam = new Beam(820, 64, C.beam, 0.12, 2);
+      const beam = new Beam(780, 42, C.beam, 0.13, 2);
       beam.pivot.position.set(lx, SEARCH_Y, KEEP_Z + 60);
       this.group.add(beam.pivot);
       this.beams.push(beam);

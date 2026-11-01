@@ -158,6 +158,11 @@ void main() {
 /** 품질에 따라 벽 결·젖은 반짝임을 넣고 빼는 재질들 (DETAIL 정의를 바꿔 다시 컴파일한다) */
 const detailed: THREE.ShaderMaterial[] = [];
 let detailOn = true;
+/** 지금 품질이 높음인지 (벽 결·젖은 반짝임이 켜졌는지): 낮음이면 덜 중요한 빛줄기를 숨긴다 */
+export function detailEnabled(): boolean {
+  return detailOn;
+}
+
 /** 품질 높음이면 벽 결·젖은 반짝임을 켠다. 바뀔 때만 재질을 다시 컴파일한다 (품질은 보통 한 번만 바뀐다) */
 export function setDetail(on: boolean): void {
   if (on === detailOn) return;

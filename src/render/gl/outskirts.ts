@@ -10,7 +10,7 @@ import { scaleAt } from './core';
 import { box, Details, facedBox, plane } from './kit';
 import { lightPool } from './lights';
 import { FLUO, FURNACE, figure, glowRect, PINK, roomWall, sil, TV, WARM, type RoomLamp, type RoomRamp } from './rooms';
-import { litMaterial, pixelTexture } from './shaders';
+import { detailEnabled, litMaterial, pixelTexture } from './shaders';
 import { star } from './backdrops';
 import { brickWall, neonText, weather } from './tex';
 
@@ -37,6 +37,8 @@ export class Outskirts {
   private readonly furnaces: Array<{ x: number; top: number }> = [];
   private readonly embers = new Sparks(90);
   private readonly stackSmoke = new Puffs(28, C.smoke, C.smokeDark, 5, 0.5);
+  /** 성벽 투광등이 벽면을 쓸어 올리는 옅은 빛줄기 (품질 낮음이면 숨긴다) */
+  private readonly washes: Beam[] = [];
   /** 서치라이트: 빛줄기, 받침 자리, 위상, 훑는 폭(라디안) */
   private readonly searchlights: Array<{ beam: Beam; x: number; y: number; phase: number; sweep: number }> = [];
 
@@ -263,12 +265,13 @@ export class Outskirts {
       const wash = new Beam(520, 30, '#c4d6e6', 0.05, 2);
       wash.pivot.position.set(x + 18, 8, WALL.z + 34);
       this.group.add(wash.pivot);
+      this.washes.push(wash);
     }
     // 철문 위 경고등과 문 앞 투광등
     this.lamps.push({ x: (WALL.gate[0] + WALL.gate[1]) / 2, y: 250, z: WALL.z + 40, range: 220, color: C.sodium, power: 1.2, flicker: 0, down: true });
     // 2) 성벽 꼭대기(화면 위)에서 내리쬐는 서치라이트: 거리와 벽을 천천히 훑는다
     for (const s of WALL.searchlights) {
-      const b = new Beam(980, 78, C.beam, 0.15, 2);
+      const b = new Beam(940, 58, C.beam, 0.16, 2);
       b.pivot.position.set(s.x, s.y, WALL.z + 40);
       this.group.add(b.pivot);
       this.searchlights.push({ beam: b, x: s.x, y: s.y, phase: s.phase, sweep: s.sweep });
@@ -339,6 +342,8 @@ export class Outskirts {
     for (const [i, m] of this.beacons.entries()) m.uniforms.emissiveStrength.value = (on ? i % 2 === 0 : i % 2 === 1) ? 3 : 0.3;
     this.updateTrain(tick, view0, view1);
     this.updateFurnaces(tick, view0, view1);
+    const detail = detailEnabled();
+    for (const w of this.washes) w.pivot.visible = detail;
     // 서치라이트: 아래로 비추며 천천히 좌우로 훑는다. 빛이 닿는 바닥에 밝은 웅덩이
     for (const [i, s] of this.searchlights.entries()) {
       const d = s.sweep * Math.sin(tick * 0.0085 + s.phase) + 0.12 * Math.sin(tick * 0.023 + i);
