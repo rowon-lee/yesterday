@@ -4,6 +4,7 @@ import { drawText, textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_H, SCREEN_W } from '../screen';
 import { canvas, disc, dither, ditherRect, hash, line, paint, rect } from '../dither';
+import { registerLayerSign } from './signs';
 
 /**
  * 먼 겹(하늘과 바다·1구역 마천루·시타델 탑 윗부분·중간 건물)의 도트 그림 (렌더 전용, 오프스크린 Canvas 2D에 미리 그린다).
@@ -122,21 +123,21 @@ export function buildFar(): Layer {
       }
     }
     // 가끔 세로 네온 띠 (호텔·극장 간판이 멀리서 보이는 것)
-    if (!back && hash(k++) < 0.12) {
-      const nx = hash(k++) < 0.5 ? x + 1 : x + bw - 3;
-      const ny = gl - 40 - Math.floor(hash(k++) * 60);
-      rect(g, nx, ny, 2, 16 + Math.floor(hash(k++) * 14), hash(k++) < 0.5 ? C.neonPink : C.neonCyan);
+    if (!back && hash(k++) < 0.05) {
+      const nx = hash(k++) < 0.5 ? x + 1 : x + bw - 2;
+      const ny = gl - 30 - Math.floor(hash(k++) * 40);
+      rect(g, nx, ny, 1, 8 + Math.floor(hash(k++) * 8), hash(k++) < 0.5 ? '#8a2066' : '#1f7896');
     }
     return bw;
   };
-  // 먼 줄 (낮고 옅게) 다음 가까운 줄
+  // 먼 줄 (낮고 옅게, 틈 없이 이어 세운다: 가까운 줄 사이 좁은 틈으로 지평선 빛이 세로 줄처럼 새지 않게) 다음 가까운 줄
   for (const back of [true, false]) {
-    let x = F.from + (back ? 14 : 0);
+    let x = F.from + (back ? 6 : 0);
     let k = F.seed + (back ? 900 : 0);
     while (x < w) {
       const bw = tower(x, k, back);
       k += 23;
-      x += bw + (back ? 10 : 2) + Math.floor(hash(k++) * (back ? 22 : 8));
+      x += bw + (back ? 0 : 2 + Math.floor(hash(k++) * 8));
     }
   }
   // 공장 지대: 톱니 지붕 공장과 굴뚝 (매연은 매 틱 따로 그린다)
@@ -354,6 +355,7 @@ export function buildMid(): Layer {
       const px = x + Math.floor((bw - tw - 8) / 2);
       ditherRect(g, px, top + 24, tw + 8, 18, index % 2 ? C.paintTeal : C.paintOchre, 12);
       drawText(g, text, px + 4, top + 28, C.paintCream, 2);
+      registerLayerSign(text, '중간 겹 간판', M.speed, px + 4, px + 4 + tw, top + 28, top + 38, tw, tw + 8);
     }
     x += bw + 3 + Math.floor(hash(k++) * 6);
     index++;

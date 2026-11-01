@@ -7,6 +7,7 @@ import { measureFrame, quality } from './render/light';
 import { drawText, textWidth } from './render/font';
 import { SCREEN_H, SCREEN_W } from './render/screen';
 import { gl, hasWebGL2, initGl } from './render/gl';
+import { SIGNS } from './render/gl/signs';
 
 const params = new URLSearchParams(location.search);
 const sceneName = params.get('scene') ?? DEFAULT_SCENE;
@@ -89,6 +90,32 @@ function tick(): void {
     return (performance.now() - t0) / n;
   },
   get quality() { return quality(); },
+  /**
+   * 확인 도구(맵 검사)용: 마지막 그림의 화면 색(480×270 RGBA), 칸마다 카메라에서의 거리, 카메라 자리, 간판·글자 자리 목록.
+   * 픽셀·거리는 base64 (거리는 Float32)
+   */
+  mapProbe() {
+    if (!GL_MODE) return null;
+    const g = gl();
+    scene.render(ctx);
+    const rgba = g.view.read();
+    const depth = g.view.readDepth();
+    const toB64 = (u8: Uint8Array) => {
+      let bin = '';
+      for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+      return btoa(bin);
+    };
+    const cam = g.view.camera.position;
+    return {
+      w: SCREEN_W,
+      h: SCREEN_H,
+      rgba: toB64(new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength)),
+      depth: toB64(new Uint8Array(depth.buffer)),
+      cam: { x: cam.x, y: cam.y, z: cam.z },
+      view: { x: g.view.placed.ix, y: g.view.placed.iy },
+      signs: SIGNS,
+    };
+  },
   /** 확인 도구(tools/clip)용: n틱 진행하고 그린 뒤 화면 픽셀을 색 번호로 돌려준다 */
   frame(n: number) {
     for (let i = 0; i < n; i++) tick();

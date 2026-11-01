@@ -4,6 +4,10 @@ import { glyphRows } from '../font';
 import { COLORS as C } from '../palette';
 import { roomWall, WARM } from './rooms';
 import { canvas, ditherRect, hash, line, rect } from '../dither';
+import { registerSign } from './signs';
+
+/** 건물 정면 깊이 (buildings.ts의 FRONT_Z와 같다: 순환 import를 피해 숫자로 둔다) */
+const FRONT_Z_SIGN = -40;
 
 /**
  * 2.5D 무대의 도트 텍스처 (렌더 전용, 오프스크린 Canvas 2D에 미리 그린다).
@@ -298,7 +302,11 @@ export function paintFacade(b: FrontBuildingPlace, o: FacadeOpts): Facade {
   // 선전 포스터 (2층 높이, 찢김)
   if (b.poster && b.floors >= 3 && b.kind !== 'theater') {
     const pw = Math.max(34, b.poster.length * 8 + 10);
-    poster(g, posterX(b, tw, pw, T), yOf(SHOP_H + FLOOR_H) + T(22), pw, 46, b.poster, b.seed);
+    const px = posterX(b, tw, pw, T);
+    poster(g, px, yOf(SHOP_H + FLOOR_H) + T(22), pw, 46, b.poster, b.seed);
+    // 글자 자리 (월드): 정면 그림은 배율 S로 그렸다
+    const top = SHOP_H + FLOOR_H - 22 / S;
+    registerSign(b.poster, '선전 포스터', b.x + px / S, b.x + (px + pw) / S, top - 46 / S, top, FRONT_Z_SIGN, (b.poster.length * 8 - 2) / S, pw / S);
   }
   // 바랜 옛 광고 (빵집 꼭대기 층)
   if (b.sign === 'BAKERY') ghostSign(g, T(10), T(14), 'BREAD', b.seed);
