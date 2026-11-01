@@ -218,6 +218,39 @@ function charChecks() {
   const bk = sim.movesOf('base').wallKick;
   out.push(['라이덴 벽 박차기 공격은 라이덴 그림, 시간은 기본 기술과 같음', rk.frames.name === 'raiden/wall_kick' && rk.activeStart === bk.activeStart && rk.activeEnd === bk.activeEnd && rk.total === bk.total,
     `${rk.frames.name} 판정 ${rk.activeStart}~${rk.activeEnd}틱 / 기본 ${bk.activeStart}~${bk.activeEnd}틱, 전체 ${rk.total}/${bk.total}`]);
+  // 라이덴 평타 (MMA): 가만히 선 기본 스틱맨에게 1~4타 연타, 띄우기 → 점프 → 공중 1·2·3타, 쓸기, 대시 공격
+  const rfresh = (x0, x1) => {
+    const st = sim.createState(1, { chars: ['raiden', 'base'] });
+    while (st.phase !== 'fight') sim.step(st, [0, 0]);
+    st.fighters[0].x = x0 * 256;
+    st.fighters[1].x = x1 * 256;
+    return st;
+  };
+  const rrun = (st, inputs) => {
+    const hits = [];
+    for (const inp of inputs) {
+      sim.step(st, [inp, 0]);
+      for (const e of st.events) if (e.type === 'hit' && e.who === 0) hits.push(e.move);
+    }
+    return hits;
+  };
+  const tap = (inp, gap) => [inp, ...Array(gap).fill(0)];
+  let st = rfresh(3150, 3190);
+  // 공격을 4틱마다 눌러 연타 (다음 타는 앞 타가 맞은 뒤 예약된다)
+  const mash = (inp, n) => Array.from({ length: n }, (_, i) => (i % 4 === 0 ? inp : 0));
+  let hits = rrun(st, [...mash(sim.IN_ATTACK, 72), ...Array(30).fill(0)]);
+  out.push(['라이덴 1~4타 연타 (잽 → 스트레이트 → 훅 → 니킥), 니킥에 상대가 날아감', hits.join(',') === 'atk1,atk2,atk3,atk4' && st.fighters[1].mode !== 'hitstun' && st.fighters[1].mode !== 'idle',
+    `맞힌 기술 ${hits.join(' → ') || '없음'}, 상대 ${st.fighters[1].mode}`]);
+  st = rfresh(3150, 3186);
+  hits = rrun(st, [...tap(sim.IN_UP | sim.IN_ATTACK, 14), ...tap(sim.IN_JUMP | sim.IN_RIGHT, 8), ...mash(sim.IN_ATTACK, 40), ...Array(30).fill(0)]);
+  out.push(['라이덴 띄우기(어퍼컷) → 점프로 쫓아 공중 잽 · 스트레이트 · 니킥', hits.join(',') === 'launcher,air1,air2,air3',
+    `맞힌 기술 ${hits.join(' → ') || '없음'}`]);
+  st = rfresh(3150, 3188);
+  hits = rrun(st, tap(sim.IN_DOWN | sim.IN_ATTACK, 30));
+  out.push(['라이덴 쓸기(로킥) → 상대 다운', hits[0] === 'sweep' && st.fighters[1].mode === 'knockdown', `맞힌 기술 ${hits.join(',') || '없음'}, 상대 ${st.fighters[1].mode}`]);
+  st = rfresh(3100, 3214);
+  hits = rrun(st, [...tap(sim.IN_DASH | sim.IN_RIGHT, 3), ...tap(sim.IN_ATTACK, 40)]);
+  out.push(['라이덴 대시 공격(슈퍼맨 펀치)', hits[0] === 'dashAttack', `맞힌 기술 ${hits.join(',') || '없음'}`]);
   // 라이덴이 낀 CPU 대전: 예외 없이 끝나고, 같은 입력 재생·저장/복원 뒤 같은 해시
   for (const chars of [['raiden', 'base'], ['base', 'raiden'], ['raiden', 'raiden']]) {
     const opts = { chars };

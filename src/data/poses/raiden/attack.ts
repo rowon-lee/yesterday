@@ -183,14 +183,14 @@ export const RAIDEN_SUPERMAN: MotionData = {
 // ---- 공중 평타: 공중 잽 · 공중 스트레이트 · 공중 니킥 · 내려찍기(해머 피스트) ----
 /** 공중 기본 (라이덴 점프의 웅크림과 같은 꼴) */
 const A_TUCK = R({ hx: 0, hy: -26, tl: 16, hd: 7, aFx: 11, aFy: -4, aBx: 8, aBy: -1, lFx: 7, lFy: -13, lBx: -1, lBy: -11 });
-/** 공중 잽: 앞손을 곧게, 다리는 웅크린 채 */
-const AJ_HIT = R({ hx: 1, hy: -26, tl: 20, hd: 9, aFx: 18, aFy: -5, aBx: 8, aBy: -1, lFx: 8, lFy: -12, lBx: -2, lBy: -10 });
-/** 공중 스트레이트: 허리를 틀어 뒷손을 곧게, 앞손은 턱으로 */
+/** 공중 잽: 몸을 숙여 앞손을 아래 대각선(띄운 상대 쪽, 약 45°)으로 곧게, 다리는 웅크린 채 */
+const AJ_HIT = R({ hx: 1, hy: -26, tl: 30, hd: 12, aFx: 14, aFy: 12, aBx: 8, aBy: 0, lFx: 8, lFy: -12, lBx: -2, lBy: -10 });
+/** 공중 스트레이트: 허리를 틀어 뒷손을 아래 대각선으로 곧게, 앞손은 턱으로 */
 const AS_TURN = R({ hx: 1, hy: -26, tl: 20, hd: 8, aFx: 8, aFy: -4, aBx: 10, aBy: -3, lFx: 7, lFy: -12, lBx: -3, lBy: -10 });
-const AS_HIT = R({ hx: 2, hy: -26, tl: 26, hd: 10, aFx: 7, aFy: -4, aBx: 20, aBy: -6, lFx: 8, lFy: -11, lBx: -4, lBy: -9 });
-/** 공중 니킥: 두 손으로 끌어당기며 앞무릎을 앞으로 내지른다 */
+const AS_HIT = R({ hx: 2, hy: -26, tl: 34, hd: 12, aFx: 7, aFy: -3, aBx: 15, aBy: 13, lFx: 8, lFy: -11, lBx: -4, lBy: -9 });
+/** 공중 니킥: 두 손으로 끌어내리며 앞무릎을 아래 앞쪽으로 내지른다 */
 const AN_LOAD = R({ hx: 0, hy: -26, tl: 22, hd: 8, aFx: 16, aFy: -5, aBx: 14, aBy: -3, lFx: 5, lFy: -10, lBx: -3, lBy: -9 });
-const AN_HIT = R({ hx: 1, hy: -26, tl: 4, hd: 10, aFx: 12, aFy: 3, aBx: 10, aBy: 5, lFx: 15, lFy: -16, lBx: -4, lBy: -6 });
+const AN_HIT = R({ hx: 2, hy: -26, tl: 6, hd: 12, aFx: 13, aFy: 6, aBx: 11, aBy: 8, lFx: 13, lFy: -9, lBx: -4, lBy: -8 });
 /** 해머 피스트: 두 주먹을 깍지 껴 머리 위로 들었다가 */
 const HM_UP = R({ hx: -1, hy: -26, tl: 0, hd: -6, aFx: 4, aFy: -17, aBx: 2, aBy: -16, lFx: 7, lFy: -10, lBx: -3, lBy: -8 });
 /** 몸을 접으며 아래 앞쪽으로 내리찍는다 */
