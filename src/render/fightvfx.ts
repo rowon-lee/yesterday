@@ -1,13 +1,15 @@
 import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
-import { BREAKABLES, GRIDS, fighterPose, MOVES, RULES, STATS, tramRestX, type Fighter, type SimState } from '../sim';
+import { BREAKABLES, GRIDS, fighterPose, MOVES, movesOf, RULES, statsOf, tramRestX, type Fighter, type SimState } from '../sim';
 import { CITADEL as D } from '../data/stages/citadel';
 import { KNOCKDOWN_RELAND } from '../data/poses/common';
+import type { SkinId } from '../anim/skins';
 import { Debris } from './debris';
 import dashBlink from '../vfx/dash-blink';
 import explosion from '../vfx/explosion';
 import glint from '../vfx/glint';
 import impact from '../vfx/impact';
+import lightning from '../vfx/lightning';
 import powerUp from '../vfx/power-up';
 import slash from '../vfx/slash';
 import type { Effects } from './effects';
@@ -35,6 +37,17 @@ const SIDE_RAMP: Record<0 | 1, ColorName[]> = {
   0: ['fxWhite', 'goldLight', 'fxYellow', 'gold', 'fxOrange', 'goldDark', 'fxRed'],
   1: ['fxWhite', 'skyLight', 'sky', 'fxBlue', 'skyDark', 'fxDeepBlue', 'fxNavy'],
 };
+/** 라이덴 (캐릭터 기획서: 붉은 전격, 검붉은 잔상): 대시 잔상 등 플레이어 색 대신 쓴다 */
+const RAIDEN_RAMP: ColorName[] = ['fxWhite', 'raidenLight', 'raiden', 'fxRed', 'raidenDark', 'raidenDeep'];
+/** 이 사람의 이펙트 색: 캐릭터 대표 색이 있으면 그것, 없으면 플레이어 색 */
+const rampOf = (f: Fighter, side: 0 | 1): ColorName[] => (f.char === 'raiden' ? RAIDEN_RAMP : SIDE_RAMP[side]);
+/**
+ * 라이덴 등장 번개: 등장 동작의 몇 틱째에, 제자리에서 바라보는 쪽으로 몇 px 떨어진 곳에 내리꽂힌다.
+ * 라이덴은 제자리보다 14px 뒤에 섰다가 걸어 나오므로 그 양옆(-26, -2)에 먼저, 마지막 하나는 걸어 나온 뒤 등 뒤(-20)에
+ */
+const RAIDEN_INTRO_BOLTS = [{ t: 1, dx: -26 }, { t: 6, dx: -2 }, { t: 12, dx: -15 }, { t: 30, dx: -24 }];
+/** 라이덴 등장 걸음: 발을 디디는 틱(등장 동작 4번째·7번째 프레임이 시작하는 틱)과 그 발 자리 */
+const RAIDEN_INTRO_STEPS = [{ t: 19, dx: -2 }, { t: 34, dx: 8 }];
 /** 타격 불꽃 (뜨거운 색) */
 const WARM: ColorName[] = ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed'];
 /** 차지를 모으는 동안 몸 둘레 오라와 빛 (기본 스틱맨은 흰 주황. 캐릭터를 얹으면 대표 색) */
@@ -78,25 +91,25 @@ const KD_RELAND_T = (() => {
 const FLASH_HEAVY = 4;
 
 const motionByName = new Map(MOTIONS.map((m) => [m.name, m]));
-/** 차지를 모으는 동안 허리에 당긴 주먹 자리 (발밑 기준, 오른쪽 보는 기준): 되풀이하는 첫 프레임의 앞주먹 */
-const CHARGE_FIST = (() => {
-  const c = MOVES.charge.data.charge!;
-  return MOVES.charge.frames.joints[c.windup].hF;
-})();
+/** 차지를 모으는 동안 허리에 당긴 주먹 자리 (발밑 기준, 오른쪽 보는 기준): 그 캐릭터 차지에서 되풀이하는 첫 프레임의 앞주먹 */
+const chargeFist = (f: Fighter) => {
+  const mv = movesOf(f.char).charge;
+  return mv.frames.joints[mv.data.charge!.windup].hF;
+};
 const silCanvas = document.createElement('canvas');
 silCanvas.width = 64;
 silCanvas.height = 64;
 const silCache = new Map<string, Uint32Array>();
 
 /** 지금 모습의 실루엣 (Power Up 오라·대시 잔상이 몸 윤곽을 따라가도록). 이펙트 픽셀 좌표 */
-function silhouette(f: Fighter) {
+function silhouette(f: Fighter, skin: SkinId = 'base') {
   const p = fighterPose(f);
-  const key = `${p.motion}/${p.frame}/${f.facing}`;
+  const key = `${skin}/${p.motion}/${p.frame}/${f.facing}`;
   let data = silCache.get(key);
   if (!data) {
     const g = silCanvas.getContext('2d', { willReadFrequently: true })!;
     g.clearRect(0, 0, 64, 64);
-    motionByName.get(p.motion)!.draw(g, p.frame, 0, 0, { look: 'p1', flip: f.facing < 0 });
+    motionByName.get(p.motion)!.draw(g, p.frame, 0, 0, { look: 'p1', flip: f.facing < 0, skin });
     data = new Uint32Array(g.getImageData(0, 0, 64, 64).data.buffer.slice(0));
     silCache.set(key, data);
   }
@@ -116,6 +129,13 @@ export class FightVfx {
   private prevMode = ['idle', 'idle'];
   private prevMoveT = [-1, -1];
   private seed = 1;
+
+  /** 두 사람의 캐릭터 겉모습 (실루엣을 따라가는 이펙트용, 대련 장면이 정한다) */
+  skins: [SkinId, SkinId] = ['base', 'base'];
+  private skinOf(f: Fighter): SkinId {
+    return f === this.fighters?.[1] ? this.skins[1] : this.skins[0];
+  }
+  private fighters: readonly Fighter[] | null = null;
 
   /** 부서질 때 튀는 조각 */
   readonly debris = new Debris();
@@ -137,11 +157,11 @@ export class FightVfx {
       lights.point(g.x, g.y, g.r * (0.7 + 0.3 * k), g.color, g.a * k * k);
     }
     s.fighters.forEach((f, i) => {
-      if (f.meter >= RULES.METER_MAX) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 54, i === 0 ? COLORS.gold : COLORS.sky, 0.45);
+      if (f.meter >= RULES.METER_MAX) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 54, f.char === 'raiden' ? COLORS.raiden : i === 0 ? COLORS.gold : COLORS.sky, 0.45);
       // 차지를 모으는 동안: 캐릭터가 광원이 되어 바닥과 벽을 비춘다 (단계마다 한 계단씩 넓고 밝게. 반짝임은 단계가 오를 때 한 번)
       if (f.mode === 'charge') {
         const lv = Math.max(1, f.chargeLv);
-        lights.point(f.x / 256, GROUND_Y + f.y / 256 - 24, 34 + 16 * lv, lv >= 3 ? COLORS.fxYellow : COLORS.fxOrange, 0.3 + 0.15 * lv);
+        lights.point(f.x / 256, GROUND_Y + f.y / 256 - 24, 34 + 16 * lv, f.char === 'raiden' ? (lv >= 3 ? COLORS.raidenLight : COLORS.raiden) : lv >= 3 ? COLORS.fxYellow : COLORS.fxOrange, 0.3 + 0.15 * lv);
       }
     });
     if (s.freeze > 0) {
@@ -173,6 +193,7 @@ export class FightVfx {
 
   /** sim 한 틱 뒤에 부른다 */
   tick(s: SimState): void {
+    this.fighters = s.fighters;
     const shake = (k: number) => (t: number) => this.fx.shake(t * k);
     // 필살기 연출 장면의 타격 (렌더 전용): 발동자 동작마다 정해 둔 틱에 불꽃·빛·흔들림 (피해는 끝 타격에서 한 번)
     if (s.cine) {
@@ -209,12 +230,18 @@ export class FightVfx {
       if (e.type === 'hit') {
         const stop = e.move ? MOVES[e.move].data.hitstop : 7;
         const size = e.heavy ? 0.7 : stop >= 9 ? 0.55 : 0.42;
-        this.layer.add(impact({ kind: 'hit', x, y, angle, size, ramp: fxRamp(WARM), seed: this.seed++ }));
+        // 라이덴의 타격은 붉은 전격이 튄다 (캐릭터 기획서 '평타')
+        this.layer.add(impact({ kind: 'hit', x, y, angle, size, ramp: fxRamp(att?.char === 'raiden' ? RAIDEN_RAMP : WARM), seed: this.seed++ }));
         this.since[1 - e.who] = 0;
         this.heavy[1 - e.who] = !!e.heavy;
         if (e.move === 'super') {
           this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.5, surface: fxColor('street'), seed: this.seed++, shake: shake(0.3) }));
         }
+      } else if (e.type === 'kongo' && att) {
+        // 라이덴 금강불괴 발동: 몸에서 붉은 빛이 한 번 크게 반짝이고 둘레를 비춘다
+        const [fx, fy] = feet(att);
+        this.layer.add(glint({ x: fx, y: fy - 26 * FX_PX, size: 1.2, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep']) }));
+        this.glow(fx / FX_PX, fy / FX_PX - 26, 110, COLORS.raidenLight, 0.9, 24);
       } else if (e.type === 'block') {
         this.layer.add(impact({ kind: 'hit', x, y, angle, size: 0.32, ramp: fxRamp(COOL), seed: this.seed++ }));
       } else if (e.type === 'crush') {
@@ -304,6 +331,22 @@ export class FightVfx {
 
     s.fighters.forEach((f, i) => {
       const side = i as 0 | 1;
+      // 라이덴 등장 (캐릭터 기획서 '등장 연출'): 붉은 번개가 연달아 내리꽂히고, 그 사이에서 걸어 나와 발을 디딜 때마다 발밑에 불티
+      if (f.mode === 'intro' && f.char === 'raiden') {
+        const bolt = RAIDEN_INTRO_BOLTS.find((b) => b.t === f.t);
+        if (bolt) {
+          const [fx, fy] = feet(f);
+          const x = fx + f.facing * bolt.dx * FX_PX;
+          this.layer.add(lightning({ x, y: fy, length: 300 * FX_PX, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+          this.glow(x / FX_PX, fy / FX_PX - 40, 120, COLORS.raidenLight, 0.9, 10);
+          this.debris.dustCloud(x / FX_PX - 4, x / FX_PX + 4, 0.2, fy / FX_PX - 2);
+        }
+        const step = RAIDEN_INTRO_STEPS.find((b) => b.t === f.t);
+        if (step) {
+          const [fx, fy] = feet(f);
+          this.layer.add(glint({ x: fx + f.facing * step.dx * FX_PX, y: fy - 2 * FX_PX, size: 0.35, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark']) }));
+        }
+      }
       // 벽을 달려 오르는 동안: 발이 벽을 딛는 자리에서 먼지가 인다
       if (f.mode === 'wallrun' && f.t % 5 === 2) {
         const fy = GROUND_Y + f.y / 256;
@@ -317,17 +360,18 @@ export class FightVfx {
       // 대시·공중 대시가 시작되는 틱: 잔상과 박차는 먼지
       if ((f.mode === 'dash' || f.mode === 'airdash') && this.prevMode[i] !== f.mode) {
         const air = f.mode === 'airdash';
-        const ticks = air ? STATS.airDashMoveTo : STATS.dashMoveTo - STATS.dashMoveFrom;
-        const speed = air ? STATS.airDashSpeed : STATS.dashSpeed;
+        const st = statsOf(f.char);
+        const ticks = air ? st.airDashMoveTo : st.dashMoveTo - st.dashMoveFrom;
+        const speed = air ? st.airDashSpeed : st.dashSpeed;
         const fighter = f;
         this.layer.add(dashBlink({
           kind: 'dash',
-          actor: { feet: () => feet(fighter), silhouette: () => silhouette(fighter) },
+          actor: { feet: () => feet(fighter), silhouette: () => silhouette(fighter, this.skinOf(fighter)) },
           facing: f.facing * f.dir,
           distance: ((speed * ticks) / 256) * FX_PX,
           time: ticks / 60,
           delay: 0,
-          colors: fxRamp(SIDE_RAMP[side]),
+          colors: fxRamp(rampOf(f, side)),
           groundColor: fxColor('street'),
           ground: air ? feet(f)[1] : GROUND_Y * FX_PX,
           seed: this.seed++,
@@ -337,7 +381,7 @@ export class FightVfx {
       // 휘두르는 공격의 궤적
       if (f.mode === 'attack' && f.move) {
         const swing = SWINGS[f.move];
-        const mv = MOVES[f.move];
+        const mv = movesOf(f.char)[f.move];
         if (swing && f.t >= mv.activeStart && this.prevMoveT[i] < mv.activeStart) {
           const [fx, fy] = feet(f);
           this.layer.add(slash({
@@ -352,8 +396,8 @@ export class FightVfx {
       if (f.meter >= RULES.METER_MAX && this.prevMeter[i] < RULES.METER_MAX) {
         const fighter = f;
         this.layer.add(powerUp({
-          actor: { feet: () => feet(fighter), silhouette: () => silhouette(fighter) },
-          palette: fxHex(SIDE_RAMP[side]),
+          actor: { feet: () => feet(fighter), silhouette: () => silhouette(fighter, this.skinOf(fighter)) },
+          palette: fxHex(rampOf(f, side)),
           size: 0.55,
           seed: this.seed++,
           sustain: () => fighter.meter >= RULES.METER_MAX,
@@ -572,23 +616,32 @@ export class FightVfx {
     const wx = f.x / 256;
     const wy = GROUND_Y + f.y / 256 - 24;
     if (what === 'start' || what === 'level') {
+      // 라이덴 투전승불: 적빛 전격 갑옷 (오라·반짝임이 붉고, 단계마다 몸 둘레로 작은 번개가 튄다)
+      const raiden = f.char === 'raiden';
       this.layer.add(powerUp({
-        actor: { feet: () => feet(f), silhouette: () => silhouette(f) },
-        palette: fxHex(CHARGE_RAMP),
+        actor: { feet: () => feet(f), silhouette: () => silhouette(f, this.skinOf(f)) },
+        palette: fxHex(raiden ? RAIDEN_RAMP : CHARGE_RAMP),
         size: 0.36 + 0.14 * lv,
         seed: this.seed++,
         sustain: () => f.mode === 'charge',
       }));
       // 허리에 당긴 주먹 자리 (모으는 동안 되풀이하는 첫 프레임의 주먹)
-      const fist = CHARGE_FIST;
+      const fist = chargeFist(f);
       const gx = wx + f.facing * fist[0];
       const gy = GROUND_Y + f.y / 256 + fist[1];
-      this.layer.add(glint({ x: gx * FX_PX, y: gy * FX_PX, size: 0.5 + 0.3 * lv, ramp: fxRamp(['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame']) }));
-      this.glow(gx, gy, 40 + 12 * lv, COLORS.fxYellow, 0.9, 4);
+      this.layer.add(glint({ x: gx * FX_PX, y: gy * FX_PX, size: 0.5 + 0.3 * lv, ramp: fxRamp(raiden ? ['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep'] : ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame']) }));
+      this.glow(gx, gy, 40 + 12 * lv, raiden ? COLORS.raidenLight : COLORS.fxYellow, 0.9, 4);
+      if (raiden && what === 'level') {
+        // 몸 둘레에서 짧은 번개가 단계 수만큼 내리친다 (투전승불: 생체 전류 증폭)
+        for (let k = 0; k < lv; k++) {
+          const dx = (k % 2 ? 1 : -1) * (8 + 5 * k);
+          this.layer.add(lightning({ x: (wx + dx) * FX_PX, y: (GROUND_Y + f.y / 256) * FX_PX, length: (60 + 14 * lv) * FX_PX, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+        }
+      }
       this.fx.shake(0.06 + 0.05 * lv);
       if (lv >= 3) this.fx.flashFor(1);
     } else if (what === 'release') {
-      this.glow(wx + f.facing * 14, wy, 60 + 14 * lv, COLORS.fxYellow, 0.8, 10);
+      this.glow(wx + f.facing * 14, wy, 60 + 14 * lv, f.char === 'raiden' ? COLORS.raidenLight : COLORS.fxYellow, 0.8, 10);
     }
   }
 

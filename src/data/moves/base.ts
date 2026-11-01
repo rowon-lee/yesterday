@@ -99,6 +99,8 @@ export interface ChargeLevel {
   wall?: boolean;
   /** 맞히면 점프로 끊고 쫓아갈 수 있다 */
   jumpCancel?: boolean;
+  /** 이 단계로 치면 기술이 끝난 뒤 이만큼 탈진한다 (아무것도 못 함, 패널티) */
+  exhaust?: number;
 }
 
 const LIGHT = { guardDamage: 10, hitstun: 16, blockstun: 12, hitstop: 7, push: 1.3 };

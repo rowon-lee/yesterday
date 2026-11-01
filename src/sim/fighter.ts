@@ -1,5 +1,5 @@
 import { AIR_CHAIN, CHARGE_FROM, GROUND_CHAIN, type MoveId } from '../data/moves/base';
-import { motionFrames, MOVES, STATS } from './frames';
+import { motionFrames, motionOf, MOVES, movesOf, statsOf } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
@@ -41,7 +41,7 @@ export function setMode(f: Fighter, mode: Mode, len = 0): void {
 export const isAirborne = (f: Fighter): boolean => f.y < f.floor || f.vy < 0;
 
 /** 땅에서만 있을 수 있는 상태 (발밑 바닥이 없어지면 떨어지는 상태로 바꾼다) */
-const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown', 'intro', 'charge']);
+const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown', 'intro', 'charge', 'exhaust']);
 
 /** 밀려나는 등 위치가 바뀐 뒤: 서 있던 발판이 발밑에 그대로 있는지 다시 본다 */
 export function settle(s: SimState, f: Fighter): void {
@@ -101,7 +101,7 @@ const take = (f: Fighter, b: number): boolean => {
 const has = (f: Fighter, b: number): boolean => f.buf[b] > 0;
 
 function startMove(s: SimState, f: Fighter, id: MoveId): void {
-  const mv = MOVES[id];
+  const mv = movesOf(f.char)[id];
   const cost = (mv.data.meterCost ?? 0) * METER_BAR;
   f.meter -= cost;
   setMode(f, 'attack');
@@ -150,9 +150,9 @@ function groundAttack(f: Fighter): MoveId {
 function startJump(f: Fighter, input: PlayerInput, chase: boolean): void {
   const h = (input & IN_RIGHT ? 1 : 0) - (input & IN_LEFT ? 1 : 0);
   setMode(f, 'air');
-  f.vy = chase ? STATS.chaseJumpVy : STATS.jumpVy;
-  f.vx = h * (chase ? STATS.chaseJumpVx : STATS.jumpVx);
-  if (chase) f.vx = f.facing * STATS.chaseJumpVx;
+  f.vy = chase ? statsOf(f.char).chaseJumpVy : statsOf(f.char).jumpVy;
+  f.vx = h * (chase ? statsOf(f.char).chaseJumpVx : statsOf(f.char).jumpVx);
+  if (chase) f.vx = f.facing * statsOf(f.char).chaseJumpVx;
   f.y = Math.min(f.y, -1);
   f.airJumpUsed = false;
   f.airDashUsed = false;
@@ -162,8 +162,8 @@ function startJump(f: Fighter, input: PlayerInput, chase: boolean): void {
 function doubleJump(f: Fighter, input: PlayerInput): void {
   const h = (input & IN_RIGHT ? 1 : 0) - (input & IN_LEFT ? 1 : 0);
   setMode(f, 'air');
-  f.vy = STATS.doubleJumpVy;
-  f.vx = h * STATS.jumpVx;
+  f.vy = statsOf(f.char).doubleJumpVy;
+  f.vx = h * statsOf(f.char).jumpVx;
   f.airJumpUsed = true;
   f.jumpKind = 2;
 }
@@ -183,9 +183,9 @@ function groundControl(s: SimState, f: Fighter, input: PlayerInput): void {
     f.vy = Math.max(f.vy, px(1));
     return;
   }
-  if (take(f, B_JUMP)) return setMode(f, 'jumpsquat', STATS.jumpSquat);
+  if (take(f, B_JUMP)) return setMode(f, 'jumpsquat', statsOf(f.char).jumpSquat);
   if (take(f, B_DASH)) {
-    setMode(f, 'dash', STATS.dashTicks);
+    setMode(f, 'dash', statsOf(f.char).dashTicks);
     f.dir = input & back ? -1 : 1;
     f.dashUp = (input & IN_UP) !== 0;
     return;
@@ -207,8 +207,8 @@ function groundControl(s: SimState, f: Fighter, input: PlayerInput): void {
       setMode(f, 'run');
       f.dir = forward ? 1 : -1;
     }
-    f.vx = f.facing * (forward ? STATS.runForward : -STATS.runBack);
-    f.runDist += forward ? STATS.runForward : STATS.runBack;
+    f.vx = f.facing * (forward ? statsOf(f.char).runForward : -statsOf(f.char).runBack);
+    f.runDist += forward ? statsOf(f.char).runForward : statsOf(f.char).runBack;
     return;
   }
   if (f.mode !== 'idle') setMode(f, 'idle');
@@ -219,7 +219,7 @@ function airDrift(f: Fighter, input: PlayerInput): void {
   // 벽 점프 직후에는 튕겨 나간 쪽으로 날아간다
   if (f.driftLock > 0) return;
   const h = (input & IN_RIGHT ? 1 : 0) - (input & IN_LEFT ? 1 : 0);
-  if (h) f.vx = Math.max(-STATS.airMaxVx, Math.min(STATS.airMaxVx, f.vx + h * STATS.airAccel));
+  if (h) f.vx = Math.max(-statsOf(f.char).airMaxVx, Math.min(statsOf(f.char).airMaxVx, f.vx + h * statsOf(f.char).airAccel));
 }
 
 /** 손이 닿는 높이 (발밑에서 WALL_GRAB_H 위, px) */
@@ -269,8 +269,8 @@ function letGo(f: Fighter): void {
  */
 function wallJump(s: SimState, f: Fighter): void {
   setMode(f, 'air');
-  f.vx = f.facing * STATS.wallJumpVx;
-  f.vy = STATS.wallJumpVy;
+  f.vx = f.facing * statsOf(f.char).wallJumpVx;
+  f.vy = statsOf(f.char).wallJumpVy;
   f.jumpKind = 3;
   f.driftLock = WALL_JUMP_LOCK;
   s.events.push({ type: 'walljump', who: s.fighters.indexOf(f), x: px(f.wallX), y: f.y - px(10) });
@@ -285,7 +285,7 @@ function clingControl(s: SimState, f: Fighter, input: PlayerInput): void {
   const toward = f.wallSide < 0 ? IN_RIGHT : IN_LEFT;
   f.x = px(f.wallX) + f.wallSide * WALL_REACH;
   f.vx = 0;
-  f.vy = f.vy < 0 ? Math.min(0, f.vy + STATS.gravity) : Math.min(STATS.wallSlide, f.vy + STATS.wallSlideAccel);
+  f.vy = f.vy < 0 ? Math.min(0, f.vy + statsOf(f.char).gravity) : Math.min(statsOf(f.char).wallSlide, f.vy + statsOf(f.char).wallSlideAccel);
   if (!wallHolds(s, f.wallId, f.wallSide, f.wallX, grabH(f))) {
     letGo(f);
     return;
@@ -304,7 +304,7 @@ function clingControl(s: SimState, f: Fighter, input: PlayerInput): void {
   }
   if (has(f, B_DASH) && !f.airDashUsed) {
     take(f, B_DASH);
-    setMode(f, 'airdash', STATS.airDashTicks);
+    setMode(f, 'airdash', statsOf(f.char).airDashTicks);
     f.dir = 1;
     f.dashUp = (input & IN_UP) !== 0;
     f.airDashUsed = true;
@@ -324,14 +324,14 @@ function tryWallRun(s: SimState, f: Fighter, prevX: number): boolean {
   // ↑와 함께 대시를 시작했거나, 지금 ↑를 누르고 있으면 구조물 벽도 달린다 (prevInput: readButtons가 적어 둔 이번 틱 입력)
   const w = findWallCross(s, prevX, f.x, grabH(f), dir, f.dashUp || (f.prevInput & IN_UP) !== 0);
   if (!w || (w.id === f.wallId && f.wallCount >= SAME_WALL_MAX)) return false;
-  setMode(f, 'wallrun', STATS.wallRunTicks);
+  setMode(f, 'wallrun', statsOf(f.char).wallRunTicks);
   f.wallCount = w.id === f.wallId ? f.wallCount + 1 : 1;
   f.wallId = w.id;
   f.wallX = w.x;
   f.wallSide = w.side;
   f.x = px(w.x) + w.side * WALL_REACH;
   f.vx = 0;
-  f.vy = -STATS.wallRunSpeed;
+  f.vy = -statsOf(f.char).wallRunSpeed;
   f.floor = 0;
   f.invuln = 0;
   // 벽을 바라본다
@@ -349,7 +349,7 @@ function tryWallRun(s: SimState, f: Fighter, prevX: number): boolean {
 function wallRunControl(s: SimState, f: Fighter): void {
   f.x = px(f.wallX) + f.wallSide * WALL_REACH;
   f.vx = 0;
-  f.vy = -STATS.wallRunSpeed;
+  f.vy = -statsOf(f.char).wallRunSpeed;
   if (take(f, B_JUMP)) {
     f.facing = f.wallSide as 1 | -1;
     wallJump(s, f);
@@ -392,7 +392,7 @@ function airControl(s: SimState, f: Fighter, input: PlayerInput): void {
   if (has(f, B_DASH) && !f.airDashUsed) {
     take(f, B_DASH);
     const back = f.facing > 0 ? IN_LEFT : IN_RIGHT;
-    setMode(f, 'airdash', STATS.airDashTicks);
+    setMode(f, 'airdash', statsOf(f.char).airDashTicks);
     f.dir = input & back ? -1 : 1;
     f.dashUp = (input & IN_UP) !== 0;
     f.airDashUsed = true;
@@ -401,7 +401,7 @@ function airControl(s: SimState, f: Fighter, input: PlayerInput): void {
 
 /** 기술 도중: 연타 다음 타, 점프 끊기, 기술 끊기 */
 function attackControl(s: SimState, f: Fighter, input: PlayerInput): boolean {
-  const mv = MOVES[f.move!];
+  const mv = movesOf(f.char)[f.move!];
   const air = mv.data.air === true;
   // 맞히거나 막히면 스킬 1·2·필살기로 끊을 수 있다
   if (f.moveHit && trySkills(s, f, isAirborne(f))) return true;
@@ -452,7 +452,7 @@ const friction = (v: number): number => Math.trunc((v * 13) / 16);
 function tryCharge(s: SimState, f: Fighter): boolean {
   if (!f.chargeArm || f.atkHold < CHARGE_HOLD || isAirborne(f)) return false;
   if (f.mode === 'attack') {
-    const mv = MOVES[f.move!];
+    const mv = movesOf(f.char)[f.move!];
     if (f.queued || f.t < mv.activeEnd) return false;
   } else if (f.mode !== 'idle' && f.mode !== 'land') return false;
   setMode(f, 'charge');
@@ -464,8 +464,8 @@ function tryCharge(s: SimState, f: Fighter): boolean {
 }
 
 /** 모은 틱에 따른 차지 단계 (1부터) */
-function chargeLevel(t: number): number {
-  const levels = MOVES.charge.data.charge!.levels;
+function chargeLevel(f: Fighter, t: number): number {
+  const levels = movesOf(f.char).charge.data.charge!.levels;
   let lv = 0;
   for (const l of levels) if (t >= l.at) lv++;
   return Math.max(1, lv);
@@ -481,20 +481,23 @@ function chargeControl(s: SimState, f: Fighter, input: PlayerInput, controllable
     setMode(f, 'idle');
     return;
   }
-  const c = MOVES.charge.data.charge!;
-  const lv = chargeLevel(f.t);
+  const ch = movesOf(f.char).charge;
+  const c = ch.data.charge!;
+  const lv = chargeLevel(f, f.t);
   if (lv > f.chargeLv) {
     f.chargeLv = lv;
     s.events.push({ type: 'charge', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'level', combo: lv });
   }
   // 뗐다 (queued는 모으는 동안 '떼서 나갈 차례'라는 표시로 쓴다)
   if (!(input & IN_ATTACK) || f.t >= c.levels[c.levels.length - 1].at + c.auto) f.queued = 'charge';
-  if (f.queued && f.t >= MOVES.charge.frames.cum[c.windup - 1]) {
+  if (f.queued && f.t >= ch.frames.cum[c.windup - 1]) {
     const level = f.chargeLv;
     startMove(s, f, 'charge');
     f.chargeLv = level;
+    // 최고 단계 투전승불 같은 강한 차지는 끝난 뒤 탈진한다
+    f.exhaust = c.levels[Math.max(0, level - 1)]?.exhaust ?? 0;
     // 동작 그림의 치는 부분부터
-    f.t = MOVES.charge.frames.cum[c.from - 1];
+    f.t = ch.frames.cum[c.from - 1];
     s.events.push({ type: 'charge', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'release', combo: level });
   }
 }
@@ -512,6 +515,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
   if (isAirborne(f) && GROUND_ONLY.has(f.mode)) fallOff(f);
   if (f.invuln > 0) f.invuln--;
   if (f.flash > 0) f.flash--;
+  if (f.kongoT > 0) f.kongoT--;
 
   if (NEUTRAL.has(f.mode)) f.comboHits = 0;
   // 방어 내구도는 막지 않는 동안 다시 찬다
@@ -549,11 +553,11 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
         f.vx = f.facing * MOVES.dashAttack.step!.speed;
         break;
       }
-      if (f.t >= STATS.dashMoveFrom && f.t < STATS.dashMoveTo) {
-        f.vx = f.facing * f.dir * STATS.dashSpeed;
+      if (f.t >= statsOf(f.char).dashMoveFrom && f.t < statsOf(f.char).dashMoveTo) {
+        f.vx = f.facing * f.dir * statsOf(f.char).dashSpeed;
         f.invuln = Math.max(f.invuln, 1);
       } else f.vx = friction(f.vx);
-      if (f.t >= STATS.dashMoveTo && (has(f, B_ATTACK) || has(f, B_JUMP) || f.buf[B_SKILL1] || f.buf[B_SKILL2] || f.buf[B_SUPER])) {
+      if (f.t >= statsOf(f.char).dashMoveTo && (has(f, B_ATTACK) || has(f, B_JUMP) || f.buf[B_SKILL1] || f.buf[B_SKILL2] || f.buf[B_SUPER])) {
         groundControl(s, f, input);
       } else if (f.t >= f.len) setMode(f, 'idle');
       break;
@@ -568,14 +572,14 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       wallRunControl(s, f);
       break;
     case 'airdash':
-      if (f.t < STATS.airDashMoveTo) {
-        f.vx = f.facing * f.dir * STATS.airDashSpeed;
+      if (f.t < statsOf(f.char).airDashMoveTo) {
+        f.vx = f.facing * f.dir * statsOf(f.char).airDashSpeed;
         f.vy = 0;
       }
       if (f.t >= f.len) setMode(f, 'air');
       break;
     case 'attack': {
-      const mv = MOVES[f.move!];
+      const mv = movesOf(f.char)[f.move!];
       if (attackControl(s, f, input)) break;
       if (controllable && tryCharge(s, f)) break;
       if (mv.dive) diveControl(s, f, mv);
@@ -591,10 +595,17 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
         else if (cin && !f.moveHit) {
           setMode(f, 'land', cin.whiff);
           s.events.push({ type: 'cine', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'whiff', move: mv.id });
+        } else if (f.move === 'charge' && f.exhaust > 0) {
+          setMode(f, 'exhaust', f.exhaust);
+          f.exhaust = 0;
         } else setMode(f, 'idle');
       }
       break;
     }
+    case 'exhaust':
+      f.vx = friction(f.vx);
+      if (f.t >= f.len) setMode(f, 'idle');
+      break;
     case 'blockstun':
       f.vx = friction(f.vx);
       if (controllable && trySkills(s, f, false, true)) break;
@@ -677,7 +688,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
  * 상대 반대쪽 위로 날아가고, 그동안 무적이다. 콤보는 끊기고, 공중 낙법처럼 2단 점프·공중 대시는 쓸 수 없다.
  */
 function wallTech(s: SimState, f: Fighter): void {
-  setMode(f, 'walltech', motionFrames('base/wall_tech').total);
+  setMode(f, 'walltech', motionFrames(motionOf(f.char, 'wall_tech')).total);
   f.vx = -f.facing * WALL_TECH_VX;
   f.vy = WALL_TECH_VY;
   f.y = Math.min(f.y, -1);
@@ -725,7 +736,7 @@ function diveControl(s: SimState, f: Fighter, mv: (typeof MOVES)[MoveId]): void 
 function weightless(f: Fighter): boolean {
   if (f.mode === 'airdash' || f.mode === 'wallcling' || f.mode === 'wallrun') return true;
   if (f.mode !== 'attack' || f.moveHit || !f.move) return false;
-  const mv = MOVES[f.move];
+  const mv = movesOf(f.char)[f.move];
   return mv.dive !== undefined && frameOf(mv, f.t) <= mv.dive.to;
 }
 
@@ -746,9 +757,9 @@ export function physics(s: SimState, f: Fighter): void {
   const airborne = isAirborne(f);
   if (!airborne && f.vy > 0) f.vy = 0;
   if (airborne && !weightless(f)) {
-    let g = STATS.gravity;
+    let g = statsOf(f.char).gravity;
     if (f.mode === 'airhit') g += Math.min(JUGGLE_GRAVITY_MAX, f.comboHits * JUGGLE_GRAVITY_PER_HIT);
-    f.vy = Math.min(STATS.maxFall + (f.mode === 'airhit' ? 4 * 256 : 0), f.vy + g);
+    f.vy = Math.min(statsOf(f.char).maxFall + (f.mode === 'airhit' ? 4 * 256 : 0), f.vy + g);
   }
   const prevY = f.y;
   const prevX = f.x;
@@ -785,13 +796,13 @@ function land(s: SimState, f: Fighter): void {
     case 'tech':
     case 'walltech':
     case 'wallcling':
-      setMode(f, 'land', STATS.landTicks);
+      setMode(f, 'land', statsOf(f.char).landTicks);
       f.vx = 0;
       break;
     case 'attack': {
       // 벽 박차기 공격을 헛치고 땅·발판에 닿으면 오래 굳는다
       const lag = MOVES[f.move!].data.landLag;
-      setMode(f, 'land', !f.moveHit && lag !== undefined ? lag : STATS.airAttackLandTicks);
+      setMode(f, 'land', !f.moveHit && lag !== undefined ? lag : statsOf(f.char).airAttackLandTicks);
       f.vx = 0;
       break;
     }

@@ -5,20 +5,35 @@ import type { Motion } from '../../src/anim/motion';
 import { DEFAULT_CELL, FOOT_X, FOOT_Y } from '../../src/anim/motion';
 import { MOTIONS } from '../../src/anim/motions';
 import { checkMotion, drawStrip, scaleCanvas } from '../../src/anim/sheet';
-import { BASE_MOVES, type MoveData } from '../../src/data/moves/base';
+import { BASE_MOVES, type MoveData, type MoveId } from '../../src/data/moves/base';
+import { CHARACTERS } from '../../src/data/characters';
 import { drawText, GLYPH_H, textWidth } from '../../src/render/font';
 import { SELFTEST_MOTIONS } from './selftest';
+import { isSkin, skinForMotion, type SkinId } from '../../src/anim/skins';
+import type { LookName } from '../../src/anim/skeleton';
 
 const params = new URLSearchParams(location.search);
 const scale = Number(params.get('scale') ?? 4);
 const only = params.getAll('only');
 const wantGif = params.has('gif');
+/** 캐릭터 겉모습 (장식·색 묶음): ?skin=raiden이면 라이덴 표식으로 그린다 */
+const skinParam = params.get('skin');
+const skin: SkinId = isSkin(skinParam) ? skinParam : 'base';
+/** 색 묶음: ?look=p2면 2P 색으로 */
+const look = (params.get('look') ?? 'p1') as LookName;
 let list: Motion[] = params.has('selftest') ? SELFTEST_MOTIONS : MOTIONS;
 if (only.length) list = list.filter((m) => only.includes(m.name));
 
 /** 이 동작 그림을 쓰는 기술 (판정 프레임·판정 구간을 느린 판에 표시) */
 const moveOf = new Map<string, MoveData>();
 for (const d of Object.values(BASE_MOVES) as MoveData[]) moveOf.set(d.motion, d);
+// 캐릭터 기술: 기본 기술에 캐릭터가 바꾼 것을 덮어쓴 수치 (판정 프레임 표시)
+for (const c of Object.values(CHARACTERS) as { moves?: Partial<Record<MoveId, Partial<MoveData>>> }[]) {
+  for (const [id, own] of Object.entries(c.moves ?? {})) {
+    const d = { ...BASE_MOVES[id as MoveId], ...own } as MoveData;
+    moveOf.set(d.motion, d);
+  }
+}
 
 const LABEL_H = GLYPH_H + 3;
 
@@ -50,7 +65,7 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
   ctx.beginPath();
   ctx.rect(0, LABEL_H, cell, cell);
   ctx.clip();
-  m.draw(ctx, i, 0, LABEL_H);
+  m.draw(ctx, i, 0, LABEL_H, { skin: skinForMotion(m.name, skin), look });
   // 느린 판: 판정 프레임이면 공격 상자 (팔꿈치→주먹 / 무릎→발 구간 끝쪽)
   if (slow && active && mv?.limb && m.joints) {
     const b = hitBox(m.joints[i], i, { frames: mv.active, limb: mv.limb });
@@ -74,7 +89,7 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
     name: m.name,
     dur: m.dur,
     errors,
-    png: errors.length ? null : scaleCanvas(drawStrip(m), scale).toDataURL('image/png'),
+    png: errors.length ? null : scaleCanvas(drawStrip(m, { skin: skinForMotion(m.name, skin), look }), scale).toDataURL('image/png'),
     gif: errors.length || !wantGif ? null : {
       w: cell,
       h: LABEL_H + cell,

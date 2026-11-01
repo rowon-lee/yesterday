@@ -98,6 +98,87 @@ const SCENES = {
       [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [[], 70],
     ],
   },
+  // 라이덴 겉모습 확인 (1P만 라이덴 표식·색, 동작은 아직 기본 스틱맨): 대기 → 앞으로 뛰기 → 평타 1·2·3타 → 공격을 길게 눌러 모으기(붉은 빛) → 차지
+  raiden_look: {
+    q: 'scene=fight&p2=idle&p1skin=raiden', p1: 3060, p2: 3200, settle: 70,
+    steps: [
+      [[], 50], [['ArrowRight'], 18], [[], 8], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 9], [['KeyJ'], 1], [[], 34],
+      [['KeyJ'], 70], [[], 50],
+    ],
+  },
+  // 라이덴 대기: 1P·2P 모두 라이덴 (1P 흰 머리, 2P 검은 머리), 가만히 세 바퀴 (42틱 × 3)
+  raiden_idle: {
+    q: 'scene=fight&p2=idle&p1char=raiden&p2char=raiden', p1: 3060, p2: 3180, settle: 70,
+    steps: [[[], 126]],
+  },
+  // 라이덴 이동 (?p1char=raiden): 앞 걷기 → 뒤 걷기 → 점프·2단 점프·낙하·착지 → 지상 대시 → 점프·공중 대시 → 방어
+  raiden_moves: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3000, p2: 3260, settle: 70,
+    steps: [
+      [[], 16], [['ArrowRight'], 52], [[], 14], [['ArrowLeft'], 46], [[], 16],
+      [['KeyK'], 1], [[], 22], [['KeyK'], 1], [[], 52],
+      [['KeyL'], 1], [[], 30],
+      [['KeyK'], 1], [[], 9], [['KeyL'], 1], [[], 50],
+      [['KeyS'], 30], [[], 20],
+    ],
+  },
+  // 라이덴 방어·방어 막힘: 2P 라이덴(검은 머리)이 막기만 하고, 1P 기본 스틱맨이 평타 1·2·3타 → 대시 공격
+  raiden_guard: {
+    q: 'scene=fight&dummy=guard&p2char=raiden', p1: 3150, p2: 3196, settle: 30,
+    steps: [[[], 10], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 40], [['ArrowLeft'], 12], [[], 6], [['KeyL'], 1], [[], 3], [['KeyJ'], 1], [[], 50]],
+  },
+  // 라이덴 벽 기동: 기둥탑 왼쪽 면(x 3040) 앞. ↗ 점프로 벽 붙기 → 미끄러짐 → 벽 박차기 공격 → 다시 벽 쪽으로 걸어가
+  // ↑+대시로 벽 달리기 → 꼭대기에 못 닿아 벽 붙기 → 벽 점프
+  raiden_wall: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 2985, p2: 3260, settle: 40,
+    steps: [
+      [[], 10], [['ArrowRight', 'ArrowUp', 'KeyK'], 1], [['ArrowRight', 'ArrowUp'], 18], [['ArrowRight'], 14], [['KeyJ'], 1], [[], 46],
+      [['ArrowRight'], 24], [[], 4], [['ArrowRight', 'ArrowUp', 'KeyL'], 1], [['ArrowRight'], 34], [['ArrowRight'], 20], [['KeyK'], 1], [[], 50],
+    ],
+  },
+  // 라이덴 등장: 경기 시작부터 (1P·2P 모두 라이덴, 2P는 검은 머리)
+  raiden_intro: {
+    q: 'scene=fight&p2=idle&p1char=raiden&p2char=raiden', stopAt: 1, settle: 0,
+    steps: [[[], 100]],
+  },
+  // 라이덴 승리: 체력이 거의 없는 상대를 평타로 쓰러뜨리고 승리 동작
+  raiden_win: {
+    q: 'scene=fight&p2=idle&p1char=raiden', settle: 10, p1: 3150, p2: 3196,
+    prep: 's.fighters[0].wins = 1; s.round = 2; s.fighters[1].hp = 30;',
+    steps: [[[], 4], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 200]],
+  },
+  // 라이덴 지상 평타: 공격을 4틱마다 눌러 잽 → 스트레이트 → 훅 → 니킥 (니킥에 날아감)
+  raiden_ground: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3190, settle: 30,
+    steps: [[[], 6], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [[], 50]],
+  },
+  // 라이덴 띄우기(↑+공격, 어퍼컷) → 점프로 쫓아 공중 잽 → 스트레이트 → 니킥
+  raiden_air: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
+    steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [[], 50]],
+  },
+  // 라이덴 띄우기 → 쫓아 점프 → 내려찍기(↓+공격, 해머 피스트)
+  raiden_slam: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
+    steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['ArrowDown', 'KeyJ'], 1], [[], 70]],
+  },
+  // 라이덴 쓸기(↓+공격, 로킥) → 상대가 일어나면 물러났다가 대시 공격(슈퍼맨 펀치)
+  raiden_low: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3188, settle: 30,
+    steps: [[[], 6], [['ArrowDown', 'KeyJ'], 1], [[], 100], [['ArrowLeft'], 20], [[], 6], [['KeyL'], 1], [[], 3], [['KeyJ'], 1], [[], 50]],
+  },
+  // 라이덴 금강: 2P 라이덴이 3스택인 채로 1P 기본 스틱맨에게 맞기 시작 → 첫 대에 4스택 금강불괴 (붉은 반짝임, 이름 옆 4칸 깜빡임)
+  // → 그 뒤로는 맞아도 경직 없이 대기를 이어 감 (밀림 80% 감소)
+  raiden_kongo: {
+    q: 'scene=fight&p2=idle&p2char=raiden', p1: 3150, p2: 3190, settle: 20,
+    prep: 's.fighters[1].kongo = 3;',
+    steps: [[[], 10], [['KeyJ'], 1], [[], 40], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 60]],
+  },
+  // 라이덴 차지 투전승불: 공격을 길게 눌러 잽 → 모으기 1~4단계 (적빛 오라·단계마다 몸 둘레 번개) → 떼면 뒷주먹, 벽 쪽으로 날림
+  raiden_charge: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 4300, p2: 4350, settle: 40,
+    steps: [[[], 6], [['KeyJ'], 100], [[], 70]],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,
@@ -124,8 +205,10 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${server.resolvedUrls.local[0]}?${sc.q ?? 'scene=fight&p2=idle'}&stopAt=75&ff=1&quality=high`);
-await page.waitForFunction(() => window.__debug?.tick >= 75);
+// stopAt: 이 틱에서 멈춘 뒤 찍기 시작 (등장 장면은 경기 시작부터 찍으려고 1)
+const stopAt = sc.stopAt ?? 75;
+await page.goto(`${server.resolvedUrls.local[0]}?${sc.q ?? 'scene=fight&p2=idle'}&stopAt=${stopAt}&ff=1&quality=high`);
+await page.waitForFunction((n) => window.__debug?.tick >= n, stopAt);
 await page.evaluate(() => window.__debug.unstop());
 if (sc.p1 !== undefined) {
   await page.evaluate(([x1, x2, meter, prep]) => {

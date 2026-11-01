@@ -1,4 +1,5 @@
-import { motionFrames, STATS } from './frames';
+import { motionFrames, motionOf, statsOf } from './frames';
+import type { CharId } from '../data/characters';
 import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isAirborne } from './fighter';
 import { resolveHits, splatLands } from './combat';
 import { stepCine } from './cine';
@@ -16,27 +17,29 @@ import type { Fighter, SimState } from './types';
 export type { Fighter, SimState, SimEvent, Mode, Phase } from './types';
 export { SUBPX } from './rules';
 
-function newFighter(x: number, facing: 1 | -1): Fighter {
+function newFighter(x: number, facing: 1 | -1, char: CharId): Fighter {
   return {
-    x, y: 0, vx: 0, vy: 0, facing, mode: 'idle', t: 0, len: 0,
+    char, x, y: 0, vx: 0, vy: 0, facing, mode: 'idle', t: 0, len: 0,
     move: null, moveHit: false, moveConnected: false, queued: null, dir: 1, jumpKind: 0,
-    hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
+    hp: statsOf(char).hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
     runDist: 0, wins: 0, atkDir: 0, atkHold: 0, chargeArm: false, chargeLv: 0, cineMotion: '', buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
-    wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false, citadelHit: false,
+    wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false, citadelHit: false, kongo: 0, kongoT: 0, exhaust: 0,
   };
 }
 
 export interface MatchOptions {
   /** 연습: 시간이 흐르지 않고 쓰러지지 않으며, 콤보가 끝나면 체력·기력이 다시 찬다 */
   practice?: boolean;
+  /** 두 사람의 캐릭터 (기본은 둘 다 기본 스틱맨) */
+  chars?: readonly [CharId, CharId];
 }
 
 export function createState(seed: number, opts: MatchOptions = {}): SimState {
   const s: SimState = {
     tick: 0, clock: 0, rng: seed | 0, phase: 'intro', phaseT: 0, round: 1, timer: ROUND_TICKS, freeze: 0,
     roundWinner: -1, matchWinner: -1,
-    fighters: [newFighter(0, 1), newFighter(0, -1)],
+    fighters: [newFighter(0, 1, opts.chars?.[0] ?? 'base'), newFighter(0, -1, opts.chars?.[1] ?? 'base')],
     events: [],
     // 부서지는 물건과 건물은 라운드가 넘어가도 남는다 (3라운드쯤이면 거리가 폐허). 새 경기에만 새로
     props: createProps(),
@@ -56,9 +59,9 @@ function resetRound(s: SimState): void {
   const mid = px(STAGE_W / 2);
   s.fighters.forEach((f, i) => {
     const keep = { wins: f.wins, meter: f.meter };
-    Object.assign(f, newFighter(mid + (i === 0 ? -START_GAP : START_GAP), i === 0 ? 1 : -1), keep);
+    Object.assign(f, newFighter(mid + (i === 0 ? -START_GAP : START_GAP), i === 0 ? 1 : -1, f.char), keep);
     // 경기 첫 라운드: 시작 연출 동안 등장 동작 (끝나면 대기)
-    if (s.round === 1) setMode(f, 'intro', motionFrames('base/intro').total);
+    if (s.round === 1) setMode(f, 'intro', motionFrames(motionOf(f.char, 'intro')).total);
   });
   s.phase = 'intro';
   s.phaseT = 0;
@@ -127,7 +130,7 @@ function practiceRefill(s: SimState): void {
   s.fighters.forEach((f, i) => {
     s.calm[i] = CALM.has(f.mode) && f.comboHits === 0 ? s.calm[i] + 1 : 0;
     if (s.calm[i] >= 60) {
-      f.hp = STATS.hp;
+      f.hp = statsOf(f.char).hp;
       f.meter = METER_MAX;
       f.guard = GUARD_MAX;
     }

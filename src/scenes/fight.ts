@@ -12,10 +12,11 @@ import { drawPlatforms } from '../render/platforms';
 import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
-  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, MOVES, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
+  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, MOVES, movesOf, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
+import { isSkin, type SkinId } from '../anim/skins';
 import { gl } from '../render/gl';
 import { lights as lights2d } from '../render/light';
 import type { App, Scene } from './scene';
@@ -76,6 +77,8 @@ const CAMERA_DAMP = 0.35;
  *   ?cpu=easy|normal|hard  대련 CPU 강도 (방어 실력)
  *   ?dummy=stand|guard|cpu 연습 상대: 가만히 / 막기만 / CPU
  *   ?p2=tech 확인용: 상대가 가만히 서 있다가 공중에서 맞는 중 낙법이 가능해지면 바로 점프 (낙법 동작 캡처용)
+ *   ?p1char=raiden&p2char=… 캐릭터 고르기 (능력치·전용 동작이 캐릭터 것으로, 겉모습도 따라간다. 기본은 기본 스틱맨)
+ *   ?p1skin=raiden&p2skin=… 확인용: 캐릭터 겉모습(장식·색)만 바꿔 그린다 (동작·기술은 그 캐릭터 것 그대로)
  * Esc·P로 일시정지 (계속 / 처음부터 / 조작법 / 타이틀로). 경기가 끝나면 다시 하기 / 타이틀로.
  */
 export function fightScene(app?: App): Scene {
@@ -86,6 +89,18 @@ export function fightScene(app?: App): Scene {
   const cpuSkill = ({ easy: 25, normal: 55, hard: 85 } as Record<string, number>)[params.get('cpu') ?? 'normal'] ?? 55;
   let seed = Number(params.get('seed') ?? 1) | 0;
   let showBoxes = params.get('boxes') === '1';
+  /** 두 사람의 캐릭터 (sim) */
+  const charParam = (k: string): CharId => {
+    const v = params.get(k);
+    return isChar(v) ? v : 'base';
+  };
+  const chars: [CharId, CharId] = [charParam('p1char'), charParam('p2char')];
+  /** 두 사람의 캐릭터 겉모습 (렌더 전용): 따로 정하지 않으면 캐릭터를 따라간다 */
+  const skinParam = (k: string, c: CharId): SkinId => {
+    const v = params.get(k);
+    return isSkin(v) ? v : isSkin(c) ? c : 'base';
+  };
+  const skins: [SkinId, SkinId] = [skinParam('p1skin', chars[0]), skinParam('p2skin', chars[1])];
 
   let s: SimState;
   let cpus: [CpuState, CpuState];
@@ -120,7 +135,7 @@ export function fightScene(app?: App): Scene {
     { label: 'TITLE', act: toTitle },
   ]);
   const reset = () => {
-    s = createState(seed, { practice });
+    s = createState(seed, { practice, chars });
     if (startX !== null && Number.isFinite(startX)) {
       s.fighters[0].x = Math.round(startX - 60) * 256;
       s.fighters[1].x = Math.round(startX + 60) * 256;
@@ -129,6 +144,7 @@ export function fightScene(app?: App): Scene {
     fx = new Effects();
     vfx = new VfxLayer();
     fightVfx = new FightVfx(vfx, fx);
+    fightVfx.skins = skins;
     fightVfx.reset(s);
     hud = new Hud();
     hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', practice ? 'DUMMY' : 'CPU'];
@@ -160,7 +176,7 @@ export function fightScene(app?: App): Scene {
       const air = isAirborne(f);
       if (was.air && !air) dust.push({ x, y: f.y / 256, dir: 0, t: 0, life: 14 });
       // 뛰는 중에는 발이 땅을 박찰 때마다 (반 바퀴마다) 뒤로 먼지
-      const half = (f.dir > 0 ? STATS.runCycle : STATS.runBackCycle) / 2;
+      const half = (f.dir > 0 ? statsOf(f.char).runCycle : statsOf(f.char).runBackCycle) / 2;
       const stepNo = Math.floor(f.runDist / half);
       if (f.mode === 'run' && stepNo !== was.step) dust.push({ x, y: f.y / 256, dir: -f.facing * f.dir, t: 0, life: 10 });
       prev[i] = { mode: f.mode, air, step: stepNo };
@@ -259,10 +275,10 @@ export function fightScene(app?: App): Scene {
         for (const back of [6, 3]) {
           const t = tr[tr.length - 1 - back];
           if (t && tr[tr.length - 1].fast && t.fast) {
-            drawGhost(c, t, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6);
+            drawGhost(c, t, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6, skins[i]);
             drew = true;
           } else if (t && tr[tr.length - 1].white && t.white) {
-            drawGhost(c, t, 'ghostW', toScreen, back === 6);
+            drawGhost(c, t, 'ghostW', toScreen, back === 6, skins[i]);
             drew = true;
           }
         }
@@ -294,6 +310,7 @@ export function fightScene(app?: App): Scene {
         motion: motionByName.get(pose.motion)!,
         frame: pose.frame,
         look: white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
+        skin: skins[i],
         flip: f.facing < 0,
         x: f.x / 256 + jitter,
         h: -f.y / 256,
@@ -428,10 +445,13 @@ function letterbox(ctx: CanvasRenderingContext2D, t: number): void {
  * 차지를 모으는 동안 몸이 빛남 (렌더 전용): 0 그대로, 1 한 단계 밝게, 2 하얗게.
  * 모으는 동안은 한 단계 밝은 채로 있고, 모으기를 시작할 때와 단계가 오를 때마다 3틱 하얗게 '캉!' 번쩍인다
  */
-const CHARGE_LEVEL_AT = MOVES.charge.data.charge!.levels.map((l) => l.at);
+/** 캐릭터별 차지 단계가 오르는 틱 */
+const chargeLevelAt = (f: Fighter): number[] => movesOf(f.char).charge.data.charge!.levels.map((l) => l.at);
 function chargeGlow(f: Fighter): 0 | 1 | 2 {
+  // 라이덴 금강불괴: 10틱마다 3틱 몸이 대표 색으로 번뜩인다 (단단해진 몸)
+  if (f.kongoT > 0 && f.mode !== 'charge') return f.kongoT % 10 < 3 ? 1 : 0;
   if (f.mode !== 'charge') return 0;
-  const since = f.t - CHARGE_LEVEL_AT[Math.max(0, f.chargeLv - 1)];
+  const since = f.t - chargeLevelAt(f)[Math.max(0, f.chargeLv - 1)];
   return since >= 0 && since < 3 ? 2 : 1;
 }
 
@@ -459,12 +479,13 @@ function drawGhost(
   look: LookName,
   toScreen: (x: number, y: number) => [number, number],
   faint: boolean,
+  skin: SkinId = 'base',
 ) {
   const m = motionByName.get(g.motion)!;
   const gc = ghostCanvas.getContext('2d')!;
   gc.globalCompositeOperation = 'source-over';
   gc.clearRect(0, 0, 64, 64);
-  m.draw(gc, g.frame, 0, 0, { look, flip: g.facing < 0 });
+  m.draw(gc, g.frame, 0, 0, { look, flip: g.facing < 0, skin });
   gc.globalCompositeOperation = 'destination-in';
   gc.drawImage(checker, 0, 0);
   gc.globalCompositeOperation = 'source-over';

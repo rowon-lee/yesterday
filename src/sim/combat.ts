@@ -1,6 +1,6 @@
 import { hurtBox, type Box } from '../anim/boxes';
 import type { MoveId } from '../data/moves/base';
-import { MOVES, moveHitBox } from './frames';
+import { MOVES, movesOf, moveHitBox } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
 import { CITY_RULES as CITY, KEEP_RULES } from '../stage/citadel';
 import { damageCitadel, superCitadel, towerBehind } from './citadel';
@@ -10,7 +10,7 @@ import { isAirborne, setMode } from './fighter';
 import { wallLeft } from './platforms';
 import { fighterPose } from './pose';
 import {
-  AIR_HIT_DEFAULT, BLOCK_HITSTOP_CUT, CRUSH_TICKS, FLASH_TICKS, METER_BLOCK, METER_BLOCKED, METER_HIT, METER_HURT,
+  AIR_HIT_DEFAULT, BLOCK_HITSTOP_CUT, CRUSH_TICKS, FLASH_TICKS, KONGO_MAX, KONGO_PUSH, KONGO_TICKS, METER_BLOCK, METER_BLOCKED, METER_HIT, METER_HURT,
   METER_MAX, px, SCALE_MIN, SCALE_STEP, SPIKE_VY, STUN_DECAY_FROM, STUN_DECAY_MIN, STUN_DECAY_STEP, WALL_R, WALL_TECH_TICKS,
 } from './rules';
 import type { Fighter, SimState } from './types';
@@ -41,13 +41,13 @@ export function hurtOf(f: Fighter): WBox | null {
 /** 지금 기술의 판정 상자 (이미 맞혔어도). 부서지는 물건 판정용 */
 export function activeHitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || !f.move) return null;
-  const b = moveHitBox(MOVES[f.move], f.t);
+  const b = moveHitBox(movesOf(f.char)[f.move], f.t);
   return b && toWorld(f, b);
 }
 
 export function hitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || f.moveHit || !f.move) return null;
-  const b = moveHitBox(MOVES[f.move], f.t);
+  const b = moveHitBox(movesOf(f.char)[f.move], f.t);
   return b && toWorld(f, b);
 }
 
@@ -82,7 +82,7 @@ function blocks(def: Fighter, att: Fighter): boolean {
 function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId, final = false): void {
   // 연출 중에는 판정이 없다 (같은 틱에 둘 다 맞혔으면 먼저 연출을 시작한 쪽만)
   if (s.cine) return;
-  const mv = MOVES[id];
+  const mv = movesOf(att.char)[id];
   const d = mv.data;
   // 차지는 모은 단계마다 피해·방어 깎기·날리기·벽 쪽으로 날림이 다르다
   const lvl = d.charge ? d.charge.levels[Math.max(0, Math.min(d.charge.levels.length, att.chargeLv) - 1)] : undefined;
@@ -98,6 +98,10 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
   att.moveHit = true;
   const gainer = !d.meterCost;
   const blocked = !final && blocks(def, att);
+  // 금강불괴는 이 합 전에 켜져 있었을 때만 막는다 (이 합으로 4스택이 되면 다음 합부터)
+  const armored = def.kongoT > 0 && !final && !d.cinematic;
+  gainKongo(s, att);
+  gainKongo(s, def);
   // 필살기 연출: 막히지 않고 맞으면 연출로 넘어간다 (피해·파괴는 연출 끝 타격에서 한 번에)
   if (d.cinematic && !final && !blocked) {
     att.moveConnected = true;
@@ -152,6 +156,17 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
     knockOut(s, def, dir, who);
     return;
   }
+  // 금강불괴: 하던 동작을 그대로 이어 간다 (경직은 히트스톱뿐, 띄우기·다운·벽꽝 없음), 땅에서는 밀리는 힘 80% 감소
+  if (armored) {
+    def.comboHits = 0;
+    if (!airborne) {
+      // 하던 동작이 속도를 정하므로 밀림은 자리로 준다: 보통 경직 동안 밀리는 거리(약 4틱 × 밀림 속도)의 20%
+      const shove = Math.trunc((mv.push * KONGO_PUSH * 4) / 100);
+      def.x += dir * shove;
+      pushOffWall(att, def, shove);
+    }
+    return;
+  }
   // 벽꽝: '벽 쪽으로 날림' 기술이고 뒤에 건물 정면이나 시타델 기둥탑이 서 있으면 박힌다 (기둥탑이면 본관 내구도도 깎인다)
   // (추가 피해는 벽 낙법 구간이 지나 정말 박힌 뒤에: splatLands)
   const sx = Math.round(def.x / 256);
@@ -193,6 +208,20 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
   def.heavyHit = d.hitstun >= 24;
   def.vx = dir * mv.push;
   pushOffWall(att, def, mv.push);
+}
+
+/**
+ * 라이덴 고유 특성 금강: 합을 주고받을 때마다 1스택, 4스택이면 금강불괴 (rules.ts KONGO_*).
+ * 금강불괴 동안에는 쌓이지 않는다
+ */
+function gainKongo(s: SimState, f: Fighter): void {
+  if (f.char !== 'raiden' || f.kongoT > 0) return;
+  f.kongo++;
+  if (f.kongo >= KONGO_MAX) {
+    f.kongo = 0;
+    f.kongoT = KONGO_TICKS;
+    s.events.push({ type: 'kongo', who: s.fighters.indexOf(f), x: f.x, y: f.y });
+  }
 }
 
 /**

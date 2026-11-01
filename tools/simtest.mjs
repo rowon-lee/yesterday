@@ -98,6 +98,11 @@ for (const [name, ok, note] of [...hitMotionChecks(), ...commonMotionChecks()]) 
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 맞는 동작 시험: ${name}${note ? ` (${note})` : ''}`);
 }
+// 5-5) 캐릭터: 캐릭터마다 자기 동작 그림과 능력치, 라이덴이 낀 CPU 대전도 결정론
+for (const [name, ok, note] of charChecks()) {
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 캐릭터 시험: ${name}${note ? ` (${note})` : ''}`);
+}
 // 5-3) 필살기 연출 (정해진 입력으로)
 for (const [name, ok, note] of cineChecks()) {
   if (!ok) failed++;
@@ -172,8 +177,160 @@ console.log(failed ? `실패 ${failed}건` : '모두 통과');
 process.exit(failed ? 1 : 0);
 
 /** CPU 둘이 싸우고, 틱마다 넣은 입력을 기록한다. 틱마다 규칙 범위를 검사한다. */
-function runCpuMatch(seed, ticks, setup = null) {
-  const state = sim.createState(seed);
+/**
+ * 캐릭터 시험: 캐릭터마다 자기 동작 그림(아직 없는 자리는 기본 스틱맨 동작)과 능력치를 쓴다.
+ * 모든 캐릭터의 모든 자리에 동작 그림이 있고, 라이덴 대기가 12프레임 모두 차례로 돌고, 라이덴이 낀 CPU 대전도 결정론이다.
+ */
+function charChecks() {
+  const out = [];
+  const SLOTS = ['idle', 'intro', 'win', 'run_f', 'run_b', 'jump', 'jump2', 'fall', 'land', 'dash', 'air_dash', 'guard', 'guard_hit', 'wall_cling', 'wall_jump', 'wall_run', 'wall_tech', 'exhaust'];
+  const missing = [];
+  for (const c of sim.CHAR_IDS) {
+    for (const slot of SLOTS) {
+      try {
+        sim.motionFrames(sim.motionOf(c, slot));
+      } catch {
+        missing.push(`${c}.${slot}`);
+      }
+    }
+  }
+  out.push([`모든 캐릭터(${sim.CHAR_IDS.join('·')})의 동작 자리 ${SLOTS.length}개에 그림이 있음`, missing.length === 0, missing.join(', ')]);
+  // 라이덴(1P)과 기본 스틱맨(2P): 싸움이 시작되면 각자 자기 대기
+  const s = sim.createState(1, { chars: ['raiden', 'base'] });
+  while (s.phase === 'intro') sim.step(s, [0, 0]);
+  const p0 = sim.fighterPose(s.fighters[0]).motion;
+  const p1 = sim.fighterPose(s.fighters[1]).motion;
+  out.push(['라이덴은 라이덴 대기, 기본 스틱맨은 기본 대기', p0 === 'raiden/idle' && p1 === 'base/idle', `${p0} · ${p1}`]);
+  // 라이덴 대기: 한 바퀴(44틱) 동안 12프레임이 차례로 한 번씩, 다음 바퀴는 1번부터
+  const m = sim.motionFrames('raiden/idle');
+  const seen = [];
+  for (let t = 0; t < m.total * 2 + 1; t++) {
+    const fr = sim.fighterPose(s.fighters[0]).frame;
+    if (seen[seen.length - 1] !== fr) seen.push(fr);
+    sim.step(s, [0, 0]);
+  }
+  // 대기는 등장 연출 동안 이미 돌기 시작했으므로, 처음 나온 1번 프레임부터 한 바퀴를 본다
+  const order = seen.slice(seen.indexOf(0), seen.indexOf(0) + m.dur.length + 1).join(',');
+  const want = [...m.dur.keys(), 0].join(',');
+  out.push([`라이덴 대기 ${m.dur.length}프레임 ${m.total}틱 되풀이`, s.fighters[0].mode === 'idle' && order === want, `프레임 차례 ${order}`]);
+  // 캐릭터가 자기 그림을 쓰는 기술(라이덴 벽 박차기 공격): 그림은 라이덴 것, 판정 프레임·시간은 기본 기술과 같다
+  const rk = sim.movesOf('raiden').wallKick;
+  const bk = sim.movesOf('base').wallKick;
+  out.push(['라이덴 벽 박차기 공격은 라이덴 그림, 시간은 기본 기술과 같음', rk.frames.name === 'raiden/wall_kick' && rk.activeStart === bk.activeStart && rk.activeEnd === bk.activeEnd && rk.total === bk.total,
+    `${rk.frames.name} 판정 ${rk.activeStart}~${rk.activeEnd}틱 / 기본 ${bk.activeStart}~${bk.activeEnd}틱, 전체 ${rk.total}/${bk.total}`]);
+  // 라이덴 평타 (MMA): 가만히 선 기본 스틱맨에게 1~4타 연타, 띄우기 → 점프 → 공중 1·2·3타, 쓸기, 대시 공격
+  const rfresh = (x0, x1) => {
+    const st = sim.createState(1, { chars: ['raiden', 'base'] });
+    while (st.phase !== 'fight') sim.step(st, [0, 0]);
+    st.fighters[0].x = x0 * 256;
+    st.fighters[1].x = x1 * 256;
+    return st;
+  };
+  const rrun = (st, inputs) => {
+    const hits = [];
+    for (const inp of inputs) {
+      sim.step(st, [inp, 0]);
+      for (const e of st.events) if (e.type === 'hit' && e.who === 0) hits.push(e.move);
+    }
+    return hits;
+  };
+  const tap = (inp, gap) => [inp, ...Array(gap).fill(0)];
+  let st = rfresh(3150, 3190);
+  // 공격을 4틱마다 눌러 연타 (다음 타는 앞 타가 맞은 뒤 예약된다)
+  const mash = (inp, n) => Array.from({ length: n }, (_, i) => (i % 4 === 0 ? inp : 0));
+  let hits = rrun(st, [...mash(sim.IN_ATTACK, 72), ...Array(30).fill(0)]);
+  out.push(['라이덴 1~4타 연타 (잽 → 스트레이트 → 훅 → 니킥), 니킥에 상대가 날아감', hits.join(',') === 'atk1,atk2,atk3,atk4' && st.fighters[1].mode !== 'hitstun' && st.fighters[1].mode !== 'idle',
+    `맞힌 기술 ${hits.join(' → ') || '없음'}, 상대 ${st.fighters[1].mode}`]);
+  st = rfresh(3150, 3186);
+  hits = rrun(st, [...tap(sim.IN_UP | sim.IN_ATTACK, 14), ...tap(sim.IN_JUMP | sim.IN_RIGHT, 8), ...mash(sim.IN_ATTACK, 40), ...Array(30).fill(0)]);
+  out.push(['라이덴 띄우기(어퍼컷) → 점프로 쫓아 공중 잽 · 스트레이트 · 니킥', hits.join(',') === 'launcher,air1,air2,air3',
+    `맞힌 기술 ${hits.join(' → ') || '없음'}`]);
+  st = rfresh(3150, 3188);
+  hits = rrun(st, tap(sim.IN_DOWN | sim.IN_ATTACK, 30));
+  out.push(['라이덴 쓸기(로킥) → 상대 다운', hits[0] === 'sweep' && st.fighters[1].mode === 'knockdown', `맞힌 기술 ${hits.join(',') || '없음'}, 상대 ${st.fighters[1].mode}`]);
+  st = rfresh(3100, 3214);
+  hits = rrun(st, [...tap(sim.IN_DASH | sim.IN_RIGHT, 3), ...tap(sim.IN_ATTACK, 40)]);
+  out.push(['라이덴 대시 공격(슈퍼맨 펀치)', hits[0] === 'dashAttack', `맞힌 기술 ${hits.join(',') || '없음'}`]);
+  // 라이덴 차지 투전승불: 길게 누르면 평타 뒤 모으기, 4단계까지 오르고 떼면 뒷주먹 (4단계는 벽 쪽으로 날림)
+  {
+    st = rfresh(3150, 3200);
+    let maxLv = 0;
+    const charged = [];
+    for (let t = 0; t < 160; t++) {
+      sim.step(st, [t < 100 ? sim.IN_ATTACK : 0, 0]);
+      for (const e of st.events) {
+        if (e.type === 'charge' && e.who === 0) maxLv = Math.max(maxLv, e.combo ?? 0);
+        if (e.type === 'hit' && e.who === 0 && e.move === 'charge') charged.push(st.fighters[1].wallFly || st.fighters[1].mode === 'wallsplat');
+      }
+    }
+    out.push(['라이덴 차지 투전승불: 4단계까지 모이고 떼면 맞힘 (4단계는 벽 쪽으로 날림)', maxLv === 4 && charged.length === 1 && charged[0] === true,
+      `가장 높은 단계 ${maxLv}, 차지 맞힘 ${charged.length}번${charged.length ? `, 벽 쪽으로 ${charged[0]}` : ''}`]);
+  }
+  {
+    // 4단계로 치면 끝난 뒤 탈진(36틱): 아무것도 못 하다가 대기로
+    st = rfresh(3150, 3200);
+    let exT = 0;
+    let after = '';
+    for (let t = 0; t < 200; t++) {
+      sim.step(st, [t < 100 ? sim.IN_ATTACK : t % 3 === 0 ? sim.IN_ATTACK : 0, 0]);
+      if (st.fighters[0].mode === 'exhaust') exT++;
+      else if (exT > 0 && !after) after = st.fighters[0].mode;
+    }
+    out.push(['투전승불 4단계 뒤 탈진 36틱 (그동안 공격 버튼을 눌러도 못 움직임)', exT === 36 && after !== '', `탈진 ${exT}틱, 그 뒤 ${after || '-'}`]);
+  }
+  // 라이덴 고유 특성 금강: 합을 주고받을 때마다 1스택, 4스택이면 금강불괴(KONGO_TICKS): 맞아도 하던 동작을 이어 가고 밀림 80% 감소
+  {
+    const K = sim.RULES;
+    st = rfresh(3150, 3190);
+    let fired = -1;
+    const seq = [...mash(sim.IN_ATTACK, 72)];
+    seq.forEach((inp, t) => {
+      sim.step(st, [inp, 0]);
+      if (fired < 0 && st.events.some((e) => e.type === 'kongo' && e.who === 0)) fired = t;
+    });
+    out.push(['금강: 라이덴이 네 번 맞히면 금강불괴가 켜지고 스택은 0으로', fired >= 0 && st.fighters[0].kongo === 0,
+      `발동 ${fired >= 0 ? `${fired + 1}틱째` : '없음'}, 남은 ${st.fighters[0].kongoT}틱, 스택 ${st.fighters[0].kongo}`]);
+    // 2P 라이덴이 맞는 쪽: 금강불괴가 없을 때는 경직, 있을 때는 대기 그대로 + 밀림 감소
+    const hitRaiden = (armor) => {
+      const s2 = sim.createState(1, { chars: ['base', 'raiden'] });
+      while (s2.phase !== 'fight') sim.step(s2, [0, 0]);
+      s2.fighters[0].x = 3150 * 256;
+      s2.fighters[1].x = 3190 * 256;
+      if (armor) s2.fighters[1].kongoT = K.KONGO_TICKS;
+      const hp0 = s2.fighters[1].hp;
+      const x0 = s2.fighters[1].x;
+      const modes = new Set();
+      for (let t = 0; t < 30; t++) {
+        sim.step(s2, [t === 0 ? sim.IN_ATTACK : 0, 0]);
+        modes.add(s2.fighters[1].mode);
+      }
+      return { hurt: hp0 - s2.fighters[1].hp, pushed: (s2.fighters[1].x - x0) / 256, stunned: modes.has('hitstun'), kongo: s2.fighters[1].kongo, left: s2.fighters[1].kongoT };
+    };
+    const plain = hitRaiden(false);
+    const armor = hitRaiden(true);
+    out.push(['금강: 맞으면 1스택 (금강불괴가 없을 때는 경직)', plain.kongo === 1 && plain.stunned, `스택 ${plain.kongo}, 경직 ${plain.stunned}, 밀림 ${plain.pushed.toFixed(1)}px`]);
+    out.push(['금강불괴: 맞아도 경직 없이 대기를 이어 가고 피해는 받음, 밀림은 줄어듦', !armor.stunned && armor.hurt > 0 && Math.abs(armor.pushed) > 0 && Math.abs(armor.pushed) <= Math.abs(plain.pushed) * 0.3,
+      `경직 ${armor.stunned}, 피해 ${armor.hurt}, 밀림 ${armor.pushed.toFixed(1)}px (없을 때 ${plain.pushed.toFixed(1)}px)`]);
+    const s3 = sim.createState(1, { chars: ['raiden', 'base'] });
+    while (s3.phase !== 'fight') sim.step(s3, [0, 0]);
+    s3.fighters[0].kongoT = K.KONGO_TICKS;
+    for (let t = 0; t < K.KONGO_TICKS; t++) sim.step(s3, [0, 0]);
+    out.push([`금강불괴는 ${K.KONGO_TICKS}틱 뒤 꺼짐`, s3.fighters[0].kongoT === 0, `남은 ${s3.fighters[0].kongoT}틱`]);
+  }
+  // 라이덴이 낀 CPU 대전: 예외 없이 끝나고, 같은 입력 재생·저장/복원 뒤 같은 해시
+  for (const chars of [['raiden', 'base'], ['base', 'raiden'], ['raiden', 'raiden']]) {
+    const opts = { chars };
+    const a = runCpuMatch(7, args.ticks, null, opts);
+    const b = replay(7, a.log, null, null, opts);
+    const c = replay(7, a.log, Math.floor(a.log.length / 2), null, opts);
+    out.push([`CPU 대전 ${chars.join(' 대 ')}`, a.hash === b && a.hash === c && a.ended && a.problems.length === 0,
+      `${a.log.length}틱 ${a.rounds}라운드, 히트 ${a.stats.hit}, 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.problems.length ? ` 문제 ${a.problems[0]}` : ''}`]);
+  }
+  return out;
+}
+
+function runCpuMatch(seed, ticks, setup = null, opts = {}) {
+  const state = sim.createState(seed, opts);
   if (setup) setup(state);
   let keepRound = -1;
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
@@ -282,8 +439,8 @@ function check(s, problems) {
 }
 
 /** 기록한 입력만으로 다시 돌린다. saveAt이 있으면 그 틱에 상태를 직렬화했다가 복원해서 이어 간다. */
-function replay(seed, log, saveAt, setup = null) {
-  let state = sim.createState(seed);
+function replay(seed, log, saveAt, setup = null, opts = {}) {
+  let state = sim.createState(seed, opts);
   if (setup) setup(state);
   log.forEach((inputs, i) => {
     if (i === saveAt) state = JSON.parse(JSON.stringify(state));

@@ -2,6 +2,7 @@ import { hitBox, hurtBox, type Box } from '../anim/boxes';
 import { DEFAULT_CELL, FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import type { LookName } from '../anim/skeleton';
+import { isSkin, skinForMotion, SKINS, type SkinId } from '../anim/skins';
 import { drawText } from '../render/font';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
@@ -18,7 +19,8 @@ const PANEL_X = 260;
 
 /**
  * 개발용 모션 뷰어 (?scene=viewer).
- * 키보드: ↑↓ 동작, ←→ 한 프레임, Space 재생/정지, S 속도, H 판정 상자, C 색, F 좌우
+ * 키보드: ↑↓ 동작, ←→ 한 프레임, Space 재생/정지, S 속도, H 판정 상자, C 색, F 좌우, K 캐릭터 겉모습 (?skin=raiden)
+ * 캐릭터 전용 동작('raiden/…')은 늘 그 캐릭터 겉모습으로 보인다. K는 기본·공통 동작에 입혀 볼 겉모습을 바꾼다.
  */
 export function viewerScene(): Scene {
   const v = {
@@ -31,6 +33,7 @@ export function viewerScene(): Scene {
     boxes: true,
     look: 'p1' as LookName,
     flip: false,
+    skin: (isSkin(new URLSearchParams(location.search).get('skin')) ? new URLSearchParams(location.search).get('skin') : 'base') as SkinId,
   };
   const cur = () => MOTIONS[v.motion];
 
@@ -47,7 +50,8 @@ export function viewerScene(): Scene {
     <button data-a="speed"></button>
     <button data-a="boxes">판정</button>
     <button data-a="look"></button>
-    <button data-a="flip"></button>`;
+    <button data-a="flip"></button>
+    <button data-a="skin"></button>`;
   document.body.appendChild(ui);
   const el = (a: string) => ui.querySelector(`[data-a="${a}"]`) as HTMLElement;
   const select = el('select') as HTMLSelectElement;
@@ -73,6 +77,10 @@ export function viewerScene(): Scene {
     boxes: () => (v.boxes = !v.boxes),
     look: () => (v.look = v.look === 'p1' ? 'p2' : 'p1'),
     flip: () => (v.flip = !v.flip),
+    skin: () => {
+      const ids = Object.keys(SKINS) as SkinId[];
+      v.skin = ids[(ids.indexOf(v.skin) + 1) % ids.length];
+    },
   };
   const refreshUi = () => {
     select.value = String(v.motion);
@@ -81,6 +89,7 @@ export function viewerScene(): Scene {
     el('boxes').classList.toggle('on', v.boxes);
     el('look').textContent = v.look === 'p1' ? '색 1P' : '색 2P';
     el('flip').textContent = v.flip ? '← 왼쪽' : '오른쪽 →';
+    el('skin').textContent = SKINS[v.skin].label;
   };
   ui.addEventListener('click', (e) => {
     const a = (e.target as HTMLElement).closest('button')?.dataset.a;
@@ -98,7 +107,7 @@ export function viewerScene(): Scene {
 
   const KEYS: Record<string, string> = {
     ArrowUp: 'prevM', ArrowDown: 'nextM', ArrowLeft: 'back', ArrowRight: 'fwd',
-    Space: 'play', KeyS: 'speed', KeyH: 'boxes', KeyC: 'look', KeyF: 'flip',
+    Space: 'play', KeyS: 'speed', KeyH: 'boxes', KeyC: 'look', KeyF: 'flip', KeyK: 'skin',
   };
 
   return {
@@ -137,7 +146,7 @@ export function viewerScene(): Scene {
       }
       ctx.fillStyle = COLORS.gridLight;
       ctx.fillRect(VIEW_X, VIEW_Y + (FOOT_Y + 1) * ZOOM, size, ZOOM);
-      ctx.drawImage(sprite(m, v.frame, v.look, v.flip), VIEW_X, VIEW_Y, size, size);
+      ctx.drawImage(sprite(m, v.frame, v.look, v.flip, skinForMotion(m.name, v.skin)), VIEW_X, VIEW_Y, size, size);
 
       if (v.boxes && m.joints) {
         const j = m.joints[v.frame];
@@ -190,13 +199,13 @@ export function viewerScene(): Scene {
 
 /** 한 프레임을 칸 크기 캔버스로 (확대해서 붙이기 위해) */
 const spriteCanvas = document.createElement('canvas');
-function sprite(m: (typeof MOTIONS)[number], frame: number, look: LookName, flip: boolean) {
+function sprite(m: (typeof MOTIONS)[number], frame: number, look: LookName, flip: boolean, skin: SkinId = 'base') {
   const cell = m.cell ?? DEFAULT_CELL;
   spriteCanvas.width = cell;
   spriteCanvas.height = cell;
   const c = spriteCanvas.getContext('2d')!;
   c.clearRect(0, 0, cell, cell);
-  m.draw(c, frame, 0, 0, { look, flip });
+  m.draw(c, frame, 0, 0, { look, flip, skin });
   return spriteCanvas;
 }
 
