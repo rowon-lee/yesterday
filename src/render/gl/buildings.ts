@@ -150,7 +150,12 @@ export class Buildings {
     // 실내 (정면이 뚫리면 보인다)
     const inner = paintInterior(b, bi, SI);
     const innerTex = pixelTexture(inner.map);
-    group.add(plane(b.x, b.x + b.w, 0, b.h, INNER_Z, litMaterial(innerTex, { emissive: pixelTexture(inner.glow), emissiveStrength: 0.7 })));
+    // (양옆 2칸 안쪽으로: 옆면이 없어 원근 때문에 실내 판 가장자리 열이 건물 모서리 옆으로 1칸 드러나 어두운 세로줄이 되지 않게.
+    // 그림 칸은 그대로 판 크기에 맞춰 늘어나지 않도록 UV를 잘라 쓴다)
+    const innerPlane = plane(b.x + 2, b.x + b.w - 2, 0, b.h, INNER_Z, litMaterial(innerTex, { emissive: pixelTexture(inner.glow), emissiveStrength: 0.7 }));
+    const uvA = innerPlane.geometry.getAttribute('uv') as THREE.BufferAttribute;
+    for (let k = 0; k < uvA.count; k++) uvA.setX(k, (2 + uvA.getX(k) * (b.w - 4)) / b.w);
+    group.add(innerPlane);
     const face: Face = {
       b, bi, map: f.map, glow: f.glow, mapTex, glowTex,
       pristine: fg.getImageData(0, 0, f.tw, f.th),
@@ -172,7 +177,7 @@ export class Buildings {
     // 층 바닥판 (구멍으로 보이는 단면)
     for (let fl = 1; fl < b.floors; fl++) {
       const y = SHOP_H + (fl - 1) * FLOOR_H;
-      det.addAttached(bi, b.x, b.x + b.w, y - 3, y + 1, INNER_Z, FRONT_Z - 0.5, C.stoneDark);
+      det.addAttached(bi, b.x + 2, b.x + b.w - 2, y - 3, y + 1, INNER_Z, FRONT_Z - 0.5, C.stoneDark);
     }
 
     // 지붕 처마: 정면에서 싸우는 면까지 튀어나와 옥상에 선 캐릭터와 깊이가 맞는다

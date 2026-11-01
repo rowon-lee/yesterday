@@ -65,12 +65,18 @@ export function brickWall(g: CanvasRenderingContext2D, x0: number, y0: number, w
 }
 
 /** 낡음: 꼭대기 그을음, 창턱 아래 빗물 자국, 땅 가까운 소금기, 금 */
-export function weather(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, seed: number): void {
-  // 꼭대기 그을음: 맨 위 한 띠는 고르게 (띠 경계마다 점선 줄이 서지 않게 가장자리 무늬 없이), 그 아래는 길이가 제각각인 그을음 줄
-  ditherRect(g, x0, y0, w, 7, C.smog0, 8, 0, 0, false);
-  for (let x = x0 + (seed % 3); x < x0 + w; x += 2 + Math.floor(rnd(seed, 900 + x) * 4)) {
-    const len = 2 + Math.floor(rnd(seed, 950 + x) * 16);
-    ditherRect(g, x, y0 + 7, 1 + (rnd(seed, 990 + x) < 0.3 ? 1 : 0), len, C.smog0, 6, 0, 0, false);
+export function weather(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, seed: number, plain = false): void {
+  if (plain) {
+    // 처마 없이 꼭대기가 다 보이는 벽 (창고·제철소): 맨 위 한 띠와 2~4칸 폭 그을음 줄
+    // (띠 경계의 점선 줄이 넓은 벽 꼭대기에 그대로 드러나 넓은 면 디더로 잡혔다)
+    ditherRect(g, x0, y0, w, 7, C.smog0, 8, 0, 0, false);
+    for (let x = x0 + (seed % 3); x < x0 + w; x += 3 + Math.floor(rnd(seed, 900 + x) * 6)) {
+      const len = 3 + Math.floor(rnd(seed, 950 + x) * 12);
+      ditherRect(g, x, y0 + 7, 2 + Math.floor(rnd(seed, 990 + x) * 3), len, C.smog0, 4, 0, 0, false);
+    }
+  } else {
+    // 꼭대기 그을음 (아래로 갈수록 옅게). 길가 건물은 처마가 맨 위를 가리고, 띠가 처마 밑 그늘 면과 이어진다
+    for (let k = 0; k < 4; k++) ditherRect(g, x0, y0 + k * 6, w, 6, C.smog0, 9 - k * 2, seed & 3);
   }
   // 처마에서 흘러내린 빗물 자국 (가늘고 긴 어두운 줄)
   for (let k = 0; k < Math.floor(w / 9); k++) {
