@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Motion } from '../../anim/motion';
 import type { LookName } from '../../anim/skeleton';
+import type { SkinId } from '../../anim/skins';
 import { FOOT_X, FOOT_Y } from '../../anim/motion';
 import { GROUND } from '../../stage/citadel';
 import { SCREEN_H, SCREEN_W } from '../screen';
@@ -20,6 +21,8 @@ export interface CharDraw {
   frame: number;
   look: LookName;
   flip: boolean;
+  /** 캐릭터 겉모습 (장식·색). 없으면 기본 스틱맨 */
+  skin?: SkinId;
   /** 발밑 월드 x, 바닥 위 높이 (px) */
   x: number;
   h: number;
@@ -196,7 +199,7 @@ export class Actors {
       s.scale.set(w, 1, 1);
       s.position.set(Math.round(d.x), d.floor - 1, -0.4);
       if (!d.visible) return;
-      const sheet = d.motion.sheet!(d.look, d.flip);
+      const sheet = d.motion.sheet!(d.look, d.flip, d.skin);
       const mat = m.material as THREE.ShaderMaterial;
       const u = mat.uniforms;
       u.map.value = this.texture(sheet);

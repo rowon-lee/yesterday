@@ -6,6 +6,8 @@
 //                                           jab-slow.gif(프레임마다 0.3초, 번호·표시 틱·판정 상자)로 (2026-11-01: 승인용은 GIF)
 //   --only·--approve로 고른 동작은 out/sheets/에도 같은 GIF를 쓴다
 //   npm run sheets -- --selftest          도구 확인용 가짜 동작
+//   npm run sheets -- --only base/idle --skin raiden   캐릭터 겉모습(장식·색)으로 → out/sheets/raiden/look-base-idle.png
+//                                                    (--approve와 함께면 previews/raiden/look-base-idle.gif)
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { encodeGif } from './gif.mjs';
 import { dirname } from 'node:path';
@@ -16,10 +18,14 @@ const argv = process.argv.slice(2);
 const only = valuesOf('--only');
 const approve = valuesOf('--approve');
 const selftest = argv.includes('--selftest');
+const skin = valuesOf('--skin')[0] ?? '';
+/** 출력 이름: 캐릭터 겉모습으로 그린 것은 <캐릭터>/look-<동작 이름> */
+const outName = (name) => (skin ? `${skin}/look-${name.replace('/', '-')}` : name);
 
 const query = new URLSearchParams();
 for (const n of [...only, ...approve]) query.append('only', n);
 if (selftest) query.set('selftest', '');
+if (skin) query.set('skin', skin);
 if (only.length || approve.length) query.set('gif', '');
 
 const vite = await createServer({ logLevel: 'error', server: { port: 5181 } });
@@ -44,15 +50,16 @@ for (const s of sheets) {
     console.log(`NG  ${s.name}: ${s.errors.join(', ')}`);
     continue;
   }
-  const png = `out/sheets/${s.name}.png`;
+  const out = outName(s.name);
+  const png = `out/sheets/${out}.png`;
   mkdirSync(dirname(png), { recursive: true });
   writeFileSync(png, Buffer.from(s.png.split(',')[1], 'base64'));
-  writeFileSync(`out/sheets/${s.name}.md`, durTable(s));
+  writeFileSync(`out/sheets/${out}.md`, durTable(s));
   const total = s.dur.reduce((a, b) => a + b, 0);
   console.log(`OK  ${s.name}: ${s.dur.length}프레임, 총 ${total}틱 → ${png}`);
   if (s.gif) {
-    const real = `out/sheets/${s.name}.gif`;
-    const slow = `out/sheets/${s.name}-slow.gif`;
+    const real = `out/sheets/${out}.gif`;
+    const slow = `out/sheets/${out}-slow.gif`;
     // 실제 속도: 표시 틱 → 1/100초 (GIF는 2 아래를 브라우저가 느리게 틀어서 2 이상), 끝에 0.4초 멈춤
     const realDelay = s.dur.map((d) => Math.max(2, Math.round((d * 100) / 60)));
     realDelay[realDelay.length - 1] += 40;
@@ -62,7 +69,7 @@ for (const s of sheets) {
     writeFileSync(slow, gifOf(s.gif.w, s.gif.h, s.gif.slow, slowDelay));
     console.log(`    GIF → ${real}, ${slow}`);
     if (approve.includes(s.name)) {
-      for (const [from, to] of [[real, `previews/${s.name}.gif`], [slow, `previews/${s.name}-slow.gif`]]) {
+      for (const [from, to] of [[real, `previews/${out}.gif`], [slow, `previews/${out}-slow.gif`]]) {
         mkdirSync(dirname(to), { recursive: true });
         copyFileSync(from, to);
         console.log(`    승인용 복사 → ${to}`);

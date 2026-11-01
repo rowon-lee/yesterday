@@ -98,6 +98,14 @@ const SCENES = {
       [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [[], 70],
     ],
   },
+  // 라이덴 겉모습 확인 (1P만 라이덴 표식·색, 동작은 아직 기본 스틱맨): 대기 → 앞으로 뛰기 → 평타 1·2·3타 → 공격을 길게 눌러 모으기(붉은 빛) → 차지
+  raiden_look: {
+    q: 'scene=fight&p2=idle&p1skin=raiden', p1: 3060, p2: 3200, settle: 70,
+    steps: [
+      [[], 50], [['ArrowRight'], 18], [[], 8], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 9], [['KeyJ'], 1], [[], 34],
+      [['KeyJ'], 70], [[], 50],
+    ],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,

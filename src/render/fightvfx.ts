@@ -3,6 +3,7 @@ import { MOTIONS } from '../anim/motions';
 import { BREAKABLES, GRIDS, fighterPose, MOVES, RULES, STATS, tramRestX, type Fighter, type SimState } from '../sim';
 import { CITADEL as D } from '../data/stages/citadel';
 import { KNOCKDOWN_RELAND } from '../data/poses/common';
+import type { SkinId } from '../anim/skins';
 import { Debris } from './debris';
 import dashBlink from '../vfx/dash-blink';
 import explosion from '../vfx/explosion';
@@ -89,14 +90,14 @@ silCanvas.height = 64;
 const silCache = new Map<string, Uint32Array>();
 
 /** 지금 모습의 실루엣 (Power Up 오라·대시 잔상이 몸 윤곽을 따라가도록). 이펙트 픽셀 좌표 */
-function silhouette(f: Fighter) {
+function silhouette(f: Fighter, skin: SkinId = 'base') {
   const p = fighterPose(f);
-  const key = `${p.motion}/${p.frame}/${f.facing}`;
+  const key = `${skin}/${p.motion}/${p.frame}/${f.facing}`;
   let data = silCache.get(key);
   if (!data) {
     const g = silCanvas.getContext('2d', { willReadFrequently: true })!;
     g.clearRect(0, 0, 64, 64);
-    motionByName.get(p.motion)!.draw(g, p.frame, 0, 0, { look: 'p1', flip: f.facing < 0 });
+    motionByName.get(p.motion)!.draw(g, p.frame, 0, 0, { look: 'p1', flip: f.facing < 0, skin });
     data = new Uint32Array(g.getImageData(0, 0, 64, 64).data.buffer.slice(0));
     silCache.set(key, data);
   }
@@ -116,6 +117,13 @@ export class FightVfx {
   private prevMode = ['idle', 'idle'];
   private prevMoveT = [-1, -1];
   private seed = 1;
+
+  /** 두 사람의 캐릭터 겉모습 (실루엣을 따라가는 이펙트용, 대련 장면이 정한다) */
+  skins: [SkinId, SkinId] = ['base', 'base'];
+  private skinOf(f: Fighter): SkinId {
+    return f === this.fighters?.[1] ? this.skins[1] : this.skins[0];
+  }
+  private fighters: readonly Fighter[] | null = null;
 
   /** 부서질 때 튀는 조각 */
   readonly debris = new Debris();
@@ -173,6 +181,7 @@ export class FightVfx {
 
   /** sim 한 틱 뒤에 부른다 */
   tick(s: SimState): void {
+    this.fighters = s.fighters;
     const shake = (k: number) => (t: number) => this.fx.shake(t * k);
     // 필살기 연출 장면의 타격 (렌더 전용): 발동자 동작마다 정해 둔 틱에 불꽃·빛·흔들림 (피해는 끝 타격에서 한 번)
     if (s.cine) {
@@ -322,7 +331,7 @@ export class FightVfx {
         const fighter = f;
         this.layer.add(dashBlink({
           kind: 'dash',
-          actor: { feet: () => feet(fighter), silhouette: () => silhouette(fighter) },
+          actor: { feet: () => feet(fighter), silhouette: () => silhouette(fighter, this.skinOf(fighter)) },
           facing: f.facing * f.dir,
           distance: ((speed * ticks) / 256) * FX_PX,
           time: ticks / 60,
@@ -352,7 +361,7 @@ export class FightVfx {
       if (f.meter >= RULES.METER_MAX && this.prevMeter[i] < RULES.METER_MAX) {
         const fighter = f;
         this.layer.add(powerUp({
-          actor: { feet: () => feet(fighter), silhouette: () => silhouette(fighter) },
+          actor: { feet: () => feet(fighter), silhouette: () => silhouette(fighter, this.skinOf(fighter)) },
           palette: fxHex(SIDE_RAMP[side]),
           size: 0.55,
           seed: this.seed++,
@@ -573,7 +582,7 @@ export class FightVfx {
     const wy = GROUND_Y + f.y / 256 - 24;
     if (what === 'start' || what === 'level') {
       this.layer.add(powerUp({
-        actor: { feet: () => feet(f), silhouette: () => silhouette(f) },
+        actor: { feet: () => feet(f), silhouette: () => silhouette(f, this.skinOf(f)) },
         palette: fxHex(CHARGE_RAMP),
         size: 0.36 + 0.14 * lv,
         seed: this.seed++,

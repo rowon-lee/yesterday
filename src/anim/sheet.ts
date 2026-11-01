@@ -1,5 +1,5 @@
 import { drawText, GLYPH_H } from '../render/font';
-import { DEFAULT_CELL, FOOT_Y, MAX_FRAMES, MIN_FRAMES, type Motion } from './motion';
+import { DEFAULT_CELL, FOOT_Y, MAX_FRAMES, MIN_FRAMES, type DrawOptions, type Motion } from './motion';
 
 /** 규격 위반을 문장으로 돌려준다. 없으면 빈 배열. */
 export function checkMotion(m: Motion): string[] {
@@ -19,7 +19,7 @@ const LABEL_H = GLYPH_H + 2;
  * 확인용 가로 띠 (1배 크기). 칸 위에 프레임 번호(1부터), 칸 안에 발밑 높이 표시.
  * 확대는 부르는 쪽에서 한다.
  */
-export function drawStrip(m: Motion): HTMLCanvasElement {
+export function drawStrip(m: Motion, opts: DrawOptions = {}): HTMLCanvasElement {
   const cell = m.cell ?? DEFAULT_CELL;
   const n = m.dur.length;
   const footY = Math.round((FOOT_Y / DEFAULT_CELL) * cell);
@@ -41,7 +41,7 @@ export function drawStrip(m: Motion): HTMLCanvasElement {
     ctx.beginPath();
     ctx.rect(x, LABEL_H, cell, cell);
     ctx.clip();
-    m.draw(ctx, i, x, LABEL_H);
+    m.draw(ctx, i, x, LABEL_H, opts);
     ctx.restore();
   }
   return c;

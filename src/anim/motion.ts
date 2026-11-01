@@ -2,6 +2,7 @@ import type { HitSpec } from './boxes';
 import type { Key } from './keyed';
 import type { Joints } from './pose';
 import type { LookName } from './skeleton';
+import type { SkinId } from './skins';
 
 /** 동작 데이터 (src/data/poses/). 숫자와 포즈만 들어 있다. */
 export interface MotionData {
@@ -21,6 +22,8 @@ export interface DrawOptions {
   look?: LookName;
   /** 왼쪽을 보게 뒤집기 */
   flip?: boolean;
+  /** 캐릭터 겉모습 (장식·색 묶음). 기본은 기본 스틱맨 */
+  skin?: SkinId;
 }
 
 /** 한 동작. 모든 동작은 12~14프레임, 속도는 프레임별 표시 틱(dur)으로 조절한다. */
@@ -36,8 +39,8 @@ export interface Motion {
   hit?: HitSpec;
   /** frame번째 프레임을 칸 왼쪽 위 (ox, oy)에 그린다. 기본은 오른쪽을 보는 모습. */
   draw(ctx: CanvasRenderingContext2D, frame: number, ox: number, oy: number, opts?: DrawOptions): void;
-  /** 미리 그린 시트 (프레임을 가로로 늘어놓은 캔버스, 색 한 벌·방향 하나). 2.5D 렌더가 텍스처로 쓴다 */
-  sheet?(look: LookName, flip: boolean): HTMLCanvasElement;
+  /** 미리 그린 시트 (프레임을 가로로 늘어놓은 캔버스, 색 한 벌·방향 하나·캐릭터 겉모습 하나). 2.5D 렌더가 텍스처로 쓴다 */
+  sheet?(look: LookName, flip: boolean, skin?: SkinId): HTMLCanvasElement;
 }
 
 export const MIN_FRAMES = 12;

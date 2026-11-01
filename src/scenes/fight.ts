@@ -16,6 +16,7 @@ import {
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
+import { isSkin, type SkinId } from '../anim/skins';
 import { gl } from '../render/gl';
 import { lights as lights2d } from '../render/light';
 import type { App, Scene } from './scene';
@@ -76,6 +77,7 @@ const CAMERA_DAMP = 0.35;
  *   ?cpu=easy|normal|hard  대련 CPU 강도 (방어 실력)
  *   ?dummy=stand|guard|cpu 연습 상대: 가만히 / 막기만 / CPU
  *   ?p2=tech 확인용: 상대가 가만히 서 있다가 공중에서 맞는 중 낙법이 가능해지면 바로 점프 (낙법 동작 캡처용)
+ *   ?p1skin=raiden&p2skin=… 확인용: 캐릭터 겉모습(장식·색)만 바꿔 그린다 (동작·기술은 아직 기본 스틱맨)
  * Esc·P로 일시정지 (계속 / 처음부터 / 조작법 / 타이틀로). 경기가 끝나면 다시 하기 / 타이틀로.
  */
 export function fightScene(app?: App): Scene {
@@ -86,6 +88,11 @@ export function fightScene(app?: App): Scene {
   const cpuSkill = ({ easy: 25, normal: 55, hard: 85 } as Record<string, number>)[params.get('cpu') ?? 'normal'] ?? 55;
   let seed = Number(params.get('seed') ?? 1) | 0;
   let showBoxes = params.get('boxes') === '1';
+  /** 두 사람의 캐릭터 겉모습 (렌더 전용) */
+  const skins: [SkinId, SkinId] = [
+    isSkin(params.get('p1skin')) ? (params.get('p1skin') as SkinId) : 'base',
+    isSkin(params.get('p2skin')) ? (params.get('p2skin') as SkinId) : 'base',
+  ];
 
   let s: SimState;
   let cpus: [CpuState, CpuState];
@@ -129,6 +136,7 @@ export function fightScene(app?: App): Scene {
     fx = new Effects();
     vfx = new VfxLayer();
     fightVfx = new FightVfx(vfx, fx);
+    fightVfx.skins = skins;
     fightVfx.reset(s);
     hud = new Hud();
     hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', practice ? 'DUMMY' : 'CPU'];
@@ -259,10 +267,10 @@ export function fightScene(app?: App): Scene {
         for (const back of [6, 3]) {
           const t = tr[tr.length - 1 - back];
           if (t && tr[tr.length - 1].fast && t.fast) {
-            drawGhost(c, t, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6);
+            drawGhost(c, t, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6, skins[i]);
             drew = true;
           } else if (t && tr[tr.length - 1].white && t.white) {
-            drawGhost(c, t, 'ghostW', toScreen, back === 6);
+            drawGhost(c, t, 'ghostW', toScreen, back === 6, skins[i]);
             drew = true;
           }
         }
@@ -294,6 +302,7 @@ export function fightScene(app?: App): Scene {
         motion: motionByName.get(pose.motion)!,
         frame: pose.frame,
         look: white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
+        skin: skins[i],
         flip: f.facing < 0,
         x: f.x / 256 + jitter,
         h: -f.y / 256,
@@ -459,12 +468,13 @@ function drawGhost(
   look: LookName,
   toScreen: (x: number, y: number) => [number, number],
   faint: boolean,
+  skin: SkinId = 'base',
 ) {
   const m = motionByName.get(g.motion)!;
   const gc = ghostCanvas.getContext('2d')!;
   gc.globalCompositeOperation = 'source-over';
   gc.clearRect(0, 0, 64, 64);
-  m.draw(gc, g.frame, 0, 0, { look, flip: g.facing < 0 });
+  m.draw(gc, g.frame, 0, 0, { look, flip: g.facing < 0, skin });
   gc.globalCompositeOperation = 'destination-in';
   gc.drawImage(checker, 0, 0);
   gc.globalCompositeOperation = 'source-over';
