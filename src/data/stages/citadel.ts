@@ -326,6 +326,7 @@ export const CITADEL = {
       { kind: 'barrel', x: 2560 },
       { kind: 'bench', x: 2780 },
       { kind: 'planter', x: 2836 },
+      { kind: 'manhole', x: 2872 },
       { kind: 'planter', x: 3564 },
       { kind: 'mailbox', x: 4160 },
       { kind: 'barrel', x: 4220 },

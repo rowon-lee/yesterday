@@ -263,6 +263,10 @@ export class Life {
   private readonly smoke: FarSprites;
   private readonly crown: Beam[] = [];
   private readonly beacons: FarSprites;
+  /** 분수 물줄기 (1px 선): 양옆으로 휘어 떨어지는 두 줄기와 가운데 물기둥. 밝은 마디가 물을 따라 흐른다 */
+  private readonly jets: THREE.Line[] = [];
+  private readonly jetMat: THREE.ShaderMaterial;
+  private readonly column: THREE.Line;
 
   constructor() {
     const T = D.tram;
@@ -288,6 +292,59 @@ export class Life {
     disc(bg, 12, 4, 1, C.lampCore);
     this.beacons = new FarSprites(12, bc, 2, 1, 0, 1.6);
     this.group.add(this.walkerSprites.mesh, this.smoke.mesh, this.beacons.mesh);
+    // 분수 물줄기: 끊기지 않는 1px 선 (점선으로 보이지 않게). 반짝이는 물방울(sparks)은 그 위에 더한다
+    this.jetMat = new THREE.ShaderMaterial({
+      uniforms: {
+        color: { value: new THREE.Color(C.sky).convertSRGBToLinear().multiplyScalar(0.45) },
+        hi: { value: new THREE.Color(C.skyLight).convertSRGBToLinear().multiplyScalar(1.1) },
+        time: { value: 0 },
+      },
+      vertexShader: /* glsl */ `
+        attribute float along;
+        varying float vAlong;
+        void main() {
+          vAlong = along;
+          gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform vec3 color;
+        uniform vec3 hi;
+        uniform float time;
+        varying float vAlong;
+        void main() {
+          // 물을 따라 흘러 내려가는 밝은 마디
+          float f = fract(vAlong * 5.0 - time * 0.03);
+          gl_FragColor = vec4(mix(color, hi, step(0.78, f)), 0.0);
+        }
+      `,
+    });
+    const F = D.plaza.fountain;
+    const line = (pts: number[], along: number[]): THREE.Line => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      g.setAttribute('along', new THREE.Float32BufferAttribute(along, 1));
+      const l = new THREE.Line(g, this.jetMat);
+      l.frustumCulled = false;
+      l.renderOrder = 11;
+      return l;
+    };
+    for (const dir of [-1, 1]) {
+      const pts: number[] = [];
+      const along: number[] = [];
+      for (let k = 0; k <= 64; k++) {
+        const t = k / 64;
+        const y = 50 + 28 * Math.sin(Math.PI * Math.min(1, t * 0.9)) - t * 36;
+        if (y < 15) break;
+        pts.push(F.x + dir * (8 + t * 44), y, -46);
+        along.push(t);
+      }
+      const l = line(pts, along);
+      this.jets.push(l);
+      this.group.add(l);
+    }
+    this.column = line([F.x, 50, -50, F.x, 96, -50], [0, 1]);
+    this.group.add(this.column);
     // 시타델 탑 왕관 서치라이트 (먼 겹 깊이에 겹 배율만큼 크게)
     const ks = D.keep.speed;
     for (const l of keepLights()) {
@@ -311,6 +368,8 @@ export class Life {
     const crushed = sign && sign.stage === 2 && tick - sign.brokenAt >= BREAK_RULES.settle ? tick - sign.brokenAt - BREAK_RULES.settle : -1;
     if (crushed < 0) this.fountain(tick);
     else this.brokenFountain(tick, crushed);
+    for (const l of this.jets) l.visible = crushed < 0;
+    this.column.visible = crushed < 0;
     this.sparks.end();
     this.walkers.step(tick, camX, focusX);
     this.walkerSprites.begin();
@@ -379,6 +438,10 @@ export class Life {
     const z = -50;
     const base = 50;
     const height = 46 + Math.round(Math.sin(tick * 0.03) * 14);
+    this.jetMat.uniforms.time.value = tick;
+    const cp = this.column.geometry.getAttribute('position') as THREE.BufferAttribute;
+    cp.setY(1, base + height - 2);
+    cp.needsUpdate = true;
     for (let i = 0; i < 26; i++) {
       const t = ((tick * 0.9 + i * 7) % 40) / 40;
       const y = base + Math.round(height * Math.sin(Math.PI * t));

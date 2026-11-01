@@ -11,7 +11,7 @@ import { Beam } from './fx';
 import { KEEP_VIS_H, KeepFall } from './keepfall';
 import { box, Details, facedBox, facedInto, FREE, Geo, matKeys, plane, type UvFn } from './kit';
 import { lightPool } from './lights';
-import { litMaterial, pixelTexture } from './shaders';
+import { decalMaterial, litMaterial, pixelTexture } from './shaders';
 import { figure, roomWall, WARM, type Figure } from './rooms';
 import { registerSign } from './signs';
 import { neonText } from './tex';
@@ -100,6 +100,7 @@ export class Plaza {
     this.gatePiers(det);
     this.checkLight = this.checkpoint(det);
     this.westPost(det);
+    this.litter();
     this.group.add(det.build());
     this.crown.add(this.crownDet.build());
     this.buried.add(this.buriedDet.build());
@@ -109,6 +110,25 @@ export class Plaza {
       buried: this.buried,
     });
     this.group.add(this.fall.group);
+  }
+
+  /**
+   * 사는 흔적: 가로등 아래 젖은 신문지 한 장과 김이 오르는 배수구 덮개 (김은 steam.ts가 데이터의 배수구 자리에서 올린다).
+   * 바닥 무늬는 싸우는 면 앞 길 위에 깐다 (거의 수평으로 보는 카메라라 그 앞에 깔아야 보인다)
+   */
+  private litter(): void {
+    const flat = (x0: number, x1: number, z0: number, z1: number, c: HTMLCanvasElement, wet: number) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), decalMaterial(pixelTexture(c), wet));
+      m.rotation.x = -Math.PI / 2;
+      m.position.set((x0 + x1) / 2, 0.4, (z0 + z1) / 2);
+      this.group.add(m);
+    };
+    // (싸우는 면에서 멀리 앞쪽에 깔아야 바닥 줄이 몇 칸으로 보인다: 거의 수평인 카메라에서 앞으로 100은 화면 4칸 남짓)
+    flat(2790, 2814, 120, 200, paintWetPaper(24, 12), 0.55);
+    for (const v of D.street.props) {
+      if (v.kind !== 'manhole' || v.x < P.gatePiers[0] || v.x > P.gatePiers[1]) continue;
+      flat(v.x, v.x + 18, 10, 70, paintGrate(18, 10), 0.3);
+    }
   }
 
   /** 먼 겹의 시타델 탑 윗부분 (본관이 무너지면 함께 내려앉는다) */
@@ -236,8 +256,9 @@ export class Plaza {
     (tex.uniforms.map.value as THREE.Texture).wrapS = THREE.RepeatWrapping;
     this.buried.add(geo.build({ s: tex }));
     // 계단 양 끝 챌판에 묻힌 작은 발밑등 (두 단마다): 젖은 디딤판 모서리에 따뜻한 빛 점이 줄지어 오른다
-    const lamp = litMaterial(pixelTexture(solidTex(C.lampWarm)), { emissive: pixelTexture(solidTex(C.lampGlow)), emissiveStrength: 1.1 });
-    this.glows.push({ mat: lamp, k: 1.1 });
+    // 발밑등: 하얗게 날아간 심 (광원)
+    const lamp = litMaterial(pixelTexture(solidTex('#ffe2a8')), { emissive: pixelTexture(solidTex('#fff4d8')), emissiveStrength: 1.3 });
+    this.glows.push({ mat: lamp, k: 1.3 });
     const lg = new Geo();
     const dot: UvFn = () => [0.5, 0.5];
     for (let i = 0; i < steps; i += 2) {
@@ -270,7 +291,8 @@ export class Plaza {
     registerSign(S.text, '시타델 간판', S.x + (S.w - tw) / 2, S.x + (S.w + tw) / 2, top - 30, top - 10, KEEP_Z + 6, tw, S.w);
     registerSign(S.sub, '시타델 간판', S.x + (S.w - sw) / 2, S.x + (S.w + sw) / 2, top - 46, top - 36, KEEP_Z + 6, sw, S.w);
     this.group.add(this.signMesh);
-    this.fixed.push({ x: S.x + S.w / 2, y: S.bottom + S.h / 2, z: KEEP_Z + 60, range: 200, color: C.beam, power: 1.6 });
+    // 네온 세 번째 겹: 간판 둘레 벽(커튼월)에 퍼지는 청록빛
+    this.fixed.push({ x: S.x + S.w / 2, y: S.bottom + S.h / 2, z: KEEP_Z + 60, range: 200, color: '#8fe6e6', power: 1.6 });
   }
 
   /** 분수: 둥근 돌 수반(물 위에 비친 빛), 가운데 받침과 그릇 (물줄기는 움직이는 도시가 매 틱 그린다) */
@@ -435,8 +457,9 @@ export function paintCitadelSign(): { map: HTMLCanvasElement; glow: HTMLCanvasEl
   e.fillRect(0, 0, w, h);
   rect(g, plateX0, 0, S.w, h, C.iron);
   rect(g, plateX0, 0, S.w, 1, C.ironLight);
-  neonText(g, e, S.text, plateX0 + Math.round((S.w - tw) / 2), 10, 4, C.lampCore, C.chromeDark);
-  neonText(g, e, S.sub, plateX0 + Math.round((S.w - textWidth(S.sub, 2)) / 2), 36, 2, C.beam, C.chromeDark);
+  // 네온 네 겹 중 앞의 둘: 하얀 관(가장 밝다)과 관 둘레의 청록 번짐. 벽에 퍼지는 빛은 광원(fixed), 공기 속 번짐은 후처리
+  neonText(g, e, S.text, plateX0 + Math.round((S.w - tw) / 2), 10, 4, '#e8fff8', '#16566e');
+  neonText(g, e, S.sub, plateX0 + Math.round((S.w - textWidth(S.sub, 2)) / 2), 36, 2, '#c8f6ff', '#0f3a4c');
   for (const cx of [18, w - 18]) star(g, cx, 26, 3, C.posterRed);
   return { map, glow, w, plateX0 };
 }
@@ -461,6 +484,31 @@ function paintStep(): HTMLCanvasElement {
   rect(g, 0, 5, 16, 3, C.stoneDark);
   rect(g, 0, 0, 16, 1, C.paintCream);
   rect(g, 9, 2, 1, 2, C.stoneDark);
+  return c;
+}
+
+/** 젖은 신문지 한 장 (바닥 무늬): 빗물에 젖어 어두워진 귀퉁이, 접힌 자국, 단 사이 글줄 */
+function paintWetPaper(w: number, d: number): HTMLCanvasElement {
+  const [c, g] = canvas(w, d);
+  rect(g, 1, 1, w - 3, d - 2, C.paintCream);
+  rect(g, 0, 2, 1, d - 4, C.paintCream);
+  rect(g, w - 2, 3, 1, d - 5, C.paintCream);
+  for (let y = 3; y < d - 2; y += 2) {
+    rect(g, 3, y, Math.floor(w / 2) - 4, 1, C.stone);
+    rect(g, Math.floor(w / 2) + 1, y, w - Math.floor(w / 2) - 5, 1, C.stone);
+  }
+  rect(g, Math.floor(w / 2) - 1, 1, 1, d - 2, C.stoneDark);
+  rect(g, 1, d - 4, 7, 3, C.stone);
+  rect(g, w - 7, 1, 5, 3, C.stoneDark);
+  return c;
+}
+
+/** 배수구 쇠 덮개 (바닥 무늬): 쇠 테두리 안에 가로 살 */
+function paintGrate(w: number, d: number): HTMLCanvasElement {
+  const [c, g] = canvas(w, d);
+  rect(g, 0, 0, w, d, C.ironLight);
+  rect(g, 1, 1, w - 2, d - 2, C.iron);
+  for (let x = 3; x < w - 2; x += 3) rect(g, x, 1, 1, d - 2, C.ironLight);
   return c;
 }
 
@@ -548,7 +596,8 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
         const x = K.x0 + bay * K.pier + k * K.pane;
         if (x >= K.x1) break;
         if (fb < K.atrium && x + K.pane > ax0 && x < ax1) continue;
-        const on = allLit || hash(f * 31 + (bay * 6 + k) * 7) < 0.15;
+        // 바쁜 층(allLit)도 다 켜지 않는다: 열에 일곱 칸 남짓만, 나머지 층은 드문드문 (켜진 창이 가로 띠로 이어지지 않게)
+        const on = allLit ? hash(f * 31 + (bay * 6 + k) * 7 + 3) < 0.7 : hash(f * 31 + (bay * 6 + k) * 7) < 0.2;
         if (on) {
           n++;
           const warm = allLit ? warmFloor : hash(f * 5 + k * 3 + bay) < 0.4;
@@ -611,7 +660,7 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
     // 펜던트 등 (천장에서 늘어진 둥근 등)과 바닥 쪽 은은한 빛
     const pend = [x0 + w * 0.2, x0 + w * 0.5, x0 + w * 0.8].map(Math.round);
     // 등마다 벽에 떨어지는 빛 웅덩이: 등 둘레는 하얗게 날아간 빛의 심 (흑백 200 이상), 바깥으로 단계마다 어두워진다
-    const lamps: Array<[number, number, number, number, number]> = pend.map((px) => [px, 110, 34, 46, 0.9]);
+    const lamps: Array<[number, number, number, number, number]> = pend.map((px) => [px, 110, 36, 50, 1.15]);
     lamps.push([x0 + w / 2, top, w * 0.62, 44, 0.32]);
     for (const px of pend) lamps.push([px, 22, 46, 16, 0.3]);
     const ex = [x0 + Math.round(w * 0.36), x0 + Math.round(w * 0.64)];
@@ -655,13 +704,23 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
       lit(px - 3, px + 3, 108, 116, '#ffe2a8', '#ffd890');
       lit(px - 1, px + 1, 110, 114, C.lampCore, C.lampCore);
     }
-    // 사람들 (서 있거나 걸어가는, 중절모와 경비)
-    const kinds = ['hat', 'walk', 'guard', 'bare', 'walk', 'hat'] as const;
-    let i = 0;
-    for (let cx = x0 + 22; cx < x1 - 16; cx += 34 + Math.round(hash(cx - K.x0) * 26)) {
-      if (hash((cx - K.x0) * 3 + 7) < 0.35) continue;
+    // 로비 바닥: 광택 돌 (안쪽 띠는 어둡고 앞 띠는 조금 밝다), 펜던트 아래 바닥에 길게 비친 빛
+    R(g, x0, x1, 22, 31, '#2e1a10');
+    R(e, x0, x1, 22, 31, '#120804');
+    R(g, x0, x1, 22, 26, '#46281a');
+    R(e, x0, x1, 22, 26, '#24120a');
+    for (const px of pend) {
+      lit(px - 3, px + 3, 22, 31, '#78452a', '#5e2c12');
+      lit(px - 1, px + 1, 22, 30, '#c27c44', '#ad5a20');
+    }
+    // 사람들: 안쪽 줄은 작고 흐리게(발 높이 29), 앞줄은 크고 짙게(발 높이 23). 펜던트 빛 웅덩이 앞에 선 사람은 역광 실루엣이 된다
+    const back: Array<[number, Figure]> = west ? [[0.12, 'bare'], [0.47, 'sit'], [0.84, 'hat']] : [[0.2, 'hat'], [0.86, 'bare']];
+    const front: Array<[number, Figure]> = west ? [[0.24, 'walk'], [0.56, 'hat'], [0.74, 'lean']] : [[0.52, 'walk'], [0.74, 'hat']];
+    for (const [u, kind] of back) figure(g, e, X(x0 + w * u), Y(29), 40 * SK, kind, '#2a1c14');
+    for (const [u, kind] of front) {
+      const cx = x0 + w * u;
       if (!west && cx > dx0 - 8 && cx < dx1 + 8) continue;
-      person(cx, 22, 46 + Math.round(hash(cx - K.x0 + 5) * 6), kinds[i++ % kinds.length]);
+      person(cx, 23, 50, kind);
     }
     // 천장 띠와 매입등, 앞 유리 멀리언과 가로 띠
     sil(x0, x1, top, K.lobby, C.iron);
@@ -683,10 +742,11 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
   // 3) 가운데 유리 홀: 계단참에서 높이 솟은 유리, 큰 깃발(아래에서 비추는 빛), 홀 꼭대기 띠
   const bcx = Math.round((ax0 + ax1) / 2);
   // 깃발 양옆을 아래에서 쓸어 올리는 빛 (세로로 긴 빛 자국)과 홀 꼭대기 빛
+  // (넓은 유리 홀은 어둡게 두고 깃발 양옆 세로 빛 자국만: 화면의 주인공은 로비와 정문 불빛)
   interior(ax0, ax1, ly, K.atrium, [
-    [bcx - 52, ly, 22, 120, 0.6], [bcx + 52, ly, 22, 120, 0.6], [bcx, ly, 70, 40, 0.3],
-    [bcx, K.atrium, 110, 34, 0.3],
-  ], 0.16);
+    [bcx - 52, ly, 16, 120, 0.55], [bcx + 52, ly, 16, 120, 0.55], [bcx, ly, 60, 34, 0.25],
+    [bcx, K.atrium, 100, 30, 0.22],
+  ], 0.06);
   for (let x = ax0 + 26; x < ax1; x += 26) {
     R(g, x, x + 1, ly, K.atrium, C.chromeDark);
     R(e, x, x + 1, ly, K.atrium, '#000');
@@ -708,7 +768,7 @@ function paintKeep(fixed: Glow[]): { map: HTMLCanvasElement; glow: HTMLCanvasEle
   R(g, gx - 4, gx + P.gate.w + 4, ly, gTop, C.iron);
   R(e, gx - 4, gx + P.gate.w + 4, ly, gTop, '#000');
   R(g, gx, gx + P.gate.w, ly, gTop - 4, C.glass);
-  interior(gx, gx + P.gate.w, ly, gTop - 40, [[gx + P.gate.w / 2, gTop - 44, 46, 70, 0.75]], 0.36);
+  interior(gx, gx + P.gate.w, ly, gTop - 40, [[gx + P.gate.w / 2, gTop - 44, 46, 70, 0.9]], 0.36);
   for (let x = gx + 20; x < gx + P.gate.w; x += 20) R(g, x, x + 1, ly, gTop - 4, C.iron);
   // 문 위 채광창: 어둑한 홀 천장 빛 너머로 별 문장 (쇠 장식 실루엣)
   interior(gx, gx + P.gate.w, gTop - 36, gTop - 4, [[gx + P.gate.w / 2, gTop - 36, 50, 30, 0.35]], 0.12);
@@ -749,8 +809,8 @@ function officePane(g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, x:
   // 발광은 한 단계 낮춘다 (켜진 사무실이 간판보다 밝지 않게)
   rect(e, x, y, w, h, warm ? '#9a5a24' : '#3e7064');
   // 천장 등 줄: 창 안에서 가장 밝은 곳 (빛의 심)
-  rect(g, x, y, w, 2, warm ? '#ffe2a8' : '#e8fff8');
-  rect(e, x, y, w, 2, warm ? '#ffc16e' : '#b0f0c8');
+  rect(g, x, y, w, 3, warm ? '#ffe2a8' : '#e8fff8');
+  rect(e, x, y, w, 3, warm ? '#ffc16e' : '#b0f0c8');
   // 아래쪽은 책상·칸막이 그림자 (점무늬 없이 한 줄)
   rect(g, x, y + h - 4, w, 4, C.glass);
   rect(e, x, y + h - 4, w, 4, '#000');
@@ -758,15 +818,22 @@ function officePane(g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, x:
     rect(g, xx, yy, ww, hh, c);
     rect(e, xx, yy, ww, hh, '#000');
   };
-  if (r < 0.3) {
-    const down = 3 + Math.floor(r * 30);
-    for (let yy = y + 1; yy < y + down; yy += 2) dark(x, yy, w, 1, warm ? C.paintOchre : C.chromeDark);
-  } else if (r < 0.55) {
+  // 칸마다 다른 방: 반쯤 내린 블라인드(높이 제각각), 책상에 앉은 사람, 서 있는 사람, 서류장, 화분, 빈 방
+  if (r < 0.22) {
+    const down = 4 + Math.floor(r * 40);
+    for (let yy = y + 2; yy < y + down; yy += 3) dark(x, yy, w, 1, warm ? C.paintOchre : C.chromeDark);
+  } else if (r < 0.4) {
     dark(x + 1, y + h - 7, w - 2, 2, C.glass);
     dark(x + 2 + (Math.floor(r * 10) % 5), y + h - 12, 3, 5, C.glass);
     dark(x + 3 + (Math.floor(r * 10) % 5), y + h - 14, 2, 2, C.glass);
-  } else if (r < 0.7) {
+  } else if (r < 0.52) {
+    figure(g, e, x + Math.round(w * (0.3 + (r - 0.4) * 3)), y + h - 4, 13, r < 0.46 ? 'bare' : 'hat', C.glass);
+  } else if (r < 0.62) {
     dark(x + w - 5, y + h - 11, 4, 11, C.glass);
+  } else if (r < 0.7) {
+    dark(x + 1, y + h - 7, 4, 3, C.glass);
+    dark(x, y + h - 11, 6, 4, C.glass);
+    dark(x + 2, y + h - 13, 3, 2, C.glass);
   }
 }
 

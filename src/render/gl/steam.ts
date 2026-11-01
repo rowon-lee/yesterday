@@ -1,13 +1,12 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
-import { canvas, disc } from '../dither';
-import { COLORS as C } from '../palette';
 import { LIGHTS_DECL, shared, withLights } from './lights';
-import { keepAlpha, pixelTexture } from './shaders';
+import { keepAlpha } from './shaders';
 
 /**
  * 하수구 증기 (렌더 전용): 맨홀마다 뭉치 여섯 개가 차례로 솟아 퍼지며 옅어진다.
- * 뭉치는 디더링한 원 그림이고, 둘레 빛을 받아 밝아진다 (빛 받은 증기).
+ * 뭉치는 가장자리가 부드럽게 사라지는 둥근 김이고 (증기는 안개처럼 흐림을 허용한다, 바둑판 점무늬 없이),
+ * 둘레 빛을 받아 밝아진다 (빛 받은 증기: 가로등 아래에서는 그 빛 색으로).
  */
 const PUFFS = 6;
 
@@ -18,12 +17,8 @@ export class Steam {
 
   constructor() {
     this.vents = D.street.props.filter((p) => p.kind === 'manhole').map((p) => ({ x: p.x + 9, z: -16 }));
-    const [c, g] = canvas(32, 32);
-    // 디더링한 원 (가운데가 짙다): 알파는 바둑판 무늬로 성기게
-    for (let r = 15; r >= 3; r -= 4) disc(g, 16, 16, r, r > 11 ? C.smoke : r > 7 ? C.stone : C.paintCream, r > 11 ? 5 : r > 7 ? 9 : 13);
-    const tex = pixelTexture(c);
     const mat = keepAlpha(withLights(new THREE.ShaderMaterial({
-      uniforms: { ...shared, map: { value: tex } },
+      uniforms: { ...shared, steamColor: { value: new THREE.Color('#a8adb8').convertSRGBToLinear() } },
       vertexShader: /* glsl */ `
         ${LIGHTS_DECL}
         uniform vec3 uAmbient;
@@ -47,14 +42,16 @@ export class Steam {
         }
       `,
       fragmentShader: /* glsl */ `
-        uniform sampler2D map;
+        uniform vec3 steamColor;
         varying vec2 vUv;
         varying vec3 vLight;
         varying float vFade;
         void main() {
-          vec4 t = texture2D(map, vUv);
-          if (t.a < 0.5) discard;
-          gl_FragColor = vec4(t.rgb * (0.35 + vLight), 0.55 * vFade);
+          // 가운데가 짙고 가장자리로 부드럽게 사라지는 둥근 김
+          float r = length(vUv - 0.5) * 2.0;
+          float a = smoothstep(1.0, 0.2, r);
+          if (a * vFade < 0.02) discard;
+          gl_FragColor = vec4(steamColor * (0.25 + vLight), 0.45 * a * vFade);
         }
       `,
     })), false);
