@@ -59,11 +59,14 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 uniform float uGroundFog;
-/** 깊이 안개(먼 것일수록) + 바닥 쪽 거리 안개 */
-vec3 applyFog(vec3 col, float depth, float h) {
+/** 안개 짙기 (0~0.9): 깊이 안개(먼 것일수록) + 바닥 쪽 거리 안개 */
+float fogK(float depth, float h) {
   float f = clamp((depth - uFogNear) / (uFogFar - uFogNear), 0.0, 1.0);
   float g = uGroundFog * exp(-max(h, 0.0) / 50.0);
-  return mix(col, uFogColor, clamp(f + g, 0.0, 0.9));
+  return clamp(f + g, 0.0, 0.9);
+}
+vec3 applyFog(vec3 col, float depth, float h) {
+  return mix(col, uFogColor, fogK(depth, h));
 }
 `;
 
@@ -144,9 +147,11 @@ void main() {
 #else
   vec3 col = alb * tint * lightAt(vWorld, n);
 #endif
-  col += texture2D(emissiveMap, vUv).rgb * emissiveStrength;
+  // 스스로 빛나는 것(창·네온·로비)은 안개를 덜 먹는다: 빛이 안개를 뚫고 나와 색이 살아 있다
+  float fk = fogK(vDepth, vWorld.y);
+  vec3 em = texture2D(emissiveMap, vUv).rgb * emissiveStrength;
   // 알파 0: 바닥이 아니다 (화면 반사는 알파에 젖은 정도를 쓴 바닥에만 더한다)
-  gl_FragColor = vec4(applyFog(col, vDepth, vWorld.y), 0.0);
+  gl_FragColor = vec4(mix(col, uFogColor, fk) + em * (1.0 - 0.5 * fk), 0.0);
 }
 `;
 
