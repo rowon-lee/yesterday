@@ -9,6 +9,7 @@ import dashBlink from '../vfx/dash-blink';
 import explosion from '../vfx/explosion';
 import glint from '../vfx/glint';
 import impact from '../vfx/impact';
+import lightning from '../vfx/lightning';
 import powerUp from '../vfx/power-up';
 import slash from '../vfx/slash';
 import type { Effects } from './effects';
@@ -40,6 +41,13 @@ const SIDE_RAMP: Record<0 | 1, ColorName[]> = {
 const RAIDEN_RAMP: ColorName[] = ['fxWhite', 'raidenLight', 'raiden', 'fxRed', 'raidenDark', 'raidenDeep'];
 /** 이 사람의 이펙트 색: 캐릭터 대표 색이 있으면 그것, 없으면 플레이어 색 */
 const rampOf = (f: Fighter, side: 0 | 1): ColorName[] => (f.char === 'raiden' ? RAIDEN_RAMP : SIDE_RAMP[side]);
+/**
+ * 라이덴 등장 번개: 등장 동작의 몇 틱째에, 제자리에서 바라보는 쪽으로 몇 px 떨어진 곳에 내리꽂힌다.
+ * 라이덴은 제자리보다 14px 뒤에 섰다가 걸어 나오므로 그 양옆(-26, -2)에 먼저, 마지막 하나는 걸어 나온 뒤 등 뒤(-20)에
+ */
+const RAIDEN_INTRO_BOLTS = [{ t: 1, dx: -26 }, { t: 6, dx: -2 }, { t: 12, dx: -15 }, { t: 30, dx: -24 }];
+/** 라이덴 등장 걸음: 발을 디디는 틱(등장 동작 4번째·7번째 프레임이 시작하는 틱)과 그 발 자리 */
+const RAIDEN_INTRO_STEPS = [{ t: 19, dx: -2 }, { t: 34, dx: 8 }];
 /** 타격 불꽃 (뜨거운 색) */
 const WARM: ColorName[] = ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed'];
 /** 차지를 모으는 동안 몸 둘레 오라와 빛 (기본 스틱맨은 흰 주황. 캐릭터를 얹으면 대표 색) */
@@ -149,7 +157,7 @@ export class FightVfx {
       lights.point(g.x, g.y, g.r * (0.7 + 0.3 * k), g.color, g.a * k * k);
     }
     s.fighters.forEach((f, i) => {
-      if (f.meter >= RULES.METER_MAX) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 54, i === 0 ? COLORS.gold : COLORS.sky, 0.45);
+      if (f.meter >= RULES.METER_MAX) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 54, f.char === 'raiden' ? COLORS.raiden : i === 0 ? COLORS.gold : COLORS.sky, 0.45);
       // 차지를 모으는 동안: 캐릭터가 광원이 되어 바닥과 벽을 비춘다 (단계마다 한 계단씩 넓고 밝게. 반짝임은 단계가 오를 때 한 번)
       if (f.mode === 'charge') {
         const lv = Math.max(1, f.chargeLv);
@@ -317,6 +325,22 @@ export class FightVfx {
 
     s.fighters.forEach((f, i) => {
       const side = i as 0 | 1;
+      // 라이덴 등장 (캐릭터 기획서 '등장 연출'): 붉은 번개가 연달아 내리꽂히고, 그 사이에서 걸어 나와 발을 디딜 때마다 발밑에 불티
+      if (f.mode === 'intro' && f.char === 'raiden') {
+        const bolt = RAIDEN_INTRO_BOLTS.find((b) => b.t === f.t);
+        if (bolt) {
+          const [fx, fy] = feet(f);
+          const x = fx + f.facing * bolt.dx * FX_PX;
+          this.layer.add(lightning({ x, y: fy, length: 300 * FX_PX, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+          this.glow(x / FX_PX, fy / FX_PX - 40, 120, COLORS.raidenLight, 0.9, 10);
+          this.debris.dustCloud(x / FX_PX - 4, x / FX_PX + 4, 0.2, fy / FX_PX - 2);
+        }
+        const step = RAIDEN_INTRO_STEPS.find((b) => b.t === f.t);
+        if (step) {
+          const [fx, fy] = feet(f);
+          this.layer.add(glint({ x: fx + f.facing * step.dx * FX_PX, y: fy - 2 * FX_PX, size: 0.35, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark']) }));
+        }
+      }
       // 벽을 달려 오르는 동안: 발이 벽을 딛는 자리에서 먼지가 인다
       if (f.mode === 'wallrun' && f.t % 5 === 2) {
         const fy = GROUND_Y + f.y / 256;
