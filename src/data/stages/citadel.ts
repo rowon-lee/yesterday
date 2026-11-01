@@ -97,7 +97,7 @@ export const CITADEL = {
       ambient: { sky: '#16222a', ground: '#060a0a' },
       grade: { shadow: '#1e4040', high: '#fff0b0', sat: 1.0, contrast: 0.1 },
       halo: 1.3, streak: 0.2, lightning: 0.4,
-      ramps: ['navy', 'gray', 'sodium', 'teal', 'amber', 'umber', 'core'],
+      ramps: ['navy', 'gray', 'taupe', 'teal', 'fluo', 'amber', 'umber', 'core'],
     },
     elrail: {
       sky: { zenith: '#04080a', mid: '#0a1616', glow: '#2a6a5a', glowK: 0.8, cloud: '#081010', cloudLit: '#204a40', cover: 0.6 },

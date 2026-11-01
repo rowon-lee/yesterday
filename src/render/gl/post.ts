@@ -295,8 +295,9 @@ float band(vec3 s, vec3 p, vec2 off) {
   return max(right, left);
 }
 void main() {
-  // 이 칸의 팔레트: 화면 칸이 가리키는 싸우는 면의 월드 x로 고른다. 팔레트가 바뀌는 자리는 3칸 폭만 바이어 무늬로 섞는다
-  lutRow = lutFor(viewX + gl_FragCoord.x + bayer8(gl_FragCoord.xy + ditherOrigin) * 3.0);
+  // 이 칸의 팔레트: 화면 칸이 가리키는 싸우는 면의 월드 x로 고른다. 팔레트가 바뀌는 자리는 12칸 폭을 바이어 무늬로 섞는다
+  // (두 팔레트가 같은 색을 다르게 줄이는 곳(안개 색 등)에서 수직선으로 딱 잘리지 않게. 같게 줄이는 곳은 무늬가 생기지 않는다)
+  lutRow = lutFor(viewX + gl_FragCoord.x + bayer8(gl_FragCoord.xy + ditherOrigin) * 12.0);
   vec3 s = texture2D(graded, vUv).rgb;
   vec3 p = palette(s);
 #ifdef EDGE_DITHER
@@ -311,6 +312,8 @@ void main() {
  * 안개 속 빛 무리: 광원마다 그 둘레에만 작은 판을 더해 그린다 (화면 전체를 광원 수만큼 돌지 않게).
  * 이 칸의 물체가 광원보다 훨씬 앞이면 그 사이 안개만 빛나므로 약하게. 아래로만 비추는 등은 무리가 아래로 처진다.
  */
+/** 빛 무리를 그리는 가장 약한 빛 (선형 색 세 성분 합 × 세기): 가로등·네온·분수 등불은 넘고, 창·골목 전구는 못 넘는다 */
+const HALO_MIN = 1.0;
 const HALO_VERT = /* glsl */ `
 attribute vec4 hA;
 attribute vec4 hC;
@@ -323,12 +326,13 @@ varying vec3 vCol;
 void main() {
   float r = hA.w;
   bool down = hC.w > 1.5;
-  // 판 크기와 가운데 (아래로 비추는 등은 아래로 처지고 세로로 길다)
-  vec2 ext = down ? vec2(r * 0.9, r * 1.2) : vec2(r);
-  vec2 ctr = down ? vec2(0.0, -r * 0.35) : vec2(0.0);
+  // 판 크기와 가운데 (아래로 비추는 등은 무리가 등 밑으로 조금만 처진다: 세로로 길게 늘이면 등 밑에 캡슐 모양 판이 서서
+  // 팔레트 단계 경계가 딱딱한 테두리로 보인다. 아래로 퍼지는 빛은 빛줄기(shaft)가 맡는다)
+  vec2 ext = down ? vec2(r * 0.75, r * 0.8) : vec2(r);
+  vec2 ctr = down ? vec2(0.0, -r * 0.15) : vec2(0.0);
   vec2 offs = ctr + position.xy * ext;
-  vD = down ? vec2(offs.x, (offs.y + r * 0.35) * 0.75) : offs;
-  vR = down ? r * 0.85 : r;
+  vD = down ? vec2(offs.x, (offs.y + r * 0.15) * 0.95) : offs;
+  vR = down ? r * 0.72 : r;
   vUv = hA.xy + offs / rtSize;
   vDepth = hA.z;
   vCol = hC.rgb;
@@ -664,6 +668,8 @@ export class Post {
       const c = loadedLights.col[i];
       const depth = camera.position.z - p.z;
       if (depth <= 0) continue;
+      // 약한 빛(켜진 창·골목 전구)은 무리를 그리지 않는다: 옅은 무리는 팔레트 한 단계짜리 회색 원판이 되어 물체처럼 보인다
+      if (c.x + c.y + c.z < HALO_MIN) continue;
       this.tmp.set(p.x, p.y, p.z).project(camera);
       A.setXYZW(k, this.tmp.x * 0.5 + 0.5, this.tmp.y * 0.5 + 0.5, depth, p.w * 0.3);
       C.setXYZW(k, c.x, c.y, c.z, c.w);
