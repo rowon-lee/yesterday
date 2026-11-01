@@ -3,7 +3,7 @@ import { paint, rect } from '../dither';
 
 /**
  * 불 켜진 실내 (렌더 전용 도트 그리기 도구). 유리 너머 뒷벽에 등마다 떨어지는 빛 웅덩이를 밝기 여섯 단계로 칠하고,
- * 그 앞에 실루엣(사람·가구)을 세운다. 넓은 면은 단색, 단계 경계만 1~2칸 디더링한다
+ * 그 앞에 실루엣(사람·가구)을 세운다. 넓은 면은 단색, 단계 경계 양쪽 한 칸씩만 디더링한다
  * (반반 점무늬로 칠한 유리는 망사처럼 보여 쓰지 않는다).
  * 좌표는 모두 텍스처 칸 (위가 0). g: 바탕 그림, e: 발광 그림 (실루엣은 발광 검정).
  */
@@ -70,6 +70,34 @@ const BAYER4 = [
 /** 빛 웅덩이를 내는 등 (텍스처 칸): 자리, 가로·세로 반지름, 세기 */
 export type RoomLamp = readonly [x: number, y: number, rx: number, ry: number, k: number];
 
+/** 밝기 단계 문턱 (여섯 단계) */
+const STEPS = [0.12, 0.28, 0.46, 0.66, 0.9];
+const stepOf = (v: number): number => (v < STEPS[0] ? 0 : v < STEPS[1] ? 1 : v < STEPS[2] ? 2 : v < STEPS[3] ? 3 : v < STEPS[4] ? 4 : 5);
+
+/**
+ * 밝기 지도(칸마다 0~1 남짓) → 단계 번호. 넓은 면은 단색으로 두고, 단계가 바뀌는 경계 양쪽 한 칸씩만 바이어 무늬로 섞는다
+ * (밝기가 천천히 바뀌는 곳도 띠가 넓어지지 않게: 그 칸의 기울기만큼만 흔든다).
+ */
+export function stepLevels(I: Float32Array, w: number, h: number, x: number, y: number): Uint8Array {
+  const level = new Uint8Array(w * h);
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      const k = j * w + i;
+      let v = I[k];
+      const gx = (I[j * w + Math.min(w - 1, i + 1)] - I[j * w + Math.max(0, i - 1)]) * 0.5;
+      const gy = (I[Math.min(h - 1, j + 1) * w + i] - I[Math.max(0, j - 1) * w + i]) * 0.5;
+      const g = Math.max(Math.abs(gx), Math.abs(gy));
+      if (g > 1e-4) {
+        let near = Infinity;
+        for (const t of STEPS) near = Math.min(near, Math.abs(v - t));
+        if (near < g) v += (BAYER4[(y + j) & 3][(x + i) & 3] - 0.5) * 2 * g;
+      }
+      level[k] = stepOf(v);
+    }
+  }
+  return level;
+}
+
 /**
  * 실내 뒷벽: 사각형 (x, y, w, h) 안을 base 밝기 + 등마다 타원 빛 웅덩이로 칠한다. 구석(좌우 edge칸)은 조금 어둡게.
  */
@@ -82,21 +110,20 @@ export function roomWall(
   w = Math.round(w);
   h = Math.round(h);
   if (w <= 0 || h <= 0) return;
-  const level = new Uint8Array(w * h);
+  const I = new Float32Array(w * h);
   for (let j = 0; j < h; j++) {
     for (let i = 0; i < w; i++) {
       const px = x + i + 0.5;
       const py = y + j + 0.5;
-      let I = base;
+      let v = base;
       for (const [lx, ly, rx, ry, k] of lamps) {
         const d = Math.hypot((px - lx) / rx, (py - ly) / ry);
-        if (d < 1) I += k * (1 - d) * (1 - d * 0.35);
+        if (d < 1) v += k * (1 - d) * (1 - d * 0.35);
       }
-      I *= 0.72 + 0.28 * Math.min(1, Math.min(i, w - 1 - i) / edge);
-      I += (BAYER4[(y + j) & 3][(x + i) & 3] - 0.5) * 0.08;
-      level[j * w + i] = I < 0.12 ? 0 : I < 0.28 ? 1 : I < 0.46 ? 2 : I < 0.66 ? 3 : I < 0.9 ? 4 : 5;
+      I[j * w + i] = v * (0.72 + 0.28 * Math.min(1, Math.min(i, w - 1 - i) / edge));
     }
   }
+  const level = stepLevels(I, w, h, x, y);
   paint(g, x, y, w, h, (px, py) => ramp[level[(py - y) * w + (px - x)]][0]);
   paint(e, x, y, w, h, (px, py) => ramp[level[(py - y) * w + (px - x)]][1]);
 }

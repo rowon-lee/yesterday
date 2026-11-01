@@ -6,7 +6,8 @@ import { LIGHT_N, loadedLights } from './lights';
 /**
  * 후처리 (렌더 전용, 낮은 해상도 화면에서). 순서는 CLAUDE.md '2.5D 렌더 규칙'대로:
  *   젖은 바닥 반사 → 빛 번짐(밝은 곳에만: 네 겹 크기로 넓게, 강한 빛은 가로로 길게 번지는 플레어) → 안개 속 빛 무리
- *   → 구간 분위기 색 보정·대비·가장자리 어둡게 → 깊이 기반 1px 외곽선 → 제한 팔레트 + 8×8 디더링.
+ *   → 구간 분위기 색 보정·대비·가장자리 어둡게 → 제한 팔레트 (색 단계가 바뀌는 경계 2~3칸에서만 8×8 디더링).
+ * 무대에는 외곽선을 긋지 않는다 (무테, 맵 아트 지침서). 넓은 면은 디더 없이 단색이다.
  * 흐림은 빛(번짐·플레어·빛 무리)과 반사에만 쓴다. 그림(텍스처)은 흐리지 않는다.
  * 마지막에 팔레트 화면을 같은 크기 캔버스에 옮기고, 정수배 확대와 카메라의 남는 소수점 밀기는 CSS가 맡는다 (view.ts).
  */
@@ -137,7 +138,6 @@ void main() {
 
 const COMPOSITE_FRAG = /* glsl */ `
 uniform sampler2D hdr;
-uniform sampler2D depthTex;
 uniform sampler2D bloomQ;
 uniform sampler2D bloomE;
 uniform sampler2D bloomS;
@@ -152,34 +152,13 @@ uniform float gradeSat;
 uniform float gradeContrast;
 uniform float exposure;
 uniform float vignette;
-uniform vec2 ditherOrigin;
-uniform float ditherAmount;
-uniform float outlineRange;
-uniform vec3 outlineColor;
 varying vec2 vUv;
 
-float viewDepth(vec2 uv) {
-  float d = texture2D(depthTex, uv).r;
-  return ${NEAR.toFixed(1)} * ${FAR.toFixed(1)} / (${FAR.toFixed(1)} - d * (${FAR.toFixed(1)} - ${NEAR.toFixed(1)}));
-}
-/** 8×8 바이어 무늬 (-0.5~0.5): 2×2 무늬를 세 번 겹쳐 계산 (표를 찾지 않는다) */
-float m2(vec2 v) { return mod(2.0 * v.x + 3.0 * v.y, 4.0); }
-float bayer8(vec2 p) {
-  vec2 q = mod(floor(p), 8.0);
-  float v = 16.0 * m2(mod(q, 2.0)) + 4.0 * m2(mod(floor(q * 0.5), 2.0)) + m2(floor(q * 0.25));
-  return (v + 0.5) / 64.0 - 0.5;
-}
 vec3 toSrgb(vec3 c) {
   c = max(c, 0.0);
   // 밝은 쪽만 부드럽게 눌러 하얗게 날아가지 않게
   c = mix(c, 1.0 - 0.25 * exp(-(c - 0.75) / 0.25), step(0.75, c));
   return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
-}
-vec3 palette(vec3 c) {
-  vec3 q = clamp(c, 0.0, 1.0) * 31.0;
-  vec3 i = floor(q + 0.5);
-  vec2 uv = vec2((i.b * 32.0 + i.r + 0.5) / 1024.0, (i.g + 0.5) / 32.0);
-  return texture2D(lut, uv).rgb;
 }
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 /** 분위기 색 보정: 그림자 쪽은 gradeShadow, 밝은 쪽은 gradeHigh 색으로 물들이고(밝기는 그대로) 채도를 맞춘다 */
@@ -198,7 +177,6 @@ vec3 grade(vec3 c) {
   return mix(t, vec3(max(t.r, max(t.g, t.b))), hot * 0.65);
 }
 void main() {
-  float depth = viewDepth(vUv);
   vec3 c = texture2D(hdr, vUv).rgb;
   if (bloomStrength > 0.0) {
     vec3 b = texture2D(bloomQ, vUv).rgb * 0.5 + texture2D(bloomE, vUv).rgb * 0.45 + texture2D(bloomS, vUv).rgb * 0.45;
@@ -207,25 +185,56 @@ void main() {
     c += mix(st, vec3(dot(st, LUMA)) * vec3(0.7, 0.85, 1.05), 0.45) * streakStrength;
   }
   c = grade(c);
-  // 깊이 외곽선: 바로 옆이 훨씬 가까운 물체면 이 칸(바깥쪽)을 어둡게 (먼 겹에는 긋지 않는다).
-  // 깊이의 역수는 평면 위에서 화면 좌표에 선형이라, 2차 차분이 0이 아닌 곳만 끊긴 곳으로 본다
-  // (거의 수평으로 보이는 바닥처럼 줄마다 깊이가 크게 바뀌는 평면에는 긋지 않는다).
-  float w0 = 1.0 / depth;
-  float wl = 1.0 / viewDepth(vUv - vec2(texel.x, 0.0));
-  float wr = 1.0 / viewDepth(vUv + vec2(texel.x, 0.0));
-  float wd = 1.0 / viewDepth(vUv - vec2(0.0, texel.y));
-  float wu = 1.0 / viewDepth(vUv + vec2(0.0, texel.y));
-  float bend = max(abs(wl + wr - 2.0 * w0), abs(wu + wd - 2.0 * w0));
-  float wn = max(max(wl, wr), max(wu, wd));
-  float edge = step(w0 * 0.006, bend) * step(w0 * 0.006, wn - w0) * step(1.0 / outlineRange, wn);
   vec3 s = toSrgb(c);
   // 대비 (S자), 가장자리 어둡게
   s = mix(s, s * s * (3.0 - 2.0 * s), gradeContrast);
   vec2 v = (vUv - 0.5) * vec2(1.0, 0.72);
   s *= 1.0 - vignette * smoothstep(0.28, 0.62, length(v)) * (1.0 - 0.6 * dot(s, vec3(0.299, 0.587, 0.114)));
-  s = mix(s, outlineColor, edge);
-  s += bayer8(gl_FragCoord.xy + ditherOrigin) * ditherAmount;
-  gl_FragColor = vec4(palette(s), 1.0);
+  gl_FragColor = vec4(clamp(s, 0.0, 1.0), 1.0);
+}
+`;
+
+/**
+ * 제한 팔레트 + 경계에서만 디더링. 색 보정까지 마친 화면(graded)을 칸마다 팔레트 색으로 줄이고,
+ * 바로 옆(가로·세로) 칸과 팔레트 색이 다른데 원래 색은 거의 같은 곳 — 부드러운 그러데이션이 색 단계를 넘는 경계 — 에서만
+ * 8×8 바이어 무늬를 더한다. 그래서 디더는 두 색이 만나는 경계 양쪽 한 칸씩(2칸 띠)에만 생기고,
+ * 넓은 면과 물체의 윤곽(원래 색이 크게 다른 경계)은 단색으로 깨끗하다.
+ */
+const PALETTE_FRAG = /* glsl */ `
+uniform sampler2D graded;
+uniform sampler2D lut;
+uniform vec2 texel;
+uniform vec2 ditherOrigin;
+uniform float ditherAmount;
+uniform float smoothLimit;
+varying vec2 vUv;
+/** 8×8 바이어 무늬 (-0.5~0.5): 2×2 무늬를 세 번 겹쳐 계산 (표를 찾지 않는다) */
+float m2(vec2 v) { return mod(2.0 * v.x + 3.0 * v.y, 4.0); }
+float bayer8(vec2 p) {
+  vec2 q = mod(floor(p), 8.0);
+  float v = 16.0 * m2(mod(q, 2.0)) + 4.0 * m2(mod(floor(q * 0.5), 2.0)) + m2(floor(q * 0.25));
+  return (v + 0.5) / 64.0 - 0.5;
+}
+vec3 palette(vec3 c) {
+  vec3 q = clamp(c, 0.0, 1.0) * 31.0;
+  vec3 i = floor(q + 0.5);
+  vec2 uv = vec2((i.b * 32.0 + i.r + 0.5) / 1024.0, (i.g + 0.5) / 32.0);
+  return texture2D(lut, uv).rgb;
+}
+/** 이웃 칸 하나: 팔레트 색이 다르고 원래 색은 가까우면 (그러데이션의 단계 경계) 1 */
+float band(vec3 s, vec3 p, vec2 off) {
+  vec3 n = texture2D(graded, vUv + off * texel).rgb;
+  vec3 d = abs(n - s);
+  float near = step(max(d.r, max(d.g, d.b)), smoothLimit);
+  vec3 pd = abs(palette(n) - p);
+  return near * step(0.002, pd.r + pd.g + pd.b);
+}
+void main() {
+  vec3 s = texture2D(graded, vUv).rgb;
+  vec3 p = palette(s);
+  float e = band(s, p, vec2(1.0, 0.0)) + band(s, p, vec2(-1.0, 0.0)) + band(s, p, vec2(0.0, 1.0)) + band(s, p, vec2(0.0, -1.0));
+  if (e > 0.5) p = palette(s + bayer8(gl_FragCoord.xy + ditherOrigin) * ditherAmount);
+  gl_FragColor = vec4(p, 1.0);
 }
 `;
 
@@ -382,6 +391,8 @@ export class Post {
   private readonly s: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
   /** 가로 플레어 (1/8 크기) */
   private readonly st: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
+  /** 색 보정까지 마친 화면 (팔레트로 줄이기 전) */
+  private readonly graded: THREE.WebGLRenderTarget;
   readonly final: THREE.WebGLRenderTarget;
   private readonly quad: THREE.Mesh;
   private readonly cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -390,6 +401,7 @@ export class Post {
   private readonly down: THREE.ShaderMaterial;
   private readonly blur: THREE.ShaderMaterial;
   private readonly composite: THREE.ShaderMaterial;
+  private readonly palette: THREE.ShaderMaterial;
   private readonly blit: THREE.ShaderMaterial;
   private readonly tmp = new THREE.Vector3();
   private readonly haloMesh: THREE.Mesh;
@@ -419,6 +431,7 @@ export class Post {
     this.e = pair(8);
     this.s = pair(16);
     this.st = pair(8);
+    this.graded = target(RT_W, RT_H, THREE.UnsignedByteType);
     this.final = target(RT_W, RT_H, THREE.UnsignedByteType);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
@@ -439,13 +452,10 @@ export class Post {
     this.blur = mat(BLUR_FRAG, { src: { value: null }, dir: { value: new THREE.Vector2() } });
     this.composite = mat(COMPOSITE_FRAG, {
       hdr: { value: this.lit.texture },
-      depthTex: { value: this.hdr.depthTexture },
       bloomQ: { value: this.q[0].texture },
       bloomE: { value: this.e[0].texture },
       bloomS: { value: this.s[0].texture },
       streak: { value: this.st[0].texture },
-      lut: { value: buildLut() },
-      texel: { value: new THREE.Vector2(1 / RT_W, 1 / RT_H) },
       bloomStrength: { value: 0.55 },
       streakStrength: { value: 0.3 },
       gradeShadow: { value: new THREE.Color() },
@@ -454,10 +464,14 @@ export class Post {
       gradeContrast: { value: 0.12 },
       exposure: { value: 1 },
       vignette: { value: 0.2 },
+    });
+    this.palette = mat(PALETTE_FRAG, {
+      graded: { value: this.graded.texture },
+      lut: { value: buildLut() },
+      texel: { value: new THREE.Vector2(1 / RT_W, 1 / RT_H) },
       ditherOrigin: { value: new THREE.Vector2() },
-      ditherAmount: { value: 0.028 },
-      outlineRange: { value: 3400 },
-      outlineColor: { value: new THREE.Color(0x07060e) },
+      ditherAmount: { value: 0.05 },
+      smoothLimit: { value: 0.008 },
     });
     this.blit = mat(BLIT_FRAG, { src: { value: this.final.texture } });
     this.haloGeo = new THREE.InstancedBufferGeometry();
@@ -550,9 +564,10 @@ export class Post {
     u.gradeContrast.value = L.contrast;
     u.exposure.value = L.exposure;
 
+    this.pass(renderer, this.composite, this.graded);
     // 디더 무늬는 싸우는 면에 붙여 카메라가 움직여도 지글거리지 않게
-    u.ditherOrigin.value.set(placed.ix, -placed.iy);
-    this.pass(renderer, this.composite, this.final);
+    this.palette.uniforms.ditherOrigin.value.set(placed.ix, -placed.iy);
+    this.pass(renderer, this.palette, this.final);
     this.pass(renderer, this.blit, null);
   }
 
