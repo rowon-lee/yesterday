@@ -1,7 +1,7 @@
 import { AIR_CHAIN, GROUND_CHAIN, type MoveId } from '../data/moves/base';
 import { motionFrames, MOVES, STATS } from './frames';
 import {
-  IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, type PlayerInput,
+  IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
 import { canDropThrough, findWall, findWallCross, floorBelow, landingY, wallHolds, wallTop } from './platforms';
 import {
@@ -12,12 +12,12 @@ import {
 } from './rules';
 import type { Fighter, Mode, SimState } from './types';
 
-const BUTTON_BITS = [IN_ATTACK, IN_JUMP, IN_DASH, IN_SKILL_A, IN_SKILL_B, IN_SUPER];
+const BUTTON_BITS = [IN_ATTACK, IN_JUMP, IN_DASH, IN_SKILL1, IN_SKILL2, IN_SUPER];
 const B_ATTACK = 0;
 const B_JUMP = 1;
 const B_DASH = 2;
-const B_SKILL_A = 3;
-const B_SKILL_B = 4;
+const B_SKILL1 = 3;
+const B_SKILL2 = 4;
 const B_SUPER = 5;
 
 export function setMode(f: Fighter, mode: Mode, len = 0): void {
@@ -110,9 +110,9 @@ function startMove(s: SimState, f: Fighter, id: MoveId): void {
 
 const canAfford = (f: Fighter, id: MoveId): boolean => f.meter >= (MOVES[id].data.meterCost ?? 0) * METER_BAR;
 
-/** 기술 A·B·필살을 쓸 수 있으면 쓴다 */
+/** 스킬 1·2·필살기를 쓸 수 있으면 쓴다 */
 function trySkills(s: SimState, f: Fighter, air: boolean, fromGuard = false): boolean {
-  const options: Array<[number, MoveId]> = [[B_SUPER, 'super'], [B_SKILL_A, 'skillA'], [B_SKILL_B, 'skillB']];
+  const options: Array<[number, MoveId]> = [[B_SUPER, 'super'], [B_SKILL1, 'skill1'], [B_SKILL2, 'skill2']];
   for (const [b, id] of options) {
     if (!has(f, b)) continue;
     const d = MOVES[id].data;
@@ -385,7 +385,7 @@ function airControl(s: SimState, f: Fighter, input: PlayerInput): void {
 function attackControl(s: SimState, f: Fighter, input: PlayerInput): boolean {
   const mv = MOVES[f.move!];
   const air = mv.data.air === true;
-  // 맞히거나 막히면 기술 A·B·필살로 끊을 수 있다
+  // 맞히거나 막히면 스킬 1·2·필살기로 끊을 수 있다
   if (f.moveHit && trySkills(s, f, isAirborne(f))) return true;
   // 맞히면 (히트스톱이 끝난 바로 다음부터) 점프로 끊고 쫓아간다
   if (mv.data.jumpCancel && f.moveConnected && has(f, B_JUMP)) {
@@ -465,7 +465,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
         f.vx = f.facing * f.dir * STATS.dashSpeed;
         f.invuln = Math.max(f.invuln, 1);
       } else f.vx = friction(f.vx);
-      if (f.t >= STATS.dashMoveTo && (has(f, B_ATTACK) || has(f, B_JUMP) || f.buf[B_SKILL_A] || f.buf[B_SKILL_B] || f.buf[B_SUPER])) {
+      if (f.t >= STATS.dashMoveTo && (has(f, B_ATTACK) || has(f, B_JUMP) || f.buf[B_SKILL1] || f.buf[B_SKILL2] || f.buf[B_SUPER])) {
         groundControl(s, f, input);
       } else if (f.t >= f.len) setMode(f, 'idle');
       break;

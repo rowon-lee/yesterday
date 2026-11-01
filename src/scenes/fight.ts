@@ -13,7 +13,7 @@ import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import { drawText, textWidth } from '../render/font';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
-  IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
+  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
@@ -23,7 +23,7 @@ import type { Scene } from './scene';
 
 /**
  * 1P 키보드 키 배치. 방향: 화살표 또는 WASD.
- * 공격 J, 점프 K, 대시 L, 기술 A U, 기술 B I, 필살 O
+ * 왼손 WASD, 오른손 두 줄: 윗줄 U 스킬 1 · I 스킬 2 · O 필살기, 아랫줄 J 공격 · K 점프 · L 대시
  */
 export const KEYMAP: Record<string, PlayerInput> = {
   ArrowUp: IN_UP, KeyW: IN_UP,
@@ -33,8 +33,8 @@ export const KEYMAP: Record<string, PlayerInput> = {
   KeyJ: IN_ATTACK,
   KeyK: IN_JUMP,
   KeyL: IN_DASH,
-  KeyU: IN_SKILL_A,
-  KeyI: IN_SKILL_B,
+  KeyU: IN_SKILL1,
+  KeyI: IN_SKILL2,
   KeyO: IN_SUPER,
 };
 

@@ -277,19 +277,19 @@ function keepChecks() {
   const tx = Math.round((towerTop.x0 + towerTop.x1) / 2);
   const solidAt = (s, x, h) => sim.floorBelow(s, x * 256, -(h + 400) * 256) === -h * 256;
 
-  // 1) 구역 안 강한 타격(기술 A)은 40, 막히면 20, 구역 밖은 그대로
-  for (const [label, x, p2, want] of [['구역 안 강한 타격(기술 A)은 본관 내구도를 깎는다', 3180, 0, K.damage.heavy], ['막힌 강한 타격은 절반만 깎는다', 3180, I.IN_DOWN, K.damage.blocked], ['구역 밖 강한 타격은 깎지 않는다', 2500, 0, 0]]) {
+  // 1) 구역 안 강한 타격(스킬 1)은 40, 막히면 20, 구역 밖은 그대로
+  for (const [label, x, p2, want] of [['구역 안 강한 타격(스킬 1)은 본관 내구도를 깎는다', 3180, 0, K.damage.heavy], ['막힌 강한 타격은 절반만 깎는다', 3180, I.IN_DOWN, K.damage.blocked], ['구역 밖 강한 타격은 깎지 않는다', 2500, 0, 0]]) {
     const s = fresh(x, x + 30);
     s.fighters[0].meter = R.METER_MAX;
-    const ev = run(s, [I.IN_SKILL_A, ...hold(0, 40)], p2);
-    const landed = ev.some((e) => (e.type === 'hit' || e.type === 'block') && e.move === 'skillA');
+    const ev = run(s, [I.IN_SKILL1, ...hold(0, 40)], p2);
+    const landed = ev.some((e) => (e.type === 'hit' || e.type === 'block') && e.move === 'skill1');
     results.push([label, landed && K.hp - s.citadel.hp === want, `${landed ? '닿음' : '안 닿음'}, 깎인 양 ${K.hp - s.citadel.hp}`]);
   }
-  // 2) 기둥탑 앞에서 벽 쪽으로 날리면 기둥탑에 박히고(벽꽝) 본관이 깎인다 (기술 B는 강한 타격이기도 하다)
+  // 2) 기둥탑 앞에서 벽 쪽으로 날리면 기둥탑에 박히고(벽꽝) 본관이 깎인다 (스킬 2는 강한 타격이기도 하다)
   {
     const s = fresh(tx + 30, tx);
     s.fighters[0].meter = R.METER_MAX;
-    const ev = run(s, [I.IN_SKILL_B, ...hold(0, 30)]);
+    const ev = run(s, [I.IN_SKILL2, ...hold(0, 30)]);
     const splat = ev.some((e) => e.type === 'wallsplat');
     results.push(['기둥탑 앞에서 벽 쪽으로 날리면 기둥탑에 박히고(벽꽝) 본관이 깎인다', splat && K.hp - s.citadel.hp === K.damage.heavy + K.damage.splat, `벽꽝 ${splat}, 깎인 양 ${K.hp - s.citadel.hp}`]);
   }
@@ -915,10 +915,10 @@ function wallChecks() {
     }
   }
 
-  // 벽 낙법: 건물 정면 앞에서 2P가 1P의 기술 B(벽 쪽으로 날림)에 맞아 정면에 박힌다 (2P가 점프를 누르는 때를 바꿔 가며)
+  // 벽 낙법: 건물 정면 앞에서 2P가 1P의 스킬 2(벽 쪽으로 날림)에 맞아 정면에 박힌다 (2P가 점프를 누르는 때를 바꿔 가며)
   const g1 = sim.GRIDS[1];
   const gx = Math.round(g1.x + g1.w / 2);
-  const skillB = sim.MOVES.skillB.data.damage;
+  const skill2 = sim.MOVES.skill2.data.damage;
   const splat = (jumpAfter, hp = null) => {
     const sp = fresh(gx - 22, gx);
     const [a, d] = sp.fighters;
@@ -930,7 +930,7 @@ function wallChecks() {
     let at = -1;
     const seen = [];
     for (let k = 0; k < 80; k++) {
-      sim.step(sp, [k === 0 ? I.IN_SKILL_B : 0, at >= 0 && k === at + jumpAfter ? I.IN_JUMP : 0]);
+      sim.step(sp, [k === 0 ? I.IN_SKILL2 : 0, at >= 0 && k === at + jumpAfter ? I.IN_JUMP : 0]);
       if (at < 0 && sp.events.some((e) => e.type === 'wallsplat')) at = k;
       if (at >= 0) seen.push(d.mode);
       if (d.mode === 'walltech' && seen.filter((m) => m === 'walltech').length === 1) {
@@ -940,10 +940,10 @@ function wallChecks() {
     }
     return { d, hp0, at, teched: false, seen };
   };
-  const hit = skillB;
+  const hit = skill2;
   let r = splat(3);
   results.push(['벽꽝에 박히는 순간(히트스톱 중) 점프하면 벽 낙법: 박히지 않고 상대 반대쪽 위로 튕겨 나가며 무적', r.at >= 0 && r.teched && r.vx > 0 && r.vy < 0 && r.invuln > 0, `벽꽝 ${r.at >= 0}, 낙법 ${r.teched}, vx ${(r.vx / 256).toFixed(1)} vy ${(r.vy / 256).toFixed(1)} 무적 ${r.invuln}`]);
-  results.push(['벽 낙법이면 벽꽝 추가 피해를 받지 않는다', r.teched && r.hp0 - r.hpAtTech === hit, `피해 ${r.hp0 - r.hpAtTech} (기술 B ${hit})`]);
+  results.push(['벽 낙법이면 벽꽝 추가 피해를 받지 않는다', r.teched && r.hp0 - r.hpAtTech === hit, `피해 ${r.hp0 - r.hpAtTech} (스킬 2 ${hit})`]);
   r = splat(10 + sim.RULES.WALL_TECH_TICKS + 4);
   const late = r.d;
   results.push(['낙법 구간이 지나 점프하면 박혀서 벽꽝 추가 피해를 받는다', r.at >= 0 && !r.teched && r.hp0 - late.hp === hit + sim.CITY_RULES.wallsplat.damage, `낙법 ${r.teched}, 피해 ${r.hp0 - late.hp}`]);

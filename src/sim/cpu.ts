@@ -1,7 +1,7 @@
 import { nextRandom } from '../core/rng';
 import { MOVES } from './frames';
 import {
-  IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP,
+  IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP,
   type PlayerInput,
 } from './input';
 import { KEEP_ZONE, MAP_ENDS, type Surface } from '../stage/citadel';
@@ -53,7 +53,7 @@ export function cpuInput(cpu: CpuState, s: SimState, side: 0 | 1): PlayerInput {
   const op = s.fighters[1 - side];
   let out = decide(cpu, s, me, op);
   // 버튼은 지난 틱에 눌렀으면 한 번 뗀다 (연타)
-  const BTN = IN_ATTACK | IN_JUMP | IN_DASH | IN_SKILL_A | IN_SKILL_B | IN_SUPER;
+  const BTN = IN_ATTACK | IN_JUMP | IN_DASH | IN_SKILL1 | IN_SKILL2 | IN_SUPER;
   out = (out & ~BTN) | (out & BTN & ~cpu.last);
   cpu.last = out;
   return out;
@@ -84,7 +84,7 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
     }
     if (cpu.plan === 'string' || cpu.plan === 'launch') {
       if (id === 'atk2' && cpu.plan === 'launch') return IN_ATTACK | IN_UP;
-      if (me.moveConnected && me.meter >= 2 * METER_BAR && me.meter < METER_MAX && id === 'atk4' && roll(cpu, 3) === 0) return IN_SKILL_A;
+      if (me.moveConnected && me.meter >= 2 * METER_BAR && me.meter < METER_MAX && id === 'atk4' && roll(cpu, 3) === 0) return IN_SKILL1;
       return IN_ATTACK;
     }
     return 0;
@@ -134,7 +134,7 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
     if (cpu.plan === 'jumpIn' && me.vy > 0 && dist < 40) return IN_ATTACK;
     return cpu.plan === 'jumpIn' ? fwd : 0;
   }
-  if (me.mode === 'blockstun' && me.meter >= METER_BAR && me.meter < METER_MAX && dist < 36 && roll(cpu, 20) === 0) return IN_SKILL_B;
+  if (me.mode === 'blockstun' && me.meter >= METER_BAR && me.meter < METER_MAX && dist < 36 && roll(cpu, 20) === 0) return IN_SKILL2;
 
   // 가끔 가까운 벽으로 대시해 벽을 달려 오른다 (상대가 위에 있으면 더 자주)
   if (NEUTRAL_GROUND.has(me.mode) && me.mode !== 'land' && roll(cpu, (me.y - op.y) / SUBPX > 40 ? 40 : 400) === 0) {
@@ -180,7 +180,7 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
     case 'sweep':
       return dist < 46 ? IN_ATTACK | IN_DOWN : fwd;
     case 'skill':
-      return dist < 90 && me.meter >= METER_BAR ? IN_SKILL_A : fwd;
+      return dist < 90 && me.meter >= METER_BAR ? IN_SKILL1 : fwd;
     case 'super':
       return dist < 45 && me.meter >= METER_MAX ? IN_SUPER : fwd;
     case 'perch': {

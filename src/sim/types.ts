@@ -62,7 +62,7 @@ export interface Fighter {
   wins: number;
   /** 공격 버튼을 누른 순간의 위·아래 방향 (미리 눌러 둔 공격이 나중에 나가도 방향을 지킨다) */
   atkDir: number;
-  /** 버튼별 남은 버퍼 틱 [공격, 점프, 대시, 기술A, 기술B, 필살] */
+  /** 버튼별 남은 버퍼 틱 [공격, 점프, 대시, 스킬 1, 스킬 2, 필살기] */
   buf: number[];
   prevInput: number;
   /** 지금 기술이 이미 친 부서지는 물건 번호들 */

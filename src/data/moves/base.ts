@@ -58,7 +58,7 @@ export interface MoveData {
 
 const LIGHT = { guardDamage: 10, hitstun: 16, blockstun: 12, hitstop: 7, push: 1.3 };
 
-/** 기본 스틱맨의 기술. 기술 A·B·필살은 캐릭터를 얹기 전까지 쓸 임시 기술이다. */
+/** 기본 스틱맨의 기술. 스킬 1·2·필살기는 캐릭터를 얹기 전까지 쓸 임시 기술이다. */
 export const BASE_MOVES = {
   atk1: { motion: 'base/atk1', active: [4, 5], limb: ['eF', 'hF'], damage: 40, ...LIGHT },
   atk2: { motion: 'base/atk2', active: [4, 5], limb: ['eB', 'hB'], damage: 45, ...LIGHT, step: { from: 2, to: 4, speed: 2.0 } },
@@ -102,13 +102,13 @@ export const BASE_MOVES = {
     hitstun: 24, blockstun: 14, hitstop: 9, push: 2.0, launch: { vx: 4.5, vy: -4.0 }, air: true, jumpCancel: true,
     dive: { from: 2, to: 8, vx: 5.6, vy: 4.0 }, rebound: { vx: 1.6, vy: -4.6 }, landLag: 12,
   },
-  skillA: {
-    motion: 'base/skill_a', active: [4, 5, 6, 7, 8], limb: ['eF', 'hF'], damage: 90, guardDamage: 25,
+  skill1: {
+    motion: 'base/skill1', active: [4, 5, 6, 7, 8], limb: ['eF', 'hF'], damage: 90, guardDamage: 25,
     hitstun: 28, blockstun: 16, hitstop: 10, push: 3.2, launch: { vx: 7.0, vy: -6.0 },
     step: { from: 2, to: 8, speed: 9.0 }, meterCost: 1, alsoAir: true, heavy: true,
   },
-  skillB: {
-    motion: 'base/skill_b', active: [5, 6], damage: 50, guardDamage: 30,
+  skill2: {
+    motion: 'base/skill2', active: [5, 6], damage: 50, guardDamage: 30,
     hitstun: 24, blockstun: 20, hitstop: 10, push: 6.0, launch: { vx: 9.0, vy: -4.5 }, wall: true, meterCost: 1, fromGuard: true, heavy: true,
   },
   super: {
