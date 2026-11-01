@@ -93,6 +93,33 @@ for (const [name, ok, note] of structureChecks()) {
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 등장 시험: 첫 라운드 시작 연출 동안 등장 동작, 싸움 전에 대기로, 두 번째 라운드는 등장 없음 (처음 ${first}, 싸움 전 대기 ${idleBeforeFight}, 둘째 라운드 ${second})`);
 }
+// 5-3) 필살기 연출 (정해진 입력으로)
+for (const [name, ok, note] of cineChecks()) {
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 필살기 연출 시험: ${name}${note ? ` (${note})` : ''}`);
+}
+// 5-2) 연습: 시간이 흐르지 않고, 쓰러지지 않으며(체력 1에서 멈춤), 맞는 콤보가 끝나고 1초 뒤 체력·기력·방어가 다시 찬다
+{
+  const s = sim.createState(1, { practice: true });
+  while (s.phase !== 'fight') sim.step(s, [0, 0]);
+  const t0 = s.timer;
+  const [a, d] = s.fighters;
+  a.x = 2400 * 256;
+  d.x = 2440 * 256;
+  d.hp = 5;
+  let minHp = d.hp;
+  let ko = false;
+  for (let k = 0; k < 40; k++) {
+    sim.step(s, [k % 4 === 0 ? sim.IN_ATTACK : 0, 0]);
+    minHp = Math.min(minHp, d.hp);
+    ko ||= d.mode === 'ko';
+  }
+  // 마지막 타에 벽꽝·다운·기상까지 가므로 넉넉히 기다린다
+  for (let k = 0; k < 320; k++) sim.step(s, [0, 0]);
+  const ok = s.timer === t0 && minHp === 1 && !ko && d.hp === HP && a.meter === R.METER_MAX && s.phase === 'fight';
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 연습 시험: 시간이 그대로, 체력 1에서 멈추고 쓰러지지 않음, 1초 뒤 체력·기력이 다시 참 (시간 ${t0} → ${s.timer}, 가장 낮은 체력 ${minHp}, 쓰러짐 ${ko}, 다시 찬 체력 ${d.hp}, 기력 ${a.meter})`);
+}
 // 6) 시타델 붕괴 (정해진 입력으로)
 for (const [name, ok, note] of keepChecks()) {
   if (!ok) failed++;
@@ -887,6 +914,107 @@ function attackChecks() {
   run(s, [I.IN_DASH | I.IN_RIGHT, 0, 0]);
   log = run(s, hold(I.IN_ATTACK, 30));
   results.push(['대시 공격을 누른 채 있으면 대시 공격 뒤 모으기로 넘어간다', log[0].a === 'attack/dashAttack' && log.findIndex(charging) === H - 1, `첫 틱 ${log[0].a}, 모으기 ${log.findIndex(charging) + 1}틱째`]);
+  return results;
+}
+
+/** 필살기 연출 (캐릭터 기획서 '필살기 연출'): 맞으면 고정·장면 재생·끝에 한 번에, 빗나가면 큰 빈틈, 막히면 연출 없음 */
+function cineChecks() {
+  const results = [];
+  const I = sim;
+  const fresh = (x0, x1) => {
+    const s = sim.createState(1);
+    while (s.phase !== 'fight') sim.step(s, [0, 0]);
+    s.fighters[0].x = x0 * 256;
+    s.fighters[1].x = x1 * 256;
+    s.fighters[0].meter = R.METER_MAX;
+    return s;
+  };
+  const total = sim.MOVES.super.data.cinematic.scenes.reduce((n, sc) => n + sim.motionFrames(sc.a.motion).total, 0);
+  // 1) 맞으면: 연출 동안 둘 다 고정(cine), 체력·시간 그대로, 끝에 한 번에 피해
+  let s = fresh(2400, 2440);
+  const [a, d] = s.fighters;
+  const hp0 = d.hp;
+  let startAt = -1;
+  let endAt = -1;
+  let hpDuring = true;
+  let timerDuring = true;
+  let hits = 0;
+  let splats = 0;
+  let t0 = 0;
+  for (let k = 0; k < 400; k++) {
+    sim.step(s, [k === 0 ? I.IN_SUPER : 0, 0]);
+    for (const e of s.events) {
+      if (e.type === 'cine' && e.text === 'start') {
+        startAt = k;
+        t0 = s.timer;
+      }
+      if (e.type === 'cine' && e.text === 'end') endAt = k;
+      if (e.type === 'hit' && e.who === 0 && e.move === 'super') hits++;
+      if (e.type === 'wallsplat') splats++;
+    }
+    if (startAt >= 0 && endAt < 0 && k > startAt) {
+      if (d.hp !== hp0) hpDuring = false;
+      if (s.timer !== t0 || a.mode !== 'cine' || d.mode !== 'cine') timerDuring = false;
+    }
+  }
+  const dealt = hp0 - d.hp;
+  results.push(['필살기가 맞으면 연출이 시작되고, 장면이 다 끝나야 끝난다', startAt >= 0 && endAt - startAt === total, `시작 ${startAt}틱째, 길이 ${endAt - startAt}틱 (장면 합 ${total}틱)`]);
+  results.push(['연출 동안 두 사람은 고정되고, 체력·시간이 그대로다', hpDuring && timerDuring, `체력 그대로 ${hpDuring}, 시간·모드 그대로 ${timerDuring}`]);
+  const want = sim.MOVES.super.data.damage + splats * sim.CITY_RULES.wallsplat.damage;
+  results.push(['피해는 연출 끝에 한 번에 (필살기 피해, 건물에 박히면 벽꽝 피해 더)', hits === 1 && dealt === want, `맞힘 이벤트 ${hits}번, 깎인 체력 ${dealt} (필살기 ${sim.MOVES.super.data.damage} + 벽꽝 ${splats}번)`]);
+  // 2) 연출 중간에 저장·복원해도 같은 결과
+  s = fresh(2400, 2440);
+  for (let k = 0; k < 120; k++) sim.step(s, [k === 0 ? I.IN_SUPER : 0, 0]);
+  const mid = s.cine !== null;
+  const copy = JSON.parse(JSON.stringify(s));
+  for (let k = 0; k < 200; k++) {
+    sim.step(s, [0, 0]);
+    sim.step(copy, [0, 0]);
+  }
+  results.push(['연출 중간에 저장·복원해도 같은 해시', mid && sim.hashState(s) === sim.hashState(copy), `${mid ? '연출 중 저장' : '연출 아님'} ${sim.hashState(s)} ${sim.hashState(copy)}`]);
+  // 3) 빗나가면: 연출 없이 끝나고, 한참 굳어 아무것도 못 한다
+  s = fresh(2400, 2700);
+  const w = s.fighters[0];
+  let whiffAt = -1;
+  let started = false;
+  for (let k = 0; k < 200 && whiffAt < 0; k++) {
+    sim.step(s, [k === 0 ? I.IN_SUPER : 0, 0]);
+    if (s.events.some((e) => e.type === 'cine' && e.text === 'start')) started = true;
+    if (s.events.some((e) => e.type === 'cine' && e.text === 'whiff')) whiffAt = k;
+  }
+  let acted = false;
+  for (let k = 0; k < 30; k++) {
+    sim.step(s, [k % 2 ? I.IN_ATTACK : I.IN_JUMP, 0]);
+    if (w.mode !== 'land') acted = true;
+  }
+  results.push(['빗나가면 연출 없이 끝나고 한참(40틱) 굳는다', !started && whiffAt >= 0 && !acted, `연출 ${started}, 빗나감 ${whiffAt + 1}틱째, 굳은 동안 움직임 ${acted}`]);
+  // 4) 막히면 연출이 없다
+  s = fresh(2400, 2440);
+  let blocked = false;
+  started = false;
+  for (let k = 0; k < 200; k++) {
+    sim.step(s, [k === 0 ? I.IN_SUPER : 0, I.IN_DOWN]);
+    if (s.events.some((e) => e.type === 'block' && e.move === 'super')) blocked = true;
+    if (s.events.some((e) => e.type === 'cine' && e.text === 'start')) started = true;
+  }
+  results.push(['막히면 연출 없이 그냥 막힌다', blocked && !started, `막힘 ${blocked}, 연출 ${started}`]);
+  // 5) 시타델 3단계 광장에서 맞히면, 무너지는 것은 연출이 끝난 뒤
+  s = fresh(3180, 3220);
+  const c = s.citadel;
+  c.hp = sim.KEEP_RULES.stages[2];
+  c.stage = 3;
+  c.stageAt = [0, 0, 0, -1];
+  Object.assign(s.props[sim.BIG.bigsign], { hp: 0, stage: 2, damagedAt: 0, brokenAt: 0 });
+  let fellAt = -1;
+  let cineEnd = -1;
+  for (let k = 0; k < 400; k++) {
+    sim.step(s, [k === 0 ? I.IN_SUPER : 0, 0]);
+    for (const e of s.events) {
+      if (e.type === 'citadel' && e.text === 'collapse') fellAt = k;
+      if (e.type === 'cine' && e.text === 'end') cineEnd = k;
+    }
+  }
+  results.push(['시타델 3단계에서 맞히면 연출 끝 타격에 무너진다 (연출 동안은 그대로)', cineEnd >= 0 && fellAt === cineEnd, `연출 끝 ${cineEnd}틱째, 무너짐 ${fellAt}틱째`]);
   return results;
 }
 

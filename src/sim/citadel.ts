@@ -74,12 +74,21 @@ export function hitCitadel(s: SimState): void {
   s.fighters.forEach((f, who) => {
     if (!keepStanding(s) || f.citadelHit) return;
     const hb = activeHitOf(f);
-    if (!hb || !MOVES[f.move!].data.cutin || !overlap(hb, ZONE_BOX)) return;
-    f.citadelHit = true;
-    const x = Math.round((hb.x0 + hb.x1) / 2 / 256);
-    if (s.citadel.stage === 3) collapse(s, who, Math.min(KEEP_ZONE.x1 - 1, Math.max(KEEP_ZONE.x0, x)));
-    else damageCitadel(s, Math.min(KEEP_ZONE.x1 - 1, Math.max(KEEP_ZONE.x0, x)), R.damage.super, who);
+    if (!hb || !MOVES[f.move!].data.cutin) return;
+    if (superCitadel(s, who, hb)) f.citadelHit = true;
   });
+}
+
+/**
+ * 필살기 상자가 구역에 닿으면: 3단계면 무너지고, 아니면 내구도를 크게 깎는다. 닿았으면 true.
+ * 필살기 연출 끝 타격도 이걸 쓴다 (연출 동안 미뤄 둔 파괴)
+ */
+export function superCitadel(s: SimState, who: number, hb: WBox): boolean {
+  if (!keepStanding(s) || !overlap(hb, ZONE_BOX)) return false;
+  const x = Math.round((hb.x0 + hb.x1) / 2 / 256);
+  if (s.citadel.stage === 3) collapse(s, who, Math.min(KEEP_ZONE.x1 - 1, Math.max(KEEP_ZONE.x0, x)));
+  else damageCitadel(s, Math.min(KEEP_ZONE.x1 - 1, Math.max(KEEP_ZONE.x0, x)), R.damage.super, who);
+  return true;
 }
 
 /** 본관이 무너진다 (x: 필살기가 닿은 자리). 잔해 언덕은 settle틱 뒤에 발판·벽이 된다 */

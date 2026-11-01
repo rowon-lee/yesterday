@@ -13,6 +13,8 @@ export interface TickInput {
   readonly pressed: ReadonlySet<string>;
   /** 지난 틱 이후 떼어진 키 */
   readonly released: ReadonlySet<string>;
+  /** 지난 틱 이후 화면을 누른 자리 (게임 화면 480×270 좌표, 메뉴 고르기용) */
+  readonly taps?: ReadonlyArray<{ x: number; y: number }>;
 }
 
 /** 브라우저 기본 동작(스크롤 등)을 막을 키 */

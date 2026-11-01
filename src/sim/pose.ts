@@ -100,6 +100,11 @@ function pick(f: Fighter): [string, number] {
       const m = motionFrames('base/wall_run');
       return ['base/wall_run', Math.min(WALL_RUN_TOP_FROM - 1, frameAtTick(m, f.t))];
     }
+    case 'cine': {
+      // 필살기 연출: 연출 장면의 동작 t틱째 (sim/cine.ts가 정한다)
+      const name = f.cineMotion || 'base/idle';
+      return [name, frameAtTick(motionFrames(name), f.t)];
+    }
     case 'charge': {
       // 모으기: 끌어 모으는 프레임은 한 번, 그 뒤 모으는 프레임(windup ~ loopTo)을 되풀이 (떼면 기술의 치는 프레임으로)
       const mv = MOVES.charge;

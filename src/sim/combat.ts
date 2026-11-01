@@ -3,7 +3,9 @@ import type { MoveId } from '../data/moves/base';
 import { MOVES, moveHitBox } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
 import { CITY_RULES as CITY, KEEP_RULES } from '../stage/citadel';
-import { damageCitadel, towerBehind } from './citadel';
+import { damageCitadel, superCitadel, towerBehind } from './citadel';
+import { startCine } from './cine';
+import { smashProps } from './props';
 import { isAirborne, setMode } from './fighter';
 import { wallLeft } from './platforms';
 import { fighterPose } from './pose';
@@ -30,7 +32,7 @@ const overlap = (a: WBox, b: WBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y
 
 /** 피격 상자: 지금 프레임의 몸 관절을 감싼 상자. 무적이면 null */
 export function hurtOf(f: Fighter): WBox | null {
-  if (f.invuln > 0 || f.mode === 'knockdown' || f.mode === 'getup' || f.mode === 'ko' || f.mode === 'wallsplat') return null;
+  if (f.invuln > 0 || f.mode === 'knockdown' || f.mode === 'getup' || f.mode === 'ko' || f.mode === 'wallsplat' || f.mode === 'cine') return null;
   return toWorld(f, hurtBox(fighterPose(f).joints));
 }
 
@@ -73,23 +75,35 @@ function blocks(def: Fighter, att: Fighter): boolean {
   return (att.x - def.x) * def.facing >= 0;
 }
 
-function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId): void {
+/**
+ * 한 대 맞힘 (또는 막힘). final: 필살기 연출의 끝 타격 (연출을 다시 시작하지 않고, 연출 데이터의 끝 날리기를 쓴다)
+ */
+function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId, final = false): void {
+  // 연출 중에는 판정이 없다 (같은 틱에 둘 다 맞혔으면 먼저 연출을 시작한 쪽만)
+  if (s.cine) return;
   const mv = MOVES[id];
   const d = mv.data;
   // 차지는 모은 단계마다 피해·방어 깎기·날리기·벽 쪽으로 날림이 다르다
   const lvl = d.charge ? d.charge.levels[Math.max(0, Math.min(d.charge.levels.length, att.chargeLv) - 1)] : undefined;
   const baseDamage = lvl?.damage ?? d.damage;
   const guardDamage = lvl?.guardDamage ?? d.guardDamage;
-  const launch = lvl ? { vx: px(lvl.launch.vx), vy: px(lvl.launch.vy) } : mv.launch;
-  const wall = lvl ? lvl.wall === true : d.wall === true;
+  const end = final ? d.cinematic?.end : undefined;
+  const launch = end ? { vx: px(end.launch.vx), vy: px(end.launch.vy) } : lvl ? { vx: px(lvl.launch.vx), vy: px(lvl.launch.vy) } : mv.launch;
+  const wall = end ? end.wall === true : lvl ? lvl.wall === true : d.wall === true;
   const dir = att.facing;
   const who = s.fighters.indexOf(att);
   const ex = Math.trunc((Math.max(hb.x0, Math.min(hb.x1, def.x)) + (dir > 0 ? hb.x1 : hb.x0)) / 2);
   const ey = Math.trunc((hb.y0 + hb.y1) / 2);
   att.moveHit = true;
   const gainer = !d.meterCost;
+  const blocked = !final && blocks(def, att);
+  // 필살기 연출: 막히지 않고 맞으면 연출로 넘어간다 (피해·파괴는 연출 끝 타격에서 한 번에)
+  if (d.cinematic && !final && !blocked) {
+    att.moveConnected = true;
+    startCine(s, att, def, id);
+    return;
+  }
   // 센 타격은 맞은 자리 뒤 건물 정면을 깎는다 (막혀도). 시타델 구역이면 본관도 (필살기는 hitCitadel이 따로)
-  const blocked = blocks(def, att);
   if (d.heavy) {
     damageCity(s, Math.round(ex / 256), Math.round(-ey / 256), CITY.hit.radius, CITY.hit.amount, 'hit');
     if (!d.cutin) damageCitadel(s, Math.round(ex / 256), blocked ? KEEP_RULES.damage.blocked : KEEP_RULES.damage.heavy, who);
@@ -119,7 +133,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
   att.moveConnected = true;
   const scale = Math.max(SCALE_MIN, 100 - SCALE_STEP * def.comboHits);
   const damage = Math.max(1, Math.trunc((baseDamage * scale) / 100));
-  def.hp = Math.max(0, def.hp - damage);
+  def.hp = Math.max(s.practice ? 1 : 0, def.hp - damage);
   def.comboHits++;
   def.flash = FLASH_TICKS;
   att.hitstop = d.hitstop;
@@ -187,9 +201,21 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId)
 export function splatLands(s: SimState): void {
   s.fighters.forEach((f, i) => {
     if (f.mode !== 'wallsplat' || f.hitstop > 0 || f.t !== WALL_TECH_TICKS + 1) return;
-    f.hp = Math.max(0, f.hp - CITY.wallsplat.damage);
+    f.hp = Math.max(s.practice ? 1 : 0, f.hp - CITY.wallsplat.damage);
     if (f.hp <= 0) knockOut(s, f, -f.facing, 1 - i);
   });
+}
+
+/**
+ * 필살기 연출 끝 타격: 상대에게 피해·날리기를 한 번에 주고, 그 자리 둘레의 건물·물건·시타델을 부순다
+ * (연출 동안 미뤄 둔 파괴). 끝 자리를 감싼 상자로 판정한다
+ */
+export function cinematicFinish(s: SimState, att: Fighter, def: Fighter, id: MoveId): void {
+  const blow: WBox = { x0: def.x - px(20), x1: def.x + px(20), y0: def.y - px(50), y1: def.y + px(4) };
+  applyHit(s, att, def, blow, id, true);
+  const wide: WBox = { x0: def.x - px(44), x1: def.x + px(44), y0: def.y - px(80), y1: def.y + px(6) };
+  smashProps(s, att, wide, MOVES[id].data.damage, true);
+  superCitadel(s, s.fighters.indexOf(att), wide);
 }
 
 /** 체력이 0이 된 쪽을 날려 쓰러뜨린다 */

@@ -1,13 +1,14 @@
 import { motionFrames, STATS } from './frames';
 import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isAirborne } from './fighter';
 import { resolveHits, splatLands } from './combat';
+import { stepCine } from './cine';
 import { crashProps, createProps, hitProps } from './props';
 import { createCitadel, hitCitadel } from './citadel';
 import { createCity, flyThroughCity } from './city';
 import { wallLeft } from './platforms';
 import type { PlayerInput } from './input';
 import {
-  GUARD_MAX, INTRO_TICKS, MAX_SEPARATION, px, PUSH_H, PUSH_W, ROUND_END_TICKS, ROUND_TICKS, START_GAP,
+  GUARD_MAX, INTRO_TICKS, MAX_SEPARATION, METER_MAX, px, PUSH_H, PUSH_W, ROUND_END_TICKS, ROUND_TICKS, START_GAP,
   MAX_ROUNDS, STAGE_W, WALL_R, WINS_NEEDED,
 } from './rules';
 import type { Fighter, SimState } from './types';
@@ -21,12 +22,17 @@ function newFighter(x: number, facing: 1 | -1): Fighter {
     move: null, moveHit: false, moveConnected: false, queued: null, dir: 1, jumpKind: 0,
     hp: STATS.hp, meter: 0, guard: GUARD_MAX, guardWait: 0, hitstop: 0, invuln: 0, flash: 0,
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
-    runDist: 0, wins: 0, atkDir: 0, atkHold: 0, chargeArm: false, chargeLv: 0, buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
+    runDist: 0, wins: 0, atkDir: 0, atkHold: 0, chargeArm: false, chargeLv: 0, cineMotion: '', buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
     wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false, citadelHit: false,
   };
 }
 
-export function createState(seed: number): SimState {
+export interface MatchOptions {
+  /** 연습: 시간이 흐르지 않고 쓰러지지 않으며, 콤보가 끝나면 체력·기력이 다시 찬다 */
+  practice?: boolean;
+}
+
+export function createState(seed: number, opts: MatchOptions = {}): SimState {
   const s: SimState = {
     tick: 0, clock: 0, rng: seed | 0, phase: 'intro', phaseT: 0, round: 1, timer: ROUND_TICKS, freeze: 0,
     roundWinner: -1, matchWinner: -1,
@@ -38,6 +44,9 @@ export function createState(seed: number): SimState {
     // 시타델 본관도 라운드가 넘어가도 남는다 (한 경기에 한 번 무너진다)
     citadel: createCitadel(),
     slow: 0,
+    practice: opts.practice === true,
+    calm: [0, 0],
+    cine: null,
   };
   resetRound(s);
   return s;
@@ -77,6 +86,11 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
     s.freeze--;
     return;
   }
+  // 필살기 연출: 두 사람은 연출 장면대로 고정되고, 시간·도시 시계도 멈춘다 (끝에 피해·파괴를 한 번에)
+  if (s.cine) {
+    stepCine(s);
+    return;
+  }
   // 건물이 무너질 때: 게임 시간이 반 속도 (한 틱 걸러 한 번만 진행)
   if (s.slow > 0) {
     s.slow--;
@@ -103,7 +117,21 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   settle(s, b);
   faceOpponent(a, b);
   faceOpponent(b, a);
+  if (s.practice) practiceRefill(s);
   roundFlow(s);
+}
+
+/** 연습: 맞는 콤보가 끝나고 조용히 1초가 지나면 체력·기력·방어 내구도를 다시 채운다 */
+const CALM: ReadonlySet<string> = new Set(['idle', 'run', 'guard', 'air', 'land', 'dash', 'airdash', 'jumpsquat', 'wallcling', 'wallrun', 'charge', 'attack']);
+function practiceRefill(s: SimState): void {
+  s.fighters.forEach((f, i) => {
+    s.calm[i] = CALM.has(f.mode) && f.comboHits === 0 ? s.calm[i] + 1 : 0;
+    if (s.calm[i] >= 60) {
+      f.hp = STATS.hp;
+      f.meter = METER_MAX;
+      f.guard = GUARD_MAX;
+    }
+  });
 }
 
 function stepFighter(s: SimState, f: Fighter, input: PlayerInput, controllable: boolean): void {
@@ -178,7 +206,8 @@ function roundFlow(s: SimState): void {
       }
       break;
     case 'fight': {
-      s.timer--;
+      // 연습은 시간이 흐르지 않는다 (쓰러지지도 않는다: combat의 체력 하한)
+      if (!s.practice) s.timer--;
       const koA = a.hp <= 0;
       const koB = b.hp <= 0;
       if (koA || koB || s.timer <= 0) {

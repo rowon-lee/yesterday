@@ -176,6 +176,14 @@ export class Actors {
     return t;
   }
 
+  /** 캐릭터가 없는 화면(타이틀 등): 캐릭터·그림자·이펙트 층을 모두 감춘다 */
+  hide(): void {
+    for (const m of this.chars) m.visible = false;
+    for (const s of this.shadows) s.visible = false;
+    this.back.mesh.visible = false;
+    this.front.mesh.visible = false;
+  }
+
   /** 캐릭터 둘 (빛은 이미 실려 있어야 한다: view.commitLights 뒤) */
   update(list: readonly CharDraw[]): void {
     list.forEach((d, i) => {

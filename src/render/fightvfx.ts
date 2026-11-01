@@ -51,6 +51,20 @@ const SWINGS: Partial<Record<string, { size: number; squash: number; tilt: numbe
   slam: { size: 0.3, squash: 0.8, tilt: 1.2, dy: -20 },
 };
 
+/**
+ * 필살기 연출 장면의 타격 시각 (렌더 전용 데이터): 발동자 동작 이름 → 그 장면 안 틱마다 타격 종류.
+ * 기본 스틱맨 임시 필살기: 난타(주먹이 뻗는 프레임마다) → 어퍼(올려친 순간) → 내려찍기(내리친 순간, 바닥에 꽂힌 순간)
+ */
+interface CineCue {
+  t: number;
+  kind: 'jab' | 'upper' | 'hammer' | 'slam';
+}
+const CINE_CUES: Record<string, CineCue[]> = {
+  'base/super_rush': [3, 9, 15, 21, 27, 33].map((t) => ({ t, kind: 'jab' as const })),
+  'base/super_rise': [{ t: 14, kind: 'upper' }],
+  'base/super_slam': [{ t: 13, kind: 'hammer' }, { t: 26, kind: 'slam' }],
+};
+
 /** 맞은 쪽 하얀 번쩍임: 맞은 순간부터 이 틱 동안 하얗게 (센 타격은 한 번 더 깜빡) */
 const FLASH_LIGHT = 3;
 const FLASH_HEAVY = 4;
@@ -147,6 +161,12 @@ export class FightVfx {
   /** sim 한 틱 뒤에 부른다 */
   tick(s: SimState): void {
     const shake = (k: number) => (t: number) => this.fx.shake(t * k);
+    // 필살기 연출 장면의 타격 (렌더 전용): 발동자 동작마다 정해 둔 틱에 불꽃·빛·흔들림 (피해는 끝 타격에서 한 번)
+    if (s.cine) {
+      const c = s.cine;
+      const motion = MOVES[c.move].data.cinematic!.scenes[c.scene].a.motion;
+      for (const cue of CINE_CUES[motion] ?? []) if (cue.t === c.t) this.cineCue(s, cue.kind);
+    }
     for (const g of this.glows) g.t++;
     this.glows = this.glows.filter((g) => g.t < g.life);
     this.now = s.tick;
@@ -540,6 +560,45 @@ export class FightVfx {
       if (lv >= 3) this.fx.flashFor(1);
     } else if (what === 'release') {
       this.glow(wx + f.facing * 14, wy, 60 + 14 * lv, COLORS.fxYellow, 0.8, 10);
+    }
+  }
+
+  /** 연출 장면 속 한 대: 상대 몸에 불꽃, 빛, 흔들림 (끝에 줄 피해와는 따로, 보이기만) */
+  private cineCue(s: SimState, kind: CineCue['kind']): void {
+    const c = s.cine!;
+    const def = s.fighters[1 - c.who];
+    const att = s.fighters[c.who];
+    const wx = def.x / 256;
+    const wy = GROUND_Y + def.y / 256 - 26;
+    const x = wx * FX_PX;
+    const y = wy * FX_PX;
+    const toward = att.facing > 0 ? Math.PI : 0;
+    if (kind === 'jab') {
+      this.layer.add(impact({ kind: 'hit', x, y, angle: toward + (this.seed % 3 - 1) * 0.3, size: 0.35, ramp: fxRamp(WARM), seed: this.seed++ }));
+      this.glow(wx, wy, 50, COLORS.fxOrange, 0.8, 6);
+      this.fx.shake(0.12);
+      this.since[1 - c.who] = 0;
+      this.heavy[1 - c.who] = false;
+    } else if (kind === 'upper') {
+      this.layer.add(impact({ kind: 'hit', x, y: y + 8 * FX_PX, angle: -Math.PI / 2, size: 0.8, ramp: fxRamp(WARM), seed: this.seed++ }));
+      this.glow(wx, wy, 90, COLORS.fxWhite, 1, 10);
+      this.fx.shake(0.35);
+      this.fx.flashFor(1);
+      this.since[1 - c.who] = 0;
+      this.heavy[1 - c.who] = true;
+    } else if (kind === 'hammer') {
+      this.layer.add(impact({ kind: 'hit', x, y: y - 6 * FX_PX, angle: Math.PI / 2, size: 0.7, ramp: fxRamp(WARM), seed: this.seed++ }));
+      this.glow(wx, wy, 80, COLORS.fxYellow, 1, 8);
+      this.fx.shake(0.3);
+      this.since[1 - c.who] = 0;
+      this.heavy[1 - c.who] = true;
+    } else {
+      // 바닥에 꽂힘: 흙먼지 폭발과 큰 흔들림
+      this.layer.add(explosion({ x, ground: (GROUND_Y + def.y / 256) * FX_PX, size: 0.55, surface: fxColor('street'), seed: this.seed++ }));
+      this.debris.dustCloud(wx - 20, wx + 20, 0.7, GROUND_Y + def.y / 256);
+      this.glow(wx, GROUND_Y + def.y / 256 - 6, 110, COLORS.fxOrange, 1, 14);
+      this.fx.shake(0.55);
+      this.fx.flashFor(2);
     }
   }
 

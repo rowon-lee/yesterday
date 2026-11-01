@@ -4,7 +4,8 @@ export * from './hash';
 export * from './cpu';
 export { boxesOf } from './combat';
 export { fighterPose } from './pose';
-export { MOVES, STATS } from './frames';
+export { MOVES, STATS, motionFrames } from './frames';
+export { cineTicks } from './cine';
 export * as RULES from './rules';
 export {
   BIG, BREAKABLES, CHUNKS, CITY_RULES, GRIDS, chunkStage, CONTAINER_TOP, rubbleOf, SURFACES, tramAt, tramLying, tramRestX, WALLS,

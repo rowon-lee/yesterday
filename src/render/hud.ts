@@ -13,6 +13,8 @@ export class Hud {
   /** 화면 가운데 큰 글씨 (라운드 시작·KO 등) */
   banner = '';
   bannerT = 0;
+  /** 터치 버튼이 화면 아래 양쪽을 덮을 때(휴대폰)는 기력 칸을 위(이름 밑)로 올린다 */
+  meterTop = false;
   /** 콤보 표시: [수, 남은 틱] */
   combo: Array<[number, number]> = [
     [0, 0],
@@ -61,9 +63,12 @@ export class Hud {
       fill(this.lag[i], COLORS.red, 8, BAR_H);
       fill(f.hp / max, f.hp / max < 0.3 ? COLORS.goldDark : COLORS.gold, 8, BAR_H);
       fill(f.hp / max, COLORS.goldLight, 8, 1);
-      // 방어 내구도 (얇은 띠)
+      // 방어 내구도 (얇은 띠): 깨지면 빨갛게, 30% 아래면 금빛으로 깜빡인다
       fill(1, COLORS.panel, 15, 2);
-      fill(f.guard / RULES.GUARD_MAX, f.mode === 'crush' ? COLORS.red : COLORS.sky, 15, 2);
+      const g = f.guard / RULES.GUARD_MAX;
+      const blink = (s.tick >> 3) & 1;
+      const guardColor = f.mode === 'crush' ? (blink ? COLORS.red : COLORS.panel) : g < 0.3 ? (blink ? COLORS.gold : COLORS.sky) : COLORS.sky;
+      fill(f.mode === 'crush' ? 1 : g, guardColor, 15, 2);
       // 이름과 라운드 승수
       const name = this.names[i];
       drawText(ctx, name, left ? x : x + BAR_W - textWidth(name), 19, COLORS.white);
@@ -74,30 +79,38 @@ export class Hud {
         ctx.fillStyle = w < f.wins ? COLORS.gold : COLORS.panel;
         ctx.fillRect(px, 19, 4, 4);
       }
-      // 기력 3칸 (아래)
+      // 기력 3칸 (아래, 휴대폰은 이름 밑)
+      const my = this.meterTop ? 27 : SCREEN_H - 10;
       const full = Math.floor(f.meter / RULES.METER_BAR);
       const part = (f.meter % RULES.METER_BAR) / RULES.METER_BAR;
       for (let k = 0; k < 3; k++) {
         const bx = left ? 8 + k * 26 : SCREEN_W - 8 - 24 - k * 26;
         ctx.fillStyle = COLORS.ink;
-        ctx.fillRect(bx - 1, SCREEN_H - 10, 26, 6);
+        ctx.fillRect(bx - 1, my, 26, 6);
         ctx.fillStyle = COLORS.panel;
-        ctx.fillRect(bx, SCREEN_H - 9, 24, 4);
+        ctx.fillRect(bx, my + 1, 24, 4);
         const r = k < full ? 1 : k === full ? part : 0;
         ctx.fillStyle = full >= 3 ? COLORS.goldLight : COLORS.green;
         const w = Math.round(24 * r);
-        ctx.fillRect(left ? bx : bx + 24 - w, SCREEN_H - 9, w, 4);
+        ctx.fillRect(left ? bx : bx + 24 - w, my + 1, w, 4);
+      }
+      // 기력이 꽉 차면 MAX (필살기를 쓸 수 있다)
+      if (full >= 3 && (s.tick >> 4) & 1) {
+        const mx = left ? 8 + 3 * 26 + 2 : SCREEN_W - 8 - 3 * 26 - 2 - textWidth('MAX');
+        drawText(ctx, 'MAX', mx, my, COLORS.goldLight);
       }
       // 콤보 수
       const [n, t] = this.combo[i];
       if (t > 0) {
         const txt = `${n} HITS`;
-        drawText(ctx, txt, left ? 8 : SCREEN_W - 8 - textWidth(txt, 2), 32, COLORS.gold, 2);
+        drawText(ctx, txt, left ? 8 : SCREEN_W - 8 - textWidth(txt, 2), this.meterTop ? 37 : 32, COLORS.gold, 2);
       }
     });
-    // 남은 시간
-    const sec = String(Math.ceil(s.timer / 60)).padStart(2, '0');
-    drawText(ctx, sec, Math.floor((SCREEN_W - textWidth(sec, 2)) / 2), 6, COLORS.white, 2);
+    // 남은 시간 (연습은 시간이 흐르지 않아 --). 10초 아래면 빨갛게 깜빡인다
+    const left = Math.ceil(s.timer / 60);
+    const sec = s.practice ? '--' : String(left).padStart(2, '0');
+    const urgent = !s.practice && left <= 10 && s.phase === 'fight';
+    drawText(ctx, sec, Math.floor((SCREEN_W - textWidth(sec, 2)) / 2), 6, urgent && (s.tick >> 4) & 1 ? COLORS.red : COLORS.white, 2);
     drawText(ctx, `R${s.round}`, Math.floor((SCREEN_W - textWidth(`R${s.round}`)) / 2), 19, COLORS.white);
     // 가운데 큰 글씨
     if (this.bannerT > 0 && this.banner) {
