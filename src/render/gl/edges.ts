@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
 import { PARK_GATE_W } from '../../stage/citadel';
 import { COLORS as C } from '../palette';
-import { canvas, disc, ditherRect, hash, rect } from '../dither';
+import { canvas, disc, ditherRect, hash, paint, rect } from '../dither';
 import { box, Details, facedBox, plane } from './kit';
-import { litMaterial, pixelTexture } from './shaders';
+import { figure, sil } from './rooms';
+import { hazeMaterial, litMaterial, pixelTexture } from './shaders';
+import { paintNoise } from './tex';
 
 /**
  * 해안 부두와 시타델 공원 (렌더 전용, 무너지지 않는다).
@@ -76,6 +78,31 @@ export class Edges {
         this.group.add(plane(t.x - size / 2, t.x + size / 2, cy - size / 2, cy + size / 2, z + dz, leaf));
       }
     });
+    // 공원 바닥에 깔린 안개 (가로등 빛을 받아 밝아진다)
+    const mistTex = pixelTexture(paintNoise(64, 31, 3, 3));
+    mistTex.wrapS = THREE.RepeatWrapping;
+    mistTex.wrapT = THREE.RepeatWrapping;
+    mistTex.magFilter = THREE.LinearFilter;
+    mistTex.minFilter = THREE.LinearFilter;
+    const mist = hazeMaterial(mistTex, '#2a3e3a', 0.5, 0.5, true);
+    mist.transparent = false;
+    const mm = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 + 120, 46), mist);
+    mm.position.set((x0 + x1) / 2, 18, -34);
+    mm.renderOrder = 1;
+    this.group.add(mm);
+    // 벤치에 웅크려 잠든 사람, 가로등 아래 우산 쓴 사람 (실루엣)
+    const [pc, pg] = canvas(40, 60);
+    const [, pe] = canvas(40, 60);
+    sil(pg, pe, 4, 44, 26, 6, C.iron);
+    sil(pg, pe, 26, 40, 8, 7, C.iron);
+    sil(pg, pe, 2, 48, 6, 4, C.iron);
+    this.group.add(plane(P.benches[1] + 2, P.benches[1] + 42, 6, 66, -33, litMaterial(pixelTexture(pc), { side: THREE.DoubleSide })));
+    const [uc, ug] = canvas(30, 64);
+    const [, ue] = canvas(30, 64);
+    figure(ug, ue, 15, 64, 46, 'walk');
+    for (let k = 0; k < 7; k++) sil(ug, ue, 15 - (13 - k * 2), 10 + k, (13 - k * 2) * 2, 1, C.iron);
+    sil(ug, ue, 14, 16, 1, 14, C.iron);
+    this.group.add(plane(P.benches[2] - 40, P.benches[2] - 10, 0, 64, -30, litMaterial(pixelTexture(uc), { side: THREE.DoubleSide })));
     for (const x of P.benches) {
       det.add(x, x + 36, 10, 13, -38, -30, C.awningStripe);
       det.add(x, x + 36, 19, 22, -39, -37, C.awningStripe);
@@ -125,19 +152,42 @@ function paintHedge(w: number, h: number): HTMLCanvasElement {
   return c;
 }
 
-/** 나무 잎 덩어리 (둥근 덩어리 몇 개, 위쪽이 청록 빛을 받는다). back이면 더 어둡게 */
+/**
+ * 나무 잎 덩어리: 작은 잎 뭉치 여럿이 겹친 둥근 수관. 뭉치마다 위·왼쪽(빛 쪽)이 밝고 아래가 어두운 서너 단계 명암,
+ * 가장자리는 잎 모양으로 들쭉날쭉하다 (점무늬 디더링 원을 쓰지 않는다). back이면 뒤 겹이라 더 어둡고 뭉치가 적다
+ */
 function paintCanopy(size: number, r: number, seed: number, back: boolean): HTMLCanvasElement {
   const [c, g] = canvas(size, size);
   const cx = size / 2;
   const cy = size / 2;
-  const blobs = back
-    ? [[0, 0.1, 1], [-0.6, 0.3, 0.7], [0.6, 0.3, 0.7]]
-    : [[0, 0, 0.85], [-0.5, 0.25, 0.6], [0.5, 0.25, 0.6], [-0.3, -0.45, 0.55], [0.35, -0.4, 0.55]];
-  for (const [dx, dy, rr] of blobs) disc(g, cx + dx * r, cy + dy * r, r * rr, back ? C.night : C.iron);
+  const n = back ? 9 : 16;
+  const clumps: Array<[number, number, number]> = [];
+  for (let i = 0; i < n; i++) {
+    const a = hash(seed + i * 7) * Math.PI * 2;
+    const d = Math.sqrt(hash(seed + i * 13)) * 0.62;
+    clumps.push([cx + Math.cos(a) * d * r, cy + Math.sin(a) * d * r * 0.78 - r * 0.08, r * (0.3 + hash(seed + i * 3) * 0.2)]);
+  }
+  clumps.sort((p, q) => q[1] - p[1]);
+  const tones = back ? [C.night, '#0c1418', '#121c20', '#16222a'] : ['#0e1614', '#16241f', '#22362c', '#2f4a3a', '#4a6a50'];
+  paint(g, 0, 0, size, size, (x, y) => {
+    // 위에 그린 (y가 작은) 뭉치가 앞: 마지막으로 덮는 뭉치의 명암을 쓴다
+    let tone = -1;
+    for (const [px, py, rad] of clumps) {
+      const jag = (hash(x * 7 + y * 13 + seed) - 0.5) * 0.28;
+      const d = Math.hypot(x + 0.5 - px, y + 0.5 - py) / rad + jag;
+      if (d > 1) continue;
+      const ly = (y + 0.5 - py) / rad;
+      const lx = (x + 0.5 - px) / rad;
+      const light = -ly * 0.7 - lx * 0.3 + (1 - d) * 0.25 - (y / size) * 0.5;
+      const k = Math.max(0, Math.min(tones.length - 1, Math.floor((light + 0.75) * (tones.length / 1.6))));
+      tone = k;
+    }
+    return tone < 0 ? null : tones[tone];
+  });
+  // 잎 사이 틈 몇 개 (뒤가 비친다)와 빛 쪽 잎 끝 반짝임
   if (!back) {
-    disc(g, cx - r * 0.2, cy - r * 0.25, r * 0.7, C.paintTeal, 6);
-    disc(g, cx + r * 0.25, cy - r * 0.45, r * 0.4, C.paintTeal, 9);
-    for (let k = 0; k < 12; k++) rect(g, Math.floor(cx + (hash(seed + k) - 0.5) * r * 1.6), Math.floor(cy + (hash(seed + k * 7) - 0.5) * r), 2, 1, C.carMint);
+    for (let k = 0; k < 10; k++) rect(g, Math.floor(cx + (hash(seed + k * 31) - 0.5) * r * 1.2), Math.floor(cy + (hash(seed + k * 37) - 0.5) * r), 1, 1, C.night);
+    for (let k = 0; k < 12; k++) rect(g, Math.floor(cx + (hash(seed + k) - 0.5) * r * 1.4), Math.floor(cy - r * 0.2 + (hash(seed + k * 7) - 0.5) * r * 0.8), 1, 1, C.carMint);
   }
   return c;
 }
