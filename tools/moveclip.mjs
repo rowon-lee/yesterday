@@ -167,6 +167,13 @@ const SCENES = {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3188, settle: 30,
     steps: [[[], 6], [['ArrowDown', 'KeyJ'], 1], [[], 100], [['ArrowLeft'], 20], [[], 6], [['KeyL'], 1], [[], 3], [['KeyJ'], 1], [[], 50]],
   },
+  // 라이덴 금강: 2P 라이덴이 3스택인 채로 1P 기본 스틱맨에게 맞기 시작 → 첫 대에 4스택 금강불괴 (붉은 반짝임, 이름 옆 4칸 깜빡임)
+  // → 그 뒤로는 맞아도 경직 없이 대기를 이어 감 (밀림 80% 감소)
+  raiden_kongo: {
+    q: 'scene=fight&p2=idle&p2char=raiden', p1: 3150, p2: 3190, settle: 20,
+    prep: 's.fighters[1].kongo = 3;',
+    steps: [[[], 10], [['KeyJ'], 1], [[], 40], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 60]],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,
