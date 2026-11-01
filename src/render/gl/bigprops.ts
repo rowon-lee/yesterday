@@ -349,7 +349,8 @@ class LighthouseView implements BigView {
     this.stump = stump.build();
     this.stump.visible = false;
     // 등실에서 바다 쪽을 쓸고 지나가는 빛줄기
-    this.beam = new Beam(420, 34, C.beam, 0.26, 2);
+    // (회색 덩어리처럼 서지 않게: 등불 색으로 옅게. 공기 속에서만 보이는 빛)
+    this.beam = new Beam(420, 34, C.lampGlow, 0.17, 2);
     this.beam.pivot.position.copy(this.lampAt);
     // 꺾이는 자리 위는 한 무리로 (쓰러질 때 함께 돈다)
     const { pivot, inner } = pivotAt(HX, H.snap, HZ);
@@ -460,7 +461,9 @@ function paintLantern(glow: boolean): HTMLCanvasElement {
   const [c, g] = canvas(32, 30);
   rect(g, 0, 0, 32, 30, glow ? '#000' : C.iron);
   rect(g, 0, 2, 32, 26, C.lampWarm);
-  rect(g, 12, 6, 8, 12, C.lampCore);
+  // 등실: 렌즈 둘레까지 하얗게 날아간 빛의 심 (해변 화면의 주인공 빛)
+  rect(g, 6, 4, 20, 22, glow ? '#ffc16e' : '#ffe2a8');
+  rect(g, 10, 6, 12, 16, '#fff4d8');
   if (!glow) for (let x = 0; x < 32; x += 8) rect(g, x, 0, 1, 30, C.iron);
   return c;
 }

@@ -555,7 +555,11 @@ export function hazeMaterial(noise: THREE.Texture, color: string, strength: numb
       varying vec2 vUv;
       varying vec3 vWorld;
       void main() {
-        float n = texture2D(noise, vWorld.xy * noiseScale + drift * uTime).r;
+        // 안개 덩어리: 크기가 다른 두 무늬를 섞어 같은 덩어리가 같은 간격으로 줄짓지 않게, 짙기 차이는 작게
+        // (차이가 크면 팔레트 단계로 나뉘어 고리 무늬·얼룩처럼 보인다)
+        float n1 = texture2D(noise, vWorld.xy * noiseScale + drift * uTime).r;
+        float n2 = texture2D(noise, vWorld.xy * noiseScale * vec2(0.37, 0.53) + vec2(0.31, 0.17) - drift * uTime * 0.6).r;
+        float n = 0.35 + 0.15 * (n1 + n2);
         // 아래쪽이 짙고 위로 갈수록 옅게
         float a = strength * n * smoothstep(1.0, 0.15, vUv.y) * smoothstep(0.0, 0.08, vUv.y);
         // 안개는 둘레 빛을 받아 밝아진다 (빛 받은 안개). 광원이 닿지 않는 먼 안개 판은 계산하지 않는다

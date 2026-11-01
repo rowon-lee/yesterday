@@ -55,6 +55,10 @@ export class Edges {
     for (let x = R.x0; x < R.x1; x += 16) det.add(x, x + 2, 4, R.h, -42, -40, C.iron);
     det.add(R.x0, R.x1, R.h - 2, R.h, -43, -39, C.ironLight);
     det.add(R.x0, R.x1, 13, 14, -42, -40, C.iron);
+    // 젖은 난간: 위 가로대 윗면에 물기 반짝임, 가로대에 맺혀 떨어지는 물방울 (간격 제각각)
+    det.add(R.x0, R.x1, R.h - 0.5, R.h, -43, -39, C.chrome);
+    det.add(R.x0, R.x1, 3.5, 4, -46, -36, C.paintCream);
+    for (let x = R.x0 + 5, k = 0; x < R.x1 - 2; x += 9 + Math.floor(hash(k * 17 + 3) * 13), k++) det.add(x, x + 1, R.h - 4, R.h - 2, -42, -41, C.skyLight);
   }
 
   /** 시타델 공원: 뒤쪽 산울타리, 키 큰 나무 (줄기는 상자, 잎은 빛을 받는 그림 판 두 겹) */
