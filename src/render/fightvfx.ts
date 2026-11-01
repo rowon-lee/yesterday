@@ -2,6 +2,7 @@ import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import { BREAKABLES, GRIDS, fighterPose, MOVES, RULES, STATS, tramRestX, type Fighter, type SimState } from '../sim';
 import { CITADEL as D } from '../data/stages/citadel';
+import { KNOCKDOWN_RELAND } from '../data/poses/common';
 import { Debris } from './debris';
 import dashBlink from '../vfx/dash-blink';
 import explosion from '../vfx/explosion';
@@ -67,6 +68,13 @@ const CINE_CUES: Record<string, CineCue[]> = {
 
 /** 맞은 쪽 하얀 번쩍임: 맞은 순간부터 이 틱 동안 하얗게 (센 타격은 한 번 더 깜빡) */
 const FLASH_LIGHT = 3;
+/** 낙법 가능 깜빡임 틱 */
+const TECH_BLINK = 3;
+/** 다운에서 다시 바닥에 닿는 틱 (6번 프레임이 시작하는 틱) */
+const KD_RELAND_T = (() => {
+  const m = MOTIONS.find((x) => x.name === 'common/knockdown')!;
+  return m.dur.slice(0, KNOCKDOWN_RELAND).reduce((a, b) => a + b, 0);
+})();
 const FLASH_HEAVY = 4;
 
 const motionByName = new Map(MOTIONS.map((m) => [m.name, m]));
@@ -101,6 +109,9 @@ export class FightVfx {
   /** 맞은 뒤 지난 틱 (번쩍임용), 센 타격이었는지 */
   private since = [99, 99];
   private heavy = [false, false];
+  /** 낙법이 가능해진 순간 한 번 하얗게 깜빡임 (공통 동작 사양서 '공중에서 맞음', 렌더 전용): 남은 틱, 지난 틱에 가능했나 */
+  private blink = [0, 0];
+  private techReady = [false, false];
   private prevMeter = [0, 0];
   private prevMode = ['idle', 'idle'];
   private prevMoveT = [-1, -1];
@@ -154,6 +165,8 @@ export class FightVfx {
     this.later = [];
     this.round = s.round;
     this.since = [99, 99];
+    this.blink = [0, 0];
+    this.techReady = [false, false];
     this.prevMeter = s.fighters.map((f) => f.meter);
     this.prevMode = s.fighters.map((f) => f.mode);
   }
@@ -207,6 +220,10 @@ export class FightVfx {
       } else if (e.type === 'crush') {
         this.layer.add(impact({ kind: 'hit', x, y, angle, size: 0.8, ramp: fxRamp(WARM), seed: this.seed++ }));
         this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.3, surface: fxColor('street'), seed: this.seed++, fire: 0.1 }));
+        // 가드 크러시 (공통 동작 사양서): 방어막이 깨지는 파편이 양쪽으로 튀고 화면이 짧게 흔들린다
+        this.debris.burst('glass', wx, wy, 1, 6);
+        this.debris.burst('glass', wx, wy, -1, 6);
+        this.fx.shake(0.35);
         this.since[1 - e.who] = 0;
         this.heavy[1 - e.who] = true;
       } else if (e.type === 'prop') {
@@ -343,6 +360,18 @@ export class FightVfx {
           shake: shake(0.5),
         }));
       }
+      // 다운: 한 번 튀었다가 다시 바닥에 닿는 순간 (6번 프레임) 몸을 따라 먼지가 인다
+      if (f.mode === 'knockdown' && f.t === KD_RELAND_T) {
+        // 누운 몸은 머리가 뒤쪽 약 20px, 발이 앞쪽 약 25px
+        const a = f.x / 256 - 20 * f.facing;
+        const b = f.x / 256 + 25 * f.facing;
+        this.debris.dustCloud(Math.min(a, b), Math.max(a, b), 0.35, GROUND_Y + f.y / 256);
+      }
+      // 공중에서 맞는 중 낙법이 가능해진 순간 (콤보 TECH_HITS대 이상, 히트스톱이 끝난 틱) 몸이 한 번 하얗게 깜빡인다
+      const ready = f.mode === 'airhit' && f.comboHits >= RULES.TECH_HITS && f.hitstop === 0;
+      if (ready && !this.techReady[i]) this.blink[i] = TECH_BLINK;
+      this.techReady[i] = ready;
+      if (this.blink[i] > 0) this.blink[i]--;
       this.prevMeter[i] = f.meter;
       this.prevMode[i] = f.mode;
       if (this.since[i] < 99) this.since[i]++;
@@ -604,6 +633,7 @@ export class FightVfx {
 
   /** 맞은 쪽을 하얗게 그릴 틱인가 */
   white(i: number): boolean {
+    if (this.blink[i] > 0) return true;
     const t = this.since[i];
     return this.heavy[i] ? t < FLASH_HEAVY || t === 6 : t < FLASH_LIGHT;
   }

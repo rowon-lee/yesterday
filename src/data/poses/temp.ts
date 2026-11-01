@@ -36,17 +36,7 @@ const ADASH = P({ hy: -24, tl: 34, hd: -12, aFx: 4, aFy: 6, aBx: -8, aBy: 6, lFx
 
 const GS = P({ hx: -2, tl: -2, hd: -4, aFx: 7, aFy: -10, aBx: 8, aBy: -6 });
 const GS_R = P({ hx: -5, tl: -9, hd: -8, aFx: 5, aFy: -9, aBx: 6, aBy: -5, lFx: 9, lBx: -9 });
-const CRUSH = P({ hx: -6, hy: -22, tl: -20, hd: -16, aFx: 2, aFy: -19, aBx: -9, aBy: -16, lFx: 10, lBx: -7 });
 
-const HS = P({ hx: -5, tl: -18, hd: -24, aFx: 0, aFy: 7, aBx: -7, aBy: 5, lFx: 9, lBx: -7 });
-const HS2 = P({ hx: -7, tl: -24, hd: -28, aFx: -3, aFy: 8, aBx: -9, aBy: 6, lFx: 9, lBx: -8 });
-const HS3 = P({ hx: -3, tl: -6, hd: -10, aFx: 6, aFy: 2, aBx: 0, aBy: 6 });
-const HH = P({ hx: -9, hy: -18, tl: -32, hd: -26, aFx: -5, aFy: 9, aBx: -11, aBy: 7, lFx: 11, lBx: -6 });
-const KD_A = P({ hx: -2, hy: -22, tl: -38, hd: -22, aFx: -2, aFy: -9, aBx: -8, aBy: -11, lFx: 11, lFy: -7, lBx: 4, lBy: -3 });
-const KD_B = P({ hx: 0, hy: -16, tl: -72, hd: -10, aFx: -4, aFy: -11, aBx: -10, aBy: -9, lFx: 15, lFy: -15, lBx: 10, lBy: -10 });
-const LIE = P({ hx: 3, hy: -3, tl: -90, hd: 0, aFx: -6, aFy: 2, aBx: -2, aBy: 2, lFx: 25, lFy: -2, lBx: 24, lBy: 0 });
-const BNC = { ...LIE, hy: -6, tl: -84, lFy: -6, lBy: -3 };
-const GU1 = P({ hx: -2, hy: -7, tl: -30, hd: 10, aFx: 2, aFy: 8, aBx: -10, aBy: 16, lFx: 10, lFy: 0, lBx: 4, lBy: 0 });
 
 const W1 = P({ tl: 2, hd: -4, aFx: 6, aFy: -8, aBx: 4, aBy: -2 });
 const W2 = P({ hy: -22, tl: -2, hd: -10, aFx: 3, aFy: -19, aBx: -6, aBy: 3, lFx: 6, lBx: -6 });
@@ -102,15 +92,6 @@ export const TEMP_COMMON: MotionData[] = [
   m('air_dash', '공중 대시', r(1, 12), [{ at: 0, pose: TK }, { at: 2, pose: ADASH }, { at: 8, pose: ADASH, stop: true }, { at: 11, pose: FL }]),
   m('guard', '방어', r(1, 12), [{ at: 0, pose: STANCE }, { at: 3, pose: GS }, { at: 11, pose: GS }]),
   m('guard_hit', '방어 막힘', r(1, 12), [{ at: 0, pose: GS_R }, { at: 5, pose: GS }, { at: 11, pose: GS }]),
-  m('guard_crush', '가드 크러시', r(2, 12), [{ at: 0, pose: GS_R }, { at: 3, pose: CRUSH }, { at: 7, pose: CRUSH, stop: true }, { at: 11, pose: HS3 }]),
-  m('hit_light', '약하게 맞음', r(1, 12), [{ at: 0, pose: HS }, { at: 2, pose: HS2 }, { at: 6, pose: HS3 }, { at: 11, pose: STANCE }]),
-  m('hit_heavy', '세게 맞음', r(1, 12), [{ at: 0, pose: HS2 }, { at: 3, pose: HH }, { at: 6, pose: HH, stop: true }, { at: 11, pose: HS3 }]),
-  m('hit_air', '공중에서 맞음', r(2, 12), [{ at: 0, pose: KD_A }, { at: 5, pose: KD_B }, { at: 11, pose: KD_A }]),
-  m('knockdown', '다운', r(3, 14), [
-    { at: 0, pose: KD_B }, { at: 5, pose: LIE }, { at: 7, pose: BNC }, { at: 9, pose: LIE }, { at: 13, pose: LIE },
-  ]),
-  m('getup', '기상', r(2, 14), [{ at: 0, pose: LIE }, { at: 4, pose: GU1 }, { at: 8, pose: { ...CROUCH, tl: 16 } }, { at: 13, pose: STANCE }]),
-  m('tech', '낙법', r(1, 12), [{ at: 0, pose: KD_A }, { at: 3, pose: TUCK }, { at: 7, pose: TUCK, stop: true }, { at: 11, pose: FL }]),
   m('win', '승리', r(3, 14), [{ at: 0, pose: STANCE }, { at: 4, pose: W1 }, { at: 8, pose: W2 }, { at: 13, pose: W2 }]),
 ];
 

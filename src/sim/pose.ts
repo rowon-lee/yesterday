@@ -1,7 +1,7 @@
 import type { Joints } from '../anim/pose';
+import { HIT_AIR_LOOP_FROM, HIT_STRETCH } from '../data/poses/common';
 import { WALL_CLING_LOOP_FROM, WALL_RUN_TOP_FROM } from '../data/poses/wall';
-import { frameAtTick, frameStretched, motionFrames, MOVES, STATS } from './frames';
-import { GETUP_TICKS, KNOCKDOWN_TICKS } from './rules';
+import { frameAtTick, frameFitted, frameStretched, motionFrames, MOVES, STATS } from './frames';
 import type { Fighter } from './types';
 
 /**
@@ -22,6 +22,10 @@ function once(name: string, t: number): [string, number] {
 }
 function stretch(name: string, t: number, len: number): [string, number] {
   return [name, frameStretched(motionFrames(name), t, len)];
+}
+/** 공통 맞는 동작: 늘어나는 프레임의 표시 틱만 바꿔 상태 길이에 맞춘다 (공통 동작 사양서) */
+function fitted(name: string, t: number, len: number): [string, number] {
+  return [name, frameFitted(motionFrames(name), t, len, HIT_STRETCH[name])];
 }
 /** 앞 프레임들은 한 번, from번째 프레임부터는 되풀이 (벽 붙기: 붙는 순간 뒤 미끄러지는 동안) */
 function holdLoop(name: string, t: number, from: number): [string, number] {
@@ -52,10 +56,11 @@ function pick(f: Fighter): [string, number] {
     case 'blockstun':
       return stretch('base/guard_hit', f.t, f.len);
     case 'crush':
-      return stretch('base/guard_crush', f.t, f.len);
+      // 가드 크러시 (공통 동작): 크러시 길이가 기본 44틱과 다르면 7번 프레임이 늘거나 준다
+      return fitted('common/guard_crush', f.t, f.len);
     case 'wallsplat':
-      // 정면에 박혀 팔다리를 벌린 모습 (가드 크러시의 젖혀진 프레임)
-      return ['base/guard_crush', 5];
+      // 정면에 박혀 팔다리를 벌린 모습 (가드 크러시에서 두 팔이 위·뒤로 벌어진 3번 프레임)
+      return ['common/guard_crush', 2];
     case 'jumpsquat':
       return ['base/jump', 0];
     case 'air':
@@ -78,19 +83,23 @@ function pick(f: Fighter): [string, number] {
     case 'attack':
       return once(MOVES[f.move!].frames.name, f.t);
     case 'hitstun':
-      return stretch(f.heavyHit ? 'base/hit_heavy' : 'base/hit_light', f.t, f.len);
+      // 약하게 맞음·세게 맞음 (공통 동작): 경직이 길면 늘어나는 프레임(5번·6번)이 늘고, 짧으면 줄인다
+      return fitted(f.heavyHit ? 'common/hit_heavy' : 'common/hit_light', f.t, f.len);
     case 'airhit':
-      return loop('base/hit_air', f.t);
+      // 공중에서 맞음: 1~9번은 한 번, 떨어지는 동안 10~12번을 되풀이. 다시 맞으면 (상태를 새로 시작해 t = 0) 1번부터
+      return holdLoop('common/hit_air', f.t, HIT_AIR_LOOP_FROM);
     case 'knockdown':
-      return stretch('base/knockdown', f.t, KNOCKDOWN_TICKS);
+      // 다운: 14번(완전히 누운 자세)에서 멈춘 채 누워 기다린다
+      return once('common/knockdown', f.t);
     case 'getup':
-      return stretch('base/getup', f.t, GETUP_TICKS);
+      return once('common/getup', f.t);
     case 'tech':
-      return stretch('base/tech', f.t, Math.max(1, f.len));
+      return once('common/tech', f.t);
     case 'walltech':
       return once('base/wall_tech', f.t);
     case 'ko':
-      return f.y < f.floor ? loop('base/hit_air', f.t) : stretch('base/knockdown', Math.min(f.t, KNOCKDOWN_TICKS), KNOCKDOWN_TICKS);
+      // 쓰러짐: 날아가는 동안은 공중에서 맞음, 바닥에 닿으면 (t가 0부터 다시) 다운
+      return f.y < f.floor ? holdLoop('common/hit_air', f.t, HIT_AIR_LOOP_FROM) : once('common/knockdown', f.t);
     case 'win':
       return once('base/win', f.t);
     case 'wallcling':

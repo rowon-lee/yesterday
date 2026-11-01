@@ -27,6 +27,8 @@ export const LOOKS = {
   /** 잔상 (대시·돌진할 때 뒤에 남는 그림자) */
   ghost1: { outline: 'goldDark', shadow: 'goldDark', base: 'goldDark', light: 'goldDark' },
   ghost2: { outline: 'skyDark', shadow: 'skyDark', base: 'skyDark', light: 'skyDark' },
+  /** 낙법으로 도는 동안 회전 궤적을 따라 남는 흰 잔상 */
+  ghostW: { outline: 'white', shadow: 'white', base: 'white', light: 'white' },
   /** 맞은 순간 하얗게 번쩍임 */
   flash: { outline: 'ink', shadow: 'white', base: 'white', light: 'white' },
   /** 차지를 모으는 동안 몸이 빛남: 한 단계씩 밝게 (렌더가 단계마다 맥박치듯 바꿔 끼운다) */

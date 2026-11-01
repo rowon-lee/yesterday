@@ -15,7 +15,7 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 | `npm run shot -- blank --tick 300 --view pc-1280x720` | 장면·멈출 틱·화면 크기 지정 | |
 | `npm run shot -- "fight?p1=cpu" --tick 3000 --fast` | 주소 옵션을 붙인 장면, 멈출 틱까지 바로 돌려서 찍기 | |
 | `npm run clip -- "fight?p1=cpu&seed=5" --from 130 --ticks 200 --name 이름` | 장면 한 토막을 움직이는 GIF로 (2배, 30fps). 동작 느낌 확인·PR 미리보기용 | `out/clips/이름.gif` |
-| `npm run moveclip -- 장면 [--scale 1] [--every 2] [--to 경로]` | 정해 둔 키 입력으로 대전·메뉴 장면 한 토막을 GIF로 (`tools/moveclip.mjs`의 `SCENES`: 대시 공격, 차지, 연속 콤보, 필살기, 필살기 빗나감, 타이틀, 일시정지, 경기 끝, 연습) | `out/clips/장면.gif` |
+| `npm run moveclip -- 장면 [--scale 1] [--every 2] [--crop x,y,w,h] [--to 경로]` | 정해 둔 키 입력으로 대전·메뉴 장면 한 토막을 GIF로 (`tools/moveclip.mjs`의 `SCENES`: 대시 공격, 차지, 연속 콤보, 필살기, 필살기 빗나감, 타이틀, 일시정지, 경기 끝, 연습, 공통 맞는 동작 6장면) | `out/clips/장면.gif` |
 | `npm run simtest` | CPU끼리 N판 대전. 예외, 규칙 범위(체력·기력·방어 내구도·위치), 경기 종료, `sim/`의 무작위·시간 값 사용, 같은 입력 재생·저장/복원 후 상태 해시 일치 확인. 히트·띄우기·낙법·크러시 등 집계 | 콘솔 |
 | `npm run simtest -- --matches 50 --ticks 5400 --seed 7` | 판 수·판당 최대 틱·시작 시드 지정 | |
 | `npm run compare` | 무대를 바꿨을 때: 고정 카메라 지점 세 곳(극장·다이너 거리, 시타델 광장, 비상계단 아파트)을 이전 버전(기본 origin/main)과 지금 버전으로 찍어 컬러·흑백으로 나란히 놓고, 벽·바닥·주인공 간판의 흑백 밝기를 잰다. `--base 커밋`, `--only theater`, `--new "옵션"`(지금 버전 주소에 붙임) | `out/compare/<지점>-color.png`, `-gray.png`, `stats.md` |
@@ -41,7 +41,7 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 | 일시정지 | Esc · P |
 | 판정 상자 켜고 끄기 | B |
 
-주소 옵션 (`?scene=fight` 뒤에): `&mode=practice&dummy=stand|guard|cpu` 연습, `&cpu=easy|normal|hard` CPU 강도, `&p2=idle` 상대가 가만히 섬, `&p1=cpu` CPU끼리 (구경), `&boxes=1` 판정 상자, `&seed=n` CPU 시드.
+주소 옵션 (`?scene=fight` 뒤에): `&mode=practice&dummy=stand|guard|cpu` 연습, `&cpu=easy|normal|hard` CPU 강도, `&p2=idle` 상대가 가만히 섬, `&p2=tech` 상대가 가만히 섰다가 낙법이 가능해지면 바로 낙법 (확인용), `&dummy=guard` 상대가 막기만 함, `&p1=cpu` CPU끼리 (구경), `&boxes=1` 판정 상자, `&seed=n` CPU 시드.
 
 ## 무대 보기
 

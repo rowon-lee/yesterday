@@ -75,13 +75,14 @@ const CAMERA_DAMP = 0.35;
  *   ?mode=vs|practice  대련(3판 2선승) 또는 연습 (타이틀 메뉴가 붙인다)
  *   ?cpu=easy|normal|hard  대련 CPU 강도 (방어 실력)
  *   ?dummy=stand|guard|cpu 연습 상대: 가만히 / 막기만 / CPU
+ *   ?p2=tech 확인용: 상대가 가만히 서 있다가 공중에서 맞는 중 낙법이 가능해지면 바로 점프 (낙법 동작 캡처용)
  * Esc·P로 일시정지 (계속 / 처음부터 / 조작법 / 타이틀로). 경기가 끝나면 다시 하기 / 타이틀로.
  */
 export function fightScene(app?: App): Scene {
   const params = new URLSearchParams(location.search);
   const p1Cpu = params.get('p1') === 'cpu';
   const practice = params.get('mode') === 'practice';
-  const dummy = params.get('dummy') ?? (params.get('p2') === 'idle' ? 'stand' : practice ? 'stand' : 'cpu');
+  const dummy = params.get('dummy') ?? (params.get('p2') === 'idle' ? 'stand' : params.get('p2') === 'tech' ? 'tech' : practice ? 'stand' : 'cpu');
   const cpuSkill = ({ easy: 25, normal: 55, hard: 85 } as Record<string, number>)[params.get('cpu') ?? 'normal'] ?? 55;
   let seed = Number(params.get('seed') ?? 1) | 0;
   let showBoxes = params.get('boxes') === '1';
@@ -150,7 +151,9 @@ export function fightScene(app?: App): Scene {
   const watchMotion = () => {
     s.fighters.forEach((f, i) => {
       const p = fighterPose(f);
-      trails[i].push({ motion: p.motion, frame: p.frame, x: f.x, y: f.y, facing: f.facing, fast: isFast(f) });
+      // 낙법으로 도는 동안(무적 구간)은 흰 잔상 (공통 동작 사양서 '낙법', Dash & Blink의 잔상 응용)
+      const spin = f.mode === 'tech' && f.t <= RULES.TECH_INVULN;
+      trails[i].push({ motion: p.motion, frame: p.frame, x: f.x, y: f.y, facing: f.facing, fast: isFast(f), white: spin });
       if (trails[i].length > 8) trails[i].shift();
       const was = prev[i];
       const x = f.x / 256;
@@ -257,6 +260,9 @@ export function fightScene(app?: App): Scene {
           const t = tr[tr.length - 1 - back];
           if (t && tr[tr.length - 1].fast && t.fast) {
             drawGhost(c, t, i === 0 ? 'ghost1' : 'ghost2', toScreen, back === 6);
+            drew = true;
+          } else if (t && tr[tr.length - 1].white && t.white) {
+            drawGhost(c, t, 'ghostW', toScreen, back === 6);
             drew = true;
           }
         }
@@ -367,7 +373,9 @@ export function fightScene(app?: App): Scene {
       }
       const pad = touch.poll();
       const p1 = p1Cpu ? cpuInput(cpus[0], s, 0) : keyboardToInput(input) | pad;
-      const p2 = dummy === 'stand' ? 0 : dummy === 'guard' ? (s.phase === 'fight' ? IN_DOWN : 0) : cpuInput(cpus[1], s, 1);
+      const d2 = s.fighters[1];
+      const canTech = d2.mode === 'airhit' && d2.comboHits >= RULES.TECH_HITS && d2.hitstop === 0;
+      const p2 = dummy === 'stand' ? 0 : dummy === 'guard' ? (s.phase === 'fight' ? IN_DOWN : 0) : dummy === 'tech' ? (canTech ? IN_JUMP : 0) : cpuInput(cpus[1], s, 1);
       step(s, [p1, p2]);
       fx.push(s.events);
       for (const e of s.events) if (e.type === 'cine' && e.text === 'start') cineStart = s.tick;
@@ -404,6 +412,8 @@ interface Snapshot {
   y: number;
   facing: 1 | -1;
   fast: boolean;
+  /** 낙법으로 도는 중 (흰 잔상) */
+  white: boolean;
 }
 
 /** 필살기 연출 중 위아래 검은 띠 (처음 6틱 동안 밀려 들어온다) */

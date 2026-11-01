@@ -5,8 +5,8 @@ import {
 } from './input';
 import { canDropThrough, findWall, findWallCross, floorBelow, landingY, wallHolds, wallTop } from './platforms';
 import {
-  BOUNCE_VY, BUFFER_TICKS, CHARGE_HOLD, DROP_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
-  JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SAME_WALL_MAX, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
+  BOUNCE_VY, BUFFER_TICKS, CHARGE_HOLD, DROP_TICKS, GETUP_INVULN, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
+  JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SAME_WALL_MAX, SUPER_FREEZE, TECH_HITS, TECH_INVULN, TECH_TICKS, TECH_VX, TECH_VY,
   WALL_GRAB_H, WALL_JUMP_LOCK, WALL_PUSH, WALL_REACH, WALL_TECH_INVULN, WALL_TECH_TICKS, WALL_TECH_VX, WALL_TECH_VY,
   WALL_TOP_VX, WALL_TOP_VY, px,
 } from './rules';
@@ -615,7 +615,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       // 많이 맞으면 점프로 낙법
       if (controllable && f.comboHits >= TECH_HITS && f.hitstop === 0 && take(f, B_JUMP)) {
         setMode(f, 'tech', TECH_TICKS);
-        f.invuln = TECH_TICKS;
+        f.invuln = TECH_INVULN;
         f.vx = -f.facing * TECH_VX;
         f.vy = TECH_VY;
         f.comboHits = 0;
@@ -655,7 +655,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       f.invuln = Math.max(f.invuln, 1);
       if (f.t >= f.len) {
         setMode(f, 'getup', GETUP_TICKS);
-        f.invuln = GETUP_TICKS;
+        f.invuln = GETUP_INVULN;
       }
       break;
     case 'getup':
@@ -809,6 +809,8 @@ function land(s: SimState, f: Fighter): void {
       break;
     case 'ko':
       f.vx = Math.trunc(f.vx / 2);
+      // 바닥에 닿은 순간부터 다운 그림을 처음부터 (sim/pose.ts)
+      f.t = 0;
       break;
     default:
       break;
