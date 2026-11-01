@@ -36,6 +36,10 @@ const SIDE_RAMP: Record<0 | 1, ColorName[]> = {
   0: ['fxWhite', 'goldLight', 'fxYellow', 'gold', 'fxOrange', 'goldDark', 'fxRed'],
   1: ['fxWhite', 'skyLight', 'sky', 'fxBlue', 'skyDark', 'fxDeepBlue', 'fxNavy'],
 };
+/** 라이덴 (캐릭터 기획서: 붉은 전격, 검붉은 잔상): 대시 잔상 등 플레이어 색 대신 쓴다 */
+const RAIDEN_RAMP: ColorName[] = ['fxWhite', 'raidenLight', 'raiden', 'fxRed', 'raidenDark', 'raidenDeep'];
+/** 이 사람의 이펙트 색: 캐릭터 대표 색이 있으면 그것, 없으면 플레이어 색 */
+const rampOf = (f: Fighter, side: 0 | 1): ColorName[] => (f.char === 'raiden' ? RAIDEN_RAMP : SIDE_RAMP[side]);
 /** 타격 불꽃 (뜨거운 색) */
 const WARM: ColorName[] = ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed'];
 /** 차지를 모으는 동안 몸 둘레 오라와 빛 (기본 스틱맨은 흰 주황. 캐릭터를 얹으면 대표 색) */
@@ -337,7 +341,7 @@ export class FightVfx {
           distance: ((speed * ticks) / 256) * FX_PX,
           time: ticks / 60,
           delay: 0,
-          colors: fxRamp(SIDE_RAMP[side]),
+          colors: fxRamp(rampOf(f, side)),
           groundColor: fxColor('street'),
           ground: air ? feet(f)[1] : GROUND_Y * FX_PX,
           seed: this.seed++,
@@ -363,7 +367,7 @@ export class FightVfx {
         const fighter = f;
         this.layer.add(powerUp({
           actor: { feet: () => feet(fighter), silhouette: () => silhouette(fighter, this.skinOf(fighter)) },
-          palette: fxHex(SIDE_RAMP[side]),
+          palette: fxHex(rampOf(f, side)),
           size: 0.55,
           seed: this.seed++,
           sustain: () => fighter.meter >= RULES.METER_MAX,
