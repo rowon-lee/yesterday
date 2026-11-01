@@ -147,6 +147,26 @@ const SCENES = {
     prep: 's.fighters[0].wins = 1; s.round = 2; s.fighters[1].hp = 30;',
     steps: [[[], 4], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 200]],
   },
+  // 라이덴 지상 평타: 공격을 4틱마다 눌러 잽 → 스트레이트 → 훅 → 니킥 (니킥에 날아감)
+  raiden_ground: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3190, settle: 30,
+    steps: [[[], 6], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [[], 50]],
+  },
+  // 라이덴 띄우기(↑+공격, 어퍼컷) → 점프로 쫓아 공중 잽 → 스트레이트 → 니킥
+  raiden_air: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
+    steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [[], 50]],
+  },
+  // 라이덴 띄우기 → 쫓아 점프 → 내려찍기(↓+공격, 해머 피스트)
+  raiden_slam: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
+    steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['ArrowDown', 'KeyJ'], 1], [[], 70]],
+  },
+  // 라이덴 쓸기(↓+공격, 로킥) → 상대가 일어나면 물러났다가 대시 공격(슈퍼맨 펀치)
+  raiden_low: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3188, settle: 30,
+    steps: [[[], 6], [['ArrowDown', 'KeyJ'], 1], [[], 100], [['ArrowLeft'], 20], [[], 6], [['KeyL'], 1], [[], 3], [['KeyJ'], 1], [[], 50]],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,
