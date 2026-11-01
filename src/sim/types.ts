@@ -102,6 +102,9 @@ export interface Fighter {
   dashUp: boolean;
   /** 이번 기술(필살기)이 이미 시타델에 닿았다 (기술 하나에 한 번) */
   citadelHit: boolean;
+  /** 라이덴 금강 스택 (0~4)과 금강불괴 남은 틱 (다른 캐릭터는 늘 0) */
+  kongo: number;
+  kongoT: number;
 }
 
 /** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */
@@ -159,6 +162,8 @@ export interface SimEvent {
     | 'collapse'
     /** 벽꽝: who = 때린 쪽 */
     | 'wallsplat'
+    /** 라이덴 금강불괴 발동: who = 발동한 사람 */
+    | 'kongo'
     /** 벽 붙기: who = 붙은 사람, combo = 그 벽을 연속으로 디딘 횟수 */
     | 'wallcling'
     /** 벽 점프: who = 뛴 사람, x = 찬 벽 */

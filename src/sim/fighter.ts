@@ -512,6 +512,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
   if (isAirborne(f) && GROUND_ONLY.has(f.mode)) fallOff(f);
   if (f.invuln > 0) f.invuln--;
   if (f.flash > 0) f.flash--;
+  if (f.kongoT > 0) f.kongoT--;
 
   if (NEUTRAL.has(f.mode)) f.comboHits = 0;
   // 방어 내구도는 막지 않는 동안 다시 찬다

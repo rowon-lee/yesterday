@@ -237,6 +237,11 @@ export class FightVfx {
         if (e.move === 'super') {
           this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.5, surface: fxColor('street'), seed: this.seed++, shake: shake(0.3) }));
         }
+      } else if (e.type === 'kongo' && att) {
+        // 라이덴 금강불괴 발동: 몸에서 붉은 빛이 한 번 크게 반짝이고 둘레를 비춘다
+        const [fx, fy] = feet(att);
+        this.layer.add(glint({ x: fx, y: fy - 26 * FX_PX, size: 1.2, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep']) }));
+        this.glow(fx / FX_PX, fy / FX_PX - 26, 110, COLORS.raidenLight, 0.9, 24);
       } else if (e.type === 'block') {
         this.layer.add(impact({ kind: 'hit', x, y, angle, size: 0.32, ramp: fxRamp(COOL), seed: this.seed++ }));
       } else if (e.type === 'crush') {

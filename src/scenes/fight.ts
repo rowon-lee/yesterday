@@ -447,6 +447,8 @@ function letterbox(ctx: CanvasRenderingContext2D, t: number): void {
  */
 const CHARGE_LEVEL_AT = MOVES.charge.data.charge!.levels.map((l) => l.at);
 function chargeGlow(f: Fighter): 0 | 1 | 2 {
+  // 라이덴 금강불괴: 10틱마다 3틱 몸이 대표 색으로 번뜩인다 (단단해진 몸)
+  if (f.kongoT > 0 && f.mode !== 'charge') return f.kongoT % 10 < 3 ? 1 : 0;
   if (f.mode !== 'charge') return 0;
   const since = f.t - CHARGE_LEVEL_AT[Math.max(0, f.chargeLv - 1)];
   return since >= 0 && since < 3 ? 2 : 1;

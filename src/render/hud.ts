@@ -78,6 +78,19 @@ export class Hud {
         ctx.fillStyle = w < f.wins ? COLORS.gold : COLORS.panel;
         ctx.fillRect(px, 19, 4, 4);
       }
+      // 라이덴 금강 스택 (이름 옆 4칸). 금강불괴 동안은 4칸이 붉게·희게 깜빡이며 남은 시간만큼 남는다
+      if (f.char === 'raiden') {
+        const nx = left ? x + textWidth(name) + 4 : x + BAR_W - textWidth(name) - 4 - 4 * 6;
+        const lit = f.kongoT > 0 ? Math.ceil((f.kongoT / RULES.KONGO_TICKS) * RULES.KONGO_MAX) : f.kongo;
+        for (let k = 0; k < RULES.KONGO_MAX; k++) {
+          const kx = nx + k * 6;
+          ctx.fillStyle = COLORS.ink;
+          ctx.fillRect(kx - 1, 18, 6, 6);
+          const on = k < lit;
+          ctx.fillStyle = !on ? COLORS.panel : f.kongoT > 0 ? ((s.tick >> 2) & 1 ? COLORS.white : COLORS.raidenLight) : COLORS.raiden;
+          ctx.fillRect(kx, 19, 4, 4);
+        }
+      }
       // 기력 3칸 (아래, 휴대폰은 이름 밑)
       const my = this.meterTop ? 27 : SCREEN_H - 10;
       const full = Math.floor(f.meter / RULES.METER_BAR);

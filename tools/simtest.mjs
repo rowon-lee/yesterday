@@ -251,6 +251,45 @@ function charChecks() {
   st = rfresh(3100, 3214);
   hits = rrun(st, [...tap(sim.IN_DASH | sim.IN_RIGHT, 3), ...tap(sim.IN_ATTACK, 40)]);
   out.push(['라이덴 대시 공격(슈퍼맨 펀치)', hits[0] === 'dashAttack', `맞힌 기술 ${hits.join(',') || '없음'}`]);
+  // 라이덴 고유 특성 금강: 합을 주고받을 때마다 1스택, 4스택이면 금강불괴(KONGO_TICKS): 맞아도 하던 동작을 이어 가고 밀림 80% 감소
+  {
+    const K = sim.RULES;
+    st = rfresh(3150, 3190);
+    let fired = -1;
+    const seq = [...mash(sim.IN_ATTACK, 72)];
+    seq.forEach((inp, t) => {
+      sim.step(st, [inp, 0]);
+      if (fired < 0 && st.events.some((e) => e.type === 'kongo' && e.who === 0)) fired = t;
+    });
+    out.push(['금강: 라이덴이 네 번 맞히면 금강불괴가 켜지고 스택은 0으로', fired >= 0 && st.fighters[0].kongo === 0,
+      `발동 ${fired >= 0 ? `${fired + 1}틱째` : '없음'}, 남은 ${st.fighters[0].kongoT}틱, 스택 ${st.fighters[0].kongo}`]);
+    // 2P 라이덴이 맞는 쪽: 금강불괴가 없을 때는 경직, 있을 때는 대기 그대로 + 밀림 감소
+    const hitRaiden = (armor) => {
+      const s2 = sim.createState(1, { chars: ['base', 'raiden'] });
+      while (s2.phase !== 'fight') sim.step(s2, [0, 0]);
+      s2.fighters[0].x = 3150 * 256;
+      s2.fighters[1].x = 3190 * 256;
+      if (armor) s2.fighters[1].kongoT = K.KONGO_TICKS;
+      const hp0 = s2.fighters[1].hp;
+      const x0 = s2.fighters[1].x;
+      const modes = new Set();
+      for (let t = 0; t < 30; t++) {
+        sim.step(s2, [t === 0 ? sim.IN_ATTACK : 0, 0]);
+        modes.add(s2.fighters[1].mode);
+      }
+      return { hurt: hp0 - s2.fighters[1].hp, pushed: (s2.fighters[1].x - x0) / 256, stunned: modes.has('hitstun'), kongo: s2.fighters[1].kongo, left: s2.fighters[1].kongoT };
+    };
+    const plain = hitRaiden(false);
+    const armor = hitRaiden(true);
+    out.push(['금강: 맞으면 1스택 (금강불괴가 없을 때는 경직)', plain.kongo === 1 && plain.stunned, `스택 ${plain.kongo}, 경직 ${plain.stunned}, 밀림 ${plain.pushed.toFixed(1)}px`]);
+    out.push(['금강불괴: 맞아도 경직 없이 대기를 이어 가고 피해는 받음, 밀림은 줄어듦', !armor.stunned && armor.hurt > 0 && Math.abs(armor.pushed) > 0 && Math.abs(armor.pushed) <= Math.abs(plain.pushed) * 0.3,
+      `경직 ${armor.stunned}, 피해 ${armor.hurt}, 밀림 ${armor.pushed.toFixed(1)}px (없을 때 ${plain.pushed.toFixed(1)}px)`]);
+    const s3 = sim.createState(1, { chars: ['raiden', 'base'] });
+    while (s3.phase !== 'fight') sim.step(s3, [0, 0]);
+    s3.fighters[0].kongoT = K.KONGO_TICKS;
+    for (let t = 0; t < K.KONGO_TICKS; t++) sim.step(s3, [0, 0]);
+    out.push([`금강불괴는 ${K.KONGO_TICKS}틱 뒤 꺼짐`, s3.fighters[0].kongoT === 0, `남은 ${s3.fighters[0].kongoT}틱`]);
+  }
   // 라이덴이 낀 CPU 대전: 예외 없이 끝나고, 같은 입력 재생·저장/복원 뒤 같은 해시
   for (const chars of [['raiden', 'base'], ['base', 'raiden'], ['raiden', 'raiden']]) {
     const opts = { chars };

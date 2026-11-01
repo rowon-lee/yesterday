@@ -112,6 +112,16 @@ export const GETUP_TICKS = 24;
 export const GETUP_INVULN = 20;
 /** 맞은 쪽이 하얗게 번쩍이는 틱 */
 export const FLASH_TICKS = 6;
+
+/**
+ * 라이덴 고유 특성 금강 (캐릭터 기획서): 상대와 합을 주고받을 때마다(때리거나 맞거나 막을 때) 금강 1스택(최대 4).
+ * 4스택이 되면 금강불괴가 KONGO_TICKS 동안: 맞아도 하던 동작을 이어 가고(경직은 히트스톱뿐), 밀리는 힘 80% 감소.
+ * 발동하면 스택은 0. 금강불괴 동안에는 스택이 쌓이지 않는다. 필살기 연출과 쓰러짐은 막지 못한다.
+ */
+export const KONGO_MAX = 4;
+export const KONGO_TICKS = 120;
+/** 금강불괴 동안 밀리는 힘 (%) */
+export const KONGO_PUSH = 20;
 /** 막았을 때 히트스톱은 이만큼 짧게 (최소 4) */
 export const BLOCK_HITSTOP_CUT = 3;
 /** 필살 컷인 동안 둘 다 멈춤 */
