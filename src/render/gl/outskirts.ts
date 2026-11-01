@@ -354,7 +354,8 @@ export class Outskirts {
     const face = paintColossalWall(WALL.x0, R + 380 - WALL.x0, WALL.h, sk, true);
     const concrete = litMaterial(pixelTexture(face.map), { emissive: pixelTexture(face.glow), emissiveStrength: 1.2, wet: 0.45, bump: 0.6 });
     const dark = litMaterial(pixelTexture(solid('#1d1f26')), { tint: 0.8 });
-    this.group.add(facedBox(WALL.x0, R + 380, 0, WALL.h, WALL.z - 90, WALL.z, { pz: concrete, nx: dark, py: dark }));
+    // (옆면은 그리지 않는다: 거의 정면만 보는 카메라에서 옆면은 화면 높이 내내 1칸짜리 어두운 줄 = 외곽선)
+    this.group.add(facedBox(WALL.x0, R + 380, 0, WALL.h, WALL.z - 90, WALL.z, { pz: concrete, py: dark }));
     // 동쪽 끝 (맵 끝 벽): 같은 성벽이 길을 가로질러 앞으로 꺾여 나온 모서리
     const endFace = paintColossalWall(R, 380, WALL.h, scaleAt(6), false);
     const endMat = litMaterial(pixelTexture(endFace.map), { emissive: pixelTexture(endFace.glow), emissiveStrength: 1.2, wet: 0.45, bump: 0.6 });
@@ -368,11 +369,11 @@ export class Outskirts {
     // 서쪽 끝 모서리 보루 (앞으로 튀어나온 거대한 기둥, 좁은 총안 창)
     const bastion = paintColossalWall(WALL.x0 - 80, 90, WALL.h, scaleAt(WALL.z + 40), false);
     const bMat = litMaterial(pixelTexture(bastion.map), { emissive: pixelTexture(bastion.glow), emissiveStrength: 1.2, wet: 0.45, bump: 0.6 });
-    this.group.add(facedBox(WALL.x0 - 80, WALL.x0 + 10, 0, WALL.h, WALL.z - 60, WALL.z + 40, { pz: bMat, nx: dark, px: dark, py: dark }));
+    this.group.add(facedBox(WALL.x0 - 80, WALL.x0 + 10, 0, WALL.h, WALL.z - 60, WALL.z + 40, { pz: bMat, py: dark }));
     // 버팀벽 (벽에서 튀어나온 콘크리트 기둥)과 그 위 나트륨 투광등 (벽 아래쪽만 따뜻하게 비춘다)
     for (const x of WALL.buttress) {
       const bt = litMaterial(pixelTexture(paintButtress(36, WALL.h, x)), { wet: 0.45, bump: 0.6 });
-      this.group.add(facedBox(x, x + 36, 0, WALL.h, WALL.z - 2, WALL.z + 24, { pz: bt, nx: dark, px: dark }));
+      this.group.add(facedBox(x, x + 36, 0, WALL.h, WALL.z - 2, WALL.z + 24, { pz: bt }));
       // 버팀벽 발치에서 위로 쏘는 차가운 투광등 (벽면을 세로로 쓸어 올리는 빛)
       det.add(x + 8, x + 28, 0, 8, WALL.z + 26, WALL.z + 40, C.iron);
       det.add(x + 10, x + 26, 8, 9, WALL.z + 28, WALL.z + 38, C.skyLight);
@@ -384,13 +385,50 @@ export class Outskirts {
     }
     // 철문 위 경고등과 문 앞 투광등
     this.lamps.push({ x: (WALL.gate[0] + WALL.gate[1]) / 2, y: 250, z: WALL.z + 40, range: 220, color: C.sodium, power: 1.2, flicker: 0, down: true });
-    // 2) 성벽 꼭대기(화면 위)에서 내리쬐는 서치라이트: 거리와 벽을 천천히 훑는다
+    // 2) 벽면에 매단 감시 초소: 콘크리트 함(불 켜진 총안 창 줄), 받침 까치발, 지붕 위 서치라이트, 모서리 경고등
+    for (const p of WALL.posts) {
+      const x0 = p.x - p.w / 2;
+      const x1 = p.x + p.w / 2;
+      const z0 = WALL.z;
+      const z1 = WALL.z + 26;
+      det.add(x0, x1, p.y, p.y + 40, z0, z1, '#3a3e49');
+      det.add(x0 - 3, x1 + 3, p.y + 40, p.y + 44, z0, z1 + 3, '#4f5460');
+      det.add(x0 - 3, x1 + 3, p.y + 38, p.y + 40, z0, z1 + 3, '#2a2d36');
+      det.add(x0, x1, p.y - 2, p.y, z0, z1, '#2a2d36');
+      // 벽에 드리운 그림자 면과 까치발
+      det.add(x0 + 4, x1 + 6, p.y - 14, p.y - 2, z0 + 0.4, z0 + 0.8, '#16171c');
+      for (const bx of [x0 + 6, x1 - 8]) det.bar(bx, p.y, bx + 1, p.y - 22, 3, z0 + 6, z0 + 10, '#2a2d36');
+      // 총안 창 줄 (몇 칸만 불, 하나는 사람 그림자)
+      const cnt = Math.floor((p.w - 8) / 10);
+      for (let k = 0; k < cnt; k++) {
+        const wx = x0 + 6 + k * 10;
+        const lit = hash(p.x + k * 7) < 0.6;
+        this.group.add(box(wx, wx + 6, p.y + 18, p.y + 26, z1 - 0.5, z1 + 0.1, lit ? (k === 1 ? SLIT_FIGURE : SLIT_LIT) : SLIT_DARK));
+      }
+      this.lamps.push({ x: p.x, y: p.y + 22, z: z1 + 14, range: 90, color: C.windowLight, power: 0.6, flicker: 0, down: false });
+      // 지붕 모서리 경고등 (깜빡인다)
+      const m = beaconMaterial();
+      this.beacons.push(m);
+      this.group.add(box(x1 - 4, x1, p.y + 44, p.y + 48, z1 - 4, z1, m));
+      this.lamps.push({ x: x1 - 2, y: p.y + 46, z: z1 + 6, range: 50, color: C.neonRed, power: 0.7, flicker: -1, down: false });
+    }
+    // 서치라이트 (초소 지붕 위 등기구): 거리와 벽을 천천히 훑는다
     for (const s of WALL.searchlights) {
-      const b = new Beam(940, 58, C.beam, 0.16, 2);
-      b.pivot.position.set(s.x, s.y, WALL.z + 40);
+      det.add(s.x - 7, s.x + 7, s.y - 4, s.y + 6, WALL.z + 10, WALL.z + 24, C.iron);
+      this.group.add(box(s.x - 5, s.x + 5, s.y - 5, s.y - 3.5, WALL.z + 12, WALL.z + 22, SEARCH_LENS));
+      const b = new Beam(s.y + 120, 58, C.beam, 0.16, 2);
+      b.pivot.position.set(s.x, s.y - 4, WALL.z + 40);
       this.group.add(b.pivot);
       this.searchlights.push({ beam: b, x: s.x, y: s.y, phase: s.phase, sweep: s.sweep });
     }
+    // 철조망 난간 통로: 벽면을 따라 좁은 쇠 통로, 기둥과 위에 감긴 철조망 (빛 받는 쇠 고리)
+    const cw = WALL.catwalk;
+    det.add(WALL.x0, R, cw - 3, cw, WALL.z, WALL.z + 12, C.iron);
+    det.add(WALL.x0, R, cw - 0.6, cw, WALL.z, WALL.z + 12, C.ironLight);
+    det.add(WALL.x0, R, cw - 9, cw - 3, WALL.z + 0.4, WALL.z + 0.8, '#16171c');
+    for (let x = WALL.x0 + 4, k = 0; x < R; x += 22 + (k % 3) * 3, k++) det.add(x, x + 1, cw, cw + 14, WALL.z + 11, WALL.z + 12, C.ironLight);
+    const wire = litMaterial(pixelTexture(paintWireCoil(R - WALL.x0, 6)), { side: THREE.DoubleSide });
+    this.group.add(plane(WALL.x0, R, cw + 12, cw + 18, WALL.z + 11.6, wire));
     // 3) 성벽 아래 막사 (낮은 2층 콘크리트, 불 켜진 창 몇 개)
     const bw = WALL.barracks[1] - WALL.barracks[0];
     const br = paintBarracks(bw, 96, scaleAt(-150));
@@ -544,6 +582,33 @@ export class Outskirts {
 
 /** 제철소 뒤 건물 (렌더 전용): 오른쪽 끝 x, 그림 높이(톱니 지붕 230 위로 간판 받침까지), 깊이 */
 const MILL = { x1: 800, h: 240, z: -120 };
+/** 장벽 초소 총안 창: 불 켜진 창, 사람 그림자가 비친 창, 꺼진 창. 서치라이트 유리 */
+const SLIT_LIT = litMaterial(pixelTexture(solidTex('#d8a85e')), { emissive: pixelTexture(solidTex('#ad5a20')), emissiveStrength: 1.3 });
+const SLIT_FIGURE = (() => {
+  const [c, g] = canvas(6, 8);
+  rect(g, 0, 0, 6, 8, '#d8a85e');
+  rect(g, 2, 2, 2, 6, '#1c1410');
+  rect(g, 2, 1, 2, 1, '#1c1410');
+  const [ec, eg] = canvas(6, 8);
+  rect(eg, 0, 0, 6, 8, '#ad5a20');
+  rect(eg, 2, 1, 2, 7, '#000000');
+  return litMaterial(pixelTexture(c), { emissive: pixelTexture(ec), emissiveStrength: 1.3 });
+})();
+const SLIT_DARK = litMaterial(pixelTexture(solidTex('#121318')));
+const SEARCH_LENS = litMaterial(pixelTexture(solidTex('#f0f6ff')), { emissive: pixelTexture(solidTex('#c4d6e6')), emissiveStrength: 1.6 });
+
+/** 철조망 (가로 w, 높이 h): 감긴 쇠 고리가 겹친다. 빛 받는 위쪽은 밝고 아래는 어둡게, 고리 사이는 비어 있다 */
+function paintWireCoil(w: number, h: number): HTMLCanvasElement {
+  const [c, g] = canvas(w, h);
+  for (let x = 0; x < w; x++) {
+    const t = (x % 7) / 7;
+    const y = Math.round((h - 1) / 2 + Math.sin(t * Math.PI * 2) * ((h - 1) / 2));
+    rect(g, x, y, 1, 1, y < h / 2 ? '#6f767d' : '#36323a');
+    if (x % 7 === 3) rect(g, x, 0, 1, h, '#36323a');
+  }
+  return c;
+}
+
 /** 투광등 유리 (나트륨 빛) */
 const FLOOD_LENS = litMaterial(pixelTexture(solidTex('#ffe2a8')), { emissive: pixelTexture(solidTex('#ffc16e')), emissiveStrength: 1.5 });
 /** 쇳물 (빛나는 면): 도랑과 국자 위 */
@@ -556,7 +621,11 @@ const LAVA = litMaterial(pixelTexture(solidTex('#ffc16e')), { emissive: pixelTex
  */
 const WALL = {
   x0: 5560, z: -190, h: 640, gate: [6168, 6330] as const, buttress: [5644, 5960, 6118] as const, barracks: [5600, 5860] as const,
-  searchlights: [{ x: 5790, y: 760, phase: 0, sweep: 0.42 }, { x: 6160, y: 760, phase: 2.6, sweep: 0.38 }],
+  /** 벽면에 매단 감시 초소 (가운데 x, 바닥 높이): 꼭대기는 화면 위라 서치라이트는 초소 지붕에 단다 */
+  posts: [{ x: 5772, y: 352, w: 64 }, { x: 6226, y: 404, w: 56 }],
+  searchlights: [{ x: 5790, y: 404, phase: 0, sweep: 0.42 }, { x: 6240, y: 448, phase: 2.6, sweep: 0.38 }],
+  /** 철조망 난간 통로 높이 */
+  catwalk: 300,
 };
 
 /** 고가 열차 규격 (렌더 전용): 칸 넷, 칸 길이·사이, 높이, 깊이(선로 둘 사이), 주기와 속도 */
@@ -612,7 +681,7 @@ function paintMill(w: number, h: number, sk: number, seed: number, mill: boolean
   const eave = mill ? 206 : h;
   // 벽돌 몸통 (톱니 지붕 아래)
   brickWall(g, 0, Y(eave), tw, th - Y(eave), seed, 1);
-  weather(g, 0, Y(eave), tw, th - Y(eave), seed);
+  weather(g, 0, Y(eave), tw, th - Y(eave), seed, true);
   if (mill) {
     // 톱니 지붕: 세운 유리 면(옅은 불빛)과 비탈진 지붕, 처마 띠
     rect(g, 0, Y(eave) - 2, tw, 3, C.iron);
@@ -854,7 +923,7 @@ function paintWarehouse(w: number, h: number): { map: HTMLCanvasElement; glow: H
   rect(g, 0, 0, w, h, C.paintTeal);
   for (let x = 2; x < w - 1; x += 3) rect(g, x, 0, 1, h, C.smog2);
   for (let k = 0; k < w / 5; k++) rect(g, Math.floor(hash(k * 7 + 3) * w), Math.floor(hash(k * 13) * h * 0.8), 1, 6 + Math.floor(hash(k) * 30), '#2f4a40');
-  weather(g, 0, 0, w, h, 91);
+  weather(g, 0, 0, w, h, 91, true);
   // 채광창 줄
   for (let x = 12; x < w - 12; x += 16) {
     if (hash(x * 5 + 1) < 0.3) roomWall(g, e, x, 60, 10, 8, [[x + 5, 60, 10, 10, 0.6]], 0.2, WARM, 2);
@@ -1333,10 +1402,31 @@ function paintColossalWall(x0: number, w: number, h: number, sk: number, main: b
       }
     }
   }
-  // 신축 이음 (세로)
+  // 신축 이음 (세로): 2칸 그늘 면과 빛 받는 1칸 모서리 (1칸짜리 어두운 줄은 화면 높이 내내 외곽선이 된다)
   for (let x = Math.round(128 * sk); x < tw; x += Math.round(128 * sk)) {
-    rect(g, x, 0, 1, th, '#1d1f26');
-    rect(g, x + 1, 0, 1, th, '#4f5460');
+    rect(g, x, 0, 2, th, '#2a2d36');
+    rect(g, x + 2, 0, 1, th, '#4f5460');
+  }
+  if (main) {
+    // 높은 곳에서 흘러내린 녹물·물때 (길이·폭 제각각, 아래로 갈수록 옅게)
+    for (let k = 0; k < tw / 70; k++) {
+      const sx = Math.floor(hash(seed * 3 + k * 17) * tw);
+      const top = Math.floor(hash(seed + k * 29) * th * 0.5);
+      const len = Math.floor((0.2 + hash(seed + k * 13) * 0.5) * th);
+      const sw = 1 + Math.floor(hash(k * 7 + 1) * 3);
+      const col = hash(k * 11) < 0.35 ? '#4e3527' : '#2a2d36';
+      for (let d = 0; d < len; d += 1) if (hash(seed + sx * 3 + d * 5) < 0.9 - (d / len) * 0.7) rect(g, sx, top + d, sw, 1, col);
+    }
+    // 낙서를 지운 자국: 새로 덧칠한 회색 판 (벽보다 한 단계 밝거나 어둡게), 판 밑으로 비치는 낙서 글자 흔적
+    const ghosts = ['FREE', 'NO', 'LIES', 'WE'];
+    for (let k = 0; k < tw / 260; k++) {
+      const px = Math.floor(hash(seed * 5 + k * 23) * (tw - 90));
+      const py = Y(60 + Math.floor(hash(seed + k * 41) * 520));
+      const pw = 50 + Math.floor(hash(k * 3 + 7) * 60);
+      const ph = 14 + Math.floor(hash(k * 5 + 3) * 16);
+      rect(g, px, py, pw, ph, hash(k * 13) < 0.5 ? '#464a56' : '#30333d');
+      drawText(g, ghosts[k % ghosts.length], px + 6, py + Math.floor(ph / 2) - 2, '#3a3e49', 2);
+    }
   }
   // 땅 가까이 튄 물때와 소금기
   for (let x = 0; x < tw; x++) {
@@ -1356,13 +1446,14 @@ function paintColossalWall(x0: number, w: number, h: number, sk: number, main: b
   }
   if (main) {
     // 거대한 스텐실 글씨 (페인트가 군데군데 벗겨졌다)
-    const text = 'DISTRICT 1';
+    // (벽에는 DISTRICT만: 1은 큰 철문에 따로 칠했다. 'DISTRICT 1' 한 줄은 두 화면에 걸쳐 양쪽에서 반쯤 잘렸다)
+    const text = 'DISTRICT';
     const s = 6;
     const [tc, tg] = canvas(textWidth(text, s), 5 * s);
     neonText(tg, null, text, 0, 0, s, '#868b98', '#868b98');
-    const tx = X(5698);
+    const tx = X(5684);
     const ty = Y(232);
-    registerSign(text, '장벽 스텐실', 5698, 5698 + tc.width / sk, 232 - tc.height / sk, 232, WALL.z, tc.width / sk, (WALL.buttress[1] - WALL.buttress[0] - 36));
+    registerSign(text, '장벽 스텐실', 5684, 5684 + tc.width / sk, 232 - tc.height / sk, 232, WALL.z, tc.width / sk, (WALL.buttress[1] - WALL.buttress[0] - 36));
     const img = tg.getImageData(0, 0, tc.width, tc.height).data;
     for (let j = 0; j < tc.height; j++) {
       for (let i = 0; i < tc.width; i++) {
