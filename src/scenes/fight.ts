@@ -3,7 +3,7 @@ import { FOOT_X, FOOT_Y } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import { drawCutin, playCutscene } from '../render/cutin';
 import { drawDust, Effects, type Dust } from '../render/effects';
-import { FightVfx } from '../render/fightvfx';
+import { FightVfx, raidenIntroHidden, raidenIntroLift } from '../render/fightvfx';
 import { VfxLayer } from '../render/vfx';
 import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
@@ -313,11 +313,12 @@ export function fightScene(app?: App): Scene {
         skin: skins[i],
         flip: f.facing < 0,
         x: f.x / 256 + jitter,
-        h: -f.y / 256,
+        // 라이덴 등장: 번개 속에서 나타나 위에서 떨어진다 (렌더 전용 높이)
+        h: -f.y / 256 + raidenIntroLift(f),
         floor: -floorBelow(s, f.x, f.y) / 256,
         rim: !white,
         // 대시 중 순간이동 구간은 깜빡인다. 순간이동 기술(라이덴 잔흔)은 사라지는 틱에 한 번 보이지 않는다
-        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f),
+        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f) && !raidenIntroHidden(f),
         order: order.indexOf(f),
       };
     }));
