@@ -19,6 +19,14 @@ const SCENES = {
     p1: 2196, p2: 2310, settle: 70,
     steps: [[[], 8], [['KeyL'], 1], [[], 3], [['KeyJ'], 1], [[], 44]],
   },
+  // 연속 장면: 대시(L) → 대시 공격(J)을 누른 채 → 차지 1단계 → 점프(K+→)로 쫓아 공중 1·2·3타 (simtest '연속 장면'과 같은 입력)
+  combo: {
+    p1: 2196, p2: 2296, settle: 70,
+    steps: [
+      [[], 6], [['KeyL'], 1], [[], 2], [['KeyJ'], 19], [[], 4], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 14],
+      [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [['ArrowRight'], 6], [['KeyJ', 'ArrowRight'], 1], [[], 60],
+    ],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,
