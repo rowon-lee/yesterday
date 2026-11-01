@@ -23,5 +23,11 @@ export const RAIDEN: CharacterData = {
     idle: 'raiden/idle',
     run_f: 'raiden/walk_f',
     run_b: 'raiden/walk_b',
+    jump: 'raiden/jump',
+    jump2: 'raiden/jump2',
+    fall: 'raiden/fall',
+    land: 'raiden/land',
+    dash: 'raiden/dash',
+    air_dash: 'raiden/air_dash',
   },
 };
