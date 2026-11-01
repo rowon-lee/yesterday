@@ -80,6 +80,14 @@ export const BASE_MOVES = {
     motion: 'base/sweep', active: [4, 5, 6], limb: ['kF', 'fF'], damage: 60, guardDamage: 16,
     hitstun: 20, blockstun: 14, hitstop: 9, push: 2.0, knockdown: true, step: { from: 2, to: 5, speed: 1.8 },
   },
+  /**
+   * 대시 공격: 앞으로 대시하는 중 공격 (뒤로 대시하는 중이면 평타). 미끄러지는 힘을 실어 몸을 낮추고 앞팔을 낮게 내지른다.
+   * 맞으면 땅에 선 채 경직 (띄우기·차지로 이어진다), 막히면 빈틈이 크다
+   */
+  dashAttack: {
+    motion: 'base/dash_attack', active: [5, 6], limb: ['eF', 'hF'], damage: 65, guardDamage: 18,
+    hitstun: 26, blockstun: 12, hitstop: 9, push: 2.4, step: { from: 0, to: 5, speed: 6.0 },
+  },
   air1: {
     motion: 'base/air1', active: [3, 4], limb: ['eF', 'hF'], damage: 35, guardDamage: 10,
     hitstun: 22, blockstun: 12, hitstop: 7, push: 1.0, launch: { vx: 0.9, vy: -4.0 }, air: true, jumpCancel: true, airFollow: 0.6,

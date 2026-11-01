@@ -89,6 +89,8 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
     }
     return 0;
   }
+  // 앞으로 대시하는 중 상대가 가까우면 대시 공격 (대시 중 공격)
+  if (me.mode === 'dash' && me.dir > 0 && me.t >= 2 && dist < 80 && !isAirborne(op) && roll(cpu, 3) !== 0) return IN_ATTACK;
   // 발판으로 오르는 점프: 노린 자리로 몸을 틀고, 아직 발판보다 낮은데 떨어지기 시작하면 2단 점프
   if (me.mode === 'jumpsquat' && cpu.tx) return toward(me, cpu.tx);
   // 벽에 붙어 있는 동안: 잠깐 버티다가 놓거나 벽 반대쪽으로 뛴다

@@ -461,6 +461,12 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       if (f.t >= f.len) startJump(f, input, false);
       break;
     case 'dash': {
+      // 대시 공격: 앞으로 대시하는 중에 공격하면 그 자리에서 바로, 미끄러지는 힘을 실어서 (뒤로 대시하는 중이면 대시가 끝난 뒤 평타)
+      if (f.dir > 0 && take(f, B_ATTACK)) {
+        startMove(s, f, 'dashAttack');
+        f.vx = f.facing * MOVES.dashAttack.step!.speed;
+        break;
+      }
       if (f.t >= STATS.dashMoveFrom && f.t < STATS.dashMoveTo) {
         f.vx = f.facing * f.dir * STATS.dashSpeed;
         f.invuln = Math.max(f.invuln, 1);
