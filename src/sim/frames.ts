@@ -113,12 +113,15 @@ function buildMove(id: MoveId, data: MoveData, motion: string): Move {
   };
 }
 
-/** 캐릭터별 기술 표: 기술 수치는 기본 스틱맨 것, 그림은 캐릭터가 정한 것(moveMotions)이 있으면 그것 */
+/** 캐릭터별 기술 표: 기본 스틱맨 기술에 캐릭터가 바꾼 것(그림·판정·수치)을 덮어쓴다 */
 const MOVE_SETS = Object.fromEntries(
   (Object.keys(CHARACTERS) as CharId[]).map((c) => {
-    const own = (CHARACTERS[c] as { moveMotions?: Partial<Record<MoveId, string>> }).moveMotions ?? {};
+    const own = (CHARACTERS[c] as { moves?: Partial<Record<MoveId, Partial<MoveData>>> }).moves ?? {};
     const set = {} as Record<MoveId, Move>;
-    for (const id of Object.keys(BASE_MOVES) as MoveId[]) set[id] = buildMove(id, BASE_MOVES[id], own[id] ?? BASE_MOVES[id].motion);
+    for (const id of Object.keys(BASE_MOVES) as MoveId[]) {
+      const data = { ...BASE_MOVES[id], ...own[id] } as MoveData;
+      set[id] = buildMove(id, data, data.motion);
+    }
     return [c, set];
   }),
 ) as Record<CharId, Record<MoveId, Move>>;

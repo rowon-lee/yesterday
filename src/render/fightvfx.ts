@@ -230,7 +230,8 @@ export class FightVfx {
       if (e.type === 'hit') {
         const stop = e.move ? MOVES[e.move].data.hitstop : 7;
         const size = e.heavy ? 0.7 : stop >= 9 ? 0.55 : 0.42;
-        this.layer.add(impact({ kind: 'hit', x, y, angle, size, ramp: fxRamp(WARM), seed: this.seed++ }));
+        // 라이덴의 타격은 붉은 전격이 튄다 (캐릭터 기획서 '평타')
+        this.layer.add(impact({ kind: 'hit', x, y, angle, size, ramp: fxRamp(att?.char === 'raiden' ? RAIDEN_RAMP : WARM), seed: this.seed++ }));
         this.since[1 - e.who] = 0;
         this.heavy[1 - e.who] = !!e.heavy;
         if (e.move === 'super') {

@@ -38,7 +38,16 @@ export const RAIDEN: CharacterData = {
     wall_run: 'raiden/wall_run',
     wall_tech: 'raiden/wall_tech',
   },
-  moveMotions: {
-    wallKick: 'raiden/wall_kick',
+  // 기술: 그림과 바꾼 수치만 적는다 (나머지는 기본 스틱맨 기술 그대로)
+  moves: {
+    // 1타 잽: 기본보다 1틱 빠른 발동(3틱), 반 걸음 들어감
+    atk1: { motion: 'raiden/jab', active: [3, 4], limb: ['eF', 'hF'], damage: 38, step: { from: 1, to: 3, speed: 2.0 } },
+    // 2타 스트레이트: 뒷손, 허리를 틀며 들어감
+    atk2: { motion: 'raiden/cross', active: [3, 4], limb: ['eB', 'hB'], damage: 45, step: { from: 1, to: 4, speed: 2.4 } },
+    // 3타 훅: 앞손 (기본 3타는 발차기)
+    atk3: { motion: 'raiden/hook', active: [5, 6], limb: ['eF', 'hF'], damage: 55 },
+    // 4타 니킥: 엉덩이→무릎 구간 (무릎 끝으로 친다). 맞으면 벽 쪽으로 날림은 기본 4타 그대로
+    atk4: { motion: 'raiden/knee', active: [6, 7], limb: ['hip', 'kF'], damage: 80 },
+    wallKick: { motion: 'raiden/wall_kick' },
   },
 };

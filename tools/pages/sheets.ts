@@ -27,9 +27,12 @@ if (only.length) list = list.filter((m) => only.includes(m.name));
 /** 이 동작 그림을 쓰는 기술 (판정 프레임·판정 구간을 느린 판에 표시) */
 const moveOf = new Map<string, MoveData>();
 for (const d of Object.values(BASE_MOVES) as MoveData[]) moveOf.set(d.motion, d);
-// 캐릭터가 기술에 자기 그림을 쓰면 그 그림에도 같은 기술 수치 (판정 프레임 표시)
-for (const c of Object.values(CHARACTERS) as { moveMotions?: Partial<Record<MoveId, string>> }[]) {
-  for (const [id, motion] of Object.entries(c.moveMotions ?? {})) moveOf.set(motion!, BASE_MOVES[id as MoveId]);
+// 캐릭터 기술: 기본 기술에 캐릭터가 바꾼 것을 덮어쓴 수치 (판정 프레임 표시)
+for (const c of Object.values(CHARACTERS) as { moves?: Partial<Record<MoveId, Partial<MoveData>>> }[]) {
+  for (const [id, own] of Object.entries(c.moves ?? {})) {
+    const d = { ...BASE_MOVES[id as MoveId], ...own } as MoveData;
+    moveOf.set(d.motion, d);
+  }
 }
 
 const LABEL_H = GLYPH_H + 3;
