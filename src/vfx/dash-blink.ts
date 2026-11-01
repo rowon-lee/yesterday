@@ -227,7 +227,6 @@ function blink(e: Env): Kit {
           else if (u < 0.4) drawSil(buf, sil, cx, 1, A[2]!, A[4]!, 1);
           else if (u < 0.75) drawSil(buf, sil, cx, 1, A[4]!, A[5] ?? A[4]!, 1);
           else if (u < 1 && Math.floor(t * 30) % 2 === 0) drawSil(buf, sil, cx, 1, A[5] ?? A[4]!, A[5] ?? A[4]!, 1);
-          if (u < 0.4) light.glow(cx, my, 30, C[2]!, 0.5 * (1 - Math.max(0, u) / 0.4));
         }
         if (!SOLID && t >= OUT && t < OUT + 0.18) {
           const k = (t - OUT) / 0.1;

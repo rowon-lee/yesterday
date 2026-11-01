@@ -179,6 +179,21 @@ const SCENES = {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 4300, p2: 4350, settle: 40,
     steps: [[[], 6], [['KeyJ'], 100], [[], 70]],
   },
+  // 라이덴 스킬 1 잔흔(U): 떨어진 상대에게 붉은 잔상을 남기며 순간이동 → 하이킥 (상대는 잔상에 닿아 느려짐, 몸에 전격)
+  raiden_zanhen: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3020, p2: 3150, settle: 30,
+    prep: 's.fighters[0].meter = 100;',
+    steps: [[[], 10], [['KeyU'], 1], [[], 64]],
+  },
+  // 공중 잔흔: 띄우기 → 점프로 쫓아 공중 잽 · 스트레이트 · 니킥(상대가 비스듬히 날아감) → 공중에서 잔흔으로 쫓아가 하이킥
+  raiden_zanhen_air: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
+    prep: 's.fighters[0].meter = 100;',
+    steps: [
+      [[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8],
+      ...Array.from({ length: 9 }, () => [[['KeyJ'], 1], [[], 3]]).flat(), [[], 8], [['KeyU'], 1], [[], 60],
+    ],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,
