@@ -194,6 +194,20 @@ const SCENES = {
       ...Array.from({ length: 9 }, () => [[['KeyJ'], 1], [[], 3]]).flat(), [[], 8], [['KeyU'], 1], [[], 60],
     ],
   },
+  // 라이덴 1타 잽 (동작연출지침서): 70px 떨어진 상대에게 잽 한 번 → 적뢰가 범위를 채움 (boxes=1이면 판정 상자도)
+  raiden_jab: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3120, p2: 3190, settle: 30,
+    steps: [[[], 6], [['KeyJ'], 1], [[], 34]],
+  },
+  raiden_jab_boxes: {
+    q: 'scene=fight&p2=idle&p1char=raiden&boxes=1', p1: 3120, p2: 3190, settle: 30,
+    steps: [[[], 6], [['KeyJ'], 1], [[], 34]],
+  },
+  // 헛침: 상대가 멀어도 번개가 범위를 그린다
+  raiden_jab_whiff: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3080, p2: 3260, settle: 30,
+    steps: [[[], 6], [['KeyJ'], 1], [[], 34]],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,

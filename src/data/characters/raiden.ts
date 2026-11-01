@@ -42,8 +42,13 @@ export const RAIDEN: CharacterData = {
   // 기술: 그림과 바꾼 수치만 적는다 (나머지는 기본 스틱맨 기술 그대로).
   // reach: 번개 사거리 — 치는 팔다리 끝에서 붉은 전격이 이만큼 더 뻗어 그만큼 더 닿는다 (사용자 요청 2026-11-01 '공격 범위를 전반적으로 크게')
   moves: {
-    // 1타 잽: 기본보다 1틱 빠른 발동(3틱), 앞발을 크게 미끄러뜨려 들어감
-    atk1: { motion: 'raiden/jab', active: [3, 4], limb: ['eF', 'hF'], damage: 38, step: { from: 1, to: 4, speed: 3.0 }, reach: 14 },
+    // 1타 잽 (동작연출지침서 7장): 감기 뒤 앞발을 크게 내디뎌 13px 들어가며(감기에서 3px 물러났다 16px) 앞손 스트레이트.
+    // 궤적 상자 = 주먹 끝에서 앞으로 41px 뻗는 직선 번개 (발밑 기준 x 28~74, 높이 14px). 넉백 3.2px/틱 (약 17px 밀림, 다음 타가 리치 끝에서)
+    atk1: {
+      motion: 'raiden/jab', active: [4, 5], limb: ['eF', 'hF'], damage: 38, push: 3.2, reach: undefined, step: undefined,
+      advance: [0, -2, -1, 6, 6, 3, 1, 0, 0, 0, 0, 0],
+      box: { x: 28, y: -42, w: 46, h: 14, shape: 'line' },
+    },
     // 2타 스트레이트: 뒷손, 허리를 틀며 앞발로 깊이 디딤
     atk2: { motion: 'raiden/cross', active: [3, 4], limb: ['eB', 'hB'], damage: 45, step: { from: 1, to: 4, speed: 3.6 }, reach: 18 },
     // 3타 훅: 앞손 (기본 3타는 발차기), 몸을 돌리며 들어감

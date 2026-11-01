@@ -251,6 +251,34 @@ function charChecks() {
   st = rfresh(3100, 3214);
   hits = rrun(st, [...tap(sim.IN_DASH | sim.IN_RIGHT, 3), ...tap(sim.IN_ATTACK, 40)]);
   out.push(['라이덴 대시 공격(슈퍼맨 펀치)', hits[0] === 'dashAttack', `맞힌 기술 ${hits.join(',') || '없음'}`]);
+  // 동작연출지침서 4장·7-1장: 잽 판정 = 팔꿈치→주먹 구간 + 궤적 상자(번개 범위), 프레임별 몸 이동, 1~4타 연타 동안 몸 중심 16px 이상
+  {
+    const jab = sim.movesOf('raiden').atk1;
+    const bx = jab.data.box;
+    const want = bx.x + bx.w;
+    st = rfresh(3000, 3400);
+    const x0 = st.fighters[0].x;
+    let reach = -1;
+    for (let t = 0; t < 40; t++) {
+      sim.step(st, [t === 0 ? sim.IN_ATTACK : 0, 0]);
+      const f = st.fighters[0];
+      const hb = sim.boxesOf(f).hit;
+      if (hb) reach = Math.max(reach, Math.round((hb.x1 - f.x) / 256));
+    }
+    const moved = (st.fighters[0].x - x0) / 256;
+    const adv = jab.data.advance.reduce((a, b) => a + b, 0);
+    out.push([`잽 판정 끝 = 궤적 상자 끝 (몸 중심에서 ${want}px), 몸 이동 ${adv}px`, reach === want && moved === adv, `판정 끝 ${reach}px, 움직인 거리 ${moved}px`]);
+    st = rfresh(3150, 3190);
+    let minGap = Infinity;
+    const hits2 = [];
+    mash(sim.IN_ATTACK, 72).concat(Array(30).fill(0)).forEach((inp) => {
+      sim.step(st, [inp, 0]);
+      for (const e of st.events) if (e.type === 'hit' && e.who === 0) hits2.push(e.move);
+      const [a, b] = st.fighters;
+      if (a.y === 0 && b.y === 0) minGap = Math.min(minGap, Math.abs(a.x - b.x) / 256);
+    });
+    out.push([`1~4타 연타 동안 두 몸 중심이 ${sim.RULES.PUSH_W / 256}px 넘게 떨어짐 (겹치지 않음)`, minGap >= sim.RULES.PUSH_W / 256, `가장 가까울 때 ${minGap.toFixed(1)}px, 맞힌 기술 ${hits2.join(' → ')}`]);
+  }
   // 라이덴 차지 투전승불: 길게 누르면 평타 뒤 모으기, 4단계까지 오르고 떼면 뒷주먹 (4단계는 벽 쪽으로 날림)
   {
     st = rfresh(3150, 3200);
