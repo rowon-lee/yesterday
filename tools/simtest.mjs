@@ -251,6 +251,21 @@ function charChecks() {
   st = rfresh(3100, 3214);
   hits = rrun(st, [...tap(sim.IN_DASH | sim.IN_RIGHT, 3), ...tap(sim.IN_ATTACK, 40)]);
   out.push(['라이덴 대시 공격(슈퍼맨 펀치)', hits[0] === 'dashAttack', `맞힌 기술 ${hits.join(',') || '없음'}`]);
+  // 라이덴 차지 투전승불: 길게 누르면 평타 뒤 모으기, 4단계까지 오르고 떼면 뒷주먹 (4단계는 벽 쪽으로 날림)
+  {
+    st = rfresh(3150, 3200);
+    let maxLv = 0;
+    const charged = [];
+    for (let t = 0; t < 160; t++) {
+      sim.step(st, [t < 100 ? sim.IN_ATTACK : 0, 0]);
+      for (const e of st.events) {
+        if (e.type === 'charge' && e.who === 0) maxLv = Math.max(maxLv, e.combo ?? 0);
+        if (e.type === 'hit' && e.who === 0 && e.move === 'charge') charged.push(st.fighters[1].wallFly || st.fighters[1].mode === 'wallsplat');
+      }
+    }
+    out.push(['라이덴 차지 투전승불: 4단계까지 모이고 떼면 맞힘 (4단계는 벽 쪽으로 날림)', maxLv === 4 && charged.length === 1 && charged[0] === true,
+      `가장 높은 단계 ${maxLv}, 차지 맞힘 ${charged.length}번${charged.length ? `, 벽 쪽으로 ${charged[0]}` : ''}`]);
+  }
   // 라이덴 고유 특성 금강: 합을 주고받을 때마다 1스택, 4스택이면 금강불괴(KONGO_TICKS): 맞아도 하던 동작을 이어 가고 밀림 80% 감소
   {
     const K = sim.RULES;

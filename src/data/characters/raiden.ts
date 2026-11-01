@@ -62,5 +62,19 @@ export const RAIDEN: CharacterData = {
     // 내려찍기 해머 피스트
     slam: { motion: 'raiden/hammer', active: [5, 6, 7], limb: ['eF', 'hF'] },
     wallKick: { motion: 'raiden/wall_kick' },
+    // 차지 투전승불: 4단계 (설정의 신체능력 4·5·6·7배). 단계가 높을수록 방어를 많이 깎고 멀리 날린다.
+    // 1·2단계는 띄워 점프로 쫓고, 3·4단계는 벽 쪽으로 날린다. 뒷주먹 (기본 차지는 앞주먹)
+    charge: {
+      motion: 'raiden/charge', active: [10, 11], limb: ['eB', 'hB'],
+      charge: {
+        windup: 4, loopTo: 7, from: 8, auto: 50,
+        levels: [
+          { at: 0, damage: 70, guardDamage: 30, launch: { vx: 1.0, vy: -11.2 }, jumpCancel: true },
+          { at: 20, damage: 90, guardDamage: 45, launch: { vx: 1.6, vy: -11.6 }, jumpCancel: true },
+          { at: 40, damage: 115, guardDamage: 70, launch: { vx: 7.0, vy: -6.0 }, wall: true },
+          { at: 60, damage: 150, guardDamage: 110, launch: { vx: 11.0, vy: -5.0 }, wall: true },
+        ],
+      },
+    },
   },
 };

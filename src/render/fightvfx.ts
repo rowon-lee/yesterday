@@ -91,11 +91,11 @@ const KD_RELAND_T = (() => {
 const FLASH_HEAVY = 4;
 
 const motionByName = new Map(MOTIONS.map((m) => [m.name, m]));
-/** 차지를 모으는 동안 허리에 당긴 주먹 자리 (발밑 기준, 오른쪽 보는 기준): 되풀이하는 첫 프레임의 앞주먹 */
-const CHARGE_FIST = (() => {
-  const c = MOVES.charge.data.charge!;
-  return MOVES.charge.frames.joints[c.windup].hF;
-})();
+/** 차지를 모으는 동안 허리에 당긴 주먹 자리 (발밑 기준, 오른쪽 보는 기준): 그 캐릭터 차지에서 되풀이하는 첫 프레임의 앞주먹 */
+const chargeFist = (f: Fighter) => {
+  const mv = movesOf(f.char).charge;
+  return mv.frames.joints[mv.data.charge!.windup].hF;
+};
 const silCanvas = document.createElement('canvas');
 silCanvas.width = 64;
 silCanvas.height = 64;
@@ -161,7 +161,7 @@ export class FightVfx {
       // 차지를 모으는 동안: 캐릭터가 광원이 되어 바닥과 벽을 비춘다 (단계마다 한 계단씩 넓고 밝게. 반짝임은 단계가 오를 때 한 번)
       if (f.mode === 'charge') {
         const lv = Math.max(1, f.chargeLv);
-        lights.point(f.x / 256, GROUND_Y + f.y / 256 - 24, 34 + 16 * lv, lv >= 3 ? COLORS.fxYellow : COLORS.fxOrange, 0.3 + 0.15 * lv);
+        lights.point(f.x / 256, GROUND_Y + f.y / 256 - 24, 34 + 16 * lv, f.char === 'raiden' ? (lv >= 3 ? COLORS.raidenLight : COLORS.raiden) : lv >= 3 ? COLORS.fxYellow : COLORS.fxOrange, 0.3 + 0.15 * lv);
       }
     });
     if (s.freeze > 0) {
@@ -616,23 +616,32 @@ export class FightVfx {
     const wx = f.x / 256;
     const wy = GROUND_Y + f.y / 256 - 24;
     if (what === 'start' || what === 'level') {
+      // 라이덴 투전승불: 적빛 전격 갑옷 (오라·반짝임이 붉고, 단계마다 몸 둘레로 작은 번개가 튄다)
+      const raiden = f.char === 'raiden';
       this.layer.add(powerUp({
         actor: { feet: () => feet(f), silhouette: () => silhouette(f, this.skinOf(f)) },
-        palette: fxHex(CHARGE_RAMP),
+        palette: fxHex(raiden ? RAIDEN_RAMP : CHARGE_RAMP),
         size: 0.36 + 0.14 * lv,
         seed: this.seed++,
         sustain: () => f.mode === 'charge',
       }));
       // 허리에 당긴 주먹 자리 (모으는 동안 되풀이하는 첫 프레임의 주먹)
-      const fist = CHARGE_FIST;
+      const fist = chargeFist(f);
       const gx = wx + f.facing * fist[0];
       const gy = GROUND_Y + f.y / 256 + fist[1];
-      this.layer.add(glint({ x: gx * FX_PX, y: gy * FX_PX, size: 0.5 + 0.3 * lv, ramp: fxRamp(['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame']) }));
-      this.glow(gx, gy, 40 + 12 * lv, COLORS.fxYellow, 0.9, 4);
+      this.layer.add(glint({ x: gx * FX_PX, y: gy * FX_PX, size: 0.5 + 0.3 * lv, ramp: fxRamp(raiden ? ['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep'] : ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame']) }));
+      this.glow(gx, gy, 40 + 12 * lv, raiden ? COLORS.raidenLight : COLORS.fxYellow, 0.9, 4);
+      if (raiden && what === 'level') {
+        // 몸 둘레에서 짧은 번개가 단계 수만큼 내리친다 (투전승불: 생체 전류 증폭)
+        for (let k = 0; k < lv; k++) {
+          const dx = (k % 2 ? 1 : -1) * (8 + 5 * k);
+          this.layer.add(lightning({ x: (wx + dx) * FX_PX, y: (GROUND_Y + f.y / 256) * FX_PX, length: (60 + 14 * lv) * FX_PX, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+        }
+      }
       this.fx.shake(0.06 + 0.05 * lv);
       if (lv >= 3) this.fx.flashFor(1);
     } else if (what === 'release') {
-      this.glow(wx + f.facing * 14, wy, 60 + 14 * lv, COLORS.fxYellow, 0.8, 10);
+      this.glow(wx + f.facing * 14, wy, 60 + 14 * lv, f.char === 'raiden' ? COLORS.raidenLight : COLORS.fxYellow, 0.8, 10);
     }
   }
 

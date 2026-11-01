@@ -251,7 +251,46 @@ export const RAIDEN_HAMMER: MotionData = {
   ],
 };
 
+// ---- 차지: 투전승불 (공격을 길게 눌렀다 떼기. "울려라." 생체 전류를 증폭해 적빛 전격 갑옷이 드러난다) ----
+/** 두 주먹을 허리로 끌어당기며 다리를 넓게 벌리고 낮게 버틴다 (고개를 숙여 힘을 모은다) */
+const CH_PULL = R({ hx: -1, hy: -15, tl: 8, hd: 16, aFx: -2, aFy: 13, aBx: -4, aBy: 13, lFx: 11, lBx: -12 });
+/** 모으는 동안 1: 가슴을 펴고 주먹을 쥔 채 고개를 들어 상대를 본다 (온몸에 힘이 들어가 떨림) */
+const CH_HOLD_A = R({ hx: -1, hy: -15, tl: 2, hd: 4, aFx: -1, aFy: 12, aBx: -3, aBy: 12, lFx: 11, lBx: -12 });
+/** 모으는 동안 2: 어깨가 한 번 들썩인다 */
+const CH_HOLD_B = R({ hx: -1, hy: -15.5, tl: 4, hd: 6, aFx: -1.5, aFy: 11, aBx: -3.5, aBy: 11, lFx: 11, lBx: -12 });
+/** 떼는 순간: 앞발로 깊이 디디며 허리를 틀어 뒷주먹을 끌어낸다 */
+const CH_STEP = R({ hx: 2, hy: -16, tl: 18, hd: 8, aFx: 4, aFy: 4, aBx: 6, aBy: 2, lFx: 15, lBx: -11 });
+/** 뒷주먹을 곧게 내지른다: 온몸을 실어 앞으로 숙이고 앞주먹은 가슴으로 당긴다 (가장 멀리) */
+const CH_HIT = R({ hx: 3, hy: -16, tl: 28, hd: 10, aFx: 3, aFy: 4, aBx: 21, aBy: -6, lFx: 15, lBx: -12 });
+const CH_HOLD_HIT = R({ hx: 3, hy: -16, tl: 28, hd: 10, aFx: 3, aFy: 4, aBx: 21.5, aBy: -6, lFx: 15, lBx: -12 });
+/** 거두며 가드로 */
+const CH_BACK = R({ hx: 1, hy: -18, tl: 18, hd: 8, aFx: 11, aFy: -3, aBx: 10, aBy: 0, lFx: 11, lBx: -10 });
+
+/**
+ * 차지 투전승불: 1~4프레임 두 주먹을 허리로 끌어당겨 버팀(한 번) → 5~8프레임 모으는 동안 되풀이(떨림) →
+ * 떼면 9프레임부터 앞발로 깊이 디디며 뒷주먹을 곧게(11~12프레임 판정) → 가드. 14프레임 (기본 차지와 같은 구조)
+ */
+export const RAIDEN_CHARGE: MotionData = {
+  name: 'raiden/charge',
+  label: '라이덴 차지 투전승불',
+  dur: [2, 2, 2, 2, 3, 3, 3, 3, 1, 1, 2, 2, 3, 3],
+  keys: [
+    { at: 0, pose: R_STANCE },
+    { at: 2, pose: CH_PULL },
+    { at: 4, pose: CH_HOLD_A },
+    { at: 6, pose: CH_HOLD_B },
+    { at: 8, pose: CH_HOLD_A },
+    { at: 9, pose: CH_STEP },
+    { at: 10, pose: CH_HIT },
+    { at: 11, pose: CH_HOLD_HIT, stop: true },
+    { at: 12, pose: CH_BACK },
+    { at: 13, pose: R_STANCE },
+  ],
+};
+
 export const RAIDEN_ATTACK_MOTIONS: readonly MotionData[] = [
+  RAIDEN_CHARGE,
+
   RAIDEN_JAB, RAIDEN_CROSS, RAIDEN_HOOK, RAIDEN_KNEE, RAIDEN_UPPERCUT, RAIDEN_LOW_KICK, RAIDEN_SUPERMAN,
   RAIDEN_AIR_JAB, RAIDEN_AIR_CROSS, RAIDEN_AIR_KNEE, RAIDEN_HAMMER,
 ];

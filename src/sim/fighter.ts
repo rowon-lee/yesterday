@@ -464,8 +464,8 @@ function tryCharge(s: SimState, f: Fighter): boolean {
 }
 
 /** 모은 틱에 따른 차지 단계 (1부터) */
-function chargeLevel(t: number): number {
-  const levels = MOVES.charge.data.charge!.levels;
+function chargeLevel(f: Fighter, t: number): number {
+  const levels = movesOf(f.char).charge.data.charge!.levels;
   let lv = 0;
   for (const l of levels) if (t >= l.at) lv++;
   return Math.max(1, lv);
@@ -481,20 +481,21 @@ function chargeControl(s: SimState, f: Fighter, input: PlayerInput, controllable
     setMode(f, 'idle');
     return;
   }
-  const c = MOVES.charge.data.charge!;
-  const lv = chargeLevel(f.t);
+  const ch = movesOf(f.char).charge;
+  const c = ch.data.charge!;
+  const lv = chargeLevel(f, f.t);
   if (lv > f.chargeLv) {
     f.chargeLv = lv;
     s.events.push({ type: 'charge', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'level', combo: lv });
   }
   // 뗐다 (queued는 모으는 동안 '떼서 나갈 차례'라는 표시로 쓴다)
   if (!(input & IN_ATTACK) || f.t >= c.levels[c.levels.length - 1].at + c.auto) f.queued = 'charge';
-  if (f.queued && f.t >= MOVES.charge.frames.cum[c.windup - 1]) {
+  if (f.queued && f.t >= ch.frames.cum[c.windup - 1]) {
     const level = f.chargeLv;
     startMove(s, f, 'charge');
     f.chargeLv = level;
     // 동작 그림의 치는 부분부터
-    f.t = MOVES.charge.frames.cum[c.from - 1];
+    f.t = ch.frames.cum[c.from - 1];
     s.events.push({ type: 'charge', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'release', combo: level });
   }
 }

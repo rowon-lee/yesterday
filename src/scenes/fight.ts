@@ -12,7 +12,7 @@ import { drawPlatforms } from '../render/platforms';
 import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
-  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, MOVES, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
+  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, MOVES, movesOf, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
@@ -445,12 +445,13 @@ function letterbox(ctx: CanvasRenderingContext2D, t: number): void {
  * 차지를 모으는 동안 몸이 빛남 (렌더 전용): 0 그대로, 1 한 단계 밝게, 2 하얗게.
  * 모으는 동안은 한 단계 밝은 채로 있고, 모으기를 시작할 때와 단계가 오를 때마다 3틱 하얗게 '캉!' 번쩍인다
  */
-const CHARGE_LEVEL_AT = MOVES.charge.data.charge!.levels.map((l) => l.at);
+/** 캐릭터별 차지 단계가 오르는 틱 */
+const chargeLevelAt = (f: Fighter): number[] => movesOf(f.char).charge.data.charge!.levels.map((l) => l.at);
 function chargeGlow(f: Fighter): 0 | 1 | 2 {
   // 라이덴 금강불괴: 10틱마다 3틱 몸이 대표 색으로 번뜩인다 (단단해진 몸)
   if (f.kongoT > 0 && f.mode !== 'charge') return f.kongoT % 10 < 3 ? 1 : 0;
   if (f.mode !== 'charge') return 0;
-  const since = f.t - CHARGE_LEVEL_AT[Math.max(0, f.chargeLv - 1)];
+  const since = f.t - chargeLevelAt(f)[Math.max(0, f.chargeLv - 1)];
   return since >= 0 && since < 3 ? 2 : 1;
 }
 
