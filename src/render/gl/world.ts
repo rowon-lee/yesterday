@@ -82,7 +82,7 @@ export class World {
     });
     this.statics.push(layerPlane(ss, this.skyW, this.skyH, this.skyPlaneMat));
     for (const [layer, tint, fog, glow] of [
-      [buildFar(), 0.45, 0.6, 0.75],
+      [buildFar(), 0.45, 0.5, 0.6],
       [buildKeep(), 0.5, 0.45, 0.55],
       [buildMid(), 0.36, 0.34, 0.35],
     ] as const) this.statics.push(backdrop(layer, tint, fog, glow));
@@ -93,7 +93,8 @@ export class World {
     noise.magFilter = THREE.LinearFilter;
     noise.minFilter = THREE.LinearFilter;
     for (const [z, h, color, strength] of [
-      [-4200, 900, '#26304a', 0.55],
+      // 먼 겹 앞 안개: 화면 높이 안에서 위로 옅어지게 낮게 깐다 (먼 마천루 윗부분이 밝은 안개에 묻혀 회색 기둥처럼 뜨지 않게)
+      [-4200, 340, '#26304a', 0.55],
       [-900, 260, '#232c44', 0.42],
       [60, 34, '#2a3550', 0.32],
     ] as const) {

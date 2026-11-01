@@ -331,7 +331,10 @@ export function backdropMaterial(map: THREE.Texture, tint: number, fog: number, 
         float resist = smoothstep(0.12, 0.4, l);
         float mist = uMist * (1.0 - smoothstep(0.0, 0.42, vUv.y));
         float bank = 0.72 + 0.56 * texture2D(bankNoise, vec2(p.x / 4480.0 + uTime * 0.00001, p.y / 1408.0)).r;
-        float f = clamp((fogAmount + mist * 0.55) * bank, 0.0, 0.96) * (1.0 - resist * 0.7);
+        // 안개는 땅 가까이가 짙고 위로 갈수록 옅다 (도시 불빛에 물든 안개가 바닥에 깔린다):
+        // 높은 마천루의 윗부분은 어두운 하늘을 등진 실루엣과 켜진 창으로 보이고, 아랫부분만 밝은 안개에 묻힌다
+        float high = smoothstep(0.28, 0.8, vUv.y);
+        float f = clamp((fogAmount * (1.0 - 0.6 * high) + mist * 0.55) * bank, 0.0, 0.96) * (1.0 - resist * 0.7);
         vec3 fogCol = mix(uFogColor, uFogGlow, glowMix * (1.0 - vUv.y * 0.6));
         vec3 c = t.rgb * tint * (1.0 + resist * 2.0);
         gl_FragColor = vec4(mix(c, fogCol, f), 0.0);

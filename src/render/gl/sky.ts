@@ -88,8 +88,9 @@ void main() {
     col = mix(midSky * 0.8 + glow * glowK * 0.45, zenith * 0.4, smoothstep(0.0, 26.0, d));
     float w = vnoise(vec2(p.x / (7.0 + d * 0.3) + uTime * 0.003, p.y * 0.85));
     col += glow * glowK * 0.25 * step(0.8, w) * (1.0 - smoothstep(4.0, 50.0, d));
-    float path = smoothstep(4.0 + d * 0.5, 0.0, abs(p.x - moon.x));
-    float glint = step(0.8, h12(vec2(floor(p.x / 2.0), p.y) + floor(uTime / 7.0)));
+    // 달빛 길: 달 아래로 좁게 늘어선 반짝임 (앞으로 올수록 조금만 넓어진다)
+    float path = smoothstep(3.0 + d * 0.14, 0.0, abs(p.x - moon.x));
+    float glint = step(0.86, h12(vec2(floor(p.x / 2.0), p.y) + floor(uTime / 7.0)));
     col += vec3(0.42, 0.45, 0.5) * path * glint * 0.5;
     col += (cloudLit + vec3(0.2)) * flash * 0.3 * (1.0 - smoothstep(0.0, 30.0, d));
   }

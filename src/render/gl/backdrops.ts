@@ -75,14 +75,18 @@ export function buildFar(): Layer {
   const h = layerH(F.speed);
   const gl = layerGround(F.speed) - 30;
   const [c, g] = canvas(w, h);
-  let x = F.from;
-  let k = F.seed;
-  while (x < w) {
-    const bw = 22 + Math.floor(hash(k++) * 34);
-    const bh = F.min + Math.floor(hash(k++) * (F.max - F.min));
+  /**
+   * 마천루 한 채: 몸통과 두세 번 들어가는 단, 첨탑·안테나(붉은 경고등)·물탱크, 도시 불빛을 받는 한쪽 모서리,
+   * 층마다 켜진 창 (건물마다 켜진 정도가 다르고, 몇 층은 통째로 켜졌다), 가끔 세로 네온 띠.
+   * back이면 더 멀리 선 건물 (낮고 옅고 창이 드물다)
+   */
+  const tower = (x: number, k: number, back: boolean): number => {
+    const bw = (back ? 16 : 22) + Math.floor(hash(k++) * (back ? 26 : 34));
+    const bh = Math.round((F.min + Math.floor(hash(k++) * (F.max - F.min))) * (back ? 0.72 : 1));
+    const body = back ? C.skylineFar : C.factory;
+    const edge = back ? '#36323a' : '#3a3e49';
     const top = gl - bh;
-    rect(g, x, top, bw, h - top, C.factory);
-    // 아르데코 마천루: 위로 갈수록 두세 번 들어가는 지붕, 꼭대기 첨탑
+    rect(g, x, top, bw, h - top, body);
     let sx = x;
     let sw = bw;
     let sy = top;
@@ -91,15 +95,49 @@ export function buildFar(): Layer {
       sx += 3 + Math.floor(sw * 0.12);
       sw -= 6 + Math.floor(sw * 0.24);
       sy -= 10 + Math.floor(hash(k++) * 14);
-      rect(g, sx, sy, sw, top - sy + 2, C.factory);
+      rect(g, sx, sy, sw, top - sy + 2, body);
+      rect(g, sx, sy, 1, top - sy + 2, edge);
     }
+    rect(g, x, top, 1, gl - top, edge);
     const mid = sx + Math.floor(sw / 2);
-    if (hash(k++) < 0.6) {
-      rect(g, mid - 1, sy - 30, 2, 30, C.factory);
-      rect(g, mid - 2, sy - 12, 4, 2, C.factory);
+    const r = hash(k++);
+    if (r < 0.45) {
+      rect(g, mid, sy - 30, 1, 30, body);
+      rect(g, mid - 1, sy - 12, 3, 2, body);
+      if (!back) rect(g, mid, sy - 31, 1, 1, C.neonRed);
+    } else if (r < 0.7) {
+      rect(g, sx + 2, sy - 7, 6, 5, body);
+      for (const lx of [sx + 2, sx + 7]) rect(g, lx, sy - 2, 1, 2, body);
     }
-    for (let wy = top + 4; wy < gl - 4; wy += 6) for (let wx = x + 2; wx < x + bw - 2; wx += 4) if (hash(k++) < 0.05) rect(g, wx, wy, 1, 3, C.skylineLit);
-    x += bw + 2 + Math.floor(hash(k++) * 8);
+    // 창: 층마다 (4px) 줄. 건물마다 켜진 정도, 통째로 켜진 층, 따뜻한 빛·차가운 형광등
+    const lit = back ? 0.04 + hash(k++) * 0.07 : 0.05 + hash(k++) * hash(k++) * 0.35;
+    const cool = hash(k++) < 0.3;
+    for (let wy = top + 4, f = 0; wy < gl - 3; wy += 4, f++) {
+      const allLit = !back && hash(k * 7 + f) < 0.05;
+      for (let wx = x + 2; wx < x + bw - 2; wx += 3) {
+        const q = hash(wx * 13 + wy * 7 + k);
+        if (!allLit && q >= lit) continue;
+        const warm = !(cool ? q < lit * 0.7 : q < lit * 0.15);
+        rect(g, wx, wy, 1, 2, back ? C.skylineLit : warm ? (q < lit * 0.4 ? C.windowLight : C.skylineLit) : C.officeLit);
+      }
+    }
+    // 가끔 세로 네온 띠 (호텔·극장 간판이 멀리서 보이는 것)
+    if (!back && hash(k++) < 0.12) {
+      const nx = hash(k++) < 0.5 ? x + 1 : x + bw - 3;
+      const ny = gl - 40 - Math.floor(hash(k++) * 60);
+      rect(g, nx, ny, 2, 16 + Math.floor(hash(k++) * 14), hash(k++) < 0.5 ? C.neonPink : C.neonCyan);
+    }
+    return bw;
+  };
+  // 먼 줄 (낮고 옅게) 다음 가까운 줄
+  for (const back of [true, false]) {
+    let x = F.from + (back ? 14 : 0);
+    let k = F.seed + (back ? 900 : 0);
+    while (x < w) {
+      const bw = tower(x, k, back);
+      k += 23;
+      x += bw + (back ? 10 : 2) + Math.floor(hash(k++) * (back ? 22 : 8));
+    }
   }
   // 공장 지대: 톱니 지붕 공장과 굴뚝 (매연은 매 틱 따로 그린다)
   const fx0 = F.chimneys[0].x - 30;
