@@ -48,6 +48,19 @@ export const RAIDEN: CharacterData = {
     atk3: { motion: 'raiden/hook', active: [5, 6], limb: ['eF', 'hF'], damage: 55 },
     // 4타 니킥: 엉덩이→무릎 구간 (무릎 끝으로 친다). 맞으면 벽 쪽으로 날림은 기본 4타 그대로
     atk4: { motion: 'raiden/knee', active: [6, 7], limb: ['hip', 'kF'], damage: 80 },
+    // 띄우기 어퍼컷: 뒷손 (기본은 앞손)
+    launcher: { motion: 'raiden/uppercut', active: [4, 5, 6], limb: ['eB', 'hB'] },
+    // 쓸기 로킥: 뒷다리 정강이 (기본은 앞다리)
+    sweep: { motion: 'raiden/low_kick', active: [4, 5, 6], limb: ['kB', 'fB'] },
+    // 대시 공격 슈퍼맨 펀치: 뒷손, 판정 한 프레임 늦게 (뛰어올랐다 내지른다)
+    dashAttack: { motion: 'raiden/superman', active: [5, 6], limb: ['eB', 'hB'] },
+    air1: { motion: 'raiden/air_jab', active: [3, 4], limb: ['eF', 'hF'] },
+    // 공중 2타 스트레이트: 뒷손 (기본은 발차기)
+    air2: { motion: 'raiden/air_cross', active: [3, 4], limb: ['eB', 'hB'] },
+    // 공중 3타 니킥: 엉덩이→무릎
+    air3: { motion: 'raiden/air_knee', active: [4, 5], limb: ['hip', 'kF'] },
+    // 내려찍기 해머 피스트
+    slam: { motion: 'raiden/hammer', active: [5, 6, 7], limb: ['eF', 'hF'] },
     wallKick: { motion: 'raiden/wall_kick' },
   },
 };

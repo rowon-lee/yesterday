@@ -107,4 +107,151 @@ export const RAIDEN_KNEE: MotionData = {
   ],
 };
 
-export const RAIDEN_ATTACK_MOTIONS: readonly MotionData[] = [RAIDEN_JAB, RAIDEN_CROSS, RAIDEN_HOOK, RAIDEN_KNEE];
+// ---- 띄우기: 뒷손 어퍼컷 ----
+/** 무릎을 깊이 굽혀 몸을 낮추고 뒷주먹을 허리 아래로 떨어뜨린다 (앞손은 턱) */
+const UP_DIP = R({ hx: 0, hy: -14, tl: 22, hd: 8, aFx: 8, aFy: -3, aBx: 6, aBy: 10, lFx: 10, lBx: -9 });
+/** 다리를 펴며 뒷주먹을 턱 밑에서 위로 쳐올린다 */
+const UP_RISE = R({ hx: 1.5, hy: -20, tl: 10, hd: 0, aFx: 8, aFy: -4, aBx: 10, aBy: -10, lFx: 10, lBx: -8 });
+/** 끝까지 솟구쳐 뒷주먹이 머리 위로 (몸이 펴지고 뒷발 끝으로 선다) */
+const UP_HIT = R({ hx: 2, hy: -23, tl: 2, hd: -8, aFx: 8, aFy: -5, aBx: 8, aBy: -18, lFx: 10, lBx: -7, lBy: 0 });
+
+/** 띄우기 어퍼컷: 깊이 웅크렸다(4프레임) 다리를 펴며 뒷주먹을 쳐올려(5~7프레임 판정) 머리 위까지, 내려와 가드. 13프레임 20틱 */
+export const RAIDEN_UPPERCUT: MotionData = {
+  name: 'raiden/uppercut',
+  label: '라이덴 띄우기 어퍼컷',
+  dur: [1, 1, 1, 1, 2, 2, 2, 1, 1, 2, 2, 2, 2],
+  keys: [
+    { at: 0, pose: R_STANCE },
+    { at: 3, pose: UP_DIP },
+    { at: 4, pose: UP_RISE },
+    { at: 6, pose: UP_HIT },
+    { at: 8, pose: UP_HIT, stop: true },
+    { at: 12, pose: R_STANCE },
+  ],
+};
+
+// ---- 쓸기: 뒷발 로킥 (상대 종아리를 정강이로 후려 넘어뜨린다) ----
+/** 앞발로 살짝 비켜 디디며 몸을 틀어 뒷다리를 감는다 */
+const LK_WIND = R({ hx: 1, hy: -19, tl: 12, hd: 6, aFx: 11, aFy: -5, aBx: 6, aBy: -1, lFx: 9, lBx: -12, lBy: -3 });
+/** 뒷다리 정강이로 낮게 후려친다: 다리가 앞쪽 무릎 아래 높이로 쭉, 몸은 뒤로 기울이고 가드는 그대로 */
+const LK_HIT = R({ hx: 1, hy: -21, tl: -6, hd: 12, aFx: 11, aFy: -7, aBx: 8, aBy: -3, lFx: 7, lBx: 18, lBy: -7 });
+/** 휘두른 다리가 지나간다 (멈칫) */
+const LK_THRU = R({ hx: 1, hy: -21, tl: -8, hd: 12, aFx: 11, aFy: -7, aBx: 8, aBy: -3, lFx: 7, lBx: 16, lBy: -5 });
+/** 다리를 거둬 뒤로 딛는다 */
+const LK_BACK = R({ hx: 0, hy: -19, tl: 10, hd: 8, aFx: 12, aFy: -5, lFx: 8, lBx: -7, lBy: -4 });
+
+/** 쓸기 로킥: 몸을 틀어 뒷다리를 감고(4프레임) 정강이로 낮게 후려쳐(5~7프레임 판정) 넘어뜨리고 거둔다. 14프레임 21틱 */
+export const RAIDEN_LOW_KICK: MotionData = {
+  name: 'raiden/low_kick',
+  label: '라이덴 쓸기 로킥',
+  dur: [1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 2, 2, 2, 2],
+  keys: [
+    { at: 0, pose: R_STANCE },
+    { at: 3, pose: LK_WIND },
+    { at: 4, pose: LK_HIT },
+    { at: 7, pose: LK_THRU, stop: true },
+    { at: 10, pose: LK_BACK },
+    { at: 13, pose: R_STANCE },
+  ],
+};
+
+// ---- 대시 공격: 슈퍼맨 펀치 (대시에서 뛰어들며 뒷손을 곧게) ----
+/** 대시 자세 (라이덴 지상 대시의 낮게 파고든 자세에서 시작) */
+const SP_ENTRY = R({ hx: 3, hy: -13, tl: 36, hd: -10, aFx: 12, aFy: 0, aBx: 8, aBy: 3, lFx: 16, lBx: -16, lBy: 0 });
+/** 뒷무릎을 차올리듯 굽혀 뛰어오르며 뒷손을 귀 옆으로 당긴다 */
+const SP_HOP = R({ hx: 2, hy: -22, tl: 18, hd: -2, aFx: 10, aFy: -4, aBx: 3, aBy: -6, lFx: 9, lFy: -4, lBx: -10, lBy: -9 });
+/** 공중에서 뒷손을 곧게 내지른다: 뒷다리는 뒤로 차 뻗고 앞손은 턱, 몸 전체가 한 줄로 */
+const SP_HIT = R({ hx: 3, hy: -21, tl: 32, hd: -6, aFx: 7, aFy: -3, aBx: 21, aBy: -5, lFx: 10, lFy: -2, lBx: -16, lBy: -8 });
+/** 내려서며 가드 */
+const SP_LAND = R({ hx: 1, hy: -16, tl: 22, hd: 6, aFx: 11, aFy: -3, aBx: 9, aBy: 1, lFx: 10, lBx: -9 });
+
+/** 대시 공격 슈퍼맨 펀치: 대시 자세 → 뛰어오르며 뒷손을 당겨 → 공중에서 뒷손을 곧게(6~7프레임 판정) → 내려서며 가드. 13프레임 23틱 */
+export const RAIDEN_SUPERMAN: MotionData = {
+  name: 'raiden/superman',
+  label: '라이덴 대시 공격 슈퍼맨 펀치',
+  dur: [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3],
+  keys: [
+    { at: 0, pose: SP_ENTRY },
+    { at: 3, pose: SP_HOP },
+    { at: 5, pose: SP_HIT },
+    { at: 7, pose: SP_HIT, stop: true },
+    { at: 10, pose: SP_LAND },
+    { at: 12, pose: R_STANCE },
+  ],
+};
+
+// ---- 공중 평타: 공중 잽 · 공중 스트레이트 · 공중 니킥 · 내려찍기(해머 피스트) ----
+/** 공중 기본 (라이덴 점프의 웅크림과 같은 꼴) */
+const A_TUCK = R({ hx: 0, hy: -26, tl: 16, hd: 7, aFx: 11, aFy: -4, aBx: 8, aBy: -1, lFx: 7, lFy: -13, lBx: -1, lBy: -11 });
+/** 공중 잽: 앞손을 곧게, 다리는 웅크린 채 */
+const AJ_HIT = R({ hx: 1, hy: -26, tl: 20, hd: 9, aFx: 18, aFy: -5, aBx: 8, aBy: -1, lFx: 8, lFy: -12, lBx: -2, lBy: -10 });
+/** 공중 스트레이트: 허리를 틀어 뒷손을 곧게, 앞손은 턱으로 */
+const AS_TURN = R({ hx: 1, hy: -26, tl: 20, hd: 8, aFx: 8, aFy: -4, aBx: 10, aBy: -3, lFx: 7, lFy: -12, lBx: -3, lBy: -10 });
+const AS_HIT = R({ hx: 2, hy: -26, tl: 26, hd: 10, aFx: 7, aFy: -4, aBx: 20, aBy: -6, lFx: 8, lFy: -11, lBx: -4, lBy: -9 });
+/** 공중 니킥: 두 손으로 끌어당기며 앞무릎을 앞으로 내지른다 */
+const AN_LOAD = R({ hx: 0, hy: -26, tl: 22, hd: 8, aFx: 16, aFy: -5, aBx: 14, aBy: -3, lFx: 5, lFy: -10, lBx: -3, lBy: -9 });
+const AN_HIT = R({ hx: 1, hy: -26, tl: 4, hd: 10, aFx: 12, aFy: 3, aBx: 10, aBy: 5, lFx: 15, lFy: -16, lBx: -4, lBy: -6 });
+/** 해머 피스트: 두 주먹을 깍지 껴 머리 위로 들었다가 */
+const HM_UP = R({ hx: -1, hy: -26, tl: 0, hd: -6, aFx: 4, aFy: -17, aBx: 2, aBy: -16, lFx: 7, lFy: -10, lBx: -3, lBy: -8 });
+/** 몸을 접으며 아래 앞쪽으로 내리찍는다 */
+const HM_HIT = R({ hx: 1, hy: -25, tl: 34, hd: 14, aFx: 13, aFy: 9, aBx: 12, aBy: 10, lFx: 6, lFy: -8, lBx: -4, lBy: -6 });
+/** 떨어지는 자세로 (라이덴 낙하 첫 자세) */
+const A_OPEN = R({ hx: 0, hy: -25, tl: 14, hd: 7, aFx: 11, aFy: -5, aBx: 8, aBy: -1, lFx: 9, lFy: -7, lBx: -6, lBy: -5 });
+
+/** 공중 1타 잽: 앞손을 곧게(4~5프레임 판정). 12프레임 13틱 */
+export const RAIDEN_AIR_JAB: MotionData = {
+  name: 'raiden/air_jab',
+  label: '라이덴 공중 1타 잽',
+  dur: [1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1],
+  keys: [
+    { at: 0, pose: A_TUCK },
+    { at: 2, pose: A_TUCK },
+    { at: 3, pose: AJ_HIT },
+    { at: 5, pose: AJ_HIT, stop: true },
+    { at: 11, pose: A_TUCK },
+  ],
+};
+/** 공중 2타 스트레이트: 허리를 틀어 뒷손을 곧게(4~5프레임 판정). 12프레임 13틱 */
+export const RAIDEN_AIR_CROSS: MotionData = {
+  name: 'raiden/air_cross',
+  label: '라이덴 공중 2타 스트레이트',
+  dur: [1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1],
+  keys: [
+    { at: 0, pose: A_TUCK },
+    { at: 2, pose: AS_TURN },
+    { at: 3, pose: AS_HIT },
+    { at: 5, pose: AS_HIT, stop: true },
+    { at: 11, pose: A_TUCK },
+  ],
+};
+/** 공중 3타 니킥: 두 손으로 끌어당기며 앞무릎을 내질러(5~6프레임 판정) 비스듬히 날린다. 13프레임 17틱 */
+export const RAIDEN_AIR_KNEE: MotionData = {
+  name: 'raiden/air_knee',
+  label: '라이덴 공중 3타 니킥',
+  dur: [1, 1, 1, 1, 2, 2, 1, 1, 1, 2, 2, 2, 2],
+  keys: [
+    { at: 0, pose: A_TUCK },
+    { at: 3, pose: AN_LOAD },
+    { at: 4, pose: AN_HIT },
+    { at: 6, pose: AN_HIT, stop: true },
+    { at: 12, pose: A_TUCK },
+  ],
+};
+/** 내려찍기 해머 피스트: 두 주먹을 머리 위로 들었다가(4프레임) 몸을 접으며 내리찍어(6~8프레임 판정) 낙하 자세로. 14프레임 20틱 */
+export const RAIDEN_HAMMER: MotionData = {
+  name: 'raiden/hammer',
+  label: '라이덴 내려찍기 해머 피스트',
+  dur: [1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2],
+  keys: [
+    { at: 0, pose: A_TUCK },
+    { at: 3, pose: HM_UP },
+    { at: 5, pose: HM_HIT },
+    { at: 8, pose: HM_HIT, stop: true },
+    { at: 13, pose: A_OPEN },
+  ],
+};
+
+export const RAIDEN_ATTACK_MOTIONS: readonly MotionData[] = [
+  RAIDEN_JAB, RAIDEN_CROSS, RAIDEN_HOOK, RAIDEN_KNEE, RAIDEN_UPPERCUT, RAIDEN_LOW_KICK, RAIDEN_SUPERMAN,
+  RAIDEN_AIR_JAB, RAIDEN_AIR_CROSS, RAIDEN_AIR_KNEE, RAIDEN_HAMMER,
+];
