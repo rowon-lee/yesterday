@@ -106,6 +106,11 @@ const SCENES = {
       [['KeyJ'], 70], [[], 50],
     ],
   },
+  // 라이덴 대기 (?p1char=raiden): 가만히 세 바퀴 (44틱 × 3). 오른쪽은 기본 스틱맨 대기
+  raiden_idle: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3060, p2: 3200, settle: 70,
+    steps: [[[], 132]],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,
