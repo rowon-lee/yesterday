@@ -106,10 +106,46 @@ const SCENES = {
       [['KeyJ'], 70], [[], 50],
     ],
   },
-  // 라이덴 대기 (?p1char=raiden): 가만히 세 바퀴 (44틱 × 3). 오른쪽은 기본 스틱맨 대기
+  // 라이덴 대기: 1P·2P 모두 라이덴 (1P 흰 머리, 2P 검은 머리), 가만히 세 바퀴 (42틱 × 3)
   raiden_idle: {
-    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3060, p2: 3200, settle: 70,
-    steps: [[[], 132]],
+    q: 'scene=fight&p2=idle&p1char=raiden&p2char=raiden', p1: 3060, p2: 3180, settle: 70,
+    steps: [[[], 126]],
+  },
+  // 라이덴 이동 (?p1char=raiden): 앞 걷기 → 뒤 걷기 → 점프·2단 점프·낙하·착지 → 지상 대시 → 점프·공중 대시 → 방어
+  raiden_moves: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3000, p2: 3260, settle: 70,
+    steps: [
+      [[], 16], [['ArrowRight'], 52], [[], 14], [['ArrowLeft'], 46], [[], 16],
+      [['KeyK'], 1], [[], 22], [['KeyK'], 1], [[], 52],
+      [['KeyL'], 1], [[], 30],
+      [['KeyK'], 1], [[], 9], [['KeyL'], 1], [[], 50],
+      [['KeyS'], 30], [[], 20],
+    ],
+  },
+  // 라이덴 방어·방어 막힘: 2P 라이덴(검은 머리)이 막기만 하고, 1P 기본 스틱맨이 평타 1·2·3타 → 대시 공격
+  raiden_guard: {
+    q: 'scene=fight&dummy=guard&p2char=raiden', p1: 3150, p2: 3196, settle: 30,
+    steps: [[[], 10], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 7], [['KeyJ'], 1], [[], 40], [['ArrowLeft'], 12], [[], 6], [['KeyL'], 1], [[], 3], [['KeyJ'], 1], [[], 50]],
+  },
+  // 라이덴 벽 기동: 기둥탑 왼쪽 면(x 3040) 앞. ↗ 점프로 벽 붙기 → 미끄러짐 → 벽 박차기 공격 → 다시 벽 쪽으로 걸어가
+  // ↑+대시로 벽 달리기 → 꼭대기에 못 닿아 벽 붙기 → 벽 점프
+  raiden_wall: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 2985, p2: 3260, settle: 40,
+    steps: [
+      [[], 10], [['ArrowRight', 'ArrowUp', 'KeyK'], 1], [['ArrowRight', 'ArrowUp'], 18], [['ArrowRight'], 14], [['KeyJ'], 1], [[], 46],
+      [['ArrowRight'], 24], [[], 4], [['ArrowRight', 'ArrowUp', 'KeyL'], 1], [['ArrowRight'], 34], [['ArrowRight'], 20], [['KeyK'], 1], [[], 50],
+    ],
+  },
+  // 라이덴 등장: 경기 시작부터 (1P·2P 모두 라이덴, 2P는 검은 머리)
+  raiden_intro: {
+    q: 'scene=fight&p2=idle&p1char=raiden&p2char=raiden', stopAt: 1, settle: 0,
+    steps: [[[], 100]],
+  },
+  // 라이덴 승리: 체력이 거의 없는 상대를 평타로 쓰러뜨리고 승리 동작
+  raiden_win: {
+    q: 'scene=fight&p2=idle&p1char=raiden', settle: 10, p1: 3150, p2: 3196,
+    prep: 's.fighters[0].wins = 1; s.round = 2; s.fighters[1].hp = 30;',
+    steps: [[[], 4], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 200]],
   },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
@@ -137,8 +173,10 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${server.resolvedUrls.local[0]}?${sc.q ?? 'scene=fight&p2=idle'}&stopAt=75&ff=1&quality=high`);
-await page.waitForFunction(() => window.__debug?.tick >= 75);
+// stopAt: 이 틱에서 멈춘 뒤 찍기 시작 (등장 장면은 경기 시작부터 찍으려고 1)
+const stopAt = sc.stopAt ?? 75;
+await page.goto(`${server.resolvedUrls.local[0]}?${sc.q ?? 'scene=fight&p2=idle'}&stopAt=${stopAt}&ff=1&quality=high`);
+await page.waitForFunction((n) => window.__debug?.tick >= n, stopAt);
 await page.evaluate(() => window.__debug.unstop());
 if (sc.p1 !== undefined) {
   await page.evaluate(([x1, x2, meter, prep]) => {
