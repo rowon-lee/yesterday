@@ -488,8 +488,8 @@ class BillboardView implements View {
   private readonly mat: THREE.ShaderMaterial;
   private readonly text: THREE.ShaderMaterial;
   private readonly tex: { map: THREE.Texture; broken: THREE.Texture; glows: THREE.Texture[]; damaged: THREE.Texture };
-  private readonly strips: THREE.Texture[];
-  private readonly len: number;
+  /** 낱말마다 [꺼짐, 켜짐, 부서짐] 글씨 띠 (판 가운데에 맞춘 한 낱말) */
+  private readonly words: THREE.Texture[][];
   private readonly z = FRONT_Z - 70;
 
   constructor(private readonly owner: Props, private readonly b: Breakable, private readonly i: number, det: Details) {
@@ -499,19 +499,21 @@ class BillboardView implements View {
     this.tex = { map: pixelTexture(t.map), broken: pixelTexture(t.broken), glows: t.glows.map(pixelTexture), damaged: pixelTexture(t.damaged) };
     this.mat = litMaterial(this.tex.map, { emissive: this.tex.glows[0], emissiveStrength: 1.3 });
     this.group.add(box(b.x - 2, b.x + w + 2, b.bottom - 2, b.bottom + h + 2, this.z - 4, this.z, this.mat));
-    // 흘러가는 글씨 띠 (판 앞)
-    this.strips = [0, 1, 2].map((st) => {
-      const tx = pixelTexture(boardStrip(b.text ?? '', st, i));
-      tx.wrapS = THREE.RepeatWrapping;
-      return tx;
-    });
-    this.len = (this.strips[0].image as HTMLCanvasElement).width / 3;
+    // 글씨 판 (판 앞): 문구를 낱말 하나씩 판 가운데에 띄우고 차례로 바꾼다 (흘러가는 띠는 늘 반쯤 잘린 글자가 보여서)
     const cols = Math.floor((w - 6) / 3);
-    this.text = scrollMaterial(this.strips[1], cols);
+    const slots = Math.ceil(cols / 4);
+    const list = (b.text ?? '').trim().split(/\s+/).filter(Boolean);
+    this.words = list.map((word) => {
+      const left = Math.floor((slots - word.length) / 2);
+      const padded = ' '.repeat(Math.max(0, left)) + word + ' '.repeat(Math.max(0, slots - left - word.length));
+      return [0, 1, 2].map((st) => pixelTexture(boardStrip(padded, st, i)));
+    });
+    this.text = scrollMaterial(this.words[0]?.[1] ?? pixelTexture(boardStrip(' ', 0, i)), cols);
     const ty = b.bottom + h - Math.floor((h - 15) / 2) - 15;
     this.group.add(plane(b.x + 3, b.x + 3 + cols * 3, ty, ty + 15, this.z + 0.3, this.text));
-    // 흘러가는 글씨: 글자 전체 폭 (한 글자 = 4칸 × 3px)과 판에 보이는 폭
-    if (b.text) registerSign(b.text, '옥상 전광판', b.x, b.x + w, ty, ty + 15, this.z, b.text.length * 12, cols * 3);
+    // 글자 폭은 가장 긴 낱말 (한 글자 = 4칸 × 3px, 끝 칸 빼고)과 판에 보이는 폭
+    const longest = list.reduce((m, word) => Math.max(m, word.length), 0);
+    if (b.text) registerSign(b.text.trim(), '옥상 전광판', b.x, b.x + w, ty, ty + 15, this.z, longest * 12 - 3, cols * 3);
     // 쇠다리와 버팀대 (지붕에서 판 밑까지)
     const roof = b.bottom - 12;
     for (const lx of [b.x + 10, b.x + w - 14]) {
@@ -533,8 +535,15 @@ class BillboardView implements View {
     const on = p.stage < 2 && (p.stage === 0 || hash((tick >> 2) * 17 + this.i * 7) > 0.35);
     this.mat.uniforms.emissiveStrength.value = on ? 1.3 : 0;
     this.mat.uniforms.emissiveMap.value = this.tex.glows[Math.floor(tick / 6) % 3];
-    this.text.uniforms.strip.value = this.strips[p.stage === 2 ? 2 : on ? 1 : 0];
-    this.text.uniforms.offset.value = (Math.floor(tick / 5) % this.len) * 3;
+    // 낱말 하나를 48틱 띄우고, 바뀔 때 6틱 꺼진다
+    if (this.words.length) {
+      const k = Math.floor(tick / 48) % this.words.length;
+      const gap = tick % 48 < 6;
+      const t = this.words[k];
+      this.text.uniforms.strip.value = t[p.stage === 2 ? 2 : on && !gap ? 1 : 0];
+      this.text.uniforms.stripW.value = (t[0].image as HTMLCanvasElement).width;
+      this.text.uniforms.offset.value = 0;
+    }
     if (on) {
       lightPool.add(b.x + b.w * 0.3, b.bottom + b.h / 2, this.z + 30, 90, C.neonAmber, 0.9);
       lightPool.add(b.x + b.w * 0.7, b.bottom + b.h / 2, this.z + 30, 90, C.neonAmber, 0.9);

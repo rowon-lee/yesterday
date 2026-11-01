@@ -295,7 +295,7 @@ export const CITADEL = {
   },
 
   /** 비상계단 아파트 옥상 전광판 (아파트 구간의 몇 번째 건물인지, 글씨) */
-  billboard: { building: 3, w: 124, h: 44, text: 'THE CITADEL PROTECTS YOU   ' },
+  billboard: { building: 3, w: 124, h: 44, text: 'THE CITADEL PROTECTS YOU' },
 
   /** 시타델 공원: 나무(가운데 x, 줄기 높이, 잎 반지름), 벤치, 동쪽 끝 철책 */
   park: {
