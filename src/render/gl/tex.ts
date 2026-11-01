@@ -66,8 +66,12 @@ export function brickWall(g: CanvasRenderingContext2D, x0: number, y0: number, w
 
 /** 낡음: 꼭대기 그을음, 창턱 아래 빗물 자국, 땅 가까운 소금기, 금 */
 export function weather(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, seed: number): void {
-  // 꼭대기 그을음 (아래로 갈수록 옅게)
-  for (let k = 0; k < 4; k++) ditherRect(g, x0, y0 + k * 6, w, 6, C.smog0, 9 - k * 2, seed & 3);
+  // 꼭대기 그을음: 맨 위 한 띠는 고르게 (띠 경계마다 점선 줄이 서지 않게 가장자리 무늬 없이), 그 아래는 길이가 제각각인 그을음 줄
+  ditherRect(g, x0, y0, w, 7, C.smog0, 8, 0, 0, false);
+  for (let x = x0 + (seed % 3); x < x0 + w; x += 2 + Math.floor(rnd(seed, 900 + x) * 4)) {
+    const len = 2 + Math.floor(rnd(seed, 950 + x) * 16);
+    ditherRect(g, x, y0 + 7, 1 + (rnd(seed, 990 + x) < 0.3 ? 1 : 0), len, C.smog0, 6, 0, 0, false);
+  }
   // 처마에서 흘러내린 빗물 자국 (가늘고 긴 어두운 줄)
   for (let k = 0; k < Math.floor(w / 9); k++) {
     if (rnd(seed, 300 + k) < 0.4) continue;
@@ -75,8 +79,8 @@ export function weather(g: CanvasRenderingContext2D, x0: number, y0: number, w: 
     const len = 20 + Math.floor(rnd(seed, 320 + k) * 70);
     for (let y = 0; y < len; y++) if (hash(seed + sx * 13 + y * 7) < 0.75 - (y / len) * 0.6) rect(g, sx, y0 + 8 + y, 1, 1, C.smog1);
   }
-  // 땅 가까운 소금기 얼룩 (밝게 번진 자국)
-  ditherRect(g, x0, y0 + h - 14, w, 10, C.stone, 2, seed & 3);
+  // 땅 가까운 소금기 얼룩 (밝게 번진 자국, 가장자리 점선 없이)
+  ditherRect(g, x0, y0 + h - 14, w, 10, C.stone, 2, 0, 0, false);
   // 금 (지그재그)
   for (let k = 0; k < 2; k++) {
     if (rnd(seed, 400 + k) < 0.45) continue;

@@ -46,7 +46,7 @@ export function nearestPalette(r: number, g: number, b: number): number {
  * 투명한 칸은 그대로 둔다. ox, oy는 가장자리 무늬 기준 (겹 좌표를 넘겨 무늬가 겹과 같이 움직이게). 캔버스는 평행 이동만 따른다.
  */
 export function ditherRect(
-  g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, level: number, ox = 0, oy = 0,
+  g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, level: number, ox = 0, oy = 0, edges = true,
 ): void {
   if (level <= 0 || w <= 0 || h <= 0) return;
   if (level >= 16) {
@@ -81,7 +81,7 @@ export function ditherRect(
       const p = (j * iw + i) * 4;
       if (d[p + 3] === 0) continue;
       const px = ax + i;
-      const edge = edgeY || (px === X0 && X0 > 0) || (px === X1 - 1 && X1 < W);
+      const edge = edges && (edgeY || (px === X0 && X0 > 0) || (px === X1 - 1 && X1 < W));
       if (edge && !dither(px + ox, py + oy, 8)) continue;
       const src = (d[p] << 16) | (d[p + 1] << 8) | d[p + 2];
       let out = cache.get(src);
