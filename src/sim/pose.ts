@@ -100,5 +100,15 @@ function pick(f: Fighter): [string, number] {
       const m = motionFrames('base/wall_run');
       return ['base/wall_run', Math.min(WALL_RUN_TOP_FROM - 1, frameAtTick(m, f.t))];
     }
+    case 'charge': {
+      // 모으기: 끌어 모으는 프레임은 한 번, 그 뒤 모으는 프레임(windup ~ loopTo)을 되풀이 (떼면 기술의 치는 프레임으로)
+      const mv = MOVES.charge;
+      const c = mv.data.charge!;
+      const m = mv.frames;
+      const head = m.cum[c.windup - 1];
+      if (f.t < head) return [m.name, frameAtTick(m, f.t)];
+      const span = m.cum[c.loopTo] - head;
+      return [m.name, frameAtTick(m, head + ((f.t - head) % span))];
+    }
   }
 }

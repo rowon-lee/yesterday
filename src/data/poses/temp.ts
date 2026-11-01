@@ -114,7 +114,7 @@ export const TEMP_COMMON: MotionData[] = [
   m('win', '승리', r(3, 14), [{ at: 0, pose: STANCE }, { at: 4, pose: W1 }, { at: 8, pose: W2 }, { at: 13, pose: W2 }]),
 ];
 
-/** 임시 기본형 전용 동작 (평타 10개, 기술 A·B, 필살) */
+/** 임시 기본형 전용 동작 (평타 10개, 스킬 1·2, 필살기) */
 export const TEMP_MOVES: MotionData[] = [
   m('atk1', '지상 1타', [1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1], [
     { at: 0, pose: STANCE }, { at: 3, pose: J_W }, { at: 4, pose: J_H }, { at: 6, pose: J_H, stop: true }, { at: 8, pose: J_R }, { at: 11, pose: STANCE },
@@ -146,10 +146,10 @@ export const TEMP_MOVES: MotionData[] = [
   m('slam', '내려찍기', [1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2], [
     { at: 0, pose: TK }, { at: 3, pose: SLAM_W }, { at: 5, pose: SLAM_H }, { at: 8, pose: SLAM_H, stop: true }, { at: 13, pose: FL },
   ]),
-  m('skill_a', '기술 A: 돌진 찌르기', [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2], [
+  m('skill1', '스킬 1: 돌진 찌르기', [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2], [
     { at: 0, pose: STANCE }, { at: 2, pose: DF }, { at: 4, pose: BIG_H }, { at: 9, pose: BIG_H, stop: true }, { at: 13, pose: STANCE },
   ]),
-  m('skill_b', '기술 B: 밀쳐내기', [1, 1, 1, 1, 2, 2, 1, 1, 1, 2, 2, 2, 2], [
+  m('skill2', '스킬 2: 밀쳐내기', [1, 1, 1, 1, 2, 2, 1, 1, 1, 2, 2, 2, 2], [
     { at: 0, pose: STANCE }, { at: 3, pose: BURST_W }, { at: 5, pose: BURST_H }, { at: 7, pose: BURST_H, stop: true }, { at: 12, pose: STANCE },
   ]),
   m('super', '필살: 큰 주먹', [2, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3], [

@@ -1,24 +1,27 @@
-import { AIR_CHAIN, GROUND_CHAIN, type MoveId } from '../data/moves/base';
+import { AIR_CHAIN, CHARGE_FROM, GROUND_CHAIN, type MoveId } from '../data/moves/base';
 import { motionFrames, MOVES, STATS } from './frames';
 import {
-  IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, type PlayerInput,
+  IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
 import { canDropThrough, findWall, findWallCross, floorBelow, landingY, wallHolds, wallTop } from './platforms';
 import {
-  BOUNCE_VY, BUFFER_TICKS, DROP_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
+  BOUNCE_VY, BUFFER_TICKS, CHARGE_HOLD, DROP_TICKS, GETUP_TICKS, GUARD_MAX, GUARD_REGEN_DELAY, GUARD_REGEN_EVERY,
   JUGGLE_GRAVITY_MAX, JUGGLE_GRAVITY_PER_HIT, KNOCKDOWN_TICKS, METER_BAR, SAME_WALL_MAX, SUPER_FREEZE, TECH_HITS, TECH_TICKS, TECH_VX, TECH_VY,
   WALL_GRAB_H, WALL_JUMP_LOCK, WALL_PUSH, WALL_REACH, WALL_TECH_INVULN, WALL_TECH_TICKS, WALL_TECH_VX, WALL_TECH_VY,
   WALL_TOP_VX, WALL_TOP_VY, px,
 } from './rules';
 import type { Fighter, Mode, SimState } from './types';
 
-const BUTTON_BITS = [IN_ATTACK, IN_JUMP, IN_DASH, IN_SKILL_A, IN_SKILL_B, IN_SUPER];
+const BUTTON_BITS = [IN_ATTACK, IN_JUMP, IN_DASH, IN_SKILL1, IN_SKILL2, IN_SUPER];
 const B_ATTACK = 0;
 const B_JUMP = 1;
 const B_DASH = 2;
-const B_SKILL_A = 3;
-const B_SKILL_B = 4;
+const B_SKILL1 = 3;
+const B_SKILL2 = 4;
 const B_SUPER = 5;
+
+/** 공격을 누른 채 차지를 기다릴 수 있는 상태 (그 밖의 상태가 되면 기다림을 지운다: 점프·대시·방어·이동·맞음…) */
+const ARM_KEEP: ReadonlySet<Mode> = new Set(['attack', 'idle', 'land', 'charge']);
 
 export function setMode(f: Fighter, mode: Mode, len = 0): void {
   f.mode = mode;
@@ -28,6 +31,7 @@ export function setMode(f: Fighter, mode: Mode, len = 0): void {
     f.move = null;
     f.queued = null;
   }
+  if (!ARM_KEEP.has(mode)) f.chargeArm = false;
   // 점프 종류(그림용)는 그 점프로 바로 떠 있는 동안만: 공중 대시·공중 공격 등을 하고 다시 떠 있게 되면 보통 낙하로
   // (벽 점프·꼭대기 넘기 그림이 처음부터 다시 나오지 않게)
   if (mode !== 'air') f.jumpKind = 0;
@@ -37,7 +41,7 @@ export function setMode(f: Fighter, mode: Mode, len = 0): void {
 export const isAirborne = (f: Fighter): boolean => f.y < f.floor || f.vy < 0;
 
 /** 땅에서만 있을 수 있는 상태 (발밑 바닥이 없어지면 떨어지는 상태로 바꾼다) */
-const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown', 'intro']);
+const GROUND_ONLY: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'land', 'dash', 'jumpsquat', 'getup', 'crush', 'blockstun', 'hitstun', 'knockdown', 'intro', 'charge']);
 
 /** 밀려나는 등 위치가 바뀐 뒤: 서 있던 발판이 발밑에 그대로 있는지 다시 본다 */
 export function settle(s: SimState, f: Fighter): void {
@@ -65,7 +69,7 @@ function fallOff(f: Fighter): void {
 }
 
 /** 조작을 받는 상태 (콤보가 끝난 것으로 본다) */
-const NEUTRAL: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'air', 'land', 'dash', 'airdash', 'jumpsquat', 'attack', 'wallcling', 'wallrun']);
+const NEUTRAL: ReadonlySet<Mode> = new Set(['idle', 'run', 'guard', 'air', 'land', 'dash', 'airdash', 'jumpsquat', 'attack', 'wallcling', 'wallrun', 'charge']);
 
 /** 눌린 버튼을 버퍼에 담는다 (멈춰 있는 동안에도 눌림은 기억). */
 export function readButtons(f: Fighter, input: PlayerInput): void {
@@ -74,6 +78,12 @@ export function readButtons(f: Fighter, input: PlayerInput): void {
     if (pressed & BUTTON_BITS[i]) f.buf[i] = BUFFER_TICKS;
   }
   if (pressed & IN_ATTACK) f.atkDir = input & (IN_UP | IN_DOWN);
+  // 길게 누르기: 누른 틱이 1, 누르고 있는 동안 센다. 떼면 차지 기다림도 지운다 (멈춰 있는 동안에도 실제 시간으로 센다)
+  if (input & IN_ATTACK) f.atkHold = pressed & IN_ATTACK ? 1 : f.atkHold + 1;
+  else {
+    f.atkHold = 0;
+    f.chargeArm = false;
+  }
   f.prevInput = input;
 }
 
@@ -101,6 +111,8 @@ function startMove(s: SimState, f: Fighter, id: MoveId): void {
   f.propHits = [];
   f.citadelHit = false;
   f.queued = null;
+  // 공격 버튼을 누르고 있는 채 땅에서 평타가 나가면, 계속 누르고 있을 때 차지로 이어질 수 있다
+  f.chargeArm = f.atkHold > 0 && CHARGE_FROM.has(id) && !isAirborne(f);
   if (!isAirborne(f)) f.vx = 0;
   if (mv.data.cutin) {
     s.freeze = SUPER_FREEZE;
@@ -110,9 +122,9 @@ function startMove(s: SimState, f: Fighter, id: MoveId): void {
 
 const canAfford = (f: Fighter, id: MoveId): boolean => f.meter >= (MOVES[id].data.meterCost ?? 0) * METER_BAR;
 
-/** 기술 A·B·필살을 쓸 수 있으면 쓴다 */
+/** 스킬 1·2·필살기를 쓸 수 있으면 쓴다 */
 function trySkills(s: SimState, f: Fighter, air: boolean, fromGuard = false): boolean {
-  const options: Array<[number, MoveId]> = [[B_SUPER, 'super'], [B_SKILL_A, 'skillA'], [B_SKILL_B, 'skillB']];
+  const options: Array<[number, MoveId]> = [[B_SUPER, 'super'], [B_SKILL1, 'skill1'], [B_SKILL2, 'skill2']];
   for (const [b, id] of options) {
     if (!has(f, b)) continue;
     const d = MOVES[id].data;
@@ -176,6 +188,12 @@ function groundControl(s: SimState, f: Fighter, input: PlayerInput): void {
     setMode(f, 'dash', STATS.dashTicks);
     f.dir = input & back ? -1 : 1;
     f.dashUp = (input & IN_UP) !== 0;
+    return;
+  }
+  // 공격을 누른 채 차지를 기다리는 동안: 방향은 무시하고 그 자리에 선다 (점프·대시·스킬을 누르면 위에서 기다림이 지워진다)
+  if (f.chargeArm) {
+    if (f.mode !== 'idle') setMode(f, 'idle');
+    f.vx = 0;
     return;
   }
   if (input & IN_DOWN) {
@@ -385,10 +403,11 @@ function airControl(s: SimState, f: Fighter, input: PlayerInput): void {
 function attackControl(s: SimState, f: Fighter, input: PlayerInput): boolean {
   const mv = MOVES[f.move!];
   const air = mv.data.air === true;
-  // 맞히거나 막히면 기술 A·B·필살로 끊을 수 있다
+  // 맞히거나 막히면 스킬 1·2·필살기로 끊을 수 있다
   if (f.moveHit && trySkills(s, f, isAirborne(f))) return true;
-  // 맞히면 (히트스톱이 끝난 바로 다음부터) 점프로 끊고 쫓아간다
-  if (mv.data.jumpCancel && f.moveConnected && has(f, B_JUMP)) {
+  // 맞히면 (히트스톱이 끝난 바로 다음부터) 점프로 끊고 쫓아간다 (차지는 단계마다 다르다)
+  const jumpCancel = mv.data.charge ? mv.data.charge.levels[Math.max(0, f.chargeLv - 1)]?.jumpCancel : mv.data.jumpCancel;
+  if (jumpCancel && f.moveConnected && has(f, B_JUMP)) {
     if (!air) {
       take(f, B_JUMP);
       startJump(f, input, true);
@@ -426,6 +445,61 @@ function attackControl(s: SimState, f: Fighter, input: PlayerInput): boolean {
 const friction = (v: number): number => Math.trunc((v * 13) / 16);
 
 /**
+ * 길게 누르기 (기획서 '누르기와 길게 누르기'): 땅에서 평타를 낸 공격 버튼을 떼지 않고 CHARGE_HOLD틱 넘게 누르고 있으면,
+ * 그 평타의 판정이 끝난 자리(연타 다음 타로 넘어가는 자리)에서 남은 회복을 끊고 모으기로 넘어간다.
+ * 다음 타가 예약돼 있으면 연타가 먼저다. 공중이면 넘어가지 않는다.
+ */
+function tryCharge(s: SimState, f: Fighter): boolean {
+  if (!f.chargeArm || f.atkHold < CHARGE_HOLD || isAirborne(f)) return false;
+  if (f.mode === 'attack') {
+    const mv = MOVES[f.move!];
+    if (f.queued || f.t < mv.activeEnd) return false;
+  } else if (f.mode !== 'idle' && f.mode !== 'land') return false;
+  setMode(f, 'charge');
+  f.vx = 0;
+  f.chargeArm = false;
+  f.chargeLv = 1;
+  s.events.push({ type: 'charge', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'start', combo: 1 });
+  return true;
+}
+
+/** 모은 틱에 따른 차지 단계 (1부터) */
+function chargeLevel(t: number): number {
+  const levels = MOVES.charge.data.charge!.levels;
+  let lv = 0;
+  for (const l of levels) if (t >= l.at) lv++;
+  return Math.max(1, lv);
+}
+
+/**
+ * 모으는 동안 (무방비): 방향·방어·다른 버튼은 듣지 않는다. 떼면 (또는 최고 단계에서 오래 쥐고 있으면) 차지가 나간다.
+ * 끌어 모으는 그림(windup)이 끝나기 전에 떼면 그 그림이 끝나자마자 나간다. 라운드가 끝나 조작을 못 받으면 그만둔다.
+ */
+function chargeControl(s: SimState, f: Fighter, input: PlayerInput, controllable: boolean): void {
+  f.vx = friction(f.vx);
+  if (!controllable) {
+    setMode(f, 'idle');
+    return;
+  }
+  const c = MOVES.charge.data.charge!;
+  const lv = chargeLevel(f.t);
+  if (lv > f.chargeLv) {
+    f.chargeLv = lv;
+    s.events.push({ type: 'charge', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'level', combo: lv });
+  }
+  // 뗐다 (queued는 모으는 동안 '떼서 나갈 차례'라는 표시로 쓴다)
+  if (!(input & IN_ATTACK) || f.t >= c.levels[c.levels.length - 1].at + c.auto) f.queued = 'charge';
+  if (f.queued && f.t >= MOVES.charge.frames.cum[c.windup - 1]) {
+    const level = f.chargeLv;
+    startMove(s, f, 'charge');
+    f.chargeLv = level;
+    // 동작 그림의 치는 부분부터
+    f.t = MOVES.charge.frames.cum[c.from - 1];
+    s.events.push({ type: 'charge', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'release', combo: level });
+  }
+}
+
+/**
  * 한 사람의 한 틱. 입력 → 상태 → 속도. 위치 이동과 착지는 physics()에서.
  * controllable이 false면 (라운드 시작 전·끝난 뒤) 입력을 무시한다.
  */
@@ -449,23 +523,34 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
     case 'idle':
     case 'run':
     case 'guard':
+      if (controllable && tryCharge(s, f)) break;
       groundControl(s, f, input);
       break;
     case 'land':
       f.vx = 0;
+      if (controllable && tryCharge(s, f)) break;
       if (f.t >= 2 && controllable && (f.buf.some((b) => b > 0) || input & (IN_LEFT | IN_RIGHT | IN_DOWN))) groundControl(s, f, input);
       else if (f.t >= f.len) setMode(f, 'idle');
+      break;
+    case 'charge':
+      chargeControl(s, f, input, controllable);
       break;
     case 'jumpsquat':
       f.vx = 0;
       if (f.t >= f.len) startJump(f, input, false);
       break;
     case 'dash': {
+      // 대시 공격: 앞으로 대시하는 중에 공격하면 그 자리에서 바로, 미끄러지는 힘을 실어서 (뒤로 대시하는 중이면 대시가 끝난 뒤 평타)
+      if (f.dir > 0 && take(f, B_ATTACK)) {
+        startMove(s, f, 'dashAttack');
+        f.vx = f.facing * MOVES.dashAttack.step!.speed;
+        break;
+      }
       if (f.t >= STATS.dashMoveFrom && f.t < STATS.dashMoveTo) {
         f.vx = f.facing * f.dir * STATS.dashSpeed;
         f.invuln = Math.max(f.invuln, 1);
       } else f.vx = friction(f.vx);
-      if (f.t >= STATS.dashMoveTo && (has(f, B_ATTACK) || has(f, B_JUMP) || f.buf[B_SKILL_A] || f.buf[B_SKILL_B] || f.buf[B_SUPER])) {
+      if (f.t >= STATS.dashMoveTo && (has(f, B_ATTACK) || has(f, B_JUMP) || f.buf[B_SKILL1] || f.buf[B_SKILL2] || f.buf[B_SUPER])) {
         groundControl(s, f, input);
       } else if (f.t >= f.len) setMode(f, 'idle');
       break;
@@ -489,6 +574,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
     case 'attack': {
       const mv = MOVES[f.move!];
       if (attackControl(s, f, input)) break;
+      if (controllable && tryCharge(s, f)) break;
       if (mv.dive) diveControl(s, f, mv);
       else if (mv.step) {
         const fr = frameOf(mv, f.t);

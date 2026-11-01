@@ -13,7 +13,7 @@ import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import { drawText, textWidth } from '../render/font';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
-  IN_SKILL_A, IN_SKILL_B, IN_SUPER, IN_UP, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
+  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, MOVES, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
@@ -23,7 +23,7 @@ import type { Scene } from './scene';
 
 /**
  * 1P 키보드 키 배치. 방향: 화살표 또는 WASD.
- * 공격 J, 점프 K, 대시 L, 기술 A U, 기술 B I, 필살 O
+ * 왼손 WASD, 오른손 두 줄: 윗줄 U 스킬 1 · I 스킬 2 · O 필살기, 아랫줄 J 공격(길게 = 차지) · K 점프 · L 대시
  */
 export const KEYMAP: Record<string, PlayerInput> = {
   ArrowUp: IN_UP, KeyW: IN_UP,
@@ -33,8 +33,8 @@ export const KEYMAP: Record<string, PlayerInput> = {
   KeyJ: IN_ATTACK,
   KeyK: IN_JUMP,
   KeyL: IN_DASH,
-  KeyU: IN_SKILL_A,
-  KeyI: IN_SKILL_B,
+  KeyU: IN_SKILL1,
+  KeyI: IN_SKILL2,
   KeyO: IN_SUPER,
 };
 
@@ -233,11 +233,12 @@ export function fightScene(): Scene {
     g.actors.update(s.fighters.map((f, i) => {
       const pose = fighterPose(f);
       const white = fightVfx.white(i);
+      const glow = chargeGlow(f);
       const jitter = f.hitstop > 0 && SHAKEN.has(f.mode) ? (s.tick % 2 ? 1 : -1) : 0;
       return {
         motion: motionByName.get(pose.motion)!,
         frame: pose.frame,
-        look: white ? 'flash' : i === 0 ? 'p1' : 'p2',
+        look: white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
         flip: f.facing < 0,
         x: f.x / 256 + jitter,
         h: -f.y / 256,
@@ -309,6 +310,17 @@ interface Snapshot {
 }
 
 /** 잔상을 남길 만큼 빠른가: 3px/틱 이상으로 움직일 때 (대시는 Sprite Fusion 잔상이 따로 있어 뺀다) */
+/**
+ * 차지를 모으는 동안 몸이 빛남 (렌더 전용): 0 그대로, 1 한 단계 밝게, 2 하얗게.
+ * 모으는 동안은 한 단계 밝은 채로 있고, 모으기를 시작할 때와 단계가 오를 때마다 3틱 하얗게 '캉!' 번쩍인다
+ */
+const CHARGE_LEVEL_AT = MOVES.charge.data.charge!.levels.map((l) => l.at);
+function chargeGlow(f: Fighter): 0 | 1 | 2 {
+  if (f.mode !== 'charge') return 0;
+  const since = f.t - CHARGE_LEVEL_AT[Math.max(0, f.chargeLv - 1)];
+  return since >= 0 && since < 3 ? 2 : 1;
+}
+
 function isFast(f: Fighter): boolean {
   return f.mode !== 'dash' && f.mode !== 'airdash' && Math.abs(f.vx) >= 3 * 256;
 }

@@ -26,7 +26,7 @@ const sim = await vite.ssrLoadModule('/src/sim/index.ts');
 const R = sim.RULES;
 const HP = sim.createState(0).fighters[0].hp;
 
-const total = { keepStage: [0, 0, 0, 0, 0], keepFall: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
+const total = { chargeGo: 0, chargeLv: [0, 0, 0], chargeHit: 0, chargeCut: 0, dashAtk: 0, dashAtkHit: 0, keepStage: [0, 0, 0, 0, 0], keepFall: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
 const t0 = Date.now();
 for (let m = 0; m < args.matches; m++) {
   const seed = args.seed + m;
@@ -37,9 +37,12 @@ for (let m = 0; m < args.matches; m++) {
     const ok = a.hash === b && a.hash === c && a.ended && a.problems.length === 0;
     if (!ok) failed++;
     const w = a.winner < 0 ? '무승부' : `${a.winner + 1}P 승`;
-    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 벽달리기 ${a.stats.wallrun} 박차기 ${a.stats.wallkick} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat}(벽낙법 ${a.stats.walltech}) 시타델 ${a.keep.stage}단계${a.keep.stage === 4 ? `(${a.keep.round}라운드에 붕괴)` : ''} ${a.keep.hp} 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
+    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 벽달리기 ${a.stats.wallrun} 박차기 ${a.stats.wallkick} 대시공격 ${a.stats.dashAtk} 차지 ${a.stats.chargeGo} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat}(벽낙법 ${a.stats.walltech}) 시타델 ${a.keep.stage}단계${a.keep.stage === 4 ? `(${a.keep.round}라운드에 붕괴)` : ''} ${a.keep.hp} 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
     for (const p of a.problems.slice(0, 5)) console.log(`      ${p}`);
-    for (const k of Object.keys(a.stats)) if (k !== 'maxCombo' && k !== 'maxPerch') total[k] += a.stats[k];
+    for (const k of Object.keys(a.stats)) {
+      if (k === 'chargeLv') a.stats.chargeLv.forEach((v, i) => (total.chargeLv[i] += v));
+      else if (k !== 'maxCombo' && k !== 'maxPerch') total[k] += a.stats[k];
+    }
     total.maxCombo = Math.max(total.maxCombo, a.stats.maxCombo);
     total.maxPerch = Math.max(total.maxPerch, a.stats.maxPerch);
     total.wins[a.winner < 0 ? 2 : a.winner]++;
@@ -56,6 +59,11 @@ const plat = platformChecks();
 for (const [name, ok, note] of plat) {
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 발판 시험: ${name}${note ? ` (${note})` : ''}`);
+}
+// 2-1) 공격 버튼 (정해진 입력으로): 대시 공격
+for (const [name, ok, note] of attackChecks()) {
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 공격 시험: ${name}${note ? ` (${note})` : ''}`);
 }
 // 5) 벽 기동 (정해진 입력으로)
 for (const [name, ok, note] of wallChecks()) {
@@ -126,6 +134,7 @@ console.log(`  부서지는 물건: 망가짐 ${total.propDamaged}, 파괴 ${tot
 console.log(`  발판: 올라선 횟수 ${total.perch}, 발판 위 ${(total.perchTicks / 60).toFixed(0)}초 (그중 새 구조물 위 ${(total.structTicks / 60).toFixed(0)}초), ↓+점프로 내려옴 ${total.drop}, 가장 높이 선 곳 ${total.maxPerch}px`);
 console.log(`  큰 물건: 망가짐 ${total.bigDamaged}, 크게 무너짐 ${total.bigBroken}`);
 console.log(`  시타델: CPU 대전 ${args.matches}판이 끝났을 때 단계 0~4 = ${total.keepStage.join(' / ')}, 3단계로 시작한 6판 중 붕괴 ${total.keepFall}판`);
+console.log(`  공격 버튼: 대시 공격 ${total.dashAtk} (맞힘 ${total.dashAtkHit}), 차지 ${total.chargeGo} (1·2·3단계 ${total.chargeLv.join('·')}, 맞힘 ${total.chargeHit}, 모으다 맞아 취소 ${total.chargeCut})`);
 console.log(`  벽 기동: 벽 붙기 ${total.wallcling}, 벽 점프 ${total.walljump}, 벽 달리기 ${total.wallrun}, 벽 박차기 공격 ${total.wallkick}, 벽 낙법 ${total.walltech} (벽꽝 ${total.wallsplat}번 중)`);
 console.log(failed ? `실패 ${failed}건` : '모두 통과');
 process.exit(failed ? 1 : 0);
@@ -138,16 +147,27 @@ function runCpuMatch(seed, ticks, setup = null) {
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
   const log = [];
   const problems = [];
-  const stats = { wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0 };
+  const stats = { chargeGo: 0, chargeLv: [0, 0, 0], chargeHit: 0, chargeCut: 0, dashAtk: 0, dashAtkHit: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0 };
   const was = [0, 0];
   while (log.length < ticks && state.phase !== 'matchEnd') {
     const inputs = [sim.cpuInput(cpus[0], state, 0), sim.cpuInput(cpus[1], state, 1)];
     log.push(inputs);
+    const charging = state.fighters.map((f) => f.mode === 'charge');
     sim.step(state, inputs);
+    // 모으다 맞아서 취소됨
+    state.fighters.forEach((f, i) => {
+      if (charging[i] && (f.mode === 'hitstun' || f.mode === 'airhit' || f.mode === 'ko' || f.mode === 'wallsplat')) stats.chargeCut++;
+    });
     for (const e of state.events) {
       if (e.type === 'citadel' && e.text === 'collapse') keepRound = state.round;
       if (e.type in stats) stats[e.type]++;
       if (e.type === 'hit') stats.maxCombo = Math.max(stats.maxCombo, e.combo);
+      if (e.type === 'hit' && e.move === 'dashAttack') stats.dashAtkHit++;
+      if (e.type === 'hit' && e.move === 'charge') stats.chargeHit++;
+      if (e.type === 'charge' && e.text === 'release') {
+        stats.chargeGo++;
+        stats.chargeLv[e.combo - 1]++;
+      }
       if (e.type === 'city') stats.cityChunks += e.combo;
       if (e.type === 'prop') {
         if (sim.BREAKABLES[e.who].big) stats[e.text === 'damaged' ? 'bigDamaged' : 'bigBroken']++;
@@ -161,6 +181,7 @@ function runCpuMatch(seed, ticks, setup = null) {
     }
     // 발판: 새로 올라선 횟수, 발판 위에 있던 틱, ↓+점프로 내려온 횟수, 가장 높이 선 발판
     state.fighters.forEach((f, i) => {
+      if (f.mode === 'attack' && f.move === 'dashAttack' && f.t === 0 && f.hitstop === 0) stats.dashAtk++;
       if (f.floor < 0 && was[i] === 0) stats.perch++;
       if (f.floor < 0) {
         stats.perchTicks++;
@@ -277,19 +298,19 @@ function keepChecks() {
   const tx = Math.round((towerTop.x0 + towerTop.x1) / 2);
   const solidAt = (s, x, h) => sim.floorBelow(s, x * 256, -(h + 400) * 256) === -h * 256;
 
-  // 1) 구역 안 강한 타격(기술 A)은 40, 막히면 20, 구역 밖은 그대로
-  for (const [label, x, p2, want] of [['구역 안 강한 타격(기술 A)은 본관 내구도를 깎는다', 3180, 0, K.damage.heavy], ['막힌 강한 타격은 절반만 깎는다', 3180, I.IN_DOWN, K.damage.blocked], ['구역 밖 강한 타격은 깎지 않는다', 2500, 0, 0]]) {
+  // 1) 구역 안 강한 타격(스킬 1)은 40, 막히면 20, 구역 밖은 그대로
+  for (const [label, x, p2, want] of [['구역 안 강한 타격(스킬 1)은 본관 내구도를 깎는다', 3180, 0, K.damage.heavy], ['막힌 강한 타격은 절반만 깎는다', 3180, I.IN_DOWN, K.damage.blocked], ['구역 밖 강한 타격은 깎지 않는다', 2500, 0, 0]]) {
     const s = fresh(x, x + 30);
     s.fighters[0].meter = R.METER_MAX;
-    const ev = run(s, [I.IN_SKILL_A, ...hold(0, 40)], p2);
-    const landed = ev.some((e) => (e.type === 'hit' || e.type === 'block') && e.move === 'skillA');
+    const ev = run(s, [I.IN_SKILL1, ...hold(0, 40)], p2);
+    const landed = ev.some((e) => (e.type === 'hit' || e.type === 'block') && e.move === 'skill1');
     results.push([label, landed && K.hp - s.citadel.hp === want, `${landed ? '닿음' : '안 닿음'}, 깎인 양 ${K.hp - s.citadel.hp}`]);
   }
-  // 2) 기둥탑 앞에서 벽 쪽으로 날리면 기둥탑에 박히고(벽꽝) 본관이 깎인다 (기술 B는 강한 타격이기도 하다)
+  // 2) 기둥탑 앞에서 벽 쪽으로 날리면 기둥탑에 박히고(벽꽝) 본관이 깎인다 (스킬 2는 강한 타격이기도 하다)
   {
     const s = fresh(tx + 30, tx);
     s.fighters[0].meter = R.METER_MAX;
-    const ev = run(s, [I.IN_SKILL_B, ...hold(0, 30)]);
+    const ev = run(s, [I.IN_SKILL2, ...hold(0, 30)]);
     const splat = ev.some((e) => e.type === 'wallsplat');
     results.push(['기둥탑 앞에서 벽 쪽으로 날리면 기둥탑에 박히고(벽꽝) 본관이 깎인다', splat && K.hp - s.citadel.hp === K.damage.heavy + K.damage.splat, `벽꽝 ${splat}, 깎인 양 ${K.hp - s.citadel.hp}`]);
   }
@@ -704,6 +725,171 @@ function structureChecks() {
  * 벽 붙기: 공중에서 벽 쪽을 누르면 붙고(벽을 등지고, 2단 점프·공중 대시가 다시 생김), 천천히 미끄러지고, 놓으면 떨어지고,
  * 땅에 닿으면 착지하고, 같은 벽은 연속 두 번까지, 맵 끝 벽에도 붙고, 붙은 건물 칸이 무너지면 떨어진다.
  */
+/** 공격 버튼을 상황별로 나눈 것 (기획서 '조작과 전투 시스템'): 대시 공격 */
+function attackChecks() {
+  const results = [];
+  const I = sim;
+  const fresh = (x0, x1) => {
+    const s = sim.createState(1);
+    while (s.phase !== 'fight') sim.step(s, [0, 0]);
+    s.fighters[0].x = x0 * 256;
+    s.fighters[1].x = x1 * 256;
+    return s;
+  };
+  const hold = (inp, n) => Array(n).fill(inp);
+  /** 입력을 넣고, 틱마다 [이벤트, 1P 모드·기술, 2P 모드]를 모은다 */
+  const run = (s, inputs, p2 = 0) => {
+    const log = [];
+    for (const inp of inputs) {
+      sim.step(s, [inp, p2]);
+      log.push({ ev: s.events, a: `${s.fighters[0].mode}/${s.fighters[0].move}`, b: s.fighters[1].mode });
+    }
+    return log;
+  };
+
+  // 1) 앞으로 대시하는 중에 공격하면 그 틱에 대시 공격이 나가고, 미끄러지며 들어가 맞힌다 (상대는 땅에 선 채 경직, 기력은 쓰지 않음)
+  let s = fresh(2400, 2500);
+  let f = s.fighters[0];
+  run(s, [I.IN_DASH | I.IN_RIGHT, 0, 0]);
+  const dashing = f.mode === 'dash';
+  const x0 = f.x;
+  const meter0 = f.meter;
+  run(s, [I.IN_ATTACK]);
+  const started = f.mode === 'attack' && f.move === 'dashAttack';
+  let log = run(s, hold(0, 40));
+  const hitAt = log.findIndex((l) => l.ev.some((e) => e.type === 'hit' && e.move === 'dashAttack'));
+  const stunned = hitAt >= 0 && log[hitAt].b === 'hitstun';
+  results.push(['앞으로 대시하는 중 공격 → 그 틱에 대시 공격', dashing && started, `${dashing ? '대시 중' : '대시 아님'} → ${started ? 'dashAttack' : `${f.mode}/${f.move}`}`]);
+  results.push(['대시 공격은 미끄러지며 들어가 맞히고, 상대는 땅에 선 채 경직된다', stunned && f.x - x0 > 30 * 256, `맞힘 ${hitAt >= 0 ? `${hitAt + 1}틱째` : '없음'}, 상대 ${hitAt >= 0 ? log[hitAt].b : '-'}, 미끄러진 거리 ${((f.x - x0) / 256).toFixed(0)}px`]);
+  results.push(['대시 공격은 기력을 쓰지 않는다', f.meter >= meter0, `기력 ${meter0} → ${f.meter}`]);
+
+  // 2) 뒤로 대시하는 중에 공격하면 대시 공격이 아니라, 대시가 끝날 무렵 평타 1타
+  s = fresh(2400, 2600);
+  f = s.fighters[0];
+  run(s, [I.IN_DASH | I.IN_LEFT, 0]);
+  log = run(s, [I.IN_ATTACK, ...hold(0, 14)]);
+  const moves = new Set(log.map((l) => l.a).filter((a) => a.startsWith('attack/')));
+  results.push(['뒤로 대시하는 중 공격 → 대시 공격이 아니라 평타', !moves.has('attack/dashAttack') && moves.has('attack/atk1'), [...moves].join(', ') || '공격 없음']);
+
+  // 3) 대시 공격이 막히면 빈틈이 크다: 막은 쪽이 먼저 움직일 수 있다
+  s = fresh(2400, 2500);
+  f = s.fighters[0];
+  const g = s.fighters[1];
+  run(s, [I.IN_DASH | I.IN_RIGHT, 0, 0], I.IN_DOWN);
+  log = run(s, [I.IN_ATTACK, ...hold(0, 40)], I.IN_DOWN);
+  const blockAt = log.findIndex((l) => l.ev.some((e) => e.type === 'block' && e.move === 'dashAttack'));
+  let gFree = -1;
+  let fFree = -1;
+  for (let i = blockAt + 1; i < log.length && blockAt >= 0; i++) {
+    if (gFree < 0 && log[i].b === 'guard') gFree = i;
+    if (fFree < 0 && !log[i].a.startsWith('attack')) fFree = i;
+  }
+  results.push(['대시 공격이 막히면 막은 쪽이 먼저 움직인다 (빈틈)', blockAt >= 0 && gFree >= 0 && fFree > gFree, `막힘 ${blockAt + 1}틱째, 막은 쪽 풀림 ${gFree + 1}틱째, 대시 공격 끝 ${fFree + 1}틱째`]);
+
+  // ---- 누르기와 길게 누르기 (기획서): 연타가 씹히거나 차지가 실수로 나가면 안 된다 ----
+  const H = sim.RULES.CHARGE_HOLD;
+  const charging = (l) => l.a.startsWith('charge');
+  // 4) 누른 틱에 바로 평타가 시작된다 (기다렸다가 판단하지 않는다)
+  s = fresh(2400, 2440);
+  f = s.fighters[0];
+  run(s, [I.IN_ATTACK]);
+  results.push(['누른 틱에 바로 평타가 나간다 (지연 0틱)', f.mode === 'attack' && f.move === 'atk1' && f.t === 0, `${f.mode}/${f.move} t=${f.t}`]);
+  // 5) 연타: 1틱씩, 8틱씩 누르고 떼기 → 4타까지 끊기지 않고, 모으기는 한 번도 없다
+  for (const [label, on, off] of [['1틱씩', 1, 3], ['8틱씩', 8, 2]]) {
+    s = fresh(2400, 2440);
+    const seq = [];
+    for (let k = 0; k < 8; k++) seq.push(...hold(I.IN_ATTACK, on), ...hold(0, off));
+    log = run(s, [...seq, ...hold(0, 40)]);
+    const chain = ['atk1', 'atk2', 'atk3', 'atk4'].filter((m) => log.some((l) => l.a === `attack/${m}`));
+    const charged = log.some(charging);
+    results.push([`연타 (${label} 누르고 떼기) → 4타까지 끊기지 않고 차지는 나오지 않는다`, chain.length === 4 && !charged, `${chain.join('→')}${charged ? ', 모으기 나옴' : ''}`]);
+  }
+  // 6) 길게 누르기: 평타(1타)가 바로 나가고, 누른 지 18틱째에 모으기로. 떼면 차지가 나가 맞히고, 기력은 쓰지 않는다
+  s = fresh(2400, 2456);
+  f = s.fighters[0];
+  const m0 = f.meter;
+  log = run(s, hold(I.IN_ATTACK, 30));
+  const startAt = log.findIndex(charging);
+  results.push([`길게 누르면 평타 뒤 ${H}틱째에 모으기로 넘어간다`, log[0].a === 'attack/atk1' && startAt === H - 1, `첫 틱 ${log[0].a}, 모으기 ${startAt + 1}틱째`]);
+  log = run(s, hold(0, 50));
+  const relAt = log.findIndex((l) => l.a === 'attack/charge');
+  const chHit = log.findIndex((l) => l.ev.some((e) => e.type === 'hit' && e.move === 'charge'));
+  results.push(['떼면 차지가 나가 맞히고, 기력은 쓰지 않는다', relAt === 0 && chHit > 0 && f.meter >= m0, `뗀 틱 ${relAt + 1}틱째 차지, 맞힘 ${chHit + 1}틱째, 기력 ${m0} → ${f.meter}`]);
+  // 7) 단계: 모으기 30틱이면 2단계, 60틱이면 3단계. 3단계는 막혀도 방어를 깬다
+  s = fresh(2400, 2456);
+  log = run(s, hold(I.IN_ATTACK, H + 62), I.IN_DOWN);
+  const lvAt = (lv) => log.findIndex((l) => l.ev.some((e) => e.type === 'charge' && e.text === 'level' && e.combo === lv));
+  results.push(['모으기 30틱이면 2단계, 60틱이면 3단계', lvAt(2) === H - 1 + 30 && lvAt(3) === H - 1 + 60, `2단계 ${lvAt(2) + 1}틱째, 3단계 ${lvAt(3) + 1}틱째`]);
+  log = run(s, hold(0, 40), I.IN_DOWN);
+  const crushed = log.some((l) => l.ev.some((e) => e.type === 'crush' && e.move === 'charge'));
+  results.push(['3단계 차지는 막혀도 방어를 깬다', crushed, crushed ? '가드 크러시' : log.flatMap((l) => l.ev.map((e) => e.type)).join(',')]);
+  // 7-1) 1단계 차지가 막히면 막은 쪽이 먼저 움직인다 (빈틈)
+  s = fresh(2400, 2456);
+  run(s, hold(I.IN_ATTACK, H + 12), I.IN_DOWN);
+  log = run(s, hold(0, 40), I.IN_DOWN);
+  const cBlock = log.findIndex((l) => l.ev.some((e) => e.type === 'block' && e.move === 'charge'));
+  const cG = log.findIndex((l, i) => i > cBlock && l.b === 'guard');
+  const cA = log.findIndex((l, i) => i > cBlock && !l.a.startsWith('attack'));
+  results.push(['1단계 차지가 막히면 막은 쪽이 먼저 움직인다 (빈틈)', cBlock >= 0 && cG >= 0 && cA > cG, `막힘 ${cBlock + 1}틱째, 막은 쪽 풀림 ${cG + 1}틱째, 차지 끝 ${cA + 1}틱째`]);
+  // 8) 모으는 중에는 무방비: ↓를 눌러도 막지 못하고, 맞으면 취소된다 (차지는 나가지 않는다). 2P가 붙어서 1타
+  s = fresh(2400, 2456);
+  f = s.fighters[0];
+  run(s, hold(I.IN_ATTACK | I.IN_DOWN, H + 4));
+  const wasCharging = f.mode === 'charge';
+  s.fighters[1].x = f.x + 30 * 256;
+  log = [];
+  for (let k = 0; k < 50; k++) {
+    sim.step(s, [k < 20 ? I.IN_ATTACK | I.IN_DOWN : 0, k === 0 ? I.IN_ATTACK : 0]);
+    log.push({ ev: s.events, a: `${f.mode}/${f.move}` });
+  }
+  const gotHit = log.findIndex((l) => l.ev.some((e) => e.type === 'hit' && e.who === 1));
+  const blocked = log.some((l) => l.ev.some((e) => e.type === 'block' && e.who === 1));
+  const fired = log.some((l) => l.a === 'attack/charge');
+  results.push(['모으는 중에는 ↓를 눌러도 막지 못하고, 맞으면 취소된다', wasCharging && gotHit >= 0 && !blocked && !fired, `모으는 중 ${wasCharging}, 맞음 ${gotHit + 1}틱째, 막음 ${blocked}, 차지 나감 ${fired}`]);
+  // 9) 공중 공격을 길게 눌러도 (내려와서도) 차지가 되지 않는다
+  s = fresh(2400, 2600);
+  run(s, [I.IN_JUMP, ...hold(0, 8)]);
+  log = run(s, hold(I.IN_ATTACK, 80));
+  results.push(['공중 공격을 길게 눌러도 내려와서 차지가 되지 않는다', log.some((l) => l.a.startsWith('attack/air')) && !log.some(charging), log.some(charging) ? '모으기 나옴' : '모으기 없음']);
+  // 10) 평타를 누른 채 앞을 눌러도 걷지 않고 서서 모으기로 (방향은 무시)
+  s = fresh(2400, 2600);
+  log = run(s, hold(I.IN_ATTACK | I.IN_RIGHT, 30));
+  results.push(['평타를 누른 채 방향을 눌러도 걷지 않고 모으기로 넘어간다', !log.some((l) => l.a.startsWith('run')) && log.some(charging), `${log.some((l) => l.a.startsWith('run')) ? '걸음' : '안 걸음'}, ${log.some(charging) ? '모으기' : '모으기 없음'}`]);
+  // 11) 평타를 누른 채 점프하면 차지는 취소된다
+  s = fresh(2400, 2600);
+  log = run(s, [...hold(I.IN_ATTACK, 10), I.IN_ATTACK | I.IN_JUMP, ...hold(I.IN_ATTACK, 40)]);
+  results.push(['평타를 누른 채 점프하면 차지는 취소된다', log.some((l) => l.a.startsWith('jumpsquat')) && !log.some(charging), log.some(charging) ? '모으기 나옴' : '모으기 없음']);
+  // 12) 최고 단계에서 1초(60틱) 더 쥐고 있으면 저절로 나간다
+  s = fresh(2400, 2600);
+  log = run(s, hold(I.IN_ATTACK, H + 140));
+  const autoAt = log.findIndex((l) => l.a === 'attack/charge');
+  results.push(['최고 단계에서 1초 더 쥐고 있으면 저절로 나간다', autoAt === H - 1 + 120, `모으기 시작 ${H}틱째, 나감 ${autoAt + 1}틱째`]);
+  // 14) 연속 장면: 대시 → 대시 공격을 누른 채 → 차지 1단계 → 점프로 쫓아 공중 1·2·3타가 끊기지 않고 다섯 대로 이어진다
+  //     (화면 캡처 npm run moveclip -- combo 와 같은 시작·같은 입력)
+  {
+    const st = sim.createState(1);
+    while (st.tick < 75) sim.step(st, [0, 0]);
+    Object.assign(st.fighters[0], { x: 2196 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: 1 });
+    Object.assign(st.fighters[1], { x: 2296 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: -1 });
+    for (let i = 0; i < 70; i++) sim.step(st, [0, 0]);
+    const R = I.IN_RIGHT;
+    const seq = [[0, 6], [I.IN_DASH, 1], [0, 2], [I.IN_ATTACK, 19], [0, 4], [I.IN_JUMP | R, 1], [R, 14], [I.IN_ATTACK | R, 1], [R, 6], [I.IN_ATTACK | R, 1], [R, 6], [I.IN_ATTACK | R, 1], [0, 60]].flatMap(([b, n]) => Array(n).fill(b));
+    const hits = [];
+    for (const inp of seq) {
+      sim.step(st, [inp, 0]);
+      for (const e of st.events) if (e.type === 'hit' && e.who === 0) hits.push(`${e.move}(${e.combo})`);
+    }
+    const want = 'dashAttack(1) charge(2) air1(3) air2(4) air3(5)';
+    results.push(['연속 장면: 대시 공격 → 차지 → 점프 → 공중 3타가 다섯 대 콤보로 이어진다', hits.join(' ') === want, hits.join(' ')]);
+  }
+  // 13) 대시 공격을 누른 채 있으면 대시 공격 뒤 모으기로 (땅에서 시작한 평타)
+  s = fresh(2400, 2600);
+  run(s, [I.IN_DASH | I.IN_RIGHT, 0, 0]);
+  log = run(s, hold(I.IN_ATTACK, 30));
+  results.push(['대시 공격을 누른 채 있으면 대시 공격 뒤 모으기로 넘어간다', log[0].a === 'attack/dashAttack' && log.findIndex(charging) === H - 1, `첫 틱 ${log[0].a}, 모으기 ${log.findIndex(charging) + 1}틱째`]);
+  return results;
+}
+
 function wallChecks() {
   const results = [];
   const I = sim;
@@ -915,10 +1101,10 @@ function wallChecks() {
     }
   }
 
-  // 벽 낙법: 건물 정면 앞에서 2P가 1P의 기술 B(벽 쪽으로 날림)에 맞아 정면에 박힌다 (2P가 점프를 누르는 때를 바꿔 가며)
+  // 벽 낙법: 건물 정면 앞에서 2P가 1P의 스킬 2(벽 쪽으로 날림)에 맞아 정면에 박힌다 (2P가 점프를 누르는 때를 바꿔 가며)
   const g1 = sim.GRIDS[1];
   const gx = Math.round(g1.x + g1.w / 2);
-  const skillB = sim.MOVES.skillB.data.damage;
+  const skill2 = sim.MOVES.skill2.data.damage;
   const splat = (jumpAfter, hp = null) => {
     const sp = fresh(gx - 22, gx);
     const [a, d] = sp.fighters;
@@ -930,7 +1116,7 @@ function wallChecks() {
     let at = -1;
     const seen = [];
     for (let k = 0; k < 80; k++) {
-      sim.step(sp, [k === 0 ? I.IN_SKILL_B : 0, at >= 0 && k === at + jumpAfter ? I.IN_JUMP : 0]);
+      sim.step(sp, [k === 0 ? I.IN_SKILL2 : 0, at >= 0 && k === at + jumpAfter ? I.IN_JUMP : 0]);
       if (at < 0 && sp.events.some((e) => e.type === 'wallsplat')) at = k;
       if (at >= 0) seen.push(d.mode);
       if (d.mode === 'walltech' && seen.filter((m) => m === 'walltech').length === 1) {
@@ -940,10 +1126,10 @@ function wallChecks() {
     }
     return { d, hp0, at, teched: false, seen };
   };
-  const hit = skillB;
+  const hit = skill2;
   let r = splat(3);
   results.push(['벽꽝에 박히는 순간(히트스톱 중) 점프하면 벽 낙법: 박히지 않고 상대 반대쪽 위로 튕겨 나가며 무적', r.at >= 0 && r.teched && r.vx > 0 && r.vy < 0 && r.invuln > 0, `벽꽝 ${r.at >= 0}, 낙법 ${r.teched}, vx ${(r.vx / 256).toFixed(1)} vy ${(r.vy / 256).toFixed(1)} 무적 ${r.invuln}`]);
-  results.push(['벽 낙법이면 벽꽝 추가 피해를 받지 않는다', r.teched && r.hp0 - r.hpAtTech === hit, `피해 ${r.hp0 - r.hpAtTech} (기술 B ${hit})`]);
+  results.push(['벽 낙법이면 벽꽝 추가 피해를 받지 않는다', r.teched && r.hp0 - r.hpAtTech === hit, `피해 ${r.hp0 - r.hpAtTech} (스킬 2 ${hit})`]);
   r = splat(10 + sim.RULES.WALL_TECH_TICKS + 4);
   const late = r.d;
   results.push(['낙법 구간이 지나 점프하면 박혀서 벽꽝 추가 피해를 받는다', r.at >= 0 && !r.teched && r.hp0 - late.hp === hit + sim.CITY_RULES.wallsplat.damage, `낙법 ${r.teched}, 피해 ${r.hp0 - late.hp}`]);

@@ -15,7 +15,9 @@ export type Mode =
   /** 벽 붙기: 공중에서 벽 쪽을 누른 채 벽에 닿아, 벽을 등지고 붙어 천천히 미끄러짐 */
   | 'wallcling'
   /** 벽 달리기: 벽 쪽으로 대시해 벽에 닿아, 벽을 바라보며 달려 오름 */
-  | 'wallrun';
+  | 'wallrun'
+  /** 차지 모으기: 공격을 길게 누르고 있는 동안 (무방비, 맞으면 취소). 떼면 차지가 나간다 */
+  | 'charge';
 
 /** 직렬화 가능한 평범한 객체. 위치·속도는 1/256px 정수. */
 export interface Fighter {
@@ -62,7 +64,13 @@ export interface Fighter {
   wins: number;
   /** 공격 버튼을 누른 순간의 위·아래 방향 (미리 눌러 둔 공격이 나중에 나가도 방향을 지킨다) */
   atkDir: number;
-  /** 버튼별 남은 버퍼 틱 [공격, 점프, 대시, 기술A, 기술B, 필살] */
+  /** 공격 버튼을 떼지 않고 누르고 있는 틱 (누른 틱이 1, 떼면 0). 길게 누르기 판정 (기획서 '누르기와 길게 누르기') */
+  atkHold: number;
+  /** 지금 누르고 있는 공격 버튼으로 땅에서 평타가 나갔다: 계속 누르고 있으면 차지로 이어질 수 있다 (떼거나 다른 행동을 하면 지운다) */
+  chargeArm: boolean;
+  /** 차지 단계: 모으는 동안 오르고, 떼면 그 단계로 친다 (0 없음) */
+  chargeLv: number;
+  /** 버튼별 남은 버퍼 틱 [공격, 점프, 대시, 스킬 1, 스킬 2, 필살기] */
   buf: number[];
   prevInput: number;
   /** 지금 기술이 이미 친 부서지는 물건 번호들 */
@@ -154,6 +162,8 @@ export interface SimEvent {
     | 'wallkick'
     /** 벽 낙법: who = 낙법한 사람 (박힌 쪽) */
     | 'walltech'
+    /** 차지: who = 모으는 사람, text = 'start' (모으기 시작) | 'level' (단계가 오름) | 'release' (뗌), combo = 단계 */
+    | 'charge'
     /**
      * 시타델 본관: text = 'damage' (combo = 깎인 양) | 'stage' (combo = 새 단계 1~3) | 'collapse' (무너짐).
      * who = 깎은 사람, x = 그 자리
