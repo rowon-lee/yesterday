@@ -41,6 +41,11 @@ export interface MoveData {
    * 라이덴은 번개가 이 상자를 그대로 채운다 (번개 범위 = 판정 범위). shape는 번개·궤적 모양 (렌더가 읽는다)
    */
   box?: TrailBox;
+  /**
+   * 판정은 궤적 상자만 (팔다리 구간을 더하지 않는다). 몸 관절이 아닌 곳에서 나는 공격: 오스카 검격(생겨난 검격 자리),
+   * 에드워드 해머 머리처럼 무기 끝 범위를 상자로 정한 기술 (캐릭터 기획서·CLAUDE.md 판정 예외)
+   */
+  boxOnly?: boolean;
   /** 맞히면 점프로 끊고 쫓아갈 수 있다 */
   jumpCancel?: boolean;
   /** 기력 소모 (칸) */
@@ -132,6 +137,8 @@ export interface ChargeLevel {
   jumpCancel?: boolean;
   /** 이 단계로 치면 기술이 끝난 뒤 이만큼 탈진한다 (아무것도 못 함, 패널티) */
   exhaust?: number;
+  /** 이 단계의 궤적 상자 (없으면 기술의 box). 단계가 오를수록 번개가 길어지는 차지 (라이덴 투전승불) */
+  box?: TrailBox;
 }
 
 const LIGHT = { guardDamage: 10, hitstun: 16, blockstun: 12, hitstop: 7, push: 1.3 };

@@ -1,7 +1,7 @@
 import { BIG, BREAK_RULES, BREAKABLES, CITY_RULES, tramAt } from '../stage/citadel';
 import { damageCity } from './city';
 import { activeHitOf, knockOut, type WBox } from './combat';
-import { MOVES } from './frames';
+import { movesOf } from './frames';
 import { px } from './rules';
 import type { Fighter, PropState, SimState } from './types';
 
@@ -84,7 +84,7 @@ export function hitProps(s: SimState): void {
   for (const f of s.fighters) {
     const hb = activeHitOf(f);
     if (!hb) continue;
-    const d = MOVES[f.move!].data;
+    const d = movesOf(f.char)[f.move!].data;
     smashProps(s, f, hb, d.damage, 'cutin' in d && !!d.cutin);
   }
 }

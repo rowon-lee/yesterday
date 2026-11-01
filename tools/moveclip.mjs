@@ -3,7 +3,7 @@
 // → out/clips/<장면>.gif, 확인용으로 프레임을 이어 붙인 out/clips/<장면>-strip.png
 //
 // 장면은 아래 SCENES에 적는다: 두 사람 자리, 카메라가 자리 잡을 때까지 기다리는 틱, 그 뒤 틱마다 누를 키.
-import { mkdirSync, writeFileSync, copyFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, writeFileSync, copyFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { preview } from 'vite';
 import { chromium } from 'playwright';
@@ -147,22 +147,22 @@ const SCENES = {
     prep: 's.fighters[0].wins = 1; s.round = 2; s.fighters[1].hp = 30;',
     steps: [[[], 4], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 200]],
   },
-  // 라이덴 지상 평타: 공격을 4틱마다 눌러 잽 → 스트레이트 → 훅 → 니킥 (니킥에 날아감)
+  // 라이덴 지상 평타: 공격을 4틱마다 눌러 잽 → 크로스 → 미들킥 → 슈퍼맨 펀치 (슈퍼맨 펀치에 멀리 날아감, 번개가 바닥을 타고 더 달린다)
   raiden_ground: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3190, settle: 30,
     steps: [[[], 6], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [[], 50]],
   },
-  // 라이덴 띄우기(↑+공격, 어퍼컷) → 점프로 쫓아 공중 잽 → 스트레이트 → 니킥
+  // 라이덴 띄우기(↑+공격, 어퍼컷 세로 번개) → 점프로 쫓아 공중 잽 → 공중 크로스 → 공중 돌려차기 (원 번개)
   raiden_air: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
     steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [[], 50]],
   },
-  // 라이덴 띄우기 → 쫓아 점프 → 내려찍기(↓+공격, 해머 피스트)
+  // 라이덴 띄우기 → 쫓아 점프 → 내려찍기(↓+공격, 도끼차기: 위에서 아래 반원 번개 + 바닥 방전)
   raiden_slam: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
     steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['ArrowDown', 'KeyJ'], 1], [[], 70]],
   },
-  // 라이덴 쓸기(↓+공격, 로킥) → 상대가 일어나면 물러났다가 대시 공격(슈퍼맨 펀치)
+  // 라이덴 쓸기(↓+공격, 다리 걸기: 바닥을 쓰는 반원 번개 + 물 튐) → 상대가 일어나면 물러났다가 대시 공격(플라잉 니, 번개 꼬리)
   raiden_low: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3188, settle: 30,
     steps: [[[], 6], [['ArrowDown', 'KeyJ'], 1], [[], 100], [['ArrowLeft'], 20], [[], 6], [['KeyL'], 1], [[], 3], [['KeyJ'], 1], [[], 50]],
@@ -214,6 +214,11 @@ const SCENES = {
     steps: [[[], 6], [['KeyJ'], 82], [[], 56]],
   },
 };
+
+// 캐릭터별 장면 (tools/scenes/<캐릭터>.mjs: export default { 장면 이름: { … } })
+for (const file of readdirSync(new URL('./scenes/', import.meta.url)).filter((n) => n.endsWith('.mjs')).sort()) {
+  Object.assign(SCENES, (await import(`./scenes/${file}`)).default);
+}
 
 const argv = process.argv.slice(2);
 const opt = { every: 1, scale: 2, crop: '', to: '' };

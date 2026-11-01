@@ -13,6 +13,7 @@ import {
   MAX_ROUNDS, STAGE_W, WALL_R, WINS_NEEDED,
 } from './rules';
 import type { Fighter, SimState } from './types';
+import { EXT_LEN, hooksOf } from './chars';
 
 export type { Fighter, SimState, SimEvent, Mode, Phase } from './types';
 export { SUBPX } from './rules';
@@ -26,6 +27,7 @@ function newFighter(x: number, facing: 1 | -1, char: CharId): Fighter {
     runDist: 0, wins: 0, atkDir: 0, atkHold: 0, chargeArm: false, chargeLv: 0, cineMotion: '', buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
     wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false, citadelHit: false, kongo: 0, kongoT: 0, exhaust: 0,
     zanX0: 0, zanX1: 0, zanY: 0, zanT: 0, zanHit: false, slowT: 0,
+    ext: new Array<number>(EXT_LEN).fill(0),
   };
 }
 
@@ -63,6 +65,7 @@ function resetRound(s: SimState): void {
     Object.assign(f, newFighter(mid + (i === 0 ? -START_GAP : START_GAP), i === 0 ? 1 : -1, f.char), keep);
     // 경기 첫 라운드: 시작 연출 동안 등장 동작 (끝나면 대기)
     if (s.round === 1) setMode(f, 'intro', motionFrames(motionOf(f.char, 'intro')).total);
+    hooksOf(f.char).reset?.(s, f);
   });
   s.phase = 'intro';
   s.phaseT = 0;

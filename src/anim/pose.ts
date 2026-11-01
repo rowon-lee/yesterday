@@ -23,14 +23,20 @@ export interface Pose {
   lBx: number;
   lBy: number;
   /**
-   * 어깨 비틀기 (px, 없으면 0): 몸을 비틀어 앞어깨를 이만큼 앞으로, 뒷어깨를 0.6배만큼 뒤로 (음수면 반대).
+   * 어깨 비틀기 (px, 없으면 0): 몸을 비틀어 치는 쪽 어깨를 |tw|만큼 앞으로, 다른 쪽을 0.6배만큼 뒤로.
+   * 양수면 앞어깨가(앞손으로 칠 때), 음수면 뒷어깨가(뒷손으로 칠 때) 앞장선다.
    * 손 목표는 각자 어깨 기준이라 치는 쪽 팔이 그만큼 더 나간다 (동작연출지침서 2장 '치는 쪽 어깨가 앞으로 4~6px')
    */
   tw?: number;
+  /**
+   * 무기 각도 (도, 없으면 0): 무기를 쥔 손에서 무기 끝(해머 머리 등)이 향하는 방향. 0 = 앞, 90 = 아래, -90 = 위, ±180 = 뒤.
+   * 그림 전용 (캐릭터 장식이 읽는다. 판정은 공격 데이터의 궤적 상자). 무기가 있는 캐릭터만 쓴다 (에드워드 해머)
+   */
+  wa?: number;
 }
 
 export const POSE_KEYS: readonly (keyof Pose)[] = [
-  'hx', 'hy', 'tl', 'hd', 'aFx', 'aFy', 'aBx', 'aBy', 'lFx', 'lFy', 'lBx', 'lBy', 'tw',
+  'hx', 'hy', 'tl', 'hd', 'aFx', 'aFy', 'aBx', 'aBy', 'lFx', 'lFy', 'lBx', 'lBy', 'tw', 'wa',
 ];
 
 /** 뼈 길이 (px) */
@@ -50,6 +56,8 @@ export interface Joints {
   head: Point;
   /** 머리 기울기 (라디안, 그리기 전용) */
   ha: number;
+  /** 무기 각도 (라디안, 그리기 전용: 포즈의 wa) */
+  wa: number;
   eF: Point;
   hF: Point;
   eB: Point;
@@ -60,7 +68,7 @@ export interface Joints {
   fB: Point;
 }
 
-export type JointName = Exclude<keyof Joints, 'ha'>;
+export type JointName = Exclude<keyof Joints, 'ha' | 'wa'>;
 
 /**
  * 발목을 발밑보다 이만큼 올린다. 4px 붓은 중심에서 아래로 1px 더 칠하므로,
@@ -116,15 +124,15 @@ export function solve(p: Pose): Joints {
   const ha = (p.tl + p.hd) * r;
   const head: Point = [neck[0] + Math.sin(ha) * BONE.neck, neck[1] - Math.cos(ha) * BONE.neck];
   const tw = p.tw ?? 0;
-  const shF: Point = [sh[0] + tw, sh[1]];
-  const shB: Point = [sh[0] - tw * 0.6, sh[1]];
+  const shF: Point = [sh[0] + (tw >= 0 ? tw : tw * 0.6), sh[1]];
+  const shB: Point = [sh[0] - (tw >= 0 ? tw * 0.6 : tw), sh[1]];
   const aF = ik(shF, [shF[0] + p.aFx, shF[1] + p.aFy], BONE.upperArm, BONE.foreArm, -1);
   const aB = ik(shB, [shB[0] + p.aBx, shB[1] + p.aBy], BONE.upperArm, BONE.foreArm, -1);
   const lF = ik(hip, [p.lFx, p.lFy - ANKLE_LIFT], BONE.thigh, BONE.shin, 1);
   const lB = ik(hip, [p.lBx, p.lBy - ANKLE_LIFT], BONE.thigh, BONE.shin, 1);
   const R = (q: Point): Point => [Math.round(q[0]), Math.round(q[1])];
   return {
-    hip: R(hip), neck: R(neck), sh: R(sh), shF: R(shF), shB: R(shB), head: R(head), ha,
+    hip: R(hip), neck: R(neck), sh: R(sh), shF: R(shF), shB: R(shB), head: R(head), ha, wa: (p.wa ?? 0) * r,
     eF: R(aF[0]), hF: R(aF[1]), eB: R(aB[0]), hB: R(aB[1]),
     kF: R(lF[0]), fF: R(lF[1]), kB: R(lB[0]), fB: R(lB[1]),
   };

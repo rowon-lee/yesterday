@@ -1,7 +1,9 @@
 import type { MoveId } from '../data/moves/base';
 import { cinematicFinish } from './combat';
 import { setMode } from './fighter';
-import { motionFrames, MOVES } from './frames';
+import { motionFrames, movesOf } from './frames';
+import { hooksOf } from './chars';
+import type { CharId } from '../data/characters';
 import { floorBelow } from './platforms';
 import { px } from './rules';
 import type { Fighter, SimState } from './types';
@@ -33,9 +35,10 @@ export function startCine(s: SimState, att: Fighter, def: Fighter, move: MoveId)
 /** 연출 한 틱: 장면을 넘기고, 다 끝나면 두 사람을 놓아 주며 끝 타격을 준다 */
 export function stepCine(s: SimState): void {
   const c = s.cine!;
-  const cin = MOVES[c.move].data.cinematic!;
+  const ch = s.fighters[c.who].char;
+  const cin = movesOf(ch)[c.move].data.cinematic!;
   c.t++;
-  if (c.t >= sceneTicks(c.move, c.scene)) {
+  if (c.t >= sceneTicks(ch, c.move, c.scene)) {
     c.scene++;
     c.t = 0;
     if (c.scene >= cin.scenes.length) {
@@ -48,21 +51,21 @@ export function stepCine(s: SimState): void {
 }
 
 /** 장면 하나의 길이 (발동자 동작의 표시 틱 합) */
-export function sceneTicks(move: MoveId, scene: number): number {
-  return motionFrames(MOVES[move].data.cinematic!.scenes[scene].a.motion).total;
+export function sceneTicks(ch: CharId, move: MoveId, scene: number): number {
+  return motionFrames(movesOf(ch)[move].data.cinematic!.scenes[scene].a.motion).total;
 }
 
 /** 연출 전체 길이 (틱) */
-export function cineTicks(move: MoveId): number {
-  return MOVES[move].data.cinematic!.scenes.reduce((n, _, i) => n + sceneTicks(move, i), 0);
+export function cineTicks(ch: CharId, move: MoveId): number {
+  return movesOf(ch)[move].data.cinematic!.scenes.reduce((n, _, i) => n + sceneTicks(ch, move, i), 0);
 }
 
 function place(s: SimState): void {
   const c = s.cine!;
-  const sc = MOVES[c.move].data.cinematic!.scenes[c.scene];
   const att = s.fighters[c.who];
   const def = s.fighters[1 - c.who];
-  const u = Math.min(1, c.t / Math.max(1, sceneTicks(c.move, c.scene)));
+  const sc = movesOf(att.char)[c.move].data.cinematic!.scenes[c.scene];
+  const u = Math.min(1, c.t / Math.max(1, sceneTicks(att.char, c.move, c.scene)));
   for (const [f, actor] of [[att, sc.a], [def, sc.d]] as const) {
     const [x, y] = posAt(actor.pos, u);
     f.x = c.ox + c.dir * px(x);
@@ -107,4 +110,5 @@ function finish(s: SimState): void {
   setMode(def, 'idle');
   s.events.push({ type: 'cine', who: c.who, x: def.x, y: def.y, text: 'end', move: c.move });
   cinematicFinish(s, att, def, c.move);
+  hooksOf(att.char).cineEnd?.(s, att, def, c.move);
 }

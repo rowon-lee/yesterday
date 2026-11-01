@@ -22,7 +22,7 @@ export interface MotionData {
    * 스미어 프레임 (동작연출지침서 3장 '팔다리를 1.3~1.5배 늘려 그린다'): 그 프레임만 치는 팔다리(limb)를 stretch배 길이로 그린다.
    * 그림 전용 (판정 관절은 그대로)
    */
-  smear?: { frame: number; limb: 'aF' | 'aB' | 'lF' | 'lB'; stretch: number };
+  smear?: { frame: number; limb: 'aF' | 'aB' | 'lF' | 'lB' | 'kF' | 'kB'; stretch: number };
 }
 
 /** 캐릭터 칸: 크기와 발밑 기준점 (칸 왼쪽 위 기준) */

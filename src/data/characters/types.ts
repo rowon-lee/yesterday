@@ -27,4 +27,9 @@ export interface CharacterData {
    * 적지 않은 것은 기본 스틱맨 기술 그대로 쓴다 (발동·지속·회복 틱은 그림의 표시 틱과 판정 프레임으로 정해진다).
    */
   moves?: Partial<Record<MoveId, Partial<MoveData>>>;
+  /**
+   * CPU가 스킬·필살기를 쓰는 거리 [가장 가까이, 가장 멀리] (px, 두 사람 가운데 사이).
+   * 적지 않으면 그 기술의 판정이 닿는 거리 안에서 쓴다 (원격 베기·회복·순간이동처럼 판정 거리와 쓰는 거리가 다른 기술만 적는다)
+   */
+  cpu?: Partial<Record<'skill1' | 'skill2' | 'super', readonly [number, number]>>;
 }

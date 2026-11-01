@@ -1,6 +1,6 @@
 import { hurtBox, type Box } from '../anim/boxes';
 import type { MoveId } from '../data/moves/base';
-import { MOVES, movesOf, moveHitBox } from './frames';
+import { movesOf, moveHitBox } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
 import { CITY_RULES as CITY, KEEP_RULES } from '../stage/citadel';
 import { damageCitadel, superCitadel, towerBehind } from './citadel';
@@ -15,6 +15,7 @@ import {
   ZAN_H, ZAN_PAD, ZAN_SLOW,
 } from './rules';
 import type { Fighter, SimState } from './types';
+import { hooksOf } from './chars';
 
 /** 월드 상자 (1/256px). 관절은 발밑 기준 px이므로 방향을 반영해 옮긴다. */
 export interface WBox {
@@ -24,12 +25,12 @@ export interface WBox {
   y1: number;
 }
 
-function toWorld(f: Fighter, b: Box): WBox {
+export function toWorld(f: Fighter, b: Box): WBox {
   const xa = f.facing > 0 ? b.x : -(b.x + b.w);
   return { x0: f.x + px(xa), x1: f.x + px(xa + b.w), y0: f.y + px(b.y), y1: f.y + px(b.y + b.h) };
 }
 
-const overlap = (a: WBox, b: WBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+export const overlap = (a: WBox, b: WBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
 /** 피격 상자: 지금 프레임의 몸 관절을 감싼 상자. 무적이면 null */
 export function hurtOf(f: Fighter): WBox | null {
@@ -42,13 +43,13 @@ export function hurtOf(f: Fighter): WBox | null {
 /** 지금 기술의 판정 상자 (이미 맞혔어도). 부서지는 물건 판정용 */
 export function activeHitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || !f.move) return null;
-  const b = moveHitBox(movesOf(f.char)[f.move], f.t);
+  const b = moveHitBox(movesOf(f.char)[f.move], f.t, f.chargeLv);
   return b && toWorld(f, b);
 }
 
 export function hitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || f.moveHit || !f.move) return null;
-  const b = moveHitBox(movesOf(f.char)[f.move], f.t);
+  const b = moveHitBox(movesOf(f.char)[f.move], f.t, f.chargeLv);
   return b && toWorld(f, b);
 }
 
@@ -81,9 +82,27 @@ function blocks(def: Fighter, att: Fighter): boolean {
 /**
  * 한 대 맞힘 (또는 막힘). final: 필살기 연출의 끝 타격 (연출을 다시 시작하지 않고, 연출 데이터의 끝 날리기를 쓴다)
  */
+/**
+ * 몸 관절이 아닌 자리에서 나는 판정 (오스카 검격·원격 베기 등, 캐릭터 고유 규칙이 부른다): 월드 상자 box가 상대 피격 상자에 닿으면
+ * 그 기술로 맞힌다 (막기·특성·이벤트 모두 보통 타격과 같다). 이번 기술이 이미 판정을 냈으면 아무것도 하지 않는다. 맞혔거나 막혔으면 true
+ */
+export function strikeBox(s: SimState, att: Fighter, box: WBox, id: MoveId): boolean {
+  if (att.moveHit || s.cine) return false;
+  const def = s.fighters[1 - s.fighters.indexOf(att)];
+  const hurt = hurtOf(def);
+  if (!hurt || !overlap(box, hurt)) return false;
+  applyHit(s, att, def, box, id);
+  return true;
+}
+
 function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId, final = false): void {
+  const r = applyHitInner(s, att, def, hb, id, final);
+  if (r) hooksOf(att.char).hit?.(s, att, def, id, r === 'block', r === 'shield');
+}
+
+function applyHitInner(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId, final: boolean): 'hit' | 'block' | 'shield' | null {
   // 연출 중에는 판정이 없다 (같은 틱에 둘 다 맞혔으면 먼저 연출을 시작한 쪽만)
-  if (s.cine) return;
+  if (s.cine) return null;
   const mv = movesOf(att.char)[id];
   const d = mv.data;
   // 차지는 모은 단계마다 피해·방어 깎기·날리기·벽 쪽으로 날림이 다르다
@@ -108,7 +127,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
   if (d.cinematic && !final && !blocked) {
     att.moveConnected = true;
     startCine(s, att, def, id);
-    return;
+    return 'hit';
   }
   // 센 타격은 맞은 자리 뒤 건물 정면을 깎는다 (막혀도). 시타델 구역이면 본관도 (필살기는 hitCitadel이 따로)
   if (d.heavy) {
@@ -123,6 +142,8 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
     def.hitstop = stop;
     if (gainer) att.meter = Math.min(METER_MAX, att.meter + METER_BLOCK);
     def.meter = Math.min(METER_MAX, def.meter + METER_BLOCKED);
+    // 막혀도 방어를 깨는 타격 (캐릭터 고유 규칙: 에드워드 재현:나 등)
+    if (hooksOf(att.char).breaks?.(s, att, def, id)) def.guard = 0;
     if (def.guard <= 0) {
       def.guard = 0;
       setMode(def, 'crush', CRUSH_TICKS);
@@ -134,12 +155,22 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
       s.events.push({ type: 'block', who, x: ex, y: ey, move: mv.id });
     }
     pushOffWall(att, def, mv.push);
-    return;
+    return 'block';
   }
 
-  att.moveConnected = true;
   const scale = Math.max(SCALE_MIN, 100 - SCALE_STEP * def.comboHits);
-  const damage = Math.max(1, Math.trunc((baseDamage * scale) / 100));
+  let damage = Math.max(1, Math.trunc((baseDamage * scale) / 100));
+  // 캐릭터 고유 규칙: 때리는 쪽이 피해를 바꾸고 (강화·검영 수), 맞는 쪽이 받는다 (껍데기가 대신 받음, 방어막이 통째로 막음)
+  damage = hooksOf(att.char).damage?.(s, att, def, id, damage) ?? damage;
+  const took = hooksOf(def.char).defend?.(s, def, att, id, damage) ?? damage;
+  if (took < 0) {
+    att.hitstop = d.hitstop;
+    def.hitstop = d.hitstop;
+    s.events.push({ type: 'char', who: s.fighters.indexOf(def), x: ex, y: ey, text: 'shield', move: mv.id });
+    return 'shield';
+  }
+  att.moveConnected = true;
+  damage = took;
   def.hp = Math.max(s.practice ? 1 : 0, def.hp - damage);
   def.comboHits++;
   def.flash = FLASH_TICKS;
@@ -156,7 +187,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
   const airborne = isAirborne(def) || def.mode === 'airhit';
   if (def.hp <= 0) {
     knockOut(s, def, dir, who);
-    return;
+    return 'hit';
   }
   // 금강불괴: 하던 동작을 그대로 이어 간다 (경직은 히트스톱뿐, 띄우기·다운·벽꽝 없음), 땅에서는 밀리는 힘 80% 감소
   if (armored) {
@@ -167,7 +198,7 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
       def.x += dir * shove;
       pushOffWall(att, def, shove);
     }
-    return;
+    return 'hit';
   }
   // 벽꽝: '벽 쪽으로 날림' 기술이고 뒤에 건물 정면이나 시타델 기둥탑이 서 있으면 박힌다 (기둥탑이면 본관 내구도도 깎인다)
   // (추가 피해는 벽 낙법 구간이 지나 정말 박힌 뒤에: splatLands)
@@ -181,14 +212,14 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
     def.vy = 0;
     def.wallFly = false;
     wallSplat(s, def, who);
-    return;
+    return 'hit';
   }
   if (d.spike && airborne) {
     setMode(def, 'airhit', d.hitstun);
     def.vx = dir * px(0.8);
     def.vy = SPIKE_VY;
     def.bounce = true;
-    return;
+    return 'hit';
   }
   if (airborne || launch || d.knockdown || d.spike) {
     const v = launch ?? (d.knockdown || d.spike
@@ -203,13 +234,14 @@ function applyHit(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: MoveId,
     // 공중에서 맞히면 때린 쪽도 함께 떠올라 다음 타가 이어지게 한다
     if (d.airFollow !== undefined && isAirborne(att)) att.vy = def.vy + px(d.airFollow);
     if (!airborne && mv.launch && mv.id === 'launcher') s.events.push({ type: 'launch', who, x: def.x, y: def.y });
-    return;
+    return 'hit';
   }
   const decay = Math.max(0, def.comboHits - STUN_DECAY_FROM) * STUN_DECAY_STEP;
   setMode(def, 'hitstun', Math.max(Math.ceil((d.hitstun * STUN_DECAY_MIN) / 100), d.hitstun - decay));
   def.heavyHit = d.hitstun >= 24;
   def.vx = dir * mv.push;
   pushOffWall(att, def, mv.push);
+  return 'hit';
 }
 
 /**
@@ -271,7 +303,7 @@ export function cinematicFinish(s: SimState, att: Fighter, def: Fighter, id: Mov
   const blow: WBox = { x0: def.x - px(20), x1: def.x + px(20), y0: def.y - px(50), y1: def.y + px(4) };
   applyHit(s, att, def, blow, id, true);
   const wide: WBox = { x0: def.x - px(44), x1: def.x + px(44), y0: def.y - px(80), y1: def.y + px(6) };
-  smashProps(s, att, wide, MOVES[id].data.damage, true);
+  smashProps(s, att, wide, movesOf(att.char)[id].data.damage, true);
   superCitadel(s, s.fighters.indexOf(att), wide);
 }
 

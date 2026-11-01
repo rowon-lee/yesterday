@@ -1,6 +1,7 @@
 import { RULES, statsOf, type SimState } from '../sim';
 import { drawText, textWidth } from './font';
 import { COLORS } from './palette';
+import { rendersOf } from './chars';
 import { SCREEN_H, SCREEN_W } from './screen';
 
 const BAR_W = 180;
@@ -91,6 +92,8 @@ export class Hud {
           ctx.fillRect(kx, 19, 4, 4);
         }
       }
+      // 캐릭터 고유 특성 표시 (render/chars)
+      rendersOf(f.char).hud?.(ctx, s, f, i, { x, w: BAR_W, left, nameEdge: left ? x + textWidth(name) : x + BAR_W - textWidth(name) });
       // 기력 3칸 (아래, 휴대폰은 이름 밑)
       const my = this.meterTop ? 27 : SCREEN_H - 10;
       const full = Math.floor(f.meter / RULES.METER_BAR);

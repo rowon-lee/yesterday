@@ -80,6 +80,13 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
       ctx.strokeRect(footX + b.x + 0.5, LABEL_H + footY + b.y + 0.5, b.w - 1, b.h - 1);
     }
   }
+  // 궤적 상자만 판정인 기술 (boxOnly: 에드워드 해머 머리 등)
+  if (slow && active && mv?.boxOnly && mv.box) {
+    const t = mv.box;
+    ctx.strokeStyle = '#ff6a4a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(footX + t.x + 0.5, LABEL_H + footY + t.y + 0.5, t.w - 1, t.h - 1);
+  }
   ctx.restore();
   const data = ctx.getImageData(0, 0, c.width, c.height).data;
   let bin = '';

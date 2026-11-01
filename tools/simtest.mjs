@@ -1,10 +1,13 @@
 // CPU끼리 N판 자동 대전. 예외, 규칙 범위, 결정론(같은 입력 재생·저장/복원 후 같은 해시)을 확인한다.
-//   npm run simtest -- [--matches 20] [--ticks 20000] [--seed 1]
+//   npm run simtest -- [--matches 20] [--ticks 20000] [--seed 1] [--p1 raiden --p2 oscar]
+// 캐릭터별 시험은 tools/simtests/<캐릭터>.mjs (export default (sim, { runCpuMatch, replay }) => [[이름, 통과, 메모], ...])
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createServer } from 'vite';
 
-const args = parseArgs(process.argv.slice(2), { matches: 20, ticks: 20000, seed: 1 });
+const args = parseArgs(process.argv.slice(2), { matches: 20, ticks: 20000, seed: 1, p1: '', p2: '' });
+/** CPU 대전 캐릭터 (--p1·--p2, 없으면 기본 스틱맨끼리) */
+const matchOpts = args.p1 || args.p2 ? { chars: [args.p1 || 'base', args.p2 || args.p1 || 'base'] } : {};
 let failed = 0;
 /** 새 구조물 발판 (컨테이너 더미·등대 밑동·급수탑·쓰러진 간판·뒤집힌 전차·잔해 더미) */
 const NEW_KINDS = new Set(['containers', 'stump', 'watertower', 'sign', 'tram', 'rubble']);
@@ -31,9 +34,9 @@ const t0 = Date.now();
 for (let m = 0; m < args.matches; m++) {
   const seed = args.seed + m;
   try {
-    const a = runCpuMatch(seed, args.ticks);
-    const b = replay(seed, a.log, null);
-    const c = replay(seed, a.log, Math.floor(a.log.length / 2));
+    const a = runCpuMatch(seed, args.ticks, null, matchOpts);
+    const b = replay(seed, a.log, null, null, matchOpts);
+    const c = replay(seed, a.log, Math.floor(a.log.length / 2), null, matchOpts);
     const ok = a.hash === b && a.hash === c && a.ended && a.problems.length === 0;
     if (!ok) failed++;
     const w = a.winner < 0 ? '무승부' : `${a.winner + 1}P 승`;
@@ -102,6 +105,14 @@ for (const [name, ok, note] of [...hitMotionChecks(), ...commonMotionChecks()]) 
 for (const [name, ok, note] of charChecks()) {
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 캐릭터 시험: ${name}${note ? ` (${note})` : ''}`);
+}
+// 5-6) 캐릭터별 시험 (tools/simtests/*.mjs)
+for (const file of readdirSync('tools/simtests').filter((n) => n.endsWith('.mjs')).sort()) {
+  const mod = await import(`./simtests/${file}`);
+  for (const [name, ok, note] of mod.default(sim, { runCpuMatch, replay })) {
+    if (!ok) failed++;
+    console.log(`${ok ? 'OK ' : 'NG '} ${file.replace('.mjs', '')} 시험: ${name}${note ? ` (${note})` : ''}`);
+  }
 }
 // 5-3) 필살기 연출 (정해진 입력으로)
 for (const [name, ok, note] of cineChecks()) {
@@ -239,18 +250,18 @@ function charChecks() {
   // 공격을 4틱마다 눌러 연타 (다음 타는 앞 타가 맞은 뒤 예약된다)
   const mash = (inp, n) => Array.from({ length: n }, (_, i) => (i % 4 === 0 ? inp : 0));
   let hits = rrun(st, [...mash(sim.IN_ATTACK, 72), ...Array(30).fill(0)]);
-  out.push(['라이덴 1~4타 연타 (잽 → 스트레이트 → 훅 → 니킥), 니킥에 상대가 날아감', hits.join(',') === 'atk1,atk2,atk3,atk4' && st.fighters[1].mode !== 'hitstun' && st.fighters[1].mode !== 'idle',
+  out.push(['라이덴 1~4타 연타 (잽 → 크로스 → 미들킥 → 슈퍼맨 펀치), 슈퍼맨 펀치에 상대가 날아감', hits.join(',') === 'atk1,atk2,atk3,atk4' && st.fighters[1].mode !== 'hitstun' && st.fighters[1].mode !== 'idle',
     `맞힌 기술 ${hits.join(' → ') || '없음'}, 상대 ${st.fighters[1].mode}`]);
   st = rfresh(3150, 3186);
   hits = rrun(st, [...tap(sim.IN_UP | sim.IN_ATTACK, 14), ...tap(sim.IN_JUMP | sim.IN_RIGHT, 8), ...mash(sim.IN_ATTACK, 40), ...Array(30).fill(0)]);
-  out.push(['라이덴 띄우기(어퍼컷) → 점프로 쫓아 공중 잽 · 스트레이트 · 니킥', hits.join(',') === 'launcher,air1,air2,air3',
+  out.push(['라이덴 띄우기(어퍼컷) → 점프로 쫓아 공중 잽 · 크로스 · 돌려차기', hits.join(',') === 'launcher,air1,air2,air3',
     `맞힌 기술 ${hits.join(' → ') || '없음'}`]);
   st = rfresh(3150, 3188);
   hits = rrun(st, tap(sim.IN_DOWN | sim.IN_ATTACK, 30));
-  out.push(['라이덴 쓸기(로킥) → 상대 다운', hits[0] === 'sweep' && st.fighters[1].mode === 'knockdown', `맞힌 기술 ${hits.join(',') || '없음'}, 상대 ${st.fighters[1].mode}`]);
+  out.push(['라이덴 쓸기(다리 걸기) → 상대 다운', hits[0] === 'sweep' && st.fighters[1].mode === 'knockdown', `맞힌 기술 ${hits.join(',') || '없음'}, 상대 ${st.fighters[1].mode}`]);
   st = rfresh(3100, 3214);
   hits = rrun(st, [...tap(sim.IN_DASH | sim.IN_RIGHT, 3), ...tap(sim.IN_ATTACK, 40)]);
-  out.push(['라이덴 대시 공격(슈퍼맨 펀치)', hits[0] === 'dashAttack', `맞힌 기술 ${hits.join(',') || '없음'}`]);
+  out.push(['라이덴 대시 공격(플라잉 니)', hits[0] === 'dashAttack', `맞힌 기술 ${hits.join(',') || '없음'}`]);
   // 동작연출지침서 4장·7-1장: 잽 판정 = 팔꿈치→주먹 구간 + 궤적 상자(번개 범위), 프레임별 몸 이동, 1~4타 연타 동안 몸 중심 16px 이상
   {
     const jab = sim.movesOf('raiden').atk1;
@@ -704,7 +715,7 @@ function parseArgs(argv, defaults) {
   const out = { ...defaults };
   for (let i = 0; i < argv.length; i++) {
     const key = argv[i].replace(/^--/, '');
-    if (key in out) out[key] = Number(argv[++i]);
+    if (key in out) out[key] = typeof defaults[key] === 'number' ? Number(argv[++i]) : argv[++i];
   }
   return out;
 }

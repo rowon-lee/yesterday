@@ -30,6 +30,47 @@ export const COLORS = {
   suitGreyLight: '#787286',
   suitGreyDark: '#38333f',
   paleGrey: '#b3b5c5',
+  // 백은우 (대표 색: 흰 가운·금색 실·백합 연분홍). 몸은 연분홍, 가운은 흰색(그늘은 차가운 회청), 머리는 밝은 갈색
+  lily: '#e9a0b4',
+  lilyLight: '#ffd2de',
+  lilyDark: '#a85f78',
+  lilyDeep: '#5e2f44',
+  gown: '#d9dce8',
+  gownShade: '#9ea4ba',
+  gownDark: '#646a82',
+  hairBrown: '#9c6c45',
+  hairBrownLight: '#c99a66',
+  hairBrownDark: '#5e3e28',
+  thread: '#e8b84a',
+  threadLight: '#fff0a0',
+  // 에드워드 (붉은 정장·흰 넥타이·푸른 장막·청동). 몸은 붉은 정장(라이덴 붉은색보다 푸른 기 도는 짙은 다홍), 머리는 흰색
+  crimson: '#a3233f',
+  crimsonLight: '#d0455f',
+  crimsonDark: '#661528',
+  crimsonDeep: '#3b0b18',
+  veil: '#4f8fff',
+  veilLight: '#b6d4ff',
+  veilDark: '#2a4ca8',
+  bronze: '#a6743c',
+  bronzeLight: '#dcaa64',
+  bronzeDark: '#5e3e1e',
+  hammer: '#4a5260',
+  hammerLight: '#8a94a6',
+  hammerDark: '#262a32',
+  // 오스카 (올블랙 정장·짧은 금발·은빛 검). 몸은 검은 정장(달빛 받는 쪽 회청), 이펙트는 은빛 달빛·핏빛 달·짙은 바다
+  blackSuit: '#23252d',
+  blackSuitLight: '#4a4f5e',
+  blackSuitDark: '#14151a',
+  blond: '#d2b25a',
+  blondLight: '#f2dc90',
+  blondDark: '#8e7232',
+  moon: '#cdd8ec',
+  moonLight: '#f4f8ff',
+  moonDark: '#7c8aa6',
+  bloodMoon: '#b3202e',
+  bloodMoonDark: '#5c0f18',
+  deepSea: '#14384a',
+  deepSeaLight: '#2a6680',
   // 이펙트 (Sprite Fusion 램프를 이 색으로 맞춘다). 캐릭터와 같은 팔레트를 쓴다
   fxWhite: '#ffffff',
   fxYellow: '#ffe26b',
@@ -169,4 +210,10 @@ export const COMMON: readonly ColorName[] = [
   'fxWhite', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed', 'fxSoot', 'fxBlue', 'fxDeepBlue', 'fxNavy', 'neonRed', 'neonPink',
   // 라이덴
   'raiden', 'raidenLight', 'raidenDark', 'raidenDeep', 'suit', 'suitLight', 'suitDark', 'suitGrey', 'suitGreyLight', 'suitGreyDark', 'paleGrey',
+  // 백은우
+  'lily', 'lilyLight', 'lilyDark', 'lilyDeep', 'gown', 'gownShade', 'gownDark', 'hairBrown', 'hairBrownLight', 'hairBrownDark', 'thread', 'threadLight',
+  // 에드워드
+  'crimson', 'crimsonLight', 'crimsonDark', 'crimsonDeep', 'veil', 'veilLight', 'veilDark', 'bronze', 'bronzeLight', 'bronzeDark', 'hammer', 'hammerLight', 'hammerDark',
+  // 오스카
+  'blackSuit', 'blackSuitLight', 'blackSuitDark', 'blond', 'blondLight', 'blondDark', 'moon', 'moonLight', 'moonDark', 'bloodMoon', 'bloodMoonDark', 'deepSea', 'deepSeaLight',
 ];

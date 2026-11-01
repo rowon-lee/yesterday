@@ -120,7 +120,7 @@ export const FLASH_TICKS = 6;
  * 발동하면 스택은 0. 금강불괴 동안에는 스택이 쌓이지 않는다. 필살기 연출과 쓰러짐은 막지 못한다.
  */
 export const KONGO_MAX = 4;
-export const KONGO_TICKS = 120;
+export const KONGO_TICKS = 45;
 /** 금강불괴 동안 밀리는 힘 (%) */
 export const KONGO_PUSH = 20;
 /**

@@ -1,6 +1,6 @@
 import { BIG, D_PLAZA, KEEP_RULES as R, KEEP_ZONE, type HillBlock } from '../stage/citadel';
 import { activeHitOf, type WBox } from './combat';
-import { MOVES } from './frames';
+import { movesOf } from './frames';
 import { breakProp, SMASH_KEEP } from './props';
 import { px } from './rules';
 import type { CitadelState, SimState } from './types';
@@ -74,7 +74,7 @@ export function hitCitadel(s: SimState): void {
   s.fighters.forEach((f, who) => {
     if (!keepStanding(s) || f.citadelHit) return;
     const hb = activeHitOf(f);
-    if (!hb || !MOVES[f.move!].data.cutin) return;
+    if (!hb || !movesOf(f.char)[f.move!].data.cutin) return;
     if (superCitadel(s, who, hb)) f.citadelHit = true;
   });
 }

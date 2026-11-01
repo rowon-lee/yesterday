@@ -120,6 +120,11 @@ export interface Fighter {
   zanHit: boolean;
   /** 잔상에 닿아 느려진 남은 틱 (0 보통). 스스로 움직이는 상태는 반 속도 */
   slowT: number;
+  /**
+   * 캐릭터 고유 상태 (sim/chars/*: 껍데기·낙인·검영…). 길이 EXT_LEN의 숫자 배열, 라운드마다 0으로.
+   * 칸 번호와 뜻은 그 캐릭터 파일이 정한다 (렌더·HUD도 그 파일의 칸 번호로 읽는다)
+   */
+  ext: number[];
 }
 
 /** 건물 파괴 상태. hp는 덩어리마다 (1~100 멀쩡~금~구멍, 0 뚫림, -1 무너져 사라짐) */
@@ -197,6 +202,11 @@ export interface SimEvent {
     | 'slowed'
     /** 필살기 연출: who = 발동자, text = 'start' | 'scene' (combo = 장면 번호) | 'end' | 'whiff' (빗나감) */
     | 'cine'
+    /**
+     * 캐릭터 고유 사건 (sim/chars/*): who = 그 사람, text = 무엇 ('shield' 맞는 쪽 고유 규칙이 타격을 통째로 막음, 그 밖은 캐릭터 파일이 정함),
+     * combo = 값, move = 기술
+     */
+    | 'char'
     /**
      * 시타델 본관: text = 'damage' (combo = 깎인 양) | 'stage' (combo = 새 단계 1~3) | 'collapse' (무너짐).
      * who = 깎은 사람, x = 그 자리

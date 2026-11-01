@@ -100,6 +100,10 @@ export interface DecorPen {
  * behind: 뒷다리보다 먼저 (몸 뒤로 늘어지는 자락) / body: 앞다리 뒤·앞팔 앞 (옷·넥타이) / head: 머리 위 (머리카락) / top: 맨 위
  */
 export interface Decor {
+  /** 캐릭터 체격: 팔다리·몸통 굵기, 머리 반지름 (없으면 4·5·5. 에드워드는 한 단계 굵게) */
+  limbW?: number;
+  torsoW?: number;
+  headR?: number;
   behind?(pen: DecorPen, j: Joints): void;
   body?(pen: DecorPen, j: Joints): void;
   head?(pen: DecorPen, j: Joints): void;
@@ -156,31 +160,35 @@ export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number, de
     return [Math.round(foot[0] + tx * TOE_LEN), Math.round(foot[1] + ty * TOE_LEN)];
   };
   const leg = (m: Mask, knee: Point, foot: Point) => {
-    seg(m, j.hip, knee, LIMB_W);
-    seg(m, knee, foot, LIMB_W);
-    seg(m, foot, toe(knee, foot), LIMB_W);
+    const w = decor?.limbW ?? LIMB_W;
+    seg(m, j.hip, knee, w);
+    seg(m, knee, foot, w);
+    seg(m, foot, toe(knee, foot), w);
   };
 
+  const LW = decor?.limbW ?? LIMB_W;
+  const TW = decor?.torsoW ?? TORSO_W;
+  const HR = decor?.headR ?? HEAD_R;
   decor?.behind?.(pen, j);
   group((m) => leg(m, j.kB, j.fB), BACK);
   group((m) => {
-    seg(m, j.shB, j.eB, LIMB_W);
-    seg(m, j.eB, j.hB, LIMB_W);
+    seg(m, j.shB, j.eB, LW);
+    seg(m, j.eB, j.hB, LW);
   }, BACK);
   group((m) => {
-    seg(m, j.hip, j.neck, TORSO_W);
-    seg(m, j.neck, j.head, LIMB_W);
-    stampDisc(m, ...P(j.head), HEAD_R);
+    seg(m, j.hip, j.neck, TW);
+    seg(m, j.neck, j.head, LW);
+    stampDisc(m, ...P(j.head), HR);
     // 어깨 비틀기: 뒷어깨에서 앞어깨까지 어깨선 (비틀지 않으면 한 점이라 그대로)
-    if (j.shF[0] !== j.shB[0] || j.shF[1] !== j.shB[1]) seg(m, j.shB, j.shF, LIMB_W);
+    if (j.shF[0] !== j.shB[0] || j.shF[1] !== j.shB[1]) seg(m, j.shB, j.shF, LW);
   }, FRONT);
   group((m) => leg(m, j.kF, j.fF), FRONT);
   decor?.body?.(pen, j);
   decor?.head?.(pen, j);
   group((m) => {
-    seg(m, j.shF, j.eF, LIMB_W);
-    seg(m, j.eF, j.hF, LIMB_W);
-    seg(m, j.hF, j.hF, FIST_W);
+    seg(m, j.shF, j.eF, LW);
+    seg(m, j.eF, j.hF, LW);
+    seg(m, j.hF, j.hF, FIST_W + (LW - LIMB_W));
   }, FRONT);
   decor?.top?.(pen, j);
   outlineSilhouette(img, SLOT.outline);

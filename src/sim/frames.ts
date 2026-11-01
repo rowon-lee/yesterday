@@ -164,17 +164,19 @@ export const MOVES = MOVE_SETS.base;
  * 이 기술의 t틱째 공격 상자 (발밑 기준, 오른쪽 보는 기준). 판정 프레임이 아니면 null.
  * 팔다리 구간 상자에 궤적 상자(box)를 더한 범위를 감싼다 (동작연출지침서 4장)
  */
-export function moveHitBox(mv: Move, t: number): Box | null {
+export function moveHitBox(mv: Move, t: number, chargeLv = 0): Box | null {
   const f = frameAtTick(mv.frames, t);
   if (!mv.data.active.includes(f)) return null;
   const j = mv.frames.joints[f];
+  // 차지는 모은 단계마다 궤적 상자가 다를 수 있다 (라이덴 투전승불: 단계마다 번개가 길어진다)
+  const t2 = (chargeLv > 0 ? mv.data.charge?.levels[Math.min(mv.data.charge.levels.length, chargeLv) - 1]?.box : undefined) ?? mv.data.box;
+  if (mv.data.boxOnly && t2) return { x: t2.x, y: t2.y, w: t2.w, h: t2.h };
   let b: Box | null;
   if (!mv.data.limb) {
     // 몸 둘레 전체를 감싸는 판정 (밀쳐내기류)
     const h = hurtBox(j);
     b = { x: h.x - 10, y: h.y - 4, w: h.w + 20, h: h.h + 8 };
   } else b = hitBox(j, f, { frames: mv.data.active, limb: mv.data.limb, reach: mv.data.reach });
-  const t2 = mv.data.box;
   if (!b || !t2) return b;
   const x0 = Math.min(b.x, t2.x);
   const y0 = Math.min(b.y, t2.y);

@@ -1,3 +1,6 @@
+import { EDWARD_SKIN } from './decor/edward';
+import { EUNWOO_SKIN } from './decor/eunwoo';
+import { OSCAR_SKIN } from './decor/oscar';
 import { RAIDEN_DECOR } from './decor/raiden';
 import { LOOKS, type Decor, type Look, type LookName } from './skeleton';
 
@@ -42,6 +45,9 @@ export const SKINS = {
     decor: RAIDEN_DECOR,
     looks: { p1: RAIDEN_P1, p2: RAIDEN_P2, ghost1: RAIDEN_GHOST, ghost2: RAIDEN_GHOST, glow1: RAIDEN_GLOW, glow2: RAIDEN_GLOW },
   },
+  eunwoo: EUNWOO_SKIN,
+  edward: EDWARD_SKIN,
+  oscar: OSCAR_SKIN,
 } as const satisfies Record<string, Skin>;
 export type SkinId = keyof typeof SKINS;
 

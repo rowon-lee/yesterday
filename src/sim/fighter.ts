@@ -11,6 +11,7 @@ import {
   WALL_TOP_VX, WALL_TOP_VY, WALL_R, ZAN_TICKS, px,
 } from './rules';
 import type { Fighter, Mode, SimState } from './types';
+import { hooksOf } from './chars';
 
 const BUTTON_BITS = [IN_ATTACK, IN_JUMP, IN_DASH, IN_SKILL1, IN_SKILL2, IN_SUPER];
 const B_ATTACK = 0;
@@ -123,6 +124,7 @@ function startMove(s: SimState, f: Fighter, id: MoveId): void {
     s.freeze = SUPER_FREEZE;
     s.events.push({ type: 'cutin', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: mv.data.cutin, move: id });
   }
+  hooksOf(f.char).start?.(s, f, id);
 }
 
 const canAfford = (f: Fighter, id: MoveId): boolean => f.meter >= (movesOf(f.char)[id].data.meterCost ?? 0) * METER_BAR;
@@ -521,6 +523,8 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
   if (f.invuln > 0) f.invuln--;
   if (f.flash > 0) f.flash--;
   if (f.kongoT > 0) f.kongoT--;
+  // 캐릭터 고유 규칙 (특성 게이지·지속 효과)
+  hooksOf(f.char).tick?.(s, f, input);
 
   if (NEUTRAL.has(f.mode)) f.comboHits = 0;
   // 방어 내구도는 막지 않는 동안 다시 찬다
@@ -555,7 +559,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       // 대시 공격: 앞으로 대시하는 중에 공격하면 그 자리에서 바로, 미끄러지는 힘을 실어서 (뒤로 대시하는 중이면 대시가 끝난 뒤 평타)
       if (f.dir > 0 && take(f, B_ATTACK)) {
         startMove(s, f, 'dashAttack');
-        f.vx = f.facing * movesOf(f.char).dashAttack.step!.speed;
+        f.vx = f.facing * (movesOf(f.char).dashAttack.step?.speed ?? 0);
         break;
       }
       if (f.t >= statsOf(f.char).dashMoveFrom && f.t < statsOf(f.char).dashMoveTo) {
@@ -587,8 +591,13 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       const mv = movesOf(f.char)[f.move!];
       if (attackControl(s, f, input)) break;
       if (controllable && tryCharge(s, f)) break;
+      // 캐릭터 고유 기술 규칙 (순간이동 방향, 끌어당김, 원격 베기…). true면 이 틱 기본 몸 이동을 건너뛴다
+      const own = hooksOf(f.char).move?.(s, f, f.move!, input) === true;
+      if (f.mode !== 'attack' || !f.move) break;
       // 몸 이동 (동작연출지침서 4장): 프레임별 이동값대로 자리를 옮긴다 (땅에서는 미끄러지던 속도를 줄인다)
-      if (mv.advance) {
+      if (own) {
+        // 캐릭터 규칙이 이 틱의 이동을 정했다
+      } else if (mv.advance) {
         f.x += f.facing * (mv.advance[f.t] ?? 0);
         if (!isAirborne(f)) f.vx = friction(f.vx);
       } else if (mv.blink) blinkControl(s, f, mv);

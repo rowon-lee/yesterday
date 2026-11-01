@@ -4,6 +4,7 @@ import { MOTIONS } from '../anim/motions';
 import { drawCutin, playCutscene } from '../render/cutin';
 import { drawDust, Effects, type Dust } from '../render/effects';
 import { FightVfx, raidenIntroHidden, raidenIntroLift } from '../render/fightvfx';
+import { rendersOf } from '../render/chars';
 import { VfxLayer } from '../render/vfx';
 import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
@@ -12,7 +13,7 @@ import { drawPlatforms } from '../render/platforms';
 import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
-  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, MOVES, movesOf, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
+  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, movesOf, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
@@ -251,7 +252,7 @@ export function fightScene(app?: App): Scene {
       g.view.setZoom(2, (ax + bx) / 2, (ay + by) / 2);
       return;
     }
-    const caster = s.fighters.find((f) => f.mode === 'attack' && f.move && MOVES[f.move].data.cinematic && !f.moveHit);
+    const caster = s.fighters.find((f) => f.mode === 'attack' && f.move && movesOf(f.char)[f.move].data.cinematic && !f.moveHit);
     if (caster) {
       const [x, y] = at(caster);
       g.view.setZoom(2, x + caster.facing * 20, y);
@@ -318,7 +319,7 @@ export function fightScene(app?: App): Scene {
         floor: -floorBelow(s, f.x, f.y) / 256,
         rim: !white,
         // 대시 중 순간이동 구간은 깜빡인다. 순간이동 기술(라이덴 잔흔)은 사라지는 틱에 한 번 보이지 않는다
-        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f) && !raidenIntroHidden(f),
+        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f) && !raidenIntroHidden(f) && !rendersOf(f.char).hidden?.(s, f, i),
         order: order.indexOf(f),
       };
     }));

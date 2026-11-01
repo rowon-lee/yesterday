@@ -76,7 +76,16 @@ export function buildMotion(d: MotionData): Motion & { bake(skin?: SkinId): void
  * 스미어: 치는 팔(어깨→팔꿈치→주먹)이나 다리(엉덩이→무릎→발)를 stretch배 길이로 늘려 그린다.
  * 위쪽 마디(위팔·허벅지)는 그대로 두고 아래 마디를 늘려 끝을 멀리 보낸다 (늘어난 길이 = 팔다리 전체 길이 × (stretch − 1))
  */
-function smeared(j: Joints, limb: 'aF' | 'aB' | 'lF' | 'lB', stretch: number): Joints {
+function smeared(j: Joints, limb: 'aF' | 'aB' | 'lF' | 'lB' | 'kF' | 'kB', stretch: number): Joints {
+  // 무릎 기술: 허벅지를 늘려 무릎을 멀리 보내고 정강이는 함께 옮긴다
+  if (limb === 'kF' || limb === 'kB') {
+    const knee = limb === 'kF' ? 'kF' : 'kB';
+    const foot = limb === 'kF' ? 'fF' : 'fB';
+    const h = j.hip;
+    const k = j[knee];
+    const nk: Point = [Math.round(h[0] + (k[0] - h[0]) * stretch), Math.round(h[1] + (k[1] - h[1]) * stretch)];
+    return { ...j, [knee]: nk, [foot]: [j[foot][0] + nk[0] - k[0], j[foot][1] + nk[1] - k[1]] };
+  }
   const [root, mid, end] = (
     { aF: ['shF', 'eF', 'hF'], aB: ['shB', 'eB', 'hB'], lF: ['hip', 'kF', 'fF'], lB: ['hip', 'kB', 'fB'] } as const
   )[limb];

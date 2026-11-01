@@ -27,14 +27,15 @@ function D(torso: number, head: number, hipX = 0, hipUp = 0, limbs: Partial<Pose
 }
 
 // ---- 1. 약하게 맞음 (12프레임, 기본 20틱, 늘어나는 프레임 5) ----
-// 1 충격: 머리가 먼저 젖혀진다 (머리 −15°, 몸통 −5°)
-const HL_IMPACT = D(-5, -15);
-// 2 몸통 −10°, 앞손이 몸 쪽으로 움츠러든다 (사양서에 값이 적힌 사이 프레임이라 키로 둔다: 충격 뒤 빠르게 젖혀지고 5번에서 멎는다)
-const HL_RECOIL = D(-10, -19, 0, 0, { aFx: 6, aFy: 4, aBx: 5, aBy: 10 });
-// 5 최대로 젖혀짐: 몸통 −18°, 머리 −22°, 엉덩이 뒤로 2px·1px 내려앉음(무릎 살짝 굽음), 두 팔은 가슴 앞으로
-const HL_PEAK = D(-18, -22, -2, -1, { aFx: 6, aFy: 2, aBx: 4, aBy: 4 });
-// 8 돌아오는 중: 몸통 −8°, 머리 −6° (머리가 몸통보다 먼저 돌아온다)
-const HL_BACK = D(-8, -6, -1, 0, { aFx: 8, aFy: 4, aBx: 5, aBy: 8 });
+// 동작연출지침서 6장 (2026-11-01): 사양서 각도·이동값은 최소값이라 커진 공격에 맞춰 약 1.3배로 키운다 (64×64 칸 그대로)
+// 1 충격: 머리가 먼저 젖혀진다 (머리 −20°, 몸통 −7°)
+const HL_IMPACT = D(-7, -20);
+// 2 몸통 −13°, 앞손이 몸 쪽으로 움츠러든다 (사양서에 값이 적힌 사이 프레임이라 키로 둔다: 충격 뒤 빠르게 젖혀지고 5번에서 멎는다)
+const HL_RECOIL = D(-13, -25, -1, 0, { aFx: 6, aFy: 4, aBx: 5, aBy: 10 });
+// 5 최대로 젖혀짐: 몸통 −24°, 머리 −29°, 엉덩이 뒤로 3px·1.5px 내려앉음(무릎 살짝 굽음), 두 팔은 가슴 앞으로
+const HL_PEAK = D(-24, -29, -3, -1.5, { aFx: 6, aFy: 2, aBx: 4, aBy: 4 });
+// 8 돌아오는 중: 몸통 −10°, 머리 −8° (머리가 몸통보다 먼저 돌아온다)
+const HL_BACK = D(-10, -8, -1.5, 0, { aFx: 8, aFy: 4, aBx: 5, aBy: 8 });
 
 export const HIT_LIGHT: MotionData = {
   name: 'common/hit_light',
@@ -69,24 +70,26 @@ function spin(p: Pose, deg: number): Pose {
 }
 
 // ---- 2. 세게 맞음 (14프레임, 기본 32틱, 늘어나는 프레임 6) ----
-// 1 충격: 배 쪽이 뒤로 빠지며 앞으로 접힌다 (몸통 +20°, 머리 +10°, 엉덩이 뒤로 3px)
-const HH_FOLD = D(20, 10, -3, 0, { aFx: 9, aFy: 8, aBx: 7, aBy: 10 });
+// 동작연출지침서 6장: 128×96 칸, 사양서 값의 약 1.5배로 크게 꺾이고 뒷발이 크게 물러난다 (실제로 밀려나는 거리는 sim 넉백)
+// 1 충격: 배 쪽이 뒤로 빠지며 앞으로 크게 접힌다 (몸통 +30°, 머리 +15°, 엉덩이 뒤로 4.5px)
+const HH_FOLD = D(30, 15, -4.5, 0, { aFx: 9, aFy: 9, aBx: 7, aBy: 11 });
 // 2 두 팔이 앞으로 늘어진다
-const HH_DANGLE = D(24, 14, -4, -1, { aFx: 5, aFy: 15, aBx: 3, aBy: 15 });
-// 4 반동: 몸통이 뒤로 튕겨 −15°, 머리 −25° (팔은 따라서 앞으로 튄다)
-const HH_SNAP = D(-15, -25, -4, 0, { aFx: 9, aFy: 0, aBx: 6, aBy: 3 });
-// 6 휘청: 뒷발이 한 걸음 뒤로(−6px), 앞발은 끌림, 엉덩이 뒤로 6px·3px 내려앉음, 몸통 −20°, 팔은 균형을 잡듯 앞뒤로 벌어짐
-const HH_STAGGER = D(-20, -24, -6, -3, { aFx: 12, aFy: -2, aBx: -11, aBy: 0, lFx: 7, lFy: 0, lBx: -15, lBy: 0 });
-// 8 엉덩이 −4px, 몸통 −12°
-const HH_RECOVER = D(-12, -12, -4, -2, { aFx: 10, aFy: 2, aBx: -7, aBy: 5, lFx: 7, lBx: -15 });
+const HH_DANGLE = D(35, 20, -6, -1.5, { aFx: 5, aFy: 16, aBx: 3, aBy: 16 });
+// 4 반동: 몸통이 뒤로 튕겨 −22°, 머리 −37° (팔은 따라서 앞으로 튄다)
+const HH_SNAP = D(-22, -37, -6, 0, { aFx: 11, aFy: -2, aBx: 8, aBy: 1 });
+// 6 휘청: 뒷발이 크게 한 걸음 뒤로(−20), 앞발은 끌림, 엉덩이 뒤로 9px·4.5px 내려앉음, 몸통 −30°, 팔은 균형을 잡듯 앞뒤로 크게 벌어짐
+const HH_STAGGER = D(-30, -35, -9, -4.5, { aFx: 14, aFy: -4, aBx: -14, aBy: -2, lFx: 6, lFy: 0, lBx: -20, lBy: 0 });
+// 8 엉덩이 −6px, 몸통 −18°
+const HH_RECOVER = D(-18, -17, -6, -3, { aFx: 11, aFy: 1, aBx: -9, aBy: 4, lFx: 6, lBx: -19 });
 // 10 앞발을 끌어 모은다
-const HH_DRAG = D(-7, -6, -4, -1, { aFx: 9, aFy: 4, aBx: -2, aBy: 8, lFx: 4, lBx: -14 });
-// 13 몸통 −3°
-const HH_SETTLE = D(-3, -2, -1, 0, { lFx: 8, lBx: -10 });
+const HH_DRAG = D(-10, -8, -5, -1.5, { aFx: 9, aFy: 4, aBx: -3, aBy: 8, lFx: 3, lBx: -16 });
+// 13 몸통 −4°
+const HH_SETTLE = D(-4, -3, -1.5, 0, { lFx: 8, lBx: -11 });
 
 export const HIT_HEAVY: MotionData = {
   name: 'common/hit_heavy',
   label: '세게 맞음',
+  wide: true,
   dur: [1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 2],
   keys: [
     { at: 0, pose: HH_FOLD },
@@ -103,22 +106,24 @@ export const HIT_HEAVY: MotionData = {
 // ---- 3. 가드 크러시 (12프레임, 기본 44틱, 늘어나는 프레임 7) ----
 // 1 방어 자세(두 팔을 얼굴 앞에 모음, 무릎 굽힘)에서 시작
 const GC_GUARD = A({ hx: -2, hy: -18, tl: -2, hd: -4, aFx: 7, aFy: -10, aBx: 8, aBy: -6 });
-// 3 두 팔이 위·뒤로 크게 벌어진다 (손이 머리보다 위), 몸통 −15°, 머리 −20°
-const GC_BREAK = D(-15, -20, -3, 1, { aFx: 3, aFy: -19, aBx: -9, aBy: -16 });
-// 5 엉덩이 −4px, 뒷발 한 걸음 뒤로
-const GC_STEP = D(-18, -24, -4, 0, { aFx: 4, aFy: -15, aBx: -10, aBy: -12, lBx: -15 });
-// 7 무방비: 몸통 −22°, 머리가 힘없이 뒤로 −30°, 팔은 벌어진 채 늘어지기 시작, 무릎이 굽어 흔들린다
-const GC_DAZE = D(-22, -30, -5, -2, { aFx: 14, aFy: 5, aBx: -10, aBy: 2, lFx: 8, lBx: -15 });
-// 8 몸통이 앞으로 흔들려 −10°
-const GC_SWAY = D(-10, -14, -4, -1, { aFx: 7, aFy: 1, aBx: -7, aBy: 4, lFx: 8, lBx: -14 });
+// 동작연출지침서 6장: 128×96 칸, 사양서 값의 약 1.5배 (팔이 크게 튕겨 벌어지고 뒷발이 크게 물러난다)
+// 3 두 팔이 위·뒤로 크게 벌어진다 (손이 머리보다 위), 몸통 −22°, 머리 −30°
+const GC_BREAK = D(-22, -30, -4.5, 1, { aFx: 4, aFy: -18, aBx: -12, aBy: -14 });
+// 5 엉덩이 −6px, 뒷발 크게 한 걸음 뒤로
+const GC_STEP = D(-27, -36, -6, 0, { aFx: 5, aFy: -15, aBx: -13, aBy: -11, lBx: -20 });
+// 7 무방비: 몸통 −33°, 머리가 힘없이 뒤로 −45°, 팔은 벌어진 채 늘어지기 시작, 무릎이 굽어 흔들린다
+const GC_DAZE = D(-33, -45, -7.5, -3, { aFx: 15, aFy: 6, aBx: -13, aBy: 4, lFx: 7, lBx: -20 });
+// 8 몸통이 앞으로 흔들려 −15°
+const GC_SWAY = D(-15, -21, -6, -2, { aFx: 8, aFy: 1, aBx: -9, aBy: 4, lFx: 7, lBx: -19 });
 // 9 고개를 털 듯 머리를 한 번 흔든다 (앞으로 숙였다 돌아온다)
-const GC_SHAKE = D(-8, 6, -3, -1, { aFx: 7, aFy: 3, aBx: -5, aBy: 6, lFx: 8, lBx: -13 });
+const GC_SHAKE = D(-12, 9, -4.5, -1.5, { aFx: 7, aFy: 3, aBx: -6, aBy: 6, lFx: 8, lBx: -17 });
 // 10 팔을 다시 앞으로 모으기 시작
-const GC_GATHER = D(-5, -4, -2, 0, { aFx: 8, aFy: 4, aBx: 1, aBy: 9, lFx: 9, lBx: -12 });
+const GC_GATHER = D(-7, -6, -3, 0, { aFx: 8, aFy: 4, aBx: 1, aBy: 9, lFx: 9, lBx: -13 });
 
 export const GUARD_CRUSH: MotionData = {
   name: 'common/guard_crush',
   label: '가드 크러시',
+  wide: true,
   dur: [1, 1, 2, 2, 3, 3, 8, 4, 5, 5, 5, 5],
   keys: [
     { at: 0, pose: GC_GUARD },
@@ -133,22 +138,24 @@ export const GUARD_CRUSH: MotionData = {
 };
 
 // ---- 4. 공중에서 맞음 (12프레임: 1~9번 16틱 한 번, 10~12번 8틱 떨어지는 동안 되풀이) ----
-// 1 충격: 몸통 −20°, 머리 −25°, 다리가 앞으로 들린다
-const HA_IMPACT = D(-20, -25, -1, 4, { aFx: 3, aFy: -6, aBx: -5, aBy: -4, lFx: 10, lFy: -8, lBx: 4, lBy: -6 });
+// 동작연출지침서 6장: 128×96 칸, 충격은 약 1.5배 (몸통 −30°, 머리 −37°), 눕는 각도는 사양서대로 −80° 근처에서 멈추고 팔다리를 크게 벌린다
+// 1 충격: 몸통 −30°, 머리 −37°, 다리가 앞으로 크게 들린다
+const HA_IMPACT = D(-30, -37, -2, 5, { aFx: 2, aFy: -9, aBx: -7, aBy: -6, lFx: 14, lFy: -10, lBx: 6, lBy: -8 });
 // 4 몸 전체가 뒤로 기울며 돈다 (몸통 −50°)
-const HA_TILT = A({ hx: -1, hy: -24, tl: -40, hd: -6, aFx: 0, aFy: -11, aBx: -8, aBy: -8, lFx: 13, lFy: -13, lBx: 8, lBy: -9 });
-// 6 몸통 −70°, 팔은 위로 끌려 올라가고 다리는 굽혀진다
-const HA_ROLL = A({ hx: 0, hy: -24, tl: -60, hd: -6, aFx: -5, aFy: -13, aBx: -10, aBy: -9, lFx: 11, lFy: -18, lBx: 6, lBy: -15 });
-// 8 몸통 −80° (거의 누운 채 공중), 팔다리가 느슨하게 벌어진다 (팔은 힘없이 아래로 늘어진다)
-const HA_LAY = A({ hx: 0, hy: -23, tl: -70, hd: -4, aFx: 1, aFy: 7, aBx: -6, aBy: 8, lFx: 16, lFy: -15, lBx: 11, lBy: -11 });
+const HA_TILT = A({ hx: -1.5, hy: -24, tl: -42, hd: -8, aFx: -1, aFy: -13, aBx: -10, aBy: -9, lFx: 15, lFy: -14, lBx: 9, lBy: -10 });
+// 6 몸통 −75°, 팔은 위로 끌려 올라가고 다리는 굽혀진다
+const HA_ROLL = A({ hx: 0, hy: -24, tl: -65, hd: -8, aFx: -7, aFy: -14, aBx: -12, aBy: -10, lFx: 13, lFy: -20, lBx: 7, lBy: -16 });
+// 8 몸통 −85° (거의 누운 채 공중), 팔다리가 느슨하게 크게 벌어진다 (팔은 힘없이 아래로 늘어진다)
+const HA_LAY = A({ hx: 0, hy: -23, tl: -75, hd: -6, aFx: 1, aFy: 9, aBx: -8, aBy: 10, lFx: 19, lFy: -17, lBx: 12, lBy: -11 });
 // 10~12 공중 유지: 팔다리가 천천히 흔들린다 (세 자세가 한 바퀴를 돌아 12번 → 10번이 이어진다)
-const HA_HOLD1 = A({ hx: 0, hy: -23, tl: -70, hd: -4, aFx: 0, aFy: 8, aBx: -6, aBy: 8, lFx: 16, lFy: -16, lBx: 11, lBy: -11 });
-const HA_HOLD2 = A({ hx: 0, hy: -23, tl: -68, hd: -3, aFx: 2, aFy: 7, aBx: -7, aBy: 7, lFx: 15, lFy: -14, lBx: 12, lBy: -10 });
-const HA_HOLD3 = A({ hx: 0, hy: -23, tl: -72, hd: -5, aFx: -1, aFy: 7, aBx: -5, aBy: 9, lFx: 17, lFy: -15, lBx: 10, lBy: -12 });
+const HA_HOLD1 = A({ hx: 0, hy: -23, tl: -75, hd: -6, aFx: 0, aFy: 10, aBx: -8, aBy: 10, lFx: 19, lFy: -18, lBx: 12, lBy: -11 });
+const HA_HOLD2 = A({ hx: 0, hy: -23, tl: -72, hd: -4, aFx: 3, aFy: 9, aBx: -9, aBy: 9, lFx: 18, lFy: -16, lBx: 14, lBy: -10 });
+const HA_HOLD3 = A({ hx: 0, hy: -23, tl: -78, hd: -7, aFx: -2, aFy: 9, aBx: -7, aBy: 11, lFx: 20, lFy: -17, lBx: 11, lBy: -12 });
 
 export const HIT_AIR: MotionData = {
   name: 'common/hit_air',
   label: '공중에서 맞음',
+  wide: true,
   dur: [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3],
   keys: [
     { at: 0, pose: HA_IMPACT },
@@ -164,10 +171,11 @@ export const HIT_AIR: MotionData = {
 export const HIT_AIR_LOOP_FROM = 9;
 
 // ---- 5. 다운 (14프레임, 32틱 + 누운 채 대기는 14번을 유지) ----
-// 1 바닥 충돌: 등이 바닥에 닿고 (머리가 뒤쪽) 팔다리가 충격으로 들린다
-const KD_IMPACT = A({ hx: 3, hy: -3, tl: -90, hd: -4, aFx: -5, aFy: -6, aBx: 3, aBy: -5, lFx: 22, lFy: -9, lBx: 20, lBy: -6 });
-// 3 튕김: 몸 전체가 4px 떠오르고 몸통이 살짝 꺾인다
-const KD_BOUNCE = A({ hx: 3, hy: -7, tl: -80, hd: -6, aFx: -6, aFy: -2, aBx: 2, aBy: -1, lFx: 23, lFy: -10, lBx: 21, lBy: -8 });
+// 동작연출지침서 6장: 128×96 칸, 바닥에 부딪힐 때 팔다리가 더 크게 들리고 튕김이 1.5배 (6px)
+// 1 바닥 충돌: 등이 바닥에 닿고 (머리가 뒤쪽) 팔다리가 충격으로 크게 들린다
+const KD_IMPACT = A({ hx: 3, hy: -3, tl: -90, hd: -6, aFx: -7, aFy: -9, aBx: 3, aBy: -8, lFx: 21, lFy: -13, lBx: 20, lBy: -9 });
+// 3 튕김: 몸 전체가 6px 떠오르고 몸통이 꺾인다
+const KD_BOUNCE = A({ hx: 3, hy: -9, tl: -76, hd: -8, aFx: -7, aFy: -3, aBx: 2, aBy: -2, lFx: 23, lFy: -13, lBx: 21, lBy: -10 });
 // 6 다시 바닥 (먼지는 렌더)
 const KD_LAND = A({ hx: 3, hy: -3, tl: -90, hd: -2, aFx: -6, aFy: 0, aBx: 4, aBy: 1, lFx: 24, lFy: -4, lBx: 23, lBy: -2 });
 // 8 팔다리가 바닥에 늘어진다 (14번과 같은 완전히 누운 자세)
@@ -178,6 +186,7 @@ const KD_BREATH = A({ ...KD_LIE, hy: -4, tl: -86, hd: -2 });
 export const KNOCKDOWN: MotionData = {
   name: 'common/knockdown',
   label: '다운',
+  wide: true,
   dur: [1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3],
   keys: [
     { at: 0, pose: KD_IMPACT },
