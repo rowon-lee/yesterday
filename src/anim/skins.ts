@@ -13,10 +13,10 @@ export interface Skin {
   looks: Partial<Record<LookName, Look>>;
 }
 
-/** 라이덴 1P: 붉은 몸, 검은 보랏빛 정장 재킷, 흰 셔츠 깃과 붉은 넥타이, 흰 머리 */
+/** 라이덴 1P: 붉은 몸, 검은 보랏빛 정장 재킷, 흰 셔츠 깃과 붉은 넥타이, 검은 머리(붉은 안쪽 머리, 붉은 윤기 테두리) */
 const RAIDEN_P1: Look = {
   outline: 'ink', shadow: 'raidenDark', base: 'raiden', light: 'raidenLight',
-  hair: ['hairShade', 'white', 'fxWhite'],
+  hair: ['raidenDark', 'suitDark', 'raiden'],
   cloth: ['suitDark', 'suit', 'suitLight'],
   accent: ['raiden', 'raidenLight'],
   trim: 'white',
@@ -24,10 +24,10 @@ const RAIDEN_P1: Look = {
 /** 라이덴 2P (같은 캐릭터끼리 붙을 때): 검붉은 몸, 회색 재킷 */
 const RAIDEN_P2: Look = {
   outline: 'ink', shadow: 'raidenDeep', base: 'raidenDark', light: 'raiden',
-  hair: ['hairShade', 'white', 'fxWhite'],
+  hair: ['raidenDeep', 'suitDark', 'raidenDark'],
   cloth: ['suitGreyDark', 'suitGrey', 'suitGreyLight'],
   accent: ['raidenDark', 'raiden'],
-  trim: 'hairShade',
+  trim: 'shirtGrey',
 };
 /** 검붉은 잔상 (대시·돌진) */
 const RAIDEN_GHOST: Look = { outline: 'raidenDark', shadow: 'raidenDark', base: 'raidenDark', light: 'raidenDark' };

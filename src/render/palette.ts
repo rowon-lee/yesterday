@@ -18,7 +18,7 @@ export const COLORS = {
   skyDark: '#2a7fa6',
   red: '#ff4d6d',
   green: '#7bd88f',
-  // 라이덴 (대표 색: 붉은 전격, 검붉은 잔상). 몸은 붉은색, 정장 재킷은 검은 보랏빛, 머리는 흰색
+  // 라이덴 (대표 색: 붉은 전격, 검붉은 잔상). 몸은 붉은색, 정장 재킷과 머리는 검은 보랏빛(머리는 붉은 안쪽 머리·붉은 윤기)
   raiden: '#d93a3c',
   raidenLight: '#ff7a66',
   raidenDark: '#8e1f2b',
@@ -29,7 +29,7 @@ export const COLORS = {
   suitGrey: '#575163',
   suitGreyLight: '#787286',
   suitGreyDark: '#38333f',
-  hairShade: '#b3b5c5',
+  shirtGrey: '#b3b5c5',
   // 이펙트 (Sprite Fusion 램프를 이 색으로 맞춘다). 캐릭터와 같은 팔레트를 쓴다
   fxWhite: '#ffffff',
   fxYellow: '#ffe26b',
@@ -168,5 +168,5 @@ export const COMMON: readonly ColorName[] = [
   'sky', 'skyLight', 'skyDark', 'red', 'green',
   'fxWhite', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed', 'fxSoot', 'fxBlue', 'fxDeepBlue', 'fxNavy', 'neonRed', 'neonPink',
   // 라이덴
-  'raiden', 'raidenLight', 'raidenDark', 'raidenDeep', 'suit', 'suitLight', 'suitDark', 'suitGrey', 'suitGreyLight', 'suitGreyDark', 'hairShade',
+  'raiden', 'raidenLight', 'raidenDark', 'raidenDeep', 'suit', 'suitLight', 'suitDark', 'suitGrey', 'suitGreyLight', 'suitGreyDark', 'shirtGrey',
 ];
