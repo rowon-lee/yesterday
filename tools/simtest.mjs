@@ -26,7 +26,7 @@ const sim = await vite.ssrLoadModule('/src/sim/index.ts');
 const R = sim.RULES;
 const HP = sim.createState(0).fighters[0].hp;
 
-const total = { dashAtk: 0, dashAtkHit: 0, keepStage: [0, 0, 0, 0, 0], keepFall: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
+const total = { chargeGo: 0, chargeLv: [0, 0, 0], chargeHit: 0, chargeCut: 0, dashAtk: 0, dashAtkHit: 0, keepStage: [0, 0, 0, 0, 0], keepFall: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
 const t0 = Date.now();
 for (let m = 0; m < args.matches; m++) {
   const seed = args.seed + m;
@@ -37,9 +37,12 @@ for (let m = 0; m < args.matches; m++) {
     const ok = a.hash === b && a.hash === c && a.ended && a.problems.length === 0;
     if (!ok) failed++;
     const w = a.winner < 0 ? '무승부' : `${a.winner + 1}P 승`;
-    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 벽달리기 ${a.stats.wallrun} 박차기 ${a.stats.wallkick} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat}(벽낙법 ${a.stats.walltech}) 시타델 ${a.keep.stage}단계${a.keep.stage === 4 ? `(${a.keep.round}라운드에 붕괴)` : ''} ${a.keep.hp} 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
+    console.log(`${ok ? 'OK ' : 'NG '} ${String(m + 1).padStart(2)}판 시드 ${seed}: ${a.log.length}틱, ${a.rounds}라운드, ${w}, 히트 ${a.stats.hit} 방어 ${a.stats.block} 띄우기 ${a.stats.launch} 낙법 ${a.stats.tech} 크러시 ${a.stats.crush} 필살 ${a.stats.cutin} 최대콤보 ${a.stats.maxCombo} 물건파괴 ${a.stats.propBroken}(부딪힘 ${a.stats.propCrash}) 벽붙기 ${a.stats.wallcling} 벽점프 ${a.stats.walljump} 벽달리기 ${a.stats.wallrun} 박차기 ${a.stats.wallkick} 대시공격 ${a.stats.dashAtk} 차지 ${a.stats.chargeGo} 붕괴 ${a.stats.collapse} 벽꽝 ${a.stats.wallsplat}(벽낙법 ${a.stats.walltech}) 시타델 ${a.keep.stage}단계${a.keep.stage === 4 ? `(${a.keep.round}라운드에 붕괴)` : ''} ${a.keep.hp} 발판 ${a.stats.perch}(최고 ${a.stats.maxPerch}px) | 해시 ${a.hash}${a.hash === b ? '' : ` ≠ 재생 ${b}`}${a.hash === c ? '' : ` ≠ 저장·복원 ${c}`}${a.ended ? '' : ' | 경기가 끝나지 않음'}`);
     for (const p of a.problems.slice(0, 5)) console.log(`      ${p}`);
-    for (const k of Object.keys(a.stats)) if (k !== 'maxCombo' && k !== 'maxPerch') total[k] += a.stats[k];
+    for (const k of Object.keys(a.stats)) {
+      if (k === 'chargeLv') a.stats.chargeLv.forEach((v, i) => (total.chargeLv[i] += v));
+      else if (k !== 'maxCombo' && k !== 'maxPerch') total[k] += a.stats[k];
+    }
     total.maxCombo = Math.max(total.maxCombo, a.stats.maxCombo);
     total.maxPerch = Math.max(total.maxPerch, a.stats.maxPerch);
     total.wins[a.winner < 0 ? 2 : a.winner]++;
@@ -131,7 +134,7 @@ console.log(`  부서지는 물건: 망가짐 ${total.propDamaged}, 파괴 ${tot
 console.log(`  발판: 올라선 횟수 ${total.perch}, 발판 위 ${(total.perchTicks / 60).toFixed(0)}초 (그중 새 구조물 위 ${(total.structTicks / 60).toFixed(0)}초), ↓+점프로 내려옴 ${total.drop}, 가장 높이 선 곳 ${total.maxPerch}px`);
 console.log(`  큰 물건: 망가짐 ${total.bigDamaged}, 크게 무너짐 ${total.bigBroken}`);
 console.log(`  시타델: CPU 대전 ${args.matches}판이 끝났을 때 단계 0~4 = ${total.keepStage.join(' / ')}, 3단계로 시작한 6판 중 붕괴 ${total.keepFall}판`);
-console.log(`  공격 버튼: 대시 공격 ${total.dashAtk} (맞힘 ${total.dashAtkHit})`);
+console.log(`  공격 버튼: 대시 공격 ${total.dashAtk} (맞힘 ${total.dashAtkHit}), 차지 ${total.chargeGo} (1·2·3단계 ${total.chargeLv.join('·')}, 맞힘 ${total.chargeHit}, 모으다 맞아 취소 ${total.chargeCut})`);
 console.log(`  벽 기동: 벽 붙기 ${total.wallcling}, 벽 점프 ${total.walljump}, 벽 달리기 ${total.wallrun}, 벽 박차기 공격 ${total.wallkick}, 벽 낙법 ${total.walltech} (벽꽝 ${total.wallsplat}번 중)`);
 console.log(failed ? `실패 ${failed}건` : '모두 통과');
 process.exit(failed ? 1 : 0);
@@ -144,17 +147,27 @@ function runCpuMatch(seed, ticks, setup = null) {
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
   const log = [];
   const problems = [];
-  const stats = { dashAtk: 0, dashAtkHit: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0 };
+  const stats = { chargeGo: 0, chargeLv: [0, 0, 0], chargeHit: 0, chargeCut: 0, dashAtk: 0, dashAtkHit: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0 };
   const was = [0, 0];
   while (log.length < ticks && state.phase !== 'matchEnd') {
     const inputs = [sim.cpuInput(cpus[0], state, 0), sim.cpuInput(cpus[1], state, 1)];
     log.push(inputs);
+    const charging = state.fighters.map((f) => f.mode === 'charge');
     sim.step(state, inputs);
+    // 모으다 맞아서 취소됨
+    state.fighters.forEach((f, i) => {
+      if (charging[i] && (f.mode === 'hitstun' || f.mode === 'airhit' || f.mode === 'ko' || f.mode === 'wallsplat')) stats.chargeCut++;
+    });
     for (const e of state.events) {
       if (e.type === 'citadel' && e.text === 'collapse') keepRound = state.round;
       if (e.type in stats) stats[e.type]++;
       if (e.type === 'hit') stats.maxCombo = Math.max(stats.maxCombo, e.combo);
       if (e.type === 'hit' && e.move === 'dashAttack') stats.dashAtkHit++;
+      if (e.type === 'hit' && e.move === 'charge') stats.chargeHit++;
+      if (e.type === 'charge' && e.text === 'release') {
+        stats.chargeGo++;
+        stats.chargeLv[e.combo - 1]++;
+      }
       if (e.type === 'city') stats.cityChunks += e.combo;
       if (e.type === 'prop') {
         if (sim.BREAKABLES[e.who].big) stats[e.text === 'damaged' ? 'bigDamaged' : 'bigBroken']++;
@@ -851,6 +864,24 @@ function attackChecks() {
   log = run(s, hold(I.IN_ATTACK, H + 140));
   const autoAt = log.findIndex((l) => l.a === 'attack/charge');
   results.push(['최고 단계에서 1초 더 쥐고 있으면 저절로 나간다', autoAt === H - 1 + 120, `모으기 시작 ${H}틱째, 나감 ${autoAt + 1}틱째`]);
+  // 14) 연속 장면: 대시 → 대시 공격을 누른 채 → 차지 1단계 → 점프로 쫓아 공중 1·2·3타가 끊기지 않고 다섯 대로 이어진다
+  //     (화면 캡처 npm run moveclip -- combo 와 같은 시작·같은 입력)
+  {
+    const st = sim.createState(1);
+    while (st.tick < 75) sim.step(st, [0, 0]);
+    Object.assign(st.fighters[0], { x: 2196 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: 1 });
+    Object.assign(st.fighters[1], { x: 2296 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0, facing: -1 });
+    for (let i = 0; i < 70; i++) sim.step(st, [0, 0]);
+    const R = I.IN_RIGHT;
+    const seq = [[0, 6], [I.IN_DASH, 1], [0, 2], [I.IN_ATTACK, 19], [0, 4], [I.IN_JUMP | R, 1], [R, 14], [I.IN_ATTACK | R, 1], [R, 6], [I.IN_ATTACK | R, 1], [R, 6], [I.IN_ATTACK | R, 1], [0, 60]].flatMap(([b, n]) => Array(n).fill(b));
+    const hits = [];
+    for (const inp of seq) {
+      sim.step(st, [inp, 0]);
+      for (const e of st.events) if (e.type === 'hit' && e.who === 0) hits.push(`${e.move}(${e.combo})`);
+    }
+    const want = 'dashAttack(1) charge(2) air1(3) air2(4) air3(5)';
+    results.push(['연속 장면: 대시 공격 → 차지 → 점프 → 공중 3타가 다섯 대 콤보로 이어진다', hits.join(' ') === want, hits.join(' ')]);
+  }
   // 13) 대시 공격을 누른 채 있으면 대시 공격 뒤 모으기로 (땅에서 시작한 평타)
   s = fresh(2400, 2600);
   run(s, [I.IN_DASH | I.IN_RIGHT, 0, 0]);

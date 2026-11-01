@@ -14,7 +14,7 @@ import type { Fighter, SimState } from './types';
  * CPU 조작. 상태를 보고 입력을 만든다. 자체 시드 난수만 쓰므로 같은 시드·같은 상태면 같은 입력.
  * 반응 시간을 두고 계획(다가가기, 연타, 띄워서 공중 콤보, 방어 …)을 고른다.
  */
-type Plan = 'approach' | 'retreat' | 'guard' | 'string' | 'launch' | 'sweep' | 'jumpIn' | 'dashIn' | 'skill' | 'super' | 'wait' | 'perch';
+type Plan = 'approach' | 'retreat' | 'guard' | 'string' | 'launch' | 'sweep' | 'jumpIn' | 'dashIn' | 'skill' | 'super' | 'wait' | 'perch' | 'charge';
 
 export interface CpuState {
   rng: number;
@@ -31,10 +31,13 @@ export interface CpuState {
   /** 벽 붙기: 누르고 있을 방향 (IN_LEFT·IN_RIGHT, 0이면 안 붙음)과 붙어 있을 틱 */
   wallDir: number;
   wallT: number;
+  /** 차지: 공격 버튼을 떼지 않고 누르고 있을 남은 틱 (0이면 안 누름)과 노리는 단계 */
+  hold: number;
+  holdLv: number;
 }
 
 export function createCpu(seed: number, skill = 60): CpuState {
-  return { rng: seed | 0, plan: 'wait', planT: 0, last: 0, skill, tx: 0, ty: 0, wallDir: 0, wallT: 0 };
+  return { rng: seed | 0, plan: 'wait', planT: 0, last: 0, skill, tx: 0, ty: 0, wallDir: 0, wallT: 0, hold: 0, holdLv: 0 };
 }
 
 /** 점프와 2단 점프로 오를 수 있다고 보는 높이 (px, 여유를 둠) */
@@ -55,6 +58,11 @@ export function cpuInput(cpu: CpuState, s: SimState, side: 0 | 1): PlayerInput {
   // 버튼은 지난 틱에 눌렀으면 한 번 뗀다 (연타)
   const BTN = IN_ATTACK | IN_JUMP | IN_DASH | IN_SKILL1 | IN_SKILL2 | IN_SUPER;
   out = (out & ~BTN) | (out & BTN & ~cpu.last);
+  // 차지: 누르고 있는 동안은 공격 버튼을 떼지 않는다 (떼는 순간 차지가 나간다)
+  if (cpu.hold > 0) {
+    cpu.hold--;
+    out |= IN_ATTACK;
+  }
   cpu.last = out;
   return out;
 }
@@ -66,6 +74,14 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
   const fwd = dxRaw >= 0 ? IN_RIGHT : IN_LEFT;
   const back = dxRaw >= 0 ? IN_LEFT : IN_RIGHT;
 
+  // 차지를 누르고 있는 중: 맞거나 다른 상태가 되면 그만두고, 모으는 중이면 노린 단계가 됐고 상대가 닿을 만하면 뗀다
+  if (cpu.hold > 0) {
+    if (me.mode !== 'attack' && me.mode !== 'idle' && me.mode !== 'land' && me.mode !== 'charge') cpu.hold = 0;
+    else if (me.mode === 'charge' && me.chargeLv >= cpu.holdLv && (dist < 80 || me.chargeLv >= 3)) cpu.hold = 0;
+    if (cpu.hold > 0) return 0;
+  }
+  // 모으는 중에는 다른 입력이 듣지 않는다 (뗀 틱에 다시 누르지 않게)
+  if (me.mode === 'charge') return 0;
   // 맞고 있을 때: 낙법이 되면 빠져나온다
   if (me.mode === 'airhit') return me.comboHits >= TECH_HITS && roll(cpu, 6) === 0 ? IN_JUMP : 0;
   // 벽꽝으로 박히면: 열에 넷쯤은 벽 낙법 (박힌 뒤 둘째 틱에 한 번만 정한다)
@@ -75,6 +91,8 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
   if (me.mode === 'attack' && me.move) {
     const id = me.move;
     if (id === 'launcher' && me.moveConnected) return IN_JUMP | fwd;
+    // 차지 1·2단계를 맞히면 띄운 상대를 점프로 쫓아간다 (3단계는 벽 쪽으로 날아가 쫓지 않는다)
+    if (id === 'charge') return me.moveConnected && me.chargeLv < 3 ? IN_JUMP | fwd : 0;
     // 벽 박차기 공격을 맞히면 2단 점프로 쫓아간다
     if (id === 'wallKick') return me.moveConnected && roll(cpu, 2) === 0 ? IN_JUMP | fwd : 0;
     if (MOVES[id].data.air) {
@@ -90,7 +108,11 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
     return 0;
   }
   // 앞으로 대시하는 중 상대가 가까우면 대시 공격 (대시 중 공격)
-  if (me.mode === 'dash' && me.dir > 0 && me.t >= 2 && dist < 80 && !isAirborne(op) && roll(cpu, 3) !== 0) return IN_ATTACK;
+  if (me.mode === 'dash' && me.dir > 0 && me.t >= 2 && dist < 80 && !isAirborne(op) && roll(cpu, 3) !== 0) {
+    // 둘에 하나는 누른 채로 대시 공격 → 차지 1단계로 잇는다
+    if (roll(cpu, 2) === 0) startHold(cpu, 1, 30);
+    return IN_ATTACK;
+  }
   // 발판으로 오르는 점프: 노린 자리로 몸을 틀고, 아직 발판보다 낮은데 떨어지기 시작하면 2단 점프
   if (me.mode === 'jumpsquat' && cpu.tx) return toward(me, cpu.tx);
   // 벽에 붙어 있는 동안: 잠깐 버티다가 놓거나 벽 반대쪽으로 뛴다
@@ -153,6 +175,10 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
   const pm = platformMove(cpu, s, me, op);
   if (pm !== null) return pm;
 
+  // 상대가 모으고 있으면 (무방비) 때리러 간다: 멀면 대시해서 대시 공격, 가까우면 평타 (실력에 따라)
+  if (op.mode === 'charge' && NEUTRAL_GROUND.has(me.mode) && me.mode !== 'land' && dist < 140 && roll(cpu, 100) < cpu.skill) {
+    return dist > 60 ? IN_DASH | fwd : IN_ATTACK;
+  }
   // 상대가 가까이서 공격하면 방어 (실력에 따라)
   const threat = op.mode === 'attack' && dist < 80 && (me.x - op.x) * op.facing > 0;
   if (threat && NEUTRAL_GROUND.has(me.mode) && cpu.plan !== 'guard') {
@@ -172,6 +198,16 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
       return dist > 34 ? fwd : 0;
     case 'retreat':
       return back;
+    case 'charge':
+      // 차지: 닿을 만한 거리에서 누르기 시작해 노린 단계까지 모은다 (가까이 오면 그 단계에서 뗀다)
+      if (dist < 70) {
+        startHold(cpu, 1 + roll(cpu, 3), 140);
+        // 한 번 모으고 나면 잠깐 기다린다 (모으기를 되풀이하지 않게)
+        cpu.plan = 'wait';
+        cpu.planT = 30;
+        return IN_ATTACK;
+      }
+      return fwd;
     case 'dashIn':
       return cpu.planT % 20 === 19 ? IN_DASH | fwd : dist < 40 ? IN_ATTACK : fwd;
     case 'jumpIn':
@@ -214,7 +250,9 @@ function choosePlan(cpu: CpuState, s: SimState, me: Fighter, op: Fighter, dist: 
   else if (dist > 110) plan = r < 55 ? 'approach' : r < 80 ? 'dashIn' : 'jumpIn';
   else if (dist > 50) plan = r < 35 ? 'approach' : r < 55 ? 'dashIn' : r < 70 ? 'jumpIn' : r < 80 && me.meter >= 2 * METER_BAR && me.meter < METER_MAX ? 'skill' : r < 90 ? 'wait' : 'retreat';
   else plan = r < 40 ? 'string' : r < 65 ? 'launch' : r < 80 ? 'sweep' : r < 90 ? 'guard' : 'retreat';
-  if (op.mode === 'knockdown' || op.mode === 'getup') plan = r < 60 ? 'wait' : 'approach';
+  // 상대가 쓰러져 있으면 모아 두었다가 일어날 때 친다 (또는 기다리거나 다가간다). 가끔은 그냥 거리에서도 모은다
+  if (op.mode === 'knockdown' || op.mode === 'getup') plan = r < 35 ? 'charge' : r < 70 ? 'wait' : 'approach';
+  else if (dist > 50 && dist < 110 && roll(cpu, 100) < 6) plan = 'charge';
   cpu.plan = plan;
   cpu.planT = 20 + roll(cpu, 40);
 }
@@ -227,6 +265,12 @@ function aimX(sf: Surface, mx: number): number {
   const lo = Math.max(sf.x0 + 12, MAP_ENDS.left + 2);
   const hi = sf.x1 - 12;
   return lo > hi ? sf.x1 - 4 : Math.max(lo, Math.min(hi, mx));
+}
+
+/** 차지: 공격 버튼을 n틱 동안 떼지 않고, 노린 단계(lv)가 되면 뗀다 */
+function startHold(cpu: CpuState, lv: number, n: number): void {
+  cpu.hold = n;
+  cpu.holdLv = lv;
 }
 
 /** 노린 x 쪽 방향 입력 (가까우면 0) */
