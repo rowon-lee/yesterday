@@ -1,3 +1,4 @@
+import { R_HOP_B, R_HOP_F } from '../poses/raiden/move';
 import { BASE_STATS } from './base';
 import type { CharacterData } from './types';
 
@@ -10,8 +11,17 @@ import type { CharacterData } from './types';
 export const RAIDEN: CharacterData = {
   id: 'raiden',
   label: '라이덴',
-  stats: { ...BASE_STATS },
+  stats: {
+    ...BASE_STATS,
+    // 걷기: 기본 스틱맨처럼 뛰지 않고 바운스 스텝으로 걷는다. 한 번 튈 때 앞 42px · 뒤 32px, 한 바퀴는 두 번 튐
+    runForward: 3.2,
+    runBack: 2.6,
+    runCycle: R_HOP_F * 2,
+    runBackCycle: R_HOP_B * 2,
+  },
   motions: {
     idle: 'raiden/idle',
+    run_f: 'raiden/walk_f',
+    run_b: 'raiden/walk_b',
   },
 };
