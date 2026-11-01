@@ -29,5 +29,7 @@ export const RAIDEN: CharacterData = {
     land: 'raiden/land',
     dash: 'raiden/dash',
     air_dash: 'raiden/air_dash',
+    guard: 'raiden/guard',
+    guard_hit: 'raiden/guard_hit',
   },
 };
