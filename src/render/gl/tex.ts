@@ -91,8 +91,27 @@ export function weather(g: CanvasRenderingContext2D, x0: number, y0: number, w: 
   }
 }
 
+/**
+ * 켜진 창 몫: 씨앗으로 켜진 창이 20%보다 적으면 꺼진 보통 창(판자·깨짐·TV가 아닌 창) 중 씨앗 값이 큰 것부터 켜고,
+ * 40%보다 많으면 켜진 창 중 씨앗 값이 작은 것부터 끈다.
+ */
+function litQuota(wins: Array<{ seed: number; force?: 'lit' | 'dark' }>): void {
+  const n = wins.length;
+  if (!n) return;
+  const r = (w: { seed: number }) => rnd(w.seed, 20);
+  const lit = wins.filter((w) => r(w) > 0.72);
+  const lo = Math.max(1, Math.ceil(n * 0.2));
+  const hi = Math.max(lo, Math.floor(n * 0.4));
+  if (lit.length < lo) {
+    const cands = wins.filter((w) => r(w) >= 0.14 && r(w) < 0.66).sort((a, b) => r(b) - r(a));
+    for (const w of cands.slice(0, lo - lit.length)) w.force = 'lit';
+  } else if (lit.length > hi) {
+    for (const w of lit.sort((a, b) => r(a) - r(b)).slice(0, lit.length - hi)) w.force = 'dark';
+  }
+}
+
 /** 위층 창 하나 (텍스처 칸 좌표). 상태는 씨앗으로: 꺼짐, 켜짐(커튼·블라인드·사람 그림자), 형광등, TV, 판자, 깨짐 */
-function upperWindow(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, seed: number): void {
+function upperWindow(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, seed: number, force?: 'lit' | 'dark'): void {
   // 일부러 조금씩 비뚤게: 폭·높이·높낮이 ±1
   const jx = rnd(seed, 1) < 0.3 ? 1 : 0;
   const jy = rnd(seed, 2) < 0.3 ? (rnd(seed, 3) < 0.5 ? -1 : 1) : 0;
@@ -111,7 +130,8 @@ function upperWindow(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderingC
     const len = 6 + Math.floor(rnd(seed, 12 + k) * 18);
     for (let yy = 0; yy < len; yy++) if (hash(seed * 3 + sx + yy * 5) < 0.8 - (yy / len) * 0.7) rect(g, sx, y + hh + 3 + yy, 1, 1, C.smog1);
   }
-  const r = rnd(seed, 20);
+  // 건물마다 켜진 창 20~40%: 정면을 그릴 때 정한 몫(force)이 있으면 그대로 켜거나 끈다
+  const r = force === 'lit' ? 0.8 : force === 'dark' ? 0.4 : rnd(seed, 20);
   const frame = rnd(seed, 21) < 0.5 ? C.iron : '#2f2a2a';
   rect(g, x, y, ww, hh, C.windowDark);
   if (r < 0.1) {
@@ -286,15 +306,19 @@ export function paintFacade(b: FrontBuildingPlace, o: FacadeOpts): Facade {
     const pw = b.poster && b.floors >= 3 ? Math.max(34, b.poster.length * 8 + 10) : 0;
     const px = posterX(b, tw, pw, T);
     const posterRect = pw ? [px, yOf(SHOP_H + FLOOR_H) + T(22), pw + 4, 50] : null;
+    // 창 목록을 먼저 만들고 켜진 창 몫을 정한다 (건물마다 20~40%: 씨앗만으로는 한 건물이 다 꺼지거나 다 켜질 수 있다)
+    const wins: Array<{ wx: number; top: number; seed: number; force?: 'lit' | 'dark' }> = [];
     for (let fl = 1; fl < b.floors; fl++) {
       const top = yOf(SHOP_H + fl * FLOOR_H) + T(20);
       rect(g, 0, yOf(SHOP_H + (fl - 1) * FLOOR_H) - 2, tw, 2, C.stoneDark);
       for (let k = 0; k < cols; k++) {
         const wx = left + k * gap;
         if (posterRect && wx + ww + 3 > posterRect[0] && wx - 3 < posterRect[0] + posterRect[2] && top + wh + 3 > posterRect[1] && top - 3 < posterRect[1] + posterRect[3]) continue;
-        upperWindow(f, g, e, wx, top, ww, wh, b.seed * 13 + fl * 101 + k * 7);
+        wins.push({ wx, top, seed: b.seed * 13 + fl * 101 + k * 7 });
       }
     }
+    litQuota(wins);
+    for (const w of wins) upperWindow(f, g, e, w.wx, w.top, ww, wh, w.seed, w.force);
     // 1층 가게, 다이너, 아파트 현관
     if (b.kind === 'diner') paintDiner(g, e, b, T, yOf);
     else if (b.kind === 'apartment' && !b.sign) paintEntrance(f, g, e, b, T, yOf);
@@ -501,7 +525,8 @@ export function paintCornice(w: number, h: number, seed: number): HTMLCanvasElem
   rect(g, 0, 0, w, 1, C.paintCream);
   rect(g, 0, h - 2, w, 2, C.stoneDark);
   for (let x = 2; x < w - 2; x += 6) rect(g, x, h - 4, 3, 2, C.stoneDark);
-  ditherRect(g, 0, 1, w, h - 1, C.smog1, 4, seed & 3);
+  // 그을음은 띠 무늬(가장자리 점선이 1px 어두운 선처럼 보인다) 대신 길이가 제각각인 세로 얼룩으로
+  for (let x = 1 + (seed % 5); x < w - 1; x += 7 + ((x * 13 + seed) % 9)) rect(g, x, 1, 2, 2 + ((x + seed) % 3), C.stoneDark);
   return c;
 }
 

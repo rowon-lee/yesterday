@@ -6,7 +6,7 @@ import {
   rubbleOf, SHOP_H, type FrontBuildingPlace,
 } from '../../stage/citadel';
 import { COLORS as C } from '../palette';
-import { canvas, hash, line, rect } from '../dither';
+import { canvas, hash, line, rect, solidTex } from '../dither';
 import { scaleAt } from './core';
 import { Flame } from './fx';
 import { paintInterior } from './interior';
@@ -25,6 +25,13 @@ import { entranceX, paintAwning, paintCornice, paintFacade, paintRoof, paintSide
 export const FRONT_Z = -40;
 export const DEPTH = 140;
 const BACK_Z = FRONT_Z - DEPTH;
+/** 골목 맨 전구 유리 (빛나는 심) */
+const BULB = litMaterial(pixelTexture(solidTex('#ffe2a8')), { emissive: pixelTexture(solidTex('#fff4d8')), emissiveStrength: 1.4 });
+function box3(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, mat: THREE.Material): THREE.Mesh {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat);
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  return m;
+}
 /** 실내 판 (정면이 뚫리면 보인다) */
 const INNER_Z = FRONT_Z - 20;
 const S = scaleAt(FRONT_Z);
@@ -154,17 +161,14 @@ export class Buildings {
     this.faces.push(face);
     registry.push(face);
 
-    // 몸통: 칸마다 잘라 둔 옆면·지붕 (무너진 칸은 사라진다). 실내 판 앞쪽은 바깥 옆면만
-    const set = b.kind === 'theater' ? 1 : Math.floor(hash(b.seed * 7919) * 3);
-    const side = litMaterial(pixelTexture(paintSide(DEPTH, b.h, b.seed, set)), { tint: 0.8, attached: true });
+    // 몸통: 칸마다 잘라 둔 지붕 (무너진 칸은 사라진다).
+    // 바깥 옆면은 그리지 않는다: 거의 정면만 보는 카메라에서 옆면은 늘 1칸짜리 어두운 세로줄로만 보여 외곽선이 된다 (지침서 무테).
+    // 그 자리는 골목 안쪽 벽과 뒤 겹이 채운다
     const roof = litMaterial(pixelTexture(paintRoof(b.w, DEPTH, b.seed)), { attached: true });
     const uv: UvFn = (fc, x, y, z) => (fc === 'py' ? [(x - b.x) / b.w, (z - BACK_Z) / DEPTH] : [(z - BACK_Z) / DEPTH, y / b.h]);
     const body = new Geo();
-    body.attachedBox(bi, { px: 's', nx: 's', py: 'r' }, b.x, b.x + b.w, 0, b.h, BACK_Z, INNER_Z, uv, ['px', 'nx', 'py']);
-    body.attachedBox(bi, { py: 'r' }, b.x, b.x + b.w, 0, b.h, INNER_Z, FRONT_Z, uv, ['py']);
-    body.attachedBox(bi, { nx: 's' }, b.x, b.x + 1, 0, b.h, INNER_Z, FRONT_Z, uv, ['nx']);
-    body.attachedBox(bi, { px: 's' }, b.x + b.w - 1, b.x + b.w, 0, b.h, INNER_Z, FRONT_Z, uv, ['px']);
-    group.add(body.build({ s: side, r: roof }));
+    body.attachedBox(bi, { py: 'r' }, b.x, b.x + b.w, 0, b.h, BACK_Z, FRONT_Z, uv, ['py']);
+    group.add(body.build({ r: roof }));
     // 층 바닥판 (구멍으로 보이는 단면)
     for (let fl = 1; fl < b.floors; fl++) {
       const y = SHOP_H + (fl - 1) * FLOOR_H;
@@ -232,7 +236,9 @@ export class Buildings {
 
     // 배관 (지붕에서 땅까지, 건물 한쪽 모서리)과 받침쇠, 실외기 몇 대, 지붕 위 굴뚝·물탱크·안테나
     const px = esc ? b.x + 3 : hash(b.seed * 3) < 0.5 ? b.x + 3 : b.x + b.w - 6;
-    det.addAttached(bi, px, px + 3, 0, b.h - 6, FRONT_Z, FRONT_Z + 3, C.ironLight);
+    // 젖은 쇠 배관: 빛 쪽 1칸이 밝아 어두운 1px 선(외곽선)처럼 서지 않는다
+    det.addAttached(bi, px, px + 3, 0, b.h - 6, FRONT_Z, FRONT_Z + 3, C.chromeDark);
+    det.addAttached(bi, px, px + 1, 0, b.h - 6, FRONT_Z + 3, FRONT_Z + 3.4, C.chrome);
     for (let y = 20; y < b.h - 10; y += 50) det.addAttached(bi, px - 1, px + 4, y, y + 2, FRONT_Z, FRONT_Z + 4, C.iron);
     for (let k = 0; k < 2; k++) {
       if (hash(b.seed + k * 13) < 0.4 || b.floors < 3) continue;
@@ -249,10 +255,12 @@ export class Buildings {
       // 물탱크 (다리 넷, 나무 통, 원뿔 지붕)
       const tx = b.kind === 'apartment' ? b.x + 18 : b.x + b.w - 44;
       const at = [bi + 1, Math.floor((tx + 14 - b.x) / 16)] as const;
-      for (const lx of [tx + 2, tx + 24]) det.add(lx, lx + 2, b.h, b.h + 14, FRONT_Z - 60, FRONT_Z - 58, C.iron, at);
-      det.add(tx, tx + 28, b.h + 14, b.h + 40, FRONT_Z - 74, FRONT_Z - 46, C.awning, at);
-      for (let y = b.h + 18; y < b.h + 40; y += 7) det.add(tx - 0.5, tx + 28.5, y, y + 1, FRONT_Z - 74.5, FRONT_Z - 45.5, C.iron, at);
-      for (let k = 0; k < 4; k++) det.add(tx + k * 3, tx + 28 - k * 3, b.h + 40 + k, b.h + 41 + k, FRONT_Z - 76 + k * 3, FRONT_Z - 44 - k * 3, C.ironLight, at);
+      // (깊이를 얕게: 거의 정면만 보는 카메라에서 깊은 상자의 옆면·밑면은 1칸짜리 어두운 줄로만 보인다)
+      for (const lx of [tx + 2, tx + 24]) det.add(lx, lx + 2, b.h, b.h + 14, FRONT_Z - 61, FRONT_Z - 59, C.iron, at);
+      det.add(tx, tx + 28, b.h + 14, b.h + 40, FRONT_Z - 63, FRONT_Z - 57, C.awning, at);
+      // 쇠테: 젖은 쇠라 나무통보다 밝다 (어두운 1px 줄이 외곽선처럼 서지 않게)
+      for (let y = b.h + 18; y < b.h + 40; y += 7) det.add(tx - 0.5, tx + 28.5, y, y + 1, FRONT_Z - 63.5, FRONT_Z - 56.5, C.chromeDark, at);
+      for (let k = 0; k < 4; k++) det.add(tx + k * 3, tx + 28 - k * 3, b.h + 40 + k, b.h + 41 + k, FRONT_Z - 64 + k, FRONT_Z - 56 - k, C.ironLight, at);
       det.add(b.x + b.w - 16, b.x + b.w - 15, b.h, b.h + 46, FRONT_Z - 30, FRONT_Z - 29, C.ironLight, [bi + 1, Math.floor((b.w - 16) / 16)]);
     } else {
       const at = [bi + 1, Math.floor(20 / 16)] as const;
@@ -267,17 +275,53 @@ export class Buildings {
     }
   }
 
-  /** 골목: 깊은 안쪽 벽, 뒷문 위 맨 전구, 쓰레기통과 쓰레기봉투 */
+  /**
+   * 골목: 깊은 안쪽 벽, 뒷문 위 갓 씌운 맨 전구, 쓰레기통과 쓰레기봉투.
+   * 위아래로 검은 기둥이 서지 않게 안쪽 벽 중간에 불 켜진 창 하나 (커튼 그림자), 골목을 가로지르는 빨랫줄과 전선 (높이·빨래는 골목마다 다르다)
+   */
   private alley(x: number, w: number, det: Details): void {
-    this.group.add(plane(x - 2, x + w + 2, 0, 330, BACK_Z + 2, litMaterial(pixelTexture(paintSide(w + 4, 330, Math.round(x), 2)), { tint: 0.6 })));
+    const seed = Math.round(x);
+    this.group.add(plane(x - 2, x + w + 2, 0, 330, BACK_Z + 2, litMaterial(pixelTexture(paintSide(w + 4, 330, seed, 2)), { tint: 0.6 })));
     det.add(x + 3, x + w - 3, 0, 18, FRONT_Z - 70, FRONT_Z - 40, C.paintTeal);
     det.add(x + 2, x + w - 2, 18, 20, FRONT_Z - 72, FRONT_Z - 38, C.iron);
     det.add(x + 2, x + 9, 0, 7, FRONT_Z - 30, FRONT_Z - 22, C.smog1);
     det.add(x + 8, x + 14, 0, 6, FRONT_Z - 26, FRONT_Z - 19, '#1d1a20');
-    det.add(x + w / 2 - 1, x + w / 2 + 1, 60, 62, BACK_Z + 4, BACK_Z + 10, C.lampCore);
-    // 뒷문
+    // 뒷문과 그 위 갓 씌운 전구 (빛나는 유리)
     det.add(x + 3, x + w - 3, 0, 40, BACK_Z + 2, BACK_Z + 3, C.iron);
+    det.add(x + w / 2 - 3, x + w / 2 + 3, 63, 65, BACK_Z + 3, BACK_Z + 9, C.iron);
+    this.group.add(box3(x + w / 2 - 1.5, x + w / 2 + 1.5, 60, 63, BACK_Z + 4, BACK_Z + 7, BULB));
     this.fixed.push({ x: x + w / 2, y: 58, z: BACK_Z + 16, range: 70, color: C.lampWarm, power: 0.9, chunk: -1 });
+    // 안쪽 벽의 불 켜진 창 (높이는 골목마다 다르다)
+    const wy = 132 + Math.floor(hash(seed * 3 + 1) * 4) * 22;
+    const [wc, wg] = canvas(12, 18);
+    const [ec, eg] = canvas(12, 18);
+    rect(wg, 0, 0, 12, 18, '#16141a');
+    rect(wg, 1, 1, 10, 15, '#d8a85e');
+    rect(wg, 1, 1, 10, 2, '#fff4d8');
+    rect(eg, 1, 1, 10, 15, '#d8a85e');
+    rect(eg, 1, 1, 10, 2, '#fff4d8');
+    // 커튼 (한쪽으로 걷힌 주름)과 창턱
+    for (const [cx, cw] of [[1, 2], [3, 1], [4, 1]] as const) {
+      rect(wg, cx, 3, cw, 13, cx === 3 ? '#5e3622' : '#78452a');
+      rect(eg, cx, 3, cw, 13, cx === 3 ? '#2e1a10' : '#46281a');
+    }
+    rect(wg, 0, 16, 12, 2, '#3a3e49');
+    this.group.add(plane(x + w / 2 - 6, x + w / 2 + 6, wy, wy + 18, BACK_Z + 3, litMaterial(pixelTexture(wc), { emissive: pixelTexture(ec), emissiveStrength: 1.1 })));
+    this.fixed.push({ x: x + w / 2, y: wy + 8, z: BACK_Z + 26, range: 56, color: C.windowLight, power: 0.5, chunk: -1 });
+    // 빨랫줄 둘 (창 아래, 깊이 제각각)과 맨 위를 가로지르는 처진 전선
+    const cloths = [C.paintCream, C.paintTeal, C.posterRed, '#686d7a', C.paintOchre];
+    for (const [k, ly, lz] of [[0, wy - 14, BACK_Z + 48], [1, wy - 50 - Math.floor(hash(seed) * 20), BACK_Z + 92]] as const) {
+      det.add(x - 2, x + w + 2, ly, ly + 0.7, lz, lz + 0.6, C.iron);
+      let cx = x + 1 + Math.floor(hash(seed * 7 + k) * 3);
+      for (let n = 0; cx < x + w - 4; n++) {
+        const cw = 3 + Math.floor(hash(seed * 11 + k * 5 + n) * 4);
+        const ch = 5 + Math.floor(hash(seed * 13 + k * 3 + n) * 6);
+        det.add(cx, Math.min(cx + cw, x + w - 1), ly - ch, ly, lz - 0.2, lz + 0.4, cloths[Math.floor(hash(seed + n * 3 + k) * cloths.length)]);
+        cx += cw + 2 + Math.floor(hash(seed * 5 + n) * 3);
+      }
+    }
+    det.bar(x - 2, 292, x + w / 2, 286, 0.8, BACK_Z + 60, BACK_Z + 60.6, C.iron);
+    det.bar(x + w / 2, 286, x + w + 2, 291, 0.8, BACK_Z + 60, BACK_Z + 60.6, C.iron);
   }
 
   /** 부서진 덩어리를 고쳐 그리고, 무너진 칸을 지우고, 잔해 더미를 쌓는다 */
@@ -359,12 +403,12 @@ function sidewalkTex(): HTMLCanvasElement {
 function fireEscape(det: Details, bi: number, e: { x0: number; x1: number; landings: number[] }): void {
   const at = (x: number) => [bi + 1, Math.max(0, Math.min(GRIDS[bi].cols - 1, Math.floor((x - GRIDS[bi].x) / 16)))] as const;
   e.landings.forEach((h, n) => {
-    // 발판: 쇠살 (아래 짙게, 윗면 밝게)
-    det.addAttached(bi, e.x0, e.x1, h - 3, h - 1, FRONT_Z, 2, C.iron);
+    // 발판: 쇠살 두께 4 (윗면 밝게, 앞면 짙게). 그 밑 벽에는 발판이 드리운 그림자 면 (선이 아니라 면: 10칸, 빛 반대쪽으로 조금 밀림)
+    det.addAttached(bi, e.x0, e.x1, h - 4, h - 1, FRONT_Z, 2, C.iron);
     det.addAttached(bi, e.x0, e.x1, h - 1, h, FRONT_Z, 2, C.ironLight);
-    // 앞 난간: 위 가로대, 가운데 가로대, 세로살 (싸우는 면 바로 앞)
+    det.addAttached(bi, e.x0 + 2, e.x1 + 3, h - 14, h - 4, FRONT_Z, FRONT_Z + 0.5, '#08070c');
+    // 앞 난간: 위 가로대(빛 받음)와 세로살 (싸우는 면 바로 앞). 가운데 가로대는 창을 가로지르는 어두운 1px 선이 되어 뺐다
     det.addAttached(bi, e.x0, e.x1, h + 11, h + 12, 1, 2, C.ironLight);
-    det.addAttached(bi, e.x0, e.x1, h + 5, h + 6, 1, 2, C.iron);
     for (let x = e.x0; x <= e.x1 - 1; x += 6) det.add(x, x + 1, h, h + 11, 1, 2, C.iron, at(x));
     // 옆 난간 (정면에서 앞으로)
     for (const x of [e.x0, e.x1 - 1]) {
