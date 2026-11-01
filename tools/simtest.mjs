@@ -278,7 +278,7 @@ function keepChecks() {
   const solidAt = (s, x, h) => sim.floorBelow(s, x * 256, -(h + 400) * 256) === -h * 256;
 
   // 1) 구역 안 강한 타격(기술 A)은 40, 막히면 20, 구역 밖은 그대로
-  for (const [label, x, p2, want] of [['구역 안 강한 타격(기술 A)은 본관 내구도를 깎는다', 1580, 0, K.damage.heavy], ['막힌 강한 타격은 절반만 깎는다', 1580, I.IN_DOWN, K.damage.blocked], ['구역 밖 강한 타격은 깎지 않는다', 900, 0, 0]]) {
+  for (const [label, x, p2, want] of [['구역 안 강한 타격(기술 A)은 본관 내구도를 깎는다', 3180, 0, K.damage.heavy], ['막힌 강한 타격은 절반만 깎는다', 3180, I.IN_DOWN, K.damage.blocked], ['구역 밖 강한 타격은 깎지 않는다', 2500, 0, 0]]) {
     const s = fresh(x, x + 30);
     s.fighters[0].meter = R.METER_MAX;
     const ev = run(s, [I.IN_SKILL_A, ...hold(0, 40)], p2);
@@ -295,10 +295,10 @@ function keepChecks() {
   }
   // 3) 단계 문턱: 금 → 유리 깨짐·간판 떨어짐 → 갈라짐·불. 3단계에서는 1 아래로 안 내려간다
   {
-    const s = fresh(1580, 1640);
+    const s = fresh(3180, 3240);
     const seen = [];
     const hit = (n) => {
-      sim.damageCitadel(s, 1600, n, 0);
+      sim.damageCitadel(s, 3200, n, 0);
       seen.push(...cit(s.events, 'stage').map((e) => e.combo));
       s.events = [];
     };
@@ -317,14 +317,14 @@ function keepChecks() {
   }
   // 4) 3단계 전의 필살기는 크게 깎기만 한다
   {
-    const s = fresh(1580, 1640);
+    const s = fresh(3180, 3240);
     s.fighters[0].meter = R.METER_MAX;
     run(s, [I.IN_SUPER, ...hold(0, 90)]);
     results.push(['3단계 전 필살기는 본관을 크게 깎기만 한다', K.hp - s.citadel.hp === K.damage.super && s.citadel.stage < 4, `깎인 양 ${K.hp - s.citadel.hp}, 단계 ${s.citadel.stage}`]);
   }
   // 5) 3단계에서 필살기가 구역에 닿으면 무너진다: 슬로모션, 기둥탑 위에 서 있던 사람은 떨어진다
   const collapseScene = () => {
-    const s = fresh(1600, tx);
+    const s = fresh(3200, tx);
     stage3(s);
     s.fighters[0].meter = R.METER_MAX;
     const b = s.fighters[1];
@@ -370,9 +370,9 @@ function keepChecks() {
     results.push(['잔해 위에서 ↑+대시로 밑동을 달려 올라 윗면에 선다', a.y === -stump.h * 256 && !sim.isAirborne(a), `높이 ${-a.y / 256} (밑동 ${stump.h})`]);
     // 한 경기에 한 번: 무너진 뒤에는 깎이지도, 다시 무너지지도 않는다
     s.fighters[0].meter = R.METER_MAX;
-    Object.assign(a, { x: 1600 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0 });
+    Object.assign(a, { x: 3200 * 256, y: 0, floor: 0, vx: 0, vy: 0, mode: 'idle', t: 0 });
     const again = run(s, [I.IN_SUPER, ...hold(0, 90)]);
-    sim.damageCitadel(s, 1600, 100, 0);
+    sim.damageCitadel(s, 3200, 100, 0);
     results.push(['무너진 뒤에는 다시 깎이거나 무너지지 않는다 (한 경기에 한 번)', cit(again, 'collapse').length === 0 && cit(s.events, 'damage').length === 0 && s.citadel.hp === 0, `다시 무너짐 ${cit(again, 'collapse').length}, 내구도 ${s.citadel.hp}`]);
     // 다음 라운드까지 유지
     const round = s.round;
@@ -548,38 +548,40 @@ function structureChecks() {
   const S = sim.BIG.bigsign;
   const top = sim.CONTAINER_TOP.h;
 
-  // 1) 컨테이너 더미: 벽 앞에서 제자리 점프 → 2단 점프 → 더미 높이를 넘은 뒤 왼쪽으로 → 더미 위에 선다
-  //    (벽 쪽을 누른 채 뛰면 더미 앞면에 붙는다. 벽 달리기가 생기면 그것으로도 오른다)
-  let s = fresh(72, 260);
-  run(s, [I.IN_JUMP, ...hold(0, 18), I.IN_JUMP, ...hold(0, 10), ...hold(I.IN_LEFT, 70)]);
+  // 1) 컨테이너 더미 (해안 부두의 구조물 x 1600~1666: 윗면이 발판, 양옆이 벽): 오른쪽 앞에서 제자리 점프 → 2단 점프
+  //    → 더미 높이를 넘은 뒤 왼쪽으로 → 더미 위에 선다 (↑ 없이 뛰면 옆면에 붙지 않고 그 앞을 지나간다)
+  const CX0 = 1600;
+  const CX1 = 1666;
+  let s = fresh(CX1 + 6, CX1 + 200);
+  run(s, [I.IN_JUMP, ...hold(0, 18), I.IN_JUMP, ...hold(0, 10), ...hold(I.IN_LEFT, 12), ...hold(0, 50)]);
   let f = s.fighters[0];
-  results.push(['2단 점프로 컨테이너 더미 위에 선다', f.y === -top * 256 && f.floor === f.y && f.x < 66 * 256, `x=${Math.round(f.x / 256)} y=${-f.y / 256}`]);
+  results.push(['2단 점프로 컨테이너 더미 위에 선다', f.y === -top * 256 && f.floor === f.y && f.x > CX0 * 256 && f.x < CX1 * 256, `x=${Math.round(f.x / 256)} y=${-f.y / 256}`]);
   run(s, [I.IN_DOWN | I.IN_JUMP, ...hold(0, 80)]);
   f = s.fighters[0];
-  results.push(['컨테이너 더미 위에서 ↓+점프는 뚫고 내려가지 않는다', f.y === -top * 256 && f.x < 66 * 256, `y=${-f.y / 256}`]);
+  results.push(['컨테이너 더미 위에서 ↓+점프는 뚫고 내려가지 않는다', f.y === -top * 256 && f.x < CX1 * 256, `y=${-f.y / 256}`]);
   run(s, [...hold(I.IN_RIGHT, 40), ...hold(0, 40)]);
   f = s.fighters[0];
-  results.push(['더미 끝을 넘으면 떨어져 벽 안쪽 땅에 선다', f.y === 0 && f.x >= sim.RULES.WALL_L, `x=${Math.round(f.x / 256)}`]);
+  results.push(['더미 끝을 넘으면 떨어져 땅에 선다', f.y === 0 && f.x > CX1 * 256, `x=${Math.round(f.x / 256)}`]);
 
   // 2) 등대: 평타는 망가짐까지 (내구도 1에서 멈춤)
-  s = fresh(128, 330);
+  s = fresh(1728, 1930);
   s.props[L].hp = 60;
   let ev = run(s, hold([I.IN_ATTACK, 0, 0, 0, 0, 0, 0, 0, 0, 0], 12).flat());
   let p = s.props[L];
   results.push(['평타로는 큰 물건(등대)이 망가짐까지만 간다', p.stage === 1 && p.hp === 1 && !broke(ev, L), `단계 ${p.stage}, 내구도 ${p.hp}`]);
   // 필살기가 닿으면 크게 무너진다
-  place(s.fighters[0], 128, 0);
+  place(s.fighters[0], 1728, 0);
   s.fighters[0].meter = sim.RULES.METER_MAX;
   run(s, hold(0, 30));
   ev = run(s, [I.IN_SUPER, ...hold(0, 120)]);
   p = s.props[L];
   results.push(['필살기가 닿으면 등대가 크게 무너진다', p.stage === 2 && broke(ev, L)?.combo === 1, `단계 ${p.stage}`]);
   const gallery = sim.SURFACES.find((x) => x.kind === 'gallery' && x.h === 196);
-  results.push(['무너진 등대: 꼭대기 둘레는 없고 밑동 윗면이 발판', !sim.surfaceSolid(s, gallery, 168 * 256) && !!surf(s, 'stump', 168)]);
+  results.push(['무너진 등대: 꼭대기 둘레는 없고 밑동 윗면이 발판', !sim.surfaceSolid(s, gallery, 1768 * 256) && !!surf(s, 'stump', 1768)]);
 
   // 3) 등대 꼭대기에 선 사람은 꺾이면 밑동으로 떨어진다 (2P가 땅에서 필살기)
-  s = fresh(168, 120);
-  place(s.fighters[0], 168, 196);
+  s = fresh(1768, 1720);
+  place(s.fighters[0], 1768, 196);
   s.fighters[1].meter = sim.RULES.METER_MAX;
   run(s, hold(0, 4));
   const stood = s.fighters[0].y === -196 * 256;
@@ -589,10 +591,10 @@ function structureChecks() {
 
   // 4) 그냥 날아와 부딪히면 망가짐까지, '벽 쪽으로 날림'에 맞아 날아오면 무너진다
   for (const [wall, name] of [[false, '그냥 날아와 부딪히면 등대가 망가짐까지만'], [true, '벽 쪽으로 날린 상대가 부딪히면 등대가 무너진다']]) {
-    // 가로등(116) 뒤에서 출발한다 (가로등에 먼저 부딪히면 느려진다)
-    s = fresh(330, 126);
+    // 가로등(1716) 뒤에서 출발한다 (가로등에 먼저 부딪히면 느려진다)
+    s = fresh(1930, 1726);
     const d = s.fighters[1];
-    d.x = 126 * 256;
+    d.x = 1726 * 256;
     d.y = -60 * 256;
     d.mode = 'airhit';
     d.t = 0;
@@ -605,7 +607,7 @@ function structureChecks() {
     results.push([name, wall ? p.stage === 2 && broke(ev, L)?.combo === 2 : p.stage <= 1 && p.hp >= 1, `단계 ${p.stage}, 내구도 ${p.hp}`]);
   }
   // 4타(벽 쪽으로 날림)로 날린 상대가 등대에 부딪힌다 (입력만으로)
-  s = fresh(96, 122);
+  s = fresh(1696, 1722);
   ev = run(s, hold([I.IN_ATTACK, 0, 0, 0, 0, 0, 0], 14).flat());
   results.push(['4타로 날린 상대가 부딪혀 등대가 무너진다', s.props[L].stage === 2 && broke(ev, L)?.combo === 2, `단계 ${s.props[L].stage}`]);
 
@@ -624,14 +626,14 @@ function structureChecks() {
 
   // 6) 노면전차: 지나가는 중에 필살기 → 탈선해 뒤집히고, 자리를 잡은 뒤 윗면이 발판. 같은 입력·저장·복원으로 같은 해시
   const tramRun = (saveAt) => {
-    let st = fresh(600, 800);
+    let st = fresh(2200, 2400);
     let k = 0;
     const step = (inp) => {
       if (k++ === saveAt) st = JSON.parse(JSON.stringify(st));
       sim.step(st, [inp, 0]);
       return st.events;
     };
-    while (!(sim.tramAt(st.clock)?.dir === 1 && sim.tramAt(st.clock).x >= 476)) step(0);
+    while (!(sim.tramAt(st.clock)?.dir === 1 && sim.tramAt(st.clock).x >= 2076)) step(0);
     const at = sim.tramAt(st.clock).x;
     st.fighters[0].meter = sim.RULES.METER_MAX;
     const evs = [...step(I.IN_SUPER)];
@@ -669,14 +671,14 @@ function structureChecks() {
   for (let i = 0; i < 120 && !broke(ev, S); i++) ev.push(...run(s, [0]));
   const sg = s.props[S];
   const lying = sim.SURFACES.find((x) => x.kind === 'sign');
-  const early = !!surf(s, 'sign', 1600);
+  const early = !!surf(s, 'sign', 3200);
   run(s, hold(0, 40));
   results.push(['기둥탑 꼭대기에서 필살기를 맞은 시타델 간판이 떨어져 쓰러진다', sg.stage === 2 && broke(ev, S)?.combo === 1, `단계 ${sg.stage}`]);
-  results.push(['쓰러진 간판은 자리를 잡은 뒤 발판이 된다', !early && !!surf(s, 'sign', 1600) && lying.h > 0, `높이 ${lying.h}`]);
+  results.push(['쓰러진 간판은 자리를 잡은 뒤 발판이 된다', !early && !!surf(s, 'sign', 3200) && lying.h > 0, `높이 ${lying.h}`]);
 
   // 8) 잔해 더미: 다이너 1층을 크게 뚫어 무너뜨리면, 쌓인 뒤 윗면이 발판
-  s = fresh(600, 900);
-  for (let x = 712; x <= 820; x += 12) {
+  s = fresh(2200, 2500);
+  for (let x = 2312; x <= 2420; x += 12) {
     sim.damageCity(s, x, 16, 14, 100, 'test');
     sim.damageCity(s, x, 46, 14, 100, 'test');
   }
@@ -693,7 +695,7 @@ function structureChecks() {
 
   // 9) 벽 목록: 맵 끝 벽 둘, 무너진 등대·급수탑은 위쪽 벽이 없다
   const walls = sim.wallsOf(tr.st);
-  results.push(['맵 끝 벽(컨테이너 더미·공원 철책)이 벽 목록에 있다', walls.filter((w) => w.end).length === 2 && sim.WALLS.filter((w) => w.end).every((w) => sim.wallSolid(tr.st, w, 50))]);
+  results.push(['맵 끝 벽(공장 벽돌 담·1구역 성벽)이 벽 목록에 있다', walls.filter((w) => w.end).length === 2 && sim.WALLS.filter((w) => w.end).every((w) => sim.wallSolid(tr.st, w, 50))]);
   return results;
 }
 
@@ -766,12 +768,12 @@ function wallChecks() {
   run(s, hold(I.IN_RIGHT, 300));
   results.push(['붙은 채 땅까지 미끄러지면 착지한다', f.y === 0 && f.mode !== 'wallcling', `${f.mode} y=${-f.y / 256}`]);
 
-  // 6) 서쪽 끝 컨테이너 더미 앞면 (맵 끝 벽): 왼쪽을 누르면 붙는다
-  s = fresh(90, 300);
+  // 6) 서쪽 끝 공장 벽돌 담 (맵 끝 벽): 왼쪽을 누르면 붙는다
+  s = fresh(80, 300);
   f = s.fighters[0];
-  air(f, 75, 60);
+  air(f, 65, 60);
   run(s, hold(I.IN_LEFT, 6));
-  results.push(['맵 끝 벽(컨테이너 더미)은 ↑ 없이 벽 쪽만 눌러도 붙는다', f.mode === 'wallcling' && f.x === (66 + reach) * 256 && f.facing === 1, `${f.mode} x=${f.x / 256}`]);
+  results.push(['맵 끝 벽(공장 벽돌 담)은 ↑ 없이 벽 쪽만 눌러도 붙는다', f.mode === 'wallcling' && f.x === (56 + reach) * 256 && f.facing === 1, `${f.mode} x=${f.x / 256}`]);
 
   // 7) 솟는 중에 닿아도 붙어서 벽을 타고 조금 오르다 미끄러진다
   s = fresh(tower.x0 - 30, tower.x0 + 200);
@@ -826,11 +828,16 @@ function wallChecks() {
   f = s.fighters[0];
   run(s, [I.IN_RIGHT | I.IN_DASH, ...hold(I.IN_RIGHT | I.IN_UP, 3)]);
   results.push(['↑ 없이 시작한 대시도 벽에 닿을 때 ↑를 누르고 있으면 달린다', f.mode === 'wallrun', f.mode]);
-  // 컨테이너 더미 앞면(112): 꼭대기가 달리는 높이 안이라 모서리를 넘어 윗면에 선다
-  s = fresh(120, 330);
+  // 맵 끝 벽(공장 벽돌 담, 420)은 ↑ 없이 대시해도 달린다. 꼭대기가 달리는 높이보다 멀어 다 달린 뒤 붙는다
+  s = fresh(100, 330);
   f = s.fighters[0];
   run(s, [I.IN_LEFT | I.IN_DASH, ...hold(I.IN_LEFT, 50)]);
-  results.push(['맵 끝 벽은 ↑ 없이 대시해도 달리고, 꼭대기가 닿으면 모서리를 넘어 윗면에 선다 (컨테이너 더미)', f.y === -sim.CONTAINER_TOP.h * 256 && f.x < 66 * 256 && !sim.isAirborne(f), `x=${(f.x / 256).toFixed(0)} 높이 ${-f.y / 256}`]);
+  results.push(['맵 끝 벽은 ↑ 없이 대시해도 달리고, 꼭대기가 멀면 다 달린 뒤 붙는다 (공장 벽돌 담)', f.mode === 'wallcling' && -f.y / 256 > 100, `${f.mode} 높이 ${-f.y / 256}`]);
+  // 컨테이너 더미 옆면(112, 구조물): ↑+대시로 달려, 꼭대기가 달리는 높이 안이라 모서리를 넘어 윗면에 선다
+  s = fresh(1700, 1900);
+  f = s.fighters[0];
+  run(s, [I.IN_LEFT | I.IN_UP | I.IN_DASH, ...hold(I.IN_LEFT | I.IN_UP, 20), ...hold(0, 40)]);
+  results.push(['컨테이너 더미(구조물)는 ↑+대시로 달려 올라 모서리를 넘어 윗면에 선다', f.y === -sim.CONTAINER_TOP.h * 256 && f.x < 1666 * 256 && !sim.isAirborne(f), `x=${(f.x / 256).toFixed(0)} 높이 ${-f.y / 256}`]);
   // 공중 대시로 벽에 닿아도 달려 오른다 (그 높이에서), 2단 점프·공중 대시가 다시 생긴다
   s = fresh(tower.x0 - 60, tower.x0 - 160);
   f = s.fighters[0];

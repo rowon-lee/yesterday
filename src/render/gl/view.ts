@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { startSoftware } from '../light';
 import { SCREEN_H, SCREEN_W, onFit } from '../screen';
 import { makeCamera, MARGIN, placeCamera, RT_H, RT_W, type Placed, type View } from './core';
 import { lightPool, shared } from './lights';
@@ -45,6 +46,10 @@ export class GlView {
       stencil: false,
       powerPreference: 'high-performance',
     });
+    // 소프트웨어 그래픽이면 처음부터 낮은 품질 (light.ts)
+    const gl = this.renderer.getContext();
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    startSoftware(String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? ''));
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(RT_W, RT_H, false);
     this.renderer.autoClear = true;
@@ -89,7 +94,7 @@ export class GlView {
     this.renderer.render(this.scene, this.camera);
     // 바닥선: 싸우는 면의 바닥(높이 0)이 렌더 타깃 위에서부터 몇째 줄인지
     this.post.horizon = RT_H / 2 + this.camera.position.y;
-    this.post.run(this.renderer, p, { bloom: this.bloom }, shared.uTime.value);
+    this.post.run(this.renderer, p, { bloom: this.bloom }, shared.uTime.value, this.camera);
     // 남는 소수점만큼 캔버스를 민다 (둘레 여유 1px 포함, 물리 픽셀로 반올림)
     const tx = Math.round((MARGIN + p.fx) * this.scale) / this.dpr;
     const ty = Math.round((MARGIN + p.fy) * this.scale) / this.dpr;

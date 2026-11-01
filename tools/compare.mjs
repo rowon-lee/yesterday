@@ -3,6 +3,7 @@
 //   npm run compare -- --base HEAD~1             이전 버전을 다른 커밋으로
 //   npm run compare -- --new "quality=low"       지금 버전 주소에 옵션을 붙인다 (--base-query는 이전 버전 주소에)
 //   npm run compare -- --only theater            그 지점만
+//   npm run compare -- --base-shift 1600         이전 버전은 카메라 x를 이만큼 빼서 찍는다 (맵이 넓어져 좌표가 옮겨졌을 때)
 // 결과: out/compare/<지점>-color.png, <지점>-gray.png (왼쪽 이전, 오른쪽 지금), out/compare/stats.md
 // 아트 규칙 '명도'를 숫자로 본다: 벽과 바닥이 같은 밝기로 뭉치면 안 되고, 광원(주인공 간판)이 가장 밝아야 한다.
 import { execSync } from 'node:child_process';
@@ -12,12 +13,13 @@ import { preview, build } from 'vite';
 import { chromium } from 'playwright';
 
 const argv = process.argv.slice(2);
-const opt = { base: 'origin/main', new: '', only: '', baseQuery: '' };
+const opt = { base: 'origin/main', new: '', only: '', baseQuery: '', baseShift: 0 };
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--base') opt.base = argv[++i];
   else if (argv[i] === '--new') opt.new = argv[++i];
   else if (argv[i] === '--base-query') opt.baseQuery = argv[++i];
   else if (argv[i] === '--only') opt.only = argv[++i];
+  else if (argv[i] === '--base-shift') opt.baseShift = Number(argv[++i]);
 }
 
 /**
@@ -25,9 +27,9 @@ for (let i = 0; i < argv.length; i++) {
  * 영역(화면 1배 좌표): 벽(위층 벽면), 바닥(길 띠), 간판(구간 주인공 간판 자리).
  */
 const POINTS = [
-  { id: 'theater', name: '극장·다이너 거리', q: 'scene=stage&cam=420', regions: { wall: [290, 40, 400, 130], floor: [0, 246, 480, 270], sign: [160, 0, 190, 140] } },
-  { id: 'plaza', name: '시타델 광장', q: 'scene=stage&cam=1360', regions: { wall: [0, 120, 80, 220], floor: [0, 246, 480, 270], sign: [170, 0, 310, 60] } },
-  { id: 'apartments', name: '비상계단 아파트', q: 'scene=stage&cam=2300', regions: { wall: [130, 40, 260, 130], floor: [0, 246, 480, 270], sign: [340, 140, 410, 170] } },
+  { id: 'theater', name: '극장·다이너 거리', q: 'scene=stage&cam=2020', regions: { wall: [290, 40, 400, 130], floor: [0, 246, 480, 270], sign: [160, 0, 190, 140] } },
+  { id: 'plaza', name: '시타델 광장', q: 'scene=stage&cam=2960', regions: { wall: [0, 120, 80, 220], floor: [0, 246, 480, 270], sign: [170, 0, 310, 60] } },
+  { id: 'apartments', name: '비상계단 아파트', q: 'scene=stage&cam=3900', regions: { wall: [130, 40, 260, 130], floor: [0, 246, 480, 270], sign: [340, 140, 410, 170] } },
 ].filter((p) => !opt.only || opt.only.split(',').includes(p.id));
 
 const root = resolve('.');
@@ -66,8 +68,10 @@ async function shoot(url) {
 
 const rows = [];
 for (const p of POINTS) {
-  const bq = `?${p.q}${opt.baseQuery ? `&${opt.baseQuery}` : ''}&stopAt=300&ff=1`;
-  const nq = `?${p.q}${opt.new ? `&${opt.new}` : ''}&stopAt=300&ff=1`;
+  // 그래픽 칩이 없는 확인 환경(소프트웨어 그래픽)은 기본이 낮은 품질이라, 두 버전 모두 높은 품질로 고정해 찍는다
+  const baseQ = p.q.replace(/cam=(\d+)/, (_, c) => `cam=${Math.max(0, Number(c) - opt.baseShift)}`);
+  const bq = `?${baseQ}&quality=high${opt.baseQuery ? `&${opt.baseQuery}` : ''}&stopAt=300&ff=1`;
+  const nq = `?${p.q}&quality=high${opt.new ? `&${opt.new}` : ''}&stopAt=300&ff=1`;
   const before = await shoot(`http://localhost:4301/${bq}`);
   const after = await shoot(`http://localhost:4302/${nq}`);
   const page = await browser.newPage();

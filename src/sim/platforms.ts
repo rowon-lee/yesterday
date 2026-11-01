@@ -1,5 +1,5 @@
 import {
-  BIG, BREAK_RULES, CHUNK, chunkIndex, CITY_RULES, CONTAINER_TOP, DYNAMIC_WALL_ID, GRIDS, hillWalls, rubbleOf, SURFACES, tramLying, tramRestX,
+  BIG, BREAK_RULES, CHUNK, chunkIndex, CITY_RULES, DYNAMIC_WALL_ID, GRIDS, hillWalls, rubbleOf, SURFACES, tramLying, tramRestX,
   WALLS, type Holder, type Surface, type Wall,
 } from '../stage/citadel';
 import { settledHill } from './citadel';
@@ -152,9 +152,9 @@ export function wallHolds(s: SimState, id: number, side: number, x: number, grab
   return wallsOf(s).some((w) => w.id === id && w.side === side && w.x === x && wallSolid(s, w, grab));
 }
 
-/** 서쪽 끝 (1/256px): 컨테이너 더미 높이 위에서는 더미 위까지 갈 수 있다 */
-export function wallLeft(y: number): number {
-  return y <= -px(CONTAINER_TOP.h) ? px(CONTAINER_TOP.standFrom) : WALL_L;
+/** 서쪽 끝 (1/256px): 공장 벽돌 담. (높이와 상관없다: 예전 맵의 컨테이너 더미 예외는 맵이 넓어지며 없어졌다) */
+export function wallLeft(_y: number): number {
+  return WALL_L;
 }
 
 /**

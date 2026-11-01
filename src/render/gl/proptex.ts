@@ -2,6 +2,7 @@ import type { Breakable } from '../../stage/citadel';
 import { glyphRows } from '../font';
 import { COLORS as C } from '../palette';
 import { canvas, ditherRect, hash, line, rect } from '../dither';
+import { FLUO, figure, glowRect, roomWall, sil, WARM } from './rooms';
 import { neonText } from './tex';
 
 /**
@@ -59,56 +60,68 @@ export function paintGlass(b: Breakable, i: number, shop: string, stage: number)
     rect(e, Math.floor(w * 0.6), 6, 3, 2, '#3a2a18');
     return { map, glow };
   }
-  rect(g, 0, 0, w, h, C.windowLit);
-  rect(e, 0, 0, w, h, '#5a4026');
+  // 가게 안: 천장 등마다 벽에 떨어지는 빛 웅덩이 (rooms.ts), 가게마다 다른 살림과 사람 실루엣
+  const ramp = shop === 'LAUNDRY' ? FLUO : WARM;
+  roomWall(g, e, 0, 0, w, h, [[w * 0.28, 1, w * 0.3, h * 0.9, 0.62], [w * 0.74, 1, w * 0.28, h * 0.9, 0.55], [w * 0.5, h, w * 0.6, h * 0.3, 0.25]], 0.26, ramp, 8);
+  const foot = h - 3;
   if (shop === 'LAUNDRY') {
-    // 세탁기 줄: 둥근 유리문
+    // 세탁기 줄 (둥근 유리문), 의자에 앉아 기다리는 사람
     for (let x = 4; x + 12 < w; x += 15) {
-      rect(g, x, h - 24, 12, 20, C.chromeDark);
-      rect(e, x, h - 24, 12, 20, '#000');
+      sil(g, e, x, h - 24, 12, 20, C.chromeDark);
       rect(g, x + 3, h - 19, 6, 6, C.glassEdge);
-      rect(g, x + 4, h - 18, 4, 4, C.paintTeal);
-      rect(e, x + 4, h - 18, 4, 4, '#0c2a2a');
+      glowRect(g, e, x + 4, h - 18, 4, 4, C.paintTeal, '#0c2a2a');
     }
+    figure(g, e, w - 10, foot, 34, 'sit');
   } else if (shop === 'GROCER') {
-    // 과일 상자 (여러 색 점)
+    // 과일 상자 (여러 색), 선반, 앞치마 두른 주인
+    sil(g, e, 2, Math.floor(h * 0.45), w - 4, 2, C.iron);
+    for (let x = 4; x + 8 < w * 0.45; x += 10) for (let k = 0; k < 3; k++) rect(g, x + k * 3, Math.floor(h * 0.45) - 3, 2, 3, [C.posterRed, C.paintOchre, C.carMint][(x + k) % 3]);
+    figure(g, e, Math.floor(w * 0.66), foot - 4, 40, 'bare');
     for (let x = 3; x + 8 < w; x += 10) {
-      rect(g, x, h - 12, 9, 8, C.awning);
-      rect(e, x, h - 12, 9, 8, '#000');
+      sil(g, e, x, h - 12, 9, 9, C.awning);
       for (let k = 0; k < 6; k++) rect(g, x + 1 + (k % 3) * 3, h - 14 + Math.floor(k / 3) * 2, 2, 2, [C.posterRed, C.paintOchre, C.carMint][(x + k) % 3]);
     }
-    rect(g, 2, Math.floor(h * 0.45), w - 4, 2, C.iron);
-    rect(e, 2, Math.floor(h * 0.45), w - 4, 2, '#000');
   } else if (shop === 'RADIO') {
-    // 진열한 TV와 라디오: 화면이 푸르게 빛난다
+    // 진열한 TV (화면이 푸르게 빛난다)와 라디오, TV를 보는 사람
     for (let x = 3; x + 10 < w; x += 13) {
-      rect(g, x, h - 22, 11, 9, C.awning);
-      rect(e, x, h - 22, 11, 9, '#000');
-      rect(g, x + 2, h - 20, 7, 5, C.skyDark);
-      rect(e, x + 2, h - 20, 7, 5, '#3a6a9a');
-      rect(g, x + 1, h - 12, 9, 5, C.paintOchre);
-      rect(e, x + 1, h - 12, 9, 5, '#000');
+      sil(g, e, x, h - 22, 11, 9, C.awning);
+      glowRect(g, e, x + 2, h - 20, 7, 5, C.skyDark, '#4c6a86');
+      glowRect(g, e, x + 2, h - 20, 7, 1, '#7fe0f4', '#7fe0f4');
+      sil(g, e, x + 1, h - 12, 9, 5, C.paintOchre);
     }
+    figure(g, e, Math.floor(w * 0.4), foot, 40, 'hat');
+  } else if (shop === 'DINER') {
+    // 카운터와 둥근 의자, 앉은 손님 둘, 커피 주전자 든 종업원
+    figure(g, e, Math.floor(w * 0.55), foot - 6, 40, 'bare');
+    sil(g, e, 0, h - 16, w, 12, C.chromeDark);
+    glowRect(g, e, 0, h - 17, w, 1, C.paintCream, '#844018');
+    for (const x of [Math.floor(w * 0.22), Math.floor(w * 0.78)]) figure(g, e, x, foot, 36, 'sit');
+  } else if (shop === 'HOTEL') {
+    // 호텔 로비: 접수대 뒤 직원, 열쇠함, 화분
+    for (let y = 6; y < 22; y += 5) for (let x = 6; x < Math.floor(w * 0.4); x += 5) sil(g, e, x, y, 3, 3, C.awning);
+    figure(g, e, Math.floor(w * 0.5), foot - 8, 40, 'bare');
+    sil(g, e, Math.floor(w * 0.25), h - 18, Math.floor(w * 0.55), 15, '#3e2a1f');
+    glowRect(g, e, Math.floor(w * 0.25), h - 19, Math.floor(w * 0.55), 1, C.windowLight, '#844018');
+    sil(g, e, w - 12, h - 20, 8, 16, C.iron);
   } else {
+    // 빵집: 선반 둘에 빵 덩어리, 앞치마 두른 제빵사
+    figure(g, e, Math.floor(w * 0.7), foot, 40, 'bare');
     for (const y of [Math.floor(h * 0.45), Math.floor(h * 0.75)]) {
-      rect(g, 2, y, w - 4, 2, C.iron);
-      rect(e, 2, y, w - 4, 2, '#000000');
+      sil(g, e, 2, y, w - 4, 2, C.iron);
       for (let x = 4; x < w - 6; x += 7) {
         if (hash(b.x * 7 + x + y) < 0.35) continue;
-        rect(g, x, y - 4, 5, 4, shop === 'DINER' ? C.paintCream : C.paintOchre);
-        rect(e, x, y - 4, 5, 4, '#3a2410');
+        glowRect(g, e, x, y - 4, 5, 4, C.paintOchre, '#3a2410');
       }
     }
   }
-  // 유리에 비친 거리 (사선)와 진열창 아래 김서림
-  for (let k = 0; k < Math.floor(w / 22); k++) {
-    for (let y = 0; y < h; y++) {
-      const x = k * 22 + 8 + Math.floor(y * 0.4);
+  // 유리에 비친 거리 (가는 사선 몇 줄)와 진열창 아래 턱 그림자
+  for (let k = 0; k < Math.floor(w / 26); k++) {
+    for (let y = 0; y < h; y += 2) {
+      const x = k * 26 + 10 + Math.floor(y * 0.4);
       if (x < w - 1) rect(g, x, h - 1 - y, 1, 1, C.glassEdge);
     }
   }
-  ditherRect(g, 0, h - 10, w, 10, C.smog3, 6);
-  ditherRect(e, 0, h - 10, w, 10, '#000000', 6);
+  sil(g, e, 0, h - 3, w, 3, C.smog2);
   if (stage === 1) {
     // 별 모양 금: 하얀 선과 둥근 금
     const cx = Math.floor(w * (0.3 + rnd(i, 1) * 0.4));

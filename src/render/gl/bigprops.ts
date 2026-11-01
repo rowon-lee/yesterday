@@ -42,7 +42,8 @@ export class BigProps {
     const T = D.tram;
     this.views = [
       { i: BIG.watertower, v: new WaterTowerView(this), x0: BREAKABLES[BIG.watertower].x - 40, x1: BREAKABLES[BIG.watertower].x + 160 },
-      { i: BIG.lighthouse, v: new LighthouseView(this), x0: -400, x1: 600 },
+      // 등대 둘레 (쓰러지면 바다 쪽 서쪽으로 길게 눕는다): 데이터 자리 기준
+      { i: BIG.lighthouse, v: new LighthouseView(this), x0: D.pier.lighthouse.x - 550, x1: D.pier.lighthouse.x + 450 },
       { i: BIG.tram, v: new TramWreckView(this), x0: T.x0 - 200, x1: T.x1 + 200 },
       { i: BIG.bigsign, v: new SignFallView(this), x0: D.plaza.sign.x - 300, x1: D.plaza.sign.x + D.plaza.sign.w + 300 },
     ];
@@ -278,6 +279,9 @@ const BOTTOM_R = H.w / 2;
 const TOP_R = BOTTOM_R * 0.75;
 const rAt = (y: number): number => BOTTOM_R + (TOP_R - BOTTOM_R) * (y / H.gallery);
 
+/** 등대 빛줄기가 한 바퀴 도는 틱 (렌더 전용) */
+const LIGHTHOUSE_TURN = 600;
+
 class LighthouseView implements BigView {
   /** 꺾이는 자리 위 (꺾인 자리를 축으로 쓰러진다) */
   private readonly upper: THREE.Group;
@@ -345,7 +349,7 @@ class LighthouseView implements BigView {
     this.stump = stump.build();
     this.stump.visible = false;
     // 등실에서 바다 쪽을 쓸고 지나가는 빛줄기
-    this.beam = new Beam(380, 30, C.beam, 0.24, 2);
+    this.beam = new Beam(420, 34, C.beam, 0.26, 2);
     this.beam.pivot.position.copy(this.lampAt);
     // 꺾이는 자리 위는 한 무리로 (쓰러질 때 함께 돈다)
     const { pivot, inner } = pivotAt(HX, H.snap, HZ);
@@ -370,8 +374,17 @@ class LighthouseView implements BigView {
       const on = p.stage === 0 || hash((tick >> 2) * 13 + 1) > 0.3;
       this.lamp.uniforms.emissiveStrength.value = on ? 1.8 : 0.15;
       this.beam.mesh.visible = on;
-      this.beam.aim(Math.PI / 2 - 0.35 + 0.55 * Math.sin(tick * 0.02));
-      if (on) lightPool.add(this.lampAt.x, this.lampAt.y, this.lampAt.z + 20, 80, C.lampGlow, 1.3);
+      // 빛줄기는 수직축으로 돈다 (10초에 한 바퀴): 바다 쪽으로 길게 뻗었다가 카메라 쪽을 지날 때 번쩍이고, 도시 쪽으로 넘어간다
+      const th = ((tick % LIGHTHOUSE_TURN) / LIGHTHOUSE_TURN) * Math.PI * 2;
+      this.beam.pivot.rotation.set(0, th, Math.PI / 2);
+      if (on) {
+        lightPool.add(this.lampAt.x, this.lampAt.y, this.lampAt.z + 20, 80, C.lampGlow, 1.3);
+        const toward = Math.sin(th);
+        if (toward > 0.82) lightPool.add(this.lampAt.x, this.lampAt.y, this.lampAt.z + 80, 300, C.lampGlow, 3 * (toward - 0.82) / 0.18);
+        // 옆으로 뻗은 빛줄기가 닿는 쪽 (도시 쪽이면 건물 벽) 을 조금 밝힌다
+        const side = -Math.cos(th);
+        if (side > 0.3) lightPool.add(this.lampAt.x + side * 160, this.lampAt.y - 20, this.lampAt.z + 20, 140, C.beam, 0.6 * side);
+      }
       return;
     }
     const t = tick - p.brokenAt;

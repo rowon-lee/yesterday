@@ -45,6 +45,15 @@ let startAt = -1;
 export const quality = (): Quality => level;
 
 /**
+ * 그래픽 칩 없이 CPU로 그리는 브라우저(소프트웨어 그래픽: 그래픽 가속이 꺼진 PC 등)면 처음부터 낮은 품질로 시작한다.
+ * 3D 화면을 만들 때 그래픽 이름을 보고 부른다. 고정했으면 그대로.
+ */
+export function startSoftware(rendererName: string): void {
+  if (forced) return;
+  if (/swiftshader|llvmpipe|software|basic render/i.test(rendererName)) level = 'low';
+}
+
+/**
  * 화면 프레임마다 부른다 (ms: 그리는 데 걸린 시간, ticks: 이번 프레임에 돈 틱 수). 2초씩 모아서
  * 그리기가 평균 12ms를 넘거나(틱 계산과 브라우저 몫을 남겨야 한다), 프레임마다 틱이 평균 1.3개를 넘으면
  * (화면이 60프레임을 못 따라가 틱을 몰아 돌리는 중) 낮은 품질로 내린다. 시작 3초는 준비 중이라 보지 않는다. 고정했으면 그대로.

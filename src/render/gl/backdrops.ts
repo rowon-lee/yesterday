@@ -3,13 +3,13 @@ import { MAP_H, MAP_W } from '../../stage/citadel';
 import { drawText, textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { SCREEN_H, SCREEN_W } from '../screen';
-import { canvas, disc, dither, ditherRect, hash, haze, line, paint, rect } from '../dither';
+import { canvas, disc, dither, ditherRect, hash, line, paint, rect } from '../dither';
 
 /**
  * 먼 겹(하늘과 바다·1구역 마천루·시타델 탑 윗부분·중간 건물)의 도트 그림 (렌더 전용, 오프스크린 Canvas 2D에 미리 그린다).
  * 겹마다 카메라 대비 움직이는 비율(speed)이 있고, 그 비율만큼 가로·세로로 작은 그림이 된다: 폭 = 화면 + (맵 - 화면) × speed.
  * 3D 화면은 이 그림을 그 겹 속도의 깊이에 판으로 세운다 (world.ts의 backdrop: 2D 시차와 똑같이 움직인다).
- * 겹 안의 바닥은 겹 아래 끝에서 groundFromBottom 위. 먼 겹은 매연 색 디더링(haze)으로 덮는다.
+ * 겹 안의 바닥은 겹 아래 끝에서 groundFromBottom 위. 안개는 그림에 칠하지 않고 셰이더가 덮는다 (shaders.ts backdropMaterial).
  */
 export interface Layer {
   canvas: HTMLCanvasElement;
@@ -75,14 +75,18 @@ export function buildFar(): Layer {
   const h = layerH(F.speed);
   const gl = layerGround(F.speed) - 30;
   const [c, g] = canvas(w, h);
-  let x = F.from;
-  let k = F.seed;
-  while (x < w) {
-    const bw = 22 + Math.floor(hash(k++) * 34);
-    const bh = F.min + Math.floor(hash(k++) * (F.max - F.min));
+  /**
+   * 마천루 한 채: 몸통과 두세 번 들어가는 단, 첨탑·안테나(붉은 경고등)·물탱크, 도시 불빛을 받는 한쪽 모서리,
+   * 층마다 켜진 창 (건물마다 켜진 정도가 다르고, 몇 층은 통째로 켜졌다), 가끔 세로 네온 띠.
+   * back이면 더 멀리 선 건물 (낮고 옅고 창이 드물다)
+   */
+  const tower = (x: number, k: number, back: boolean): number => {
+    const bw = (back ? 16 : 22) + Math.floor(hash(k++) * (back ? 26 : 34));
+    const bh = Math.round((F.min + Math.floor(hash(k++) * (F.max - F.min))) * (back ? 0.72 : 1));
+    const body = back ? C.skylineFar : C.factory;
+    const edge = back ? '#36323a' : '#3a3e49';
     const top = gl - bh;
-    rect(g, x, top, bw, h - top, C.factory);
-    // 아르데코 마천루: 위로 갈수록 두세 번 들어가는 지붕, 꼭대기 첨탑
+    rect(g, x, top, bw, h - top, body);
     let sx = x;
     let sw = bw;
     let sy = top;
@@ -91,15 +95,49 @@ export function buildFar(): Layer {
       sx += 3 + Math.floor(sw * 0.12);
       sw -= 6 + Math.floor(sw * 0.24);
       sy -= 10 + Math.floor(hash(k++) * 14);
-      rect(g, sx, sy, sw, top - sy + 2, C.factory);
+      rect(g, sx, sy, sw, top - sy + 2, body);
+      rect(g, sx, sy, 1, top - sy + 2, edge);
     }
+    rect(g, x, top, 1, gl - top, edge);
     const mid = sx + Math.floor(sw / 2);
-    if (hash(k++) < 0.6) {
-      rect(g, mid - 1, sy - 30, 2, 30, C.factory);
-      rect(g, mid - 2, sy - 12, 4, 2, C.factory);
+    const r = hash(k++);
+    if (r < 0.45) {
+      rect(g, mid, sy - 30, 1, 30, body);
+      rect(g, mid - 1, sy - 12, 3, 2, body);
+      if (!back) rect(g, mid, sy - 31, 1, 1, C.neonRed);
+    } else if (r < 0.7) {
+      rect(g, sx + 2, sy - 7, 6, 5, body);
+      for (const lx of [sx + 2, sx + 7]) rect(g, lx, sy - 2, 1, 2, body);
     }
-    for (let wy = top + 4; wy < gl - 4; wy += 6) for (let wx = x + 2; wx < x + bw - 2; wx += 4) if (hash(k++) < 0.05) rect(g, wx, wy, 1, 3, C.skylineLit);
-    x += bw + 2 + Math.floor(hash(k++) * 8);
+    // 창: 층마다 (4px) 줄. 건물마다 켜진 정도, 통째로 켜진 층, 따뜻한 빛·차가운 형광등
+    const lit = back ? 0.04 + hash(k++) * 0.07 : 0.05 + hash(k++) * hash(k++) * 0.35;
+    const cool = hash(k++) < 0.3;
+    for (let wy = top + 4, f = 0; wy < gl - 3; wy += 4, f++) {
+      const allLit = !back && hash(k * 7 + f) < 0.05;
+      for (let wx = x + 2; wx < x + bw - 2; wx += 3) {
+        const q = hash(wx * 13 + wy * 7 + k);
+        if (!allLit && q >= lit) continue;
+        const warm = !(cool ? q < lit * 0.7 : q < lit * 0.15);
+        rect(g, wx, wy, 1, 2, back ? C.skylineLit : warm ? (q < lit * 0.4 ? C.windowLight : C.skylineLit) : C.officeLit);
+      }
+    }
+    // 가끔 세로 네온 띠 (호텔·극장 간판이 멀리서 보이는 것)
+    if (!back && hash(k++) < 0.12) {
+      const nx = hash(k++) < 0.5 ? x + 1 : x + bw - 3;
+      const ny = gl - 40 - Math.floor(hash(k++) * 60);
+      rect(g, nx, ny, 2, 16 + Math.floor(hash(k++) * 14), hash(k++) < 0.5 ? C.neonPink : C.neonCyan);
+    }
+    return bw;
+  };
+  // 먼 줄 (낮고 옅게) 다음 가까운 줄
+  for (const back of [true, false]) {
+    let x = F.from + (back ? 14 : 0);
+    let k = F.seed + (back ? 900 : 0);
+    while (x < w) {
+      const bw = tower(x, k, back);
+      k += 23;
+      x += bw + (back ? 10 : 2) + Math.floor(hash(k++) * (back ? 22 : 8));
+    }
   }
   // 공장 지대: 톱니 지붕 공장과 굴뚝 (매연은 매 틱 따로 그린다)
   const fx0 = F.chimneys[0].x - 30;
@@ -115,7 +153,6 @@ export function buildFar(): Layer {
     rect(g, ch.x + 1, ch.top + 12, ch.w - 2, 1, C.smog2);
     rect(g, ch.x + Math.floor(ch.w / 2), ch.top - 2, 1, 2, C.posterRed);
   }
-  haze(c, C.smog3, F.haze);
   return { canvas: c, speed: F.speed };
 }
 
@@ -129,17 +166,22 @@ export function farChimneys(): Array<{ x: number; w: number; top: number }> {
 const keepCenter = (): number => Math.round(toLayerX(D.keep.speed, D.keep.worldX));
 const keepGround = (): number => layerGround(D.keep.speed) - 24;
 
-/** 탑 몸통 단: [폭, 위 끝(꼭대기에서 아래로)] 아래에서 위로. 층층이 들어간다 */
+/**
+ * 탑 몸통 단 (아래에서 위로, 겹 좌표): 폭, 아래 끝, 위 끝. 시타델은 80층 가까운 초고층이라(2026-11-01 사용자 결정, 한 층 ≈ 겹 7px)
+ * 맨 위 단은 겹 그림 위 끝을 넘어 계속 올라간다: 어느 높이에서 보아도 꼭대기는 화면 위, 낮은 구름 속이다.
+ */
 function keepTiers(): Array<{ w: number; from: number; to: number }> {
   const K = D.keep;
   const gl = keepGround();
-  const top = gl - K.h;
   return [
-    { w: K.w + 44, from: gl + 40, to: top + 150 },
-    { w: K.w, from: top + 150, to: top + 54 },
-    { w: K.w - 52, from: top + 54, to: top + 20 },
+    { w: K.w + 100, from: gl + 40, to: gl - 110 },
+    { w: K.w + 52, from: gl - 110, to: gl - 230 },
+    { w: K.w + 4, from: gl - 230, to: -10 },
   ];
 }
+
+/** 탑을 감싼 낮은 구름 띠 (겹 좌표 y 범위): 이 위로 탑은 구름에 묻혀 흐려진다 */
+const CLOUD_DECK = { top: 18, bottom: 78 };
 
 export function buildKeep(): Layer {
   const K = D.keep;
@@ -167,13 +209,13 @@ export function buildKeep(): Layer {
       rect(g, x0 + 10, top - 18, 18, 2, rib);
     } else rect(g, x0 + sl.w - 14, top - 26, 1, 23, rib);
   });
-  haze(c, C.smog3, K.haze);
   return { canvas: c, speed: K.speed };
 }
 
 /**
- * 시타델 탑 윗부분 (본관 마천루의 위쪽: 층층이 들어간 단, 빛나는 유리 왕관, 안테나). 둘레 사무동(buildKeep)과 같은 깊이에
- * 따로 그린다: 시타델이 무너지면 이 겹만 내려앉아 사라진다 (render/gl/keepfall.ts)
+ * 시타델 탑 (80층 가까운 본관 마천루의 위쪽): 층층이 들어간 단, 단마다 세로 기둥과 층 줄(켜진 사무실은 위로 갈수록 드물고 흐리다),
+ * 단 모서리를 타고 오르는 차가운 빛줄, 단 처마의 항공 경고등. 맨 위 단은 겹 그림 위 끝까지 이어지고, 낮은 구름 띠에 감겨 위로 갈수록
+ * 구름 빛에 묻힌다 (꼭대기는 보이지 않는다). 둘레 사무동(buildKeep)과 같은 깊이에 따로 그린다: 시타델이 무너지면 이 겹만 내려앉는다
  */
 export function buildKeepTower(): Layer {
   const K = D.keep;
@@ -181,61 +223,69 @@ export function buildKeepTower(): Layer {
   const h = layerH(K.speed);
   const [c, g] = canvas(w, h);
   const cx = keepCenter();
-  const gl = keepGround();
   const dark = C.factory;
   const rib = C.smog2;
-  // 탑 몸통: 단마다 세로 기둥과 창 줄, 켜진 사무실 (아래 단일수록 넓다). 멀어도 보이게 켜진 창은 밝게, 모서리에 빛줄
+  const cloud = '#2b3346';
+  const cloudLit = '#3c465e';
+  /** 구름에 묻히는 정도 (0~1): 구름 띠 아래는 0, 띠 안에서 짙어지고 그 위는 거의 다 묻힌다 */
+  const buried = (y: number) => (y > CLOUD_DECK.bottom ? 0 : y > CLOUD_DECK.top ? (CLOUD_DECK.bottom - y) / (CLOUD_DECK.bottom - CLOUD_DECK.top) * 0.75 : 0.75 + (CLOUD_DECK.top - y) / CLOUD_DECK.top * 0.2);
   for (const t of keepTiers()) {
-    const x0 = cx - t.w / 2;
-    rect(g, x0, t.to, t.w, t.from - t.to, dark);
-    for (let x = x0 + 4; x < x0 + t.w - 2; x += 8) rect(g, x, t.to + 2, 2, t.from - t.to - 2, rib);
-    for (let y = t.to + 6, f = 0; y < t.from - 4; y += 7, f++) {
-      const allLit = hash(f * 59 + t.w) < 0.1;
+    const x0 = Math.round(cx - t.w / 2);
+    const to = Math.max(0, t.to);
+    rect(g, x0, to, t.w, t.from - to, dark);
+    for (let x = x0 + 4; x < x0 + t.w - 2; x += 8) rect(g, x, to + 2, 2, t.from - to - 2, rib);
+    for (let y = t.from - 6, f = 0; y > to + 2; y -= 7, f++) {
+      rect(g, x0, y + 4, t.w, 1, C.smog1);
+      const fade = buried(y);
+      const allLit = hash(f * 59 + t.w) < 0.08;
+      const odds = (0.16 - fade * 0.12) * (y < 120 ? 0.7 : 1);
       for (let x = x0 + 6; x < x0 + t.w - 6; x += 8) {
         const r = hash(x * 13 + y * 7);
-        if (allLit || r < 0.16) rect(g, x, y, 3, 3, allLit || r < 0.06 ? C.officeLit : C.windowLight);
+        if (!(allLit && fade < 0.3) && r >= odds) continue;
+        rect(g, x, y, 3, 3, fade > 0.5 ? C.skylineLit : allLit || r < 0.05 ? C.officeLit : C.windowLight);
       }
     }
-    // 단 꼭대기 처마와 빛 받는 모서리
-    rect(g, x0 - 2, t.to, t.w + 4, 3, rib);
-    rect(g, x0, t.to + 3, 2, t.from - t.to - 3, C.smog3);
-    ditherRect(g, x0, t.to + 3, 1, t.from - t.to - 3, C.beam, 6);
+    // 단 처마, 모서리를 타고 오르는 차가운 빛줄 (단 위 끝까지)
+    if (t.to > 0) rect(g, x0 - 2, t.to, t.w + 4, 3, rib);
+    rect(g, x0, to + 3, 2, t.from - to - 3, C.smog3);
+    for (const ex of [x0 + 1, x0 + t.w - 2]) for (let y = to; y < t.from; y++) if ((y + ex) % 3 !== 0) rect(g, ex, y, 1, 1, '#7690aa');
   }
-  // 빛나는 유리 왕관: 가로 빛띠 세 줄, 가운데 별 휘장
-  const top = gl - K.h;
-  const cw = K.w - 92;
-  rect(g, cx - cw / 2, top, cw, 22, dark);
-  for (const y of [top + 4, top + 10, top + 16]) ditherRect(g, cx - cw / 2 + 2, y, cw - 4, 2, C.lampGlow, 12);
-  rect(g, cx - cw / 2 - 2, top - 2, cw + 4, 2, rib);
-  disc(g, cx, top + 38, 9, C.smog3);
-  disc(g, cx, top + 38, 7, dark);
-  star(g, cx, top + 38, 2, C.posterRed);
-  // 안테나: 가는 철탑, 가로대, 경고등 자리
-  rect(g, cx - 1, top - K.mast, 2, K.mast, dark);
-  for (let y = top - K.mast + 8; y < top; y += 9) rect(g, cx - 3, y, 6, 1, dark);
+  // 구름 띠: 탑을 감싼 가로 구름 자락 (탑 폭보다 조금 넓게, 덩어리째). 그 위 탑은 구름 빛에 묻힌다
+  const tw = K.w + 120;
+  for (let y = 0; y < CLOUD_DECK.bottom + 6; y++) {
+    const k = buried(y);
+    for (let x = Math.round(cx - tw / 2) - 30; x < cx + tw / 2 + 30; x++) {
+      const edge = Math.abs(x - cx) / (tw / 2 + 30);
+      const n = hash(Math.floor(x / 6) * 17 + Math.floor(y / 3) * 131) * 0.35 + hash(Math.floor(x / 23) * 7 + Math.floor(y / 9) * 53) * 0.65;
+      const dense = k * (1.15 - edge * 0.9) + (n - 0.5) * 0.5;
+      if (dense < 0.35) continue;
+      // 맨 위 몇 줄은 들쭉날쭉 비워 둔다 (무너질 때 탑이 내려앉아도 위 끝이 곧은 줄로 보이지 않게)
+      if (y < 12 && hash(x * 31 + y * 7) * 12 > y) continue;
+      rect(g, x, y, 1, 1, dense > 0.75 && y > CLOUD_DECK.top ? cloudLit : cloud);
+    }
+  }
   for (const b of keepBeacons()) rect(g, b.x - 1, b.y - 1, 3, 2, C.neonRedDark);
-  for (const lx of keepLights()) rect(g, lx.x - 5, lx.y, 10, 5, C.ironLight);
-  haze(c, C.smog3, K.haze);
   return { canvas: c, speed: K.speed };
 }
 
-/** 탑 왕관 모서리 서치라이트 (겹 좌표) */
+/** 탑 서치라이트 (겹 좌표): 구름 띠 바로 아래 맨 위 단 모서리에서 구름 속을 쓴다 */
 export function keepLights(): Array<{ x: number; y: number }> {
   const cx = keepCenter();
   const t = keepTiers()[2];
-  return [{ x: cx - t.w / 2 + 6, y: t.to - 5 }, { x: cx + t.w / 2 - 6, y: t.to - 5 }];
+  return [{ x: cx - t.w / 2 + 6, y: CLOUD_DECK.bottom + 8 }, { x: cx + t.w / 2 - 6, y: CLOUD_DECK.bottom + 8 }];
 }
 
-/** 탑 안테나와 단 모서리의 항공 경고등 (겹 좌표). 빛은 매 틱 깜빡인다 */
+/** 탑 단 처마 모서리와 모서리 빛줄 중간의 항공 경고등 (겹 좌표). 빛은 매 틱 깜빡인다 */
 export function keepBeacons(): Array<{ x: number; y: number }> {
   const cx = keepCenter();
-  const top = keepGround() - D.keep.h;
-  const t = keepTiers()[1];
+  const [t0, t1, t2] = keepTiers();
   return [
-    { x: cx, y: top - D.keep.mast },
-    { x: cx, y: top - Math.round(D.keep.mast / 2) },
-    { x: cx - t.w / 2, y: t.to - 2 },
-    { x: cx + t.w / 2, y: t.to - 2 },
+    { x: cx - t0.w / 2, y: t0.to - 2 },
+    { x: cx + t0.w / 2, y: t0.to - 2 },
+    { x: cx - t1.w / 2, y: t1.to - 2 },
+    { x: cx + t1.w / 2, y: t1.to - 2 },
+    { x: cx - t2.w / 2, y: CLOUD_DECK.bottom + 22 },
+    { x: cx + t2.w / 2, y: CLOUD_DECK.bottom + 22 },
   ];
 }
 
@@ -245,8 +295,9 @@ export function keepBeacons(): Array<{ x: number; y: number }> {
  * 광장 난간 너머로 먼 길과 행인이 보이게 한다.
  */
 export const midGround = (): number => layerGround(D.mid.speed) - 30;
-/** 바다가 보이는 부두 뒤는 이 x(겹 좌표)까지 비운다 */
+/** 바다가 보이는 항만·부두 뒤는 이 x(겹 좌표) 사이를 비운다 */
 export const midSeaX = (): number => Math.round(toLayerX(D.mid.speed, D.mid.seaUntil));
+export const midSeaFromX = (): number => Math.round(toLayerX(D.mid.speed, D.mid.seaFrom));
 
 export function buildMid(): Layer {
   const M = D.mid;
@@ -255,11 +306,18 @@ export function buildMid(): Layer {
   const gl = midGround();
   const [c, g] = canvas(w, h);
   const parkFrom = toLayerX(M.speed, M.parkFrom);
-  let x = midSeaX();
+  const parkUntil = toLayerX(M.speed, M.parkUntil);
+  const seaFrom = midSeaFromX();
+  let x = 0;
   let k = M.seed;
   let index = 0;
   while (x < w) {
-    if (x > parkFrom) {
+    // 항만·부두 뒤는 비워 바다가 보이게
+    if (x + 40 > seaFrom && x < midSeaX()) {
+      x = midSeaX();
+      continue;
+    }
+    if (x > parkFrom && x < parkUntil) {
       // 공원 뒤: 키 큰 나무 무리
       const r = 14 + Math.floor(hash(k++) * 14);
       rect(g, x + r - 2, gl - 30, 4, 30, C.iron);
@@ -300,13 +358,13 @@ export function buildMid(): Layer {
     x += bw + 3 + Math.floor(hash(k++) * 6);
     index++;
   }
-  // 먼 길: 보도와 차도 (행인이 이 위를 걷는다)
-  const sea = midSeaX();
-  rect(g, sea, gl, w - sea, h - gl, C.street);
-  rect(g, sea, gl, w - sea, 3, C.sidewalk);
-  rect(g, sea, gl + 3, w - sea, 1, C.curb);
-  ditherRect(g, sea, gl + 4, w - sea, h - gl - 4, C.streetLine, 3);
-  haze(c, C.smog3, M.haze);
+  // 먼 길: 보도와 차도 (행인이 이 위를 걷는다). 항만·부두 뒤(바다)는 비운다
+  for (const [a, b] of [[0, midSeaFromX()], [midSeaX(), w]]) {
+    rect(g, a, gl, b - a, h - gl, C.street);
+    rect(g, a, gl, b - a, 3, C.sidewalk);
+    rect(g, a, gl + 3, b - a, 1, C.curb);
+    ditherRect(g, a, gl + 4, b - a, h - gl - 4, C.streetLine, 3);
+  }
   return { canvas: c, speed: M.speed };
 }
 
