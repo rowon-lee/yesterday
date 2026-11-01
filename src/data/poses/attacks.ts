@@ -40,26 +40,26 @@ export const DASH_ATTACK: MotionData = {
   ],
 };
 
-// ---- 차지 (공격 길게 눌렀다 떼기) ----
-/** 끌어 모은다: 몸을 뒤로 젖혀 무게를 뒷발에 싣고, 앞주먹을 어깨 뒤로 크게 당긴다. 뒷손은 앞으로 내밀어 겨눈다 */
-const CH_COIL = P({ hx: -4, hy: -19, tl: -8, hd: 6, aFx: -11, aFy: 3, aBx: 9, aBy: -2, lFx: 8, lBx: -11 });
-/** 모으는 동안 (되풀이): 조금 더 낮게 웅크렸다가 */
-const CH_GATHER_A = P({ hx: -4, hy: -18, tl: -6, hd: 5, aFx: -12, aFy: 4, aBx: 9, aBy: -1, lFx: 8, lBx: -11 });
+// ---- 차지 (공격 길게 눌렀다 떼기): 정권 지르기 ----
+/** 주먹을 몸 옆 허리로 당겨 감는다 (팔꿈치는 뒤로). 반대 손은 앞으로 뻗어 겨누고, 앞굽이로 낮게 버틴다. 몸은 젖히지 않는다 */
+const CH_COIL = P({ hx: -1, hy: -18, tl: 6, hd: 0, aFx: -4, aFy: 13, aBx: 13, aBy: 1, lFx: 12, lBx: -12 });
+/** 모으는 동안 (되풀이): 조금 더 낮게 버티며 */
+const CH_GATHER_A = P({ hx: -1, hy: -17, tl: 6, hd: 0, aFx: -4, aFy: 13, aBx: 13, aBy: 2, lFx: 12, lBx: -12 });
 /** 힘을 눌러 담으며 몸이 떨린다 (1px 안쪽으로 오르내림) */
-const CH_GATHER_B = P({ hx: -5, hy: -19, tl: -9, hd: 7, aFx: -11, aFy: 2, aBx: 10, aBy: -2, lFx: 8, lBx: -11 });
-const CH_GATHER_C = P({ hx: -4, hy: -18, tl: -7, hd: 6, aFx: -12, aFy: 3, aBx: 9, aBy: -1, lFx: 8, lBx: -12 });
-/** 뗀다: 뒷발로 땅을 차고 앞으로 몸을 던지며, 당긴 주먹이 허리를 지나 앞으로 */
-const CH_STEP = P({ hx: 2, hy: -18, tl: 18, hd: -4, aFx: -4, aFy: 6, aBx: 2, aBy: 8, lFx: 15, lBx: -10 });
-/** 크게 내지른다: 앞팔을 쭉 뻗어 상대 가슴 높이를 치고, 뒷손은 허리로. 앞발을 멀리 딛는다 (주먹이 칸 안에 들게) */
-const CH_HIT = P({ hx: 4, hy: -17, tl: 28, hd: -8, aFx: 18, aFy: -3, aBx: -9, aBy: 8, lFx: 19, lBx: -13 });
-/** 뻗은 채 멈칫 */
-const CH_HOLD = P({ hx: 4, hy: -17, tl: 27, hd: -7, aFx: 17, aFy: -2, aBx: -9, aBy: 9, lFx: 19, lBx: -12 });
-/** 팔을 거두며 몸을 일으킨다 */
-const CH_RECOIL = P({ hx: 2, hy: -19, tl: 18, hd: -2, aFx: 12, aFy: 4, aBx: -2, aBy: 10, lFx: 14, lBx: -10 });
+const CH_GATHER_B = P({ hx: -2, hy: -18, tl: 7, hd: 1, aFx: -5, aFy: 12, aBx: 12, aBy: 1, lFx: 12, lBx: -12 });
+const CH_GATHER_C = P({ hx: -1, hy: -17, tl: 6, hd: 0, aFx: -4, aFy: 12, aBx: 13, aBy: 2, lFx: 12, lBx: -13 });
+/** 뗀다: 허리를 앞으로 밀며 내디딘다. 주먹은 허리를 떠나 곧게 앞으로, 뻗었던 손은 거두기 시작 */
+const CH_STEP = P({ hx: 2, hy: -18, tl: 10, hd: -1, aFx: 3, aFy: 10, aBx: 8, aBy: 6, lFx: 15, lBx: -11 });
+/** 정권 지르기: 앞팔을 어깨 높이로 곧게 뻗어 가슴을 치고, 반대 주먹은 허리로 당긴다 (앞굽이) */
+const CH_HIT = P({ hx: 4, hy: -18, tl: 12, hd: -2, aFx: 18, aFy: 0, aBx: -4, aBy: 13, lFx: 18, lBx: -12 });
+/** 뻗은 채 멈칫 (끊어 치기) */
+const CH_HOLD = P({ hx: 4, hy: -17, tl: 12, hd: -2, aFx: 18, aFy: 1, aBx: -4, aBy: 13, lFx: 18, lBx: -12 });
+/** 주먹을 거두며 몸을 일으킨다 */
+const CH_RECOIL = P({ hx: 2, hy: -19, tl: 10, hd: 0, aFx: 11, aFy: 5, aBx: 2, aBy: 11, lFx: 13, lBx: -10 });
 
 /**
- * 차지: 공격을 길게 누르면(평타 뒤에) 모으기로 넘어가고, 떼면 크게 내지른다. 기본 스틱맨의 기본형.
- * 1~4프레임은 끌어 모음(한 번), 5~8프레임은 누르고 있는 동안 되풀이, 떼면 9~14프레임 (11~12프레임 판정).
+ * 차지: 공격을 길게 누르면(평타 뒤에) 모으기로 넘어가고, 떼면 정권으로 곧게 지른다. 기본 스틱맨의 기본형.
+ * 1~4프레임은 주먹을 허리로 당겨 감음(한 번), 5~8프레임은 누르고 있는 동안 되풀이, 떼면 9~14프레임 (11~12프레임 판정).
  * 단계·날리기는 기술 데이터, 몸이 빛나는 것은 렌더. 앞으로 내딛는 것은 sim (기술 데이터의 step).
  */
 export const CHARGE: MotionData = {

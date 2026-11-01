@@ -5,6 +5,7 @@ import { CITADEL as D } from '../data/stages/citadel';
 import { Debris } from './debris';
 import dashBlink from '../vfx/dash-blink';
 import explosion from '../vfx/explosion';
+import glint from '../vfx/glint';
 import impact from '../vfx/impact';
 import powerUp from '../vfx/power-up';
 import slash from '../vfx/slash';
@@ -55,6 +56,11 @@ const FLASH_LIGHT = 3;
 const FLASH_HEAVY = 4;
 
 const motionByName = new Map(MOTIONS.map((m) => [m.name, m]));
+/** 차지를 모으는 동안 허리에 당긴 주먹 자리 (발밑 기준, 오른쪽 보는 기준): 되풀이하는 첫 프레임의 앞주먹 */
+const CHARGE_FIST = (() => {
+  const c = MOVES.charge.data.charge!;
+  return MOVES.charge.frames.joints[c.windup].hF;
+})();
 const silCanvas = document.createElement('canvas');
 silCanvas.width = 64;
 silCanvas.height = 64;
@@ -107,11 +113,10 @@ export class FightVfx {
     }
     s.fighters.forEach((f, i) => {
       if (f.meter >= RULES.METER_MAX) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 54, i === 0 ? COLORS.gold : COLORS.sky, 0.45);
-      // 차지를 모으는 동안: 캐릭터가 광원이 되어 바닥과 벽을 비춘다 (단계마다 넓고 밝게, 숨 쉬듯 맥박)
+      // 차지를 모으는 동안: 캐릭터가 광원이 되어 바닥과 벽을 비춘다 (단계마다 한 계단씩 넓고 밝게. 반짝임은 단계가 오를 때 한 번)
       if (f.mode === 'charge') {
         const lv = Math.max(1, f.chargeLv);
-        const pulse = 0.8 + 0.2 * Math.sin(s.tick * (0.25 + 0.1 * lv));
-        lights.point(f.x / 256, GROUND_Y + f.y / 256 - 24, 34 + 16 * lv, lv >= 3 ? COLORS.fxYellow : COLORS.fxOrange, (0.3 + 0.15 * lv) * pulse);
+        lights.point(f.x / 256, GROUND_Y + f.y / 256 - 24, 34 + 16 * lv, lv >= 3 ? COLORS.fxYellow : COLORS.fxOrange, 0.3 + 0.15 * lv);
       }
     });
     if (s.freeze > 0) {
@@ -509,8 +514,9 @@ export class FightVfx {
   }
 
   /**
-   * 차지: 모으기 시작과 단계가 오를 때마다 몸 둘레 오라를 한 겹씩 더 (모으는 동안 유지, 단계마다 크게),
-   * 단계가 오르는 순간 빛이 번쩍, 떼는 순간 앞으로 빛
+   * 차지: 모으기 시작과 단계가 오를 때마다 '캉!' 하고 한 번 반짝인다 — 허리에 당긴 주먹에서 십자 빛이 번쩍였다 줄고 고리가 퍼지며,
+   * 짧고 센 빛이 바닥과 벽을 한 번 때린다 (몸이 하얗게 번쩍이는 것은 fight.ts). 몸 둘레 오라는 단계마다 한 겹씩 커진다 (모으는 동안 유지).
+   * 3단계는 화면도 한 번 번쩍. 떼는 순간 앞으로 빛
    */
   private charge(s: SimState, who: number, what: string, lv: number): void {
     const f = s.fighters[who];
@@ -524,10 +530,14 @@ export class FightVfx {
         seed: this.seed++,
         sustain: () => f.mode === 'charge',
       }));
-      if (what === 'level') {
-        this.glow(wx, wy, 50 + 18 * lv, lv >= 3 ? COLORS.fxWhite : COLORS.fxYellow, 0.9, 12);
-        if (lv >= 3) this.fx.shake(0.15);
-      }
+      // 허리에 당긴 주먹 자리 (모으는 동안 되풀이하는 첫 프레임의 주먹)
+      const fist = CHARGE_FIST;
+      const gx = wx + f.facing * fist[0];
+      const gy = GROUND_Y + f.y / 256 + fist[1];
+      this.layer.add(glint({ x: gx * FX_PX, y: gy * FX_PX, size: 0.5 + 0.3 * lv, ramp: fxRamp(['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame']) }));
+      this.glow(gx, gy, 40 + 12 * lv, COLORS.fxYellow, 0.9, 4);
+      this.fx.shake(0.06 + 0.05 * lv);
+      if (lv >= 3) this.fx.flashFor(1);
     } else if (what === 'release') {
       this.glow(wx + f.facing * 14, wy, 60 + 14 * lv, COLORS.fxYellow, 0.8, 10);
     }

@@ -13,7 +13,7 @@ import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import { drawText, textWidth } from '../render/font';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
-  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
+  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, MOVES, RULES, STATS, step, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
@@ -233,7 +233,7 @@ export function fightScene(): Scene {
     g.actors.update(s.fighters.map((f, i) => {
       const pose = fighterPose(f);
       const white = fightVfx.white(i);
-      const glow = chargeGlow(f, s.tick);
+      const glow = chargeGlow(f);
       const jitter = f.hitstop > 0 && SHAKEN.has(f.mode) ? (s.tick % 2 ? 1 : -1) : 0;
       return {
         motion: motionByName.get(pose.motion)!,
@@ -311,15 +311,14 @@ interface Snapshot {
 
 /** 잔상을 남길 만큼 빠른가: 3px/틱 이상으로 움직일 때 (대시는 Sprite Fusion 잔상이 따로 있어 뺀다) */
 /**
- * 차지를 모으는 동안 몸이 빛나는 맥박 (렌더 전용): 0 그대로, 1 한 단계 밝게, 2 하얗게.
- * 1단계는 느리게, 2단계는 빠르게 밝아졌다 돌아오고, 3단계는 늘 밝은 채 짧게 하얗게 번쩍인다
+ * 차지를 모으는 동안 몸이 빛남 (렌더 전용): 0 그대로, 1 한 단계 밝게, 2 하얗게.
+ * 모으는 동안은 한 단계 밝은 채로 있고, 모으기를 시작할 때와 단계가 오를 때마다 3틱 하얗게 '캉!' 번쩍인다
  */
-function chargeGlow(f: Fighter, tick: number): 0 | 1 | 2 {
+const CHARGE_LEVEL_AT = MOVES.charge.data.charge!.levels.map((l) => l.at);
+function chargeGlow(f: Fighter): 0 | 1 | 2 {
   if (f.mode !== 'charge') return 0;
-  const lv = Math.max(1, f.chargeLv);
-  if (lv >= 3) return tick % 8 < 2 ? 2 : 1;
-  const period = lv === 1 ? 16 : 8;
-  return tick % period < period / 2 ? 1 : 0;
+  const since = f.t - CHARGE_LEVEL_AT[Math.max(0, f.chargeLv - 1)];
+  return since >= 0 && since < 3 ? 2 : 1;
 }
 
 function isFast(f: Fighter): boolean {
