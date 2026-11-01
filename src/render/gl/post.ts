@@ -299,8 +299,10 @@ void main() {
   lutRow = lutFor(viewX + gl_FragCoord.x + bayer8(gl_FragCoord.xy + ditherOrigin) * 3.0);
   vec3 s = texture2D(graded, vUv).rgb;
   vec3 p = palette(s);
+#ifdef EDGE_DITHER
   float e = band(s, p, vec2(1.0, 0.0)) + band(s, p, vec2(0.0, 1.0));
   if (e > 0.5) p = palette(s + bayer8(gl_FragCoord.xy + ditherOrigin) * ditherAmount);
+#endif
   gl_FragColor = vec4(p, 1.0);
 }
 `;
@@ -469,6 +471,8 @@ export class Post {
   private readonly blur: THREE.ShaderMaterial;
   private readonly composite: THREE.ShaderMaterial;
   private readonly palette: THREE.ShaderMaterial;
+  /** 품질 낮음: 경계 디더 없이 팔레트만 (칸마다 텍스처를 덜 읽는다) */
+  private readonly paletteFast: THREE.ShaderMaterial;
   private readonly blit: THREE.ShaderMaterial;
   private readonly tmp = new THREE.Vector3();
   private readonly haloMesh: THREE.Mesh;
@@ -544,6 +548,11 @@ export class Post {
       smoothLimit: { value: 0.035 },
       curveLimit: { value: 0.012 },
       gradLimit: { value: 0.006 },
+    });
+    this.palette.defines = { EDGE_DITHER: '' };
+    // 낮은 품질용은 같은 유니폼을 함께 쓴다 (표·경계·카메라 자리는 한 번만 바꾸면 둘 다에 들어간다)
+    this.paletteFast = new THREE.ShaderMaterial({
+      vertexShader: FULL_VERT, fragmentShader: PALETTE_FRAG, uniforms: this.palette.uniforms, depthTest: false, depthWrite: false,
     });
     this.blit = mat(BLIT_FRAG, { src: { value: this.final.texture } });
     this.haloGeo = new THREE.InstancedBufferGeometry();
@@ -640,7 +649,7 @@ export class Post {
     // 디더 무늬는 싸우는 면에 붙여 카메라가 움직여도 지글거리지 않게
     this.palette.uniforms.ditherOrigin.value.set(placed.ix, -placed.iy);
     this.palette.uniforms.viewX.value = placed.ix - MARGIN - 0.5;
-    this.pass(renderer, this.palette, this.final);
+    this.pass(renderer, opts.bloom ? this.palette : this.paletteFast, this.final);
     this.pass(renderer, this.blit, null);
   }
 
