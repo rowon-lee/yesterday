@@ -65,9 +65,15 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
   ctx.rect(0, LABEL_H, cw, ch);
   ctx.clip();
   m.draw(ctx, i, 0, LABEL_H, { skin: skinForMotion(m.name, skin), look });
-  // 느린 판: 판정 프레임이면 공격 상자 (팔꿈치→주먹 / 무릎→발 구간 끝쪽)
+  // 느린 판: 판정 프레임이면 공격 상자 (팔꿈치→주먹 / 무릎→발 구간 끝쪽 + 궤적 상자). 칸 밖으로 나가는 부분은 칸 끝에서 잘린다
   if (slow && active && mv?.limb && m.joints) {
-    const b = hitBox(m.joints[i], i, { frames: mv.active, limb: mv.limb, reach: mv.reach });
+    let b = hitBox(m.joints[i], i, { frames: mv.active, limb: mv.limb, reach: mv.reach });
+    const t = mv.box;
+    if (b && t) {
+      const x0 = Math.min(b.x, t.x);
+      const y0 = Math.min(b.y, t.y);
+      b = { x: x0, y: y0, w: Math.max(b.x + b.w, t.x + t.w) - x0, h: Math.max(b.y + b.h, t.y + t.h) - y0 };
+    }
     if (b) {
       ctx.strokeStyle = '#ff6a4a';
       ctx.lineWidth = 1;
