@@ -2,6 +2,7 @@ import { CITADEL as D } from '../../data/stages/citadel';
 import { FLOOR_H, SHOP_H, DOOR_H, DOOR_W, doorOf, escapeOf, type FrontBuildingPlace } from '../../stage/citadel';
 import { glyphRows } from '../font';
 import { COLORS as C } from '../palette';
+import { roomWall, WARM } from './rooms';
 import { canvas, ditherRect, hash, line, rect } from '../dither';
 
 /**
@@ -324,8 +325,7 @@ function paintShop(g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, b: 
   rect(g, doorX + 2, dy - 4, dw - 4, 3, C.windowLit);
   rect(e, doorX + 2, dy - 4, dw - 4, 3, C.windowLit);
   rect(g, doorX + 2, dy + 3, dw - 4, Math.floor(dh * 0.45), C.windowDark);
-  ditherRect(g, doorX + 2, dy + 3, dw - 4, Math.floor(dh * 0.45), C.windowLit, 4);
-  ditherRect(e, doorX + 2, dy + 3, dw - 4, Math.floor(dh * 0.45), C.windowLit, 4);
+  roomWall(g, e, doorX + 2, dy + 3, dw - 4, Math.floor(dh * 0.45), [[doorX + dw / 2, dy + 3, dw * 0.6, dh * 0.5, 0.6]], 0.2, WARM, 3);
   rect(g, doorX + 2, dy + dh - 14, dw - 4, 10, C.chromeDark);
   rect(g, doorX + dw - 6, dy + Math.floor(dh * 0.55), 2, 4, C.chrome);
   // 문턱
@@ -357,8 +357,7 @@ function paintEntrance(f: Facade, g: CanvasRenderingContext2D, e: CanvasRenderin
     rect(g, dx + T(lx), yOf(80), T(11), T(66), C.awning);
     rect(g, dx + T(lx), yOf(80), 1, T(66), C.awningStripe);
     rect(g, dx + T(lx + 2), yOf(76), T(7), T(22), C.windowDark);
-    ditherRect(g, dx + T(lx + 2), yOf(76), T(7), T(22), C.windowLit, 5);
-    ditherRect(e, dx + T(lx + 2), yOf(76), T(7), T(22), C.windowLit, 5);
+    roomWall(g, e, dx + T(lx + 2), yOf(76), T(7), T(22), [[dx + T(lx + 5.5), yOf(76), T(6), T(22), 0.55]], 0.18, WARM, 2);
     rect(g, dx + T(lx + 2), yOf(44), T(7), T(16), C.awningStripe);
   }
   rect(g, dx + T(12), yOf(46), 1, T(4), C.chrome);
@@ -409,8 +408,7 @@ function paintTheater(f: Facade, g: CanvasRenderingContext2D, e: CanvasRendering
     rect(g, cx - 1, winTop + 4, 2, winBottom - winTop - 4, C.iron);
     // 한쪽 창만 아래쪽에 객석 불빛이 새어 나온다
     if (cx < tw / 2) {
-      ditherRect(g, cx - ww / 2, winBottom - 46, ww, 46, C.windowLit, 6);
-      ditherRect(e, cx - ww / 2, winBottom - 46, ww, 46, C.windowLit, 6);
+      roomWall(g, e, cx - ww / 2, winBottom - 46, ww, 46, [[cx, winBottom, ww * 0.8, 40, 0.75]], 0.08, WARM, 4);
       f.lit.push({ x: cx, y: winBottom - 20, warm: true });
     }
     rect(g, cx - ww / 2 - 3, winBottom, ww + 6, 3, C.stoneDark);
@@ -455,8 +453,7 @@ function paintDiner(g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, b:
   const dy = yOf(DOOR_H);
   rect(g, doorX - 1, dy - 2, dw + 2, T(DOOR_H) + 2, C.chromeDark);
   rect(g, doorX + 2, dy + 2, dw - 4, T(DOOR_H) - 18, C.windowDark);
-  ditherRect(g, doorX + 2, dy + 2, dw - 4, T(DOOR_H) - 18, C.windowLit, 6);
-  ditherRect(e, doorX + 2, dy + 2, dw - 4, T(DOOR_H) - 18, C.windowLit, 6);
+  roomWall(g, e, doorX + 2, dy + 2, dw - 4, T(DOOR_H) - 18, [[doorX + dw / 2, dy + 2, dw * 0.7, T(DOOR_H) * 0.6, 0.6]], 0.22, WARM, 3);
   rect(g, doorX + dw - 6, dy + 30, 2, 6, C.chrome);
   // 법랑 판 녹 (크롬 띠 아래로 흘러내린 녹물)
   for (let k = 0; k < 6; k++) {
