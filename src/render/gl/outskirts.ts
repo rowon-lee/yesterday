@@ -5,11 +5,11 @@ import { COLORS as C } from '../palette';
 import { canvas, ditherRect, hash, rect } from '../dither';
 import { drawText, textWidth } from '../font';
 import { paintContainer } from './edges';
-import { Beam, Sparks } from './fx';
+import { Beam, Puffs, Sparks } from './fx';
 import { scaleAt } from './core';
 import { box, Details, facedBox, plane } from './kit';
 import { lightPool } from './lights';
-import { FLUO, figure, glowRect, PINK, roomWall, sil, TV, WARM, type RoomLamp, type RoomRamp } from './rooms';
+import { FLUO, FURNACE, figure, glowRect, PINK, roomWall, sil, TV, WARM, type RoomLamp, type RoomRamp } from './rooms';
 import { litMaterial, pixelTexture } from './shaders';
 import { star } from './backdrops';
 import { brickWall, neonText, weather } from './tex';
@@ -33,6 +33,10 @@ export class Outskirts {
   private train!: THREE.Mesh;
   private trainMats: THREE.ShaderMaterial[] = [];
   private readonly sparks = new Sparks(48);
+  /** 용광로 화구 (가운데 x, 굴뚝 꼭대기 높이): 불씨와 굴뚝 연기 */
+  private readonly furnaces: Array<{ x: number; top: number }> = [];
+  private readonly embers = new Sparks(90);
+  private readonly stackSmoke = new Puffs(28, C.smoke, C.smokeDark, 5, 0.5);
   /** 서치라이트: 빛줄기, 받침 자리, 위상, 훑는 폭(라디안) */
   private readonly searchlights: Array<{ beam: Beam; x: number; y: number; phase: number; sweep: number }> = [];
 
@@ -47,24 +51,30 @@ export class Outskirts {
 
   // ---------------------------------------------------------------- 공장 지대
   private factory(det: Details): void {
-    // 서쪽 끝 공장 벽돌 담 (맵 끝 벽): 화면 위까지 솟은 제철소 몸통. 큰 철문과 높은 창
+    // 서쪽 끝 공장 벽돌 담 (맵 끝 벽): 화면 위까지 솟은 제철소 몸통. 높은 창 안은 용광로 빛
     const L = MAP_ENDS.left;
-    const end = litMaterial(pixelTexture(paintFactory(360, 460, 17, true)), { emissive: pixelTexture(paintFactoryGlow(360, 460, 17)), emissiveStrength: 1.4 });
+    const endT = paintMill(360, 460, scaleAt(6), 17, false);
+    const end = litMaterial(pixelTexture(endT.map), { emissive: pixelTexture(endT.glow), emissiveStrength: 1.2, bump: 0.7 });
     this.group.add(box(L - 360, L, 0, 460, -320, 6, end));
-    // 뒤쪽 제철소 건물 (낮고 긴 벽돌 몸통, 톱니 지붕)
-    const back = litMaterial(pixelTexture(paintFactory(740, 230, 29, false)), { emissive: pixelTexture(paintFactoryGlow(740, 230, 29)), emissiveStrength: 1.2 });
-    this.group.add(plane(L, 800, 0, 230, -120, back));
+    // 뒤쪽 제철소 건물: 길고 낮은 벽돌 몸통과 톱니 지붕, 높은 공장 창 안의 용광로 빛·쇳물 국자·천장 기중기, 배관, 전구 간판
+    const millT = paintMill(MILL.x1 - L, MILL.h, scaleAt(MILL.z), 29, true);
+    const mill = litMaterial(pixelTexture(millT.map), { emissive: pixelTexture(millT.glow), emissiveStrength: 1.15, bump: 0.7 });
+    this.group.add(plane(L, MILL.x1, 0, MILL.h, MILL.z, mill));
+    // 창마다 용광로 빛이 길로 번진다 (몇 개만)
+    for (const x of [300, 520, 700]) this.lamps.push({ x, y: 90, z: MILL.z + 30, range: 150, color: C.fxOrange, power: 0.7, flicker: 5, down: false });
     // 용광로 굴뚝 (윗면이 옥상), 둘레 작업대와 난간
     for (const s of kindOf(OS.blocks, 'stack')) {
-      const tex = litMaterial(pixelTexture(paintStack(s.x1 - s.x0, s.h, 41)));
+      const st = paintStack(s.x1 - s.x0, s.h, 41);
+      const tex = litMaterial(pixelTexture(st.map), { emissive: pixelTexture(st.glow), emissiveStrength: 1.05, bump: 0.6 });
       this.group.add(box(s.x0, s.x1, 0, s.h, -40, -4, tex));
       det.add(s.x0 - 3, s.x1 + 3, s.h - 6, s.h, -43, -1, C.iron);
       // 꼭대기 불빛 (용광로 가스 불꽃)
       this.lamps.push({ x: (s.x0 + s.x1) / 2, y: s.h + 8, z: -20, range: 120, color: C.fxOrange, power: 1.1, flicker: 3, down: false });
-      // 밑동 화구: 붉게 이글거린다
-      this.lamps.push({ x: (s.x0 + s.x1) / 2, y: 24, z: 10, range: 170, color: C.fxFlame, power: 1.6, flicker: 7, down: false });
-      det.add(s.x0 + 14, s.x1 - 14, 6, 34, -3.5, -3, C.fxRed);
+      // 밑동 아치 화구: 쇳물 빛이 이글거린다 (구간의 주인공 빛)
+      this.lamps.push({ x: (s.x0 + s.x1) / 2, y: 22, z: 10, range: 190, color: C.fxOrange, power: 1.7, flicker: 7, down: false });
+      this.furnaces.push({ x: (s.x0 + s.x1) / 2, top: s.h });
     }
+    this.group.add(this.embers.mesh, this.stackSmoke.mesh);
     for (const r of kindOf(OS.decks, 'ring')) {
       det.add(r.x0, r.x1, r.h - 4, r.h, -48, -2, C.iron);
       det.add(r.x0, r.x1, r.h - 4, r.h - 3, -48, -2, C.ironLight);
@@ -97,13 +107,16 @@ export class Outskirts {
 
   // ---------------------------------------------------------------- 항만 창고 부두
   private docks(det: Details): void {
-    // 멀리 정박한 화물선: 검은 선체와 선교, 둥근 창 몇 개에 불
-    const ship = litMaterial(pixelTexture(paintShip(560, 150)), { emissive: pixelTexture(paintShipGlow(560, 150)), emissiveStrength: 1.6 });
+    // 멀리 정박한 화물선: 검은 선체, 붉은 흘수선, 불 켜진 선교와 둥근 창, 갑판등 줄, 돛대등(흰빛·붉은빛·초록빛), 하역 기둥
+    const sh = paintShip(560, 150);
+    const ship = litMaterial(pixelTexture(sh.map), { emissive: pixelTexture(sh.glow), emissiveStrength: 1.3 });
     this.group.add(plane(880, 1440, -6, 144, -380, ship));
-    // 창고 (골함석 벽, 큰 셔터 문, 간판)
-    const wh = litMaterial(pixelTexture(paintWarehouse(260, 200)), { emissive: pixelTexture(paintWarehouseGlow(260, 200)), emissiveStrength: 1.3, wet: 0.6 });
+    // 창고: 골함석 벽, 반쯤 올린 셔터 안의 불 켜진 창고(상자 더미·지게차·인부), 닫힌 셔터 아래 틈 빛, 높은 채광창, 거위목 등
+    const wt = paintWarehouse(260, 200);
+    const wh = litMaterial(pixelTexture(wt.map), { emissive: pixelTexture(wt.glow), emissiveStrength: 1.15, wet: 0.6 });
     this.group.add(plane(1336, 1596, 0, 200, -72, wh));
-    this.lamps.push({ x: 1470, y: 140, z: -50, range: 140, color: C.sodium, power: 1.4, flicker: 0, down: true });
+    this.lamps.push({ x: 1406, y: 40, z: -40, range: 150, color: C.sodium, power: 1.1, flicker: 0, down: false });
+    for (const x of [1406, 1516]) this.lamps.push({ x, y: 112, z: -50, range: 110, color: C.sodium, power: 0.9, flicker: 0, down: true });
     // 갠트리 크레인: 다리 둘, 위 들보와 기계실, 아래 들보, 늘어진 갈고리
     const crane = litMaterial(pixelTexture(paintSteel(16, 240, C.paintOchre, 61)), { wet: 0.5 });
     for (const p of kindOf(OS.posts, 'craneLeg')) {
@@ -113,9 +126,28 @@ export class Outskirts {
     for (const b of kindOf(OS.decks, 'crane')) {
       const beam = litMaterial(pixelTexture(paintSteel(b.x1 - b.x0, 12, C.paintOchre, 67)), { wet: 0.5 });
       this.group.add(box(b.x0, b.x1, b.h - 12, b.h, -38, -12, beam));
+      // 기계실과 운전실 (불 켜진 창 안의 운전수)
       det.add(b.x0 + 70, b.x0 + 120, b.h, b.h + 26, -34, -16, C.paintOchre);
-      det.add(b.x0 + 76, b.x0 + 92, b.h + 10, b.h + 20, -16, -15.5, C.windowLit);
+      const cab = paintCabin(30, 20, 67);
+      this.group.add(box(b.x0 + 74, b.x0 + 104, b.h + 4, b.h + 24, -18, -15.5, litMaterial(pixelTexture(cab.map), { emissive: pixelTexture(cab.glow), emissiveStrength: 1.2 })));
       this.lamps.push({ x: b.x0 + 84, y: b.h + 14, z: -10, range: 90, color: C.windowLight, power: 0.8, flicker: 0, down: false });
+      // 들보 양 끝 꼭대기 항공 경고등 (깜빡인다)
+      for (const x of [b.x0 + 2, b.x1 - 6]) {
+        const m = beaconMaterial();
+        this.beacons.push(m);
+        this.group.add(box(x, x + 4, b.h, b.h + 4, -28, -24, m));
+        this.lamps.push({ x: x + 2, y: b.h + 4, z: -20, range: 60, color: C.neonRed, power: 0.8, flicker: -1, down: false });
+      }
+      // 들보 밑 투광등 둘: 컨테이너 더미 쪽으로 내리쬐는 나트륨 빛 (빛줄기와 바닥 웅덩이)
+      for (const x of [b.x0 + 40, b.x0 + 190]) {
+        det.add(x - 6, x + 6, b.h - 18, b.h - 12, -30, -22, C.iron);
+        det.add(x - 4, x + 4, b.h - 19, b.h - 18, -28, -24, C.lampCore);
+        const f = new Beam(b.h - 14, 34, C.sodium, 0.12, 2);
+        f.pivot.position.set(x, b.h - 18, -26);
+        f.aim(Math.PI + (x < (b.x0 + b.x1) / 2 ? -0.12 : 0.12));
+        this.group.add(f.pivot);
+        this.lamps.push({ x, y: b.h - 20, z: -20, range: 230, color: C.sodium, power: 1.2, flicker: 0, down: true });
+      }
       det.add(b.x0 + 150, b.x0 + 152, b.h - 90, b.h - 12, -26, -24, C.iron);
       det.add(b.x0 + 144, b.x0 + 158, b.h - 98, b.h - 90, -28, -22, C.ironLight);
     }
@@ -306,6 +338,7 @@ export class Outskirts {
     const on = (tick >> 5) % 2 === 0;
     for (const [i, m] of this.beacons.entries()) m.uniforms.emissiveStrength.value = (on ? i % 2 === 0 : i % 2 === 1) ? 3 : 0.3;
     this.updateTrain(tick, view0, view1);
+    this.updateFurnaces(tick, view0, view1);
     // 서치라이트: 아래로 비추며 천천히 좌우로 훑는다. 빛이 닿는 바닥에 밝은 웅덩이
     for (const [i, s] of this.searchlights.entries()) {
       const d = s.sweep * Math.sin(tick * 0.0085 + s.phase) + 0.12 * Math.sin(tick * 0.023 + i);
@@ -318,6 +351,37 @@ export class Outskirts {
         if (wx > view0 - 120 && wx < view1 + 120) lightPool.add(wx, 260, WALL.z + 50, 170, C.beam, 0.8);
       }
     }
+  }
+
+  /**
+   * 용광로: 화구에서 튀어 오르는 불씨 (오르며 흔들리고 노랑 → 주황 → 빨강으로 식는다), 굴뚝 꼭대기 연기 (불꽃 빛에 아랫면이 물든다).
+   * 틱만 보고 정한다 (불씨 하나마다 나이 = (틱 + 씨앗) % 수명)
+   */
+  private updateFurnaces(tick: number, view0: number, view1: number): void {
+    this.embers.begin();
+    this.stackSmoke.begin();
+    for (const f of this.furnaces) {
+      if (f.x < view0 - 200 || f.x > view1 + 200) continue;
+      for (let i = 0; i < 70; i++) {
+        const life = 70 + Math.floor(hash(i * 7 + 1) * 90);
+        const age = (tick + Math.floor(hash(i * 13 + 5) * 400)) % life;
+        const t = age / life;
+        const sway = Math.sin(age * 0.07 + i * 1.9) * (3 + t * 8);
+        const x = f.x + (hash(i * 3 + 2) - 0.5) * 26 + sway + t * 14;
+        const y = 30 + age * (0.55 + hash(i * 5) * 0.5);
+        const color = t < 0.25 ? C.lampCore : t < 0.55 ? C.fxYellow : t < 0.8 ? C.fxOrange : C.fxRed;
+        if (hash(i * 17 + (tick >> 2)) < 0.15 && t > 0.6) continue;
+        this.embers.add(x, y, 12, color, t < 0.5 ? 2.2 : 1.5);
+      }
+      for (let k = 0; k < 9; k++) {
+        const life = 160;
+        const age = (tick + k * 18) % life;
+        const t = age / life;
+        this.stackSmoke.add(f.x - 8 + Math.sin(age * 0.03 + k) * 6 + age * 0.35, f.top + 6 + age * 0.75, -22, 14 + age * 0.22, 1 - t);
+      }
+    }
+    this.embers.end();
+    this.stackSmoke.end();
   }
 
   /** 고가 열차: 틱만 보고 자리를 정한다 (trainAt). 창 불빛, 선로 밑으로 깜빡이며 새는 빛, 바퀴 불꽃 */
@@ -355,6 +419,9 @@ export class Outskirts {
     this.sparks.end();
   }
 }
+
+/** 제철소 뒤 건물 (렌더 전용): 오른쪽 끝 x, 그림 높이(톱니 지붕 230 위로 간판 받침까지), 깊이 */
+const MILL = { x1: 800, h: 240, z: -120 };
 
 /**
  * 1구역 성벽 (렌더 전용): 높이 50m ≈ 1,500px (2026-11-01 사용자 결정). 카메라가 가장 높이 올라가도 이 깊이에서 약 550px까지만 보이므로
@@ -403,50 +470,163 @@ function solid(color: string): HTMLCanvasElement {
 }
 
 // ---------------------------------------------------------------- 그림 (도트 텍스처)
-/** 제철소 벽돌 몸통: 높은 아치창(몇 개는 용광로 불빛), 큰 철문, 굴뚝 그을음 */
-function paintFactory(w: number, h: number, seed: number, end: boolean): HTMLCanvasElement {
-  const [c, g] = canvas(w, h);
-  brickWall(g, 0, 0, w, h, seed, 2);
-  for (let x = 12; x < w - 30; x += 46) {
-    const top = end ? 120 : 70;
-    rect(g, x, h - top - 90, 24, 90, C.windowDark);
-    rect(g, x + 2, h - top - 96, 20, 6, C.windowDark);
-    for (let y = h - top - 88; y < h - top - 2; y += 10) rect(g, x, y, 24, 1, C.iron);
-    rect(g, x + 11, h - top - 92, 2, 92, C.iron);
-    rect(g, x - 2, h - top, 28, 3, C.stoneDark);
+/**
+ * 제철소 벽돌 몸통 (월드 폭 w, 높이 h; sk 배율): 붉은 벽돌, 높은 아치 공장 창(쇠 창살, 안은 용광로 빛·천장 기중기·쇳물 국자·사슬,
+ * 몇 칸은 깨져 어둡다), 가로 배관과 받침, 큰 철문(아래 틈으로 새는 불빛). mill이면 톱니 지붕(유리 면에 옅은 불빛)과 전구 간판 'STEEL'
+ */
+function paintMill(w: number, h: number, sk: number, seed: number, mill: boolean): { map: HTMLCanvasElement; glow: HTMLCanvasElement } {
+  const tw = Math.round(w * sk);
+  const th = Math.round(h * sk);
+  const [map, g] = canvas(tw, th);
+  const [glow, e] = canvas(tw, th);
+  e.fillStyle = '#000';
+  e.fillRect(0, 0, tw, th);
+  const Y = (hh: number) => Math.round(th - hh * sk);
+  const S = (v: number) => Math.max(1, Math.round(v * sk));
+  const eave = mill ? 206 : h;
+  // 벽돌 몸통 (톱니 지붕 아래)
+  brickWall(g, 0, Y(eave), tw, th - Y(eave), seed, 1);
+  weather(g, 0, Y(eave), tw, th - Y(eave), seed);
+  if (mill) {
+    // 톱니 지붕: 세운 유리 면(옅은 불빛)과 비탈진 지붕, 처마 띠
+    rect(g, 0, Y(eave) - 2, tw, 3, C.iron);
+    for (let x = 0; x < tw; x += S(44)) {
+      const tooth = S(26);
+      for (let k = 0; k < S(40); k++) {
+        const hgt = Math.round(tooth * (1 - k / S(40)));
+        if (hgt <= 0) continue;
+        rect(g, x + k, Y(eave) - 2 - hgt, 1, hgt, k < 4 ? '#3e2a1f' : C.iron);
+      }
+      for (let y = Y(eave) - 2 - tooth + 2; y < Y(eave) - 2; y += 3) {
+        glowRect(g, e, x + 1, y, 2, 2, '#62181c', '#451216');
+      }
+    }
   }
-  // 큰 철문
-  const dx = Math.floor(w * (end ? 0.55 : 0.4));
-  rect(g, dx, h - 72, 60, 72, C.iron);
-  for (let y = h - 70; y < h; y += 4) rect(g, dx + 2, y, 56, 1, C.ironLight);
-  rect(g, dx, h - 76, 60, 4, C.stoneDark);
-  if (end) {
-    rect(g, 20, 40, 120, 22, C.posterRedDark);
-    neonText(g, null, 'STEEL', 30, 44, 3, C.paintCream, C.paintCream);
-  }
-  weather(g, 0, 0, w, h, seed);
-  return c;
-}
-
-/** 제철소 창 몇 개가 용광로 불빛으로 붉게 빛난다 (발광) */
-function paintFactoryGlow(w: number, h: number, seed: number): HTMLCanvasElement {
-  const [c, g] = canvas(w, h);
+  // 높은 공장 창 (아치 머리): 안쪽은 한 덩어리 큰 작업장이라 천장 기중기 들보가 여러 창에 걸쳐 지나간다
+  const winW = S(30);
+  const winTop = mill ? 164 : 330;
+  const winBot = mill ? 66 : 150;
+  const step = S(54);
   let i = 0;
-  for (let x = 12; x < w - 30; x += 46, i++) {
-    if (hash(seed * 7 + i) < 0.45) continue;
-    const top = h > 300 ? 120 : 70;
-    for (let y = h - top - 88; y < h - top - 2; y += 10) ditherRect(g, x + 1, y + 1, 22, 8, hash(seed + i + y) < 0.5 ? C.fxOrange : C.fxFlame, 10);
+  for (let x = S(14); x + winW < tw - 4; x += step, i++) {
+    const r = hash(seed * 7 + i);
+    const yTop = Y(winTop);
+    const yBot = Y(winBot);
+    const wh = yBot - yTop;
+    const dark = r < 0.18;
+    if (dark) rect(g, x, yTop, winW, wh, C.windowDark);
+    else {
+      // 아래(쇳물 붓는 곳)가 가장 밝고 위는 검붉은 어둠. 창마다 빛 세기가 조금씩 다르다
+      roomWall(g, e, x, yTop, winW, wh, [
+        [x + winW * (0.3 + hash(seed + i) * 0.4), yBot + 4, winW * 0.9, wh * 0.7, 0.95 + hash(i * 3) * 0.3],
+        [x + winW / 2, yTop, winW, wh * 0.25, 0.25],
+      ], 0.12, FURNACE, 4);
+      // 천장 기중기 들보 (창 위쪽을 가로지른다), 사슬과 쇳물 국자 (몇 창에만)
+      sil(g, e, x, yTop + Math.round(wh * 0.2), winW, S(3), '#1c080a');
+      if (hash(seed + i * 11) < 0.5) {
+        const lx = x + Math.round(winW * (0.25 + hash(i * 7) * 0.5));
+        sil(g, e, lx, yTop + Math.round(wh * 0.2), 1, Math.round(wh * 0.35), '#1c080a');
+        sil(g, e, lx - S(5), yTop + Math.round(wh * 0.55), S(11), S(9), '#1c080a');
+        sil(g, e, lx - S(4), yTop + Math.round(wh * 0.55) + S(9), S(9), S(2), '#1c080a');
+        glowRect(g, e, lx - S(3), yTop + Math.round(wh * 0.55) - 1, S(7), 1, '#ffc16e', '#ffc16e');
+      }
+      // 쇳물 튀는 불꽃 점
+      for (let k = 0; k < 5; k++) {
+        const sx = x + Math.floor(hash(seed + i * 17 + k) * winW);
+        const sy = yBot - 4 - Math.floor(hash(seed + i * 23 + k * 3) * wh * 0.4);
+        glowRect(g, e, sx, sy, 1, 1, C.lampCore, '#ffe2a8');
+      }
+    }
+    // 쇠 창살 (세로·가로 줄), 아치 머리, 돌 창턱, 깨진 칸 몇 개
+    for (let gx = x; gx <= x + winW; gx += S(6)) sil(g, e, gx, yTop, 1, wh, C.iron);
+    for (let gy = yTop; gy < yBot; gy += S(8)) sil(g, e, x, gy, winW, 1, C.iron);
+    for (let k = 0; k < 4; k++) {
+      if (hash(seed + i * 5 + k) > 0.3) continue;
+      const bx = x + Math.floor(hash(i * 31 + k) * (winW / S(6))) * S(6) + 1;
+      const by = yTop + Math.floor(hash(i * 37 + k) * (wh / S(8))) * S(8) + 1;
+      sil(g, e, bx, by, S(5), S(7), C.windowDark);
+    }
+    for (let k = 0; k < S(6); k++) {
+      const inset = Math.round(Math.sqrt(Math.max(0, S(6) * S(6) - (S(6) - k) * (S(6) - k))));
+      rect(g, x - 2, yTop - S(6) + k, Math.max(0, S(6) - inset) + 2, 1, C.brickRedDark);
+      rect(g, x + winW - S(6) + inset, yTop - S(6) + k, Math.max(0, S(6) - inset) + 2, 1, C.brickRedDark);
+    }
+    rect(g, x - 2, yTop - S(8), winW + 4, 2, C.stoneDark);
+    rect(g, x - 3, yBot, winW + 6, S(3), C.stoneDark);
   }
-  return c;
+  // 가로 배관 둘 (받침과 이음 테), 내려오는 관
+  for (const ph of [42, mill ? 190 : 410]) {
+    const py = Y(ph);
+    rect(g, 0, py, tw, S(4), C.ironLight);
+    rect(g, 0, py, tw, 1, C.chromeDark);
+    rect(g, 0, py + S(4), tw, 1, C.iron);
+    for (let x = S(20); x < tw; x += S(60)) {
+      rect(g, x, py - 1, S(3), S(4) + 2, C.iron);
+      rect(g, x + 1, py + S(4), 1, S(8), C.iron);
+    }
+  }
+  for (let x = S(40); x < tw; x += S(230)) {
+    rect(g, x, Y(190), S(3), Y(42) - Y(190), C.ironLight);
+    rect(g, x, Y(190), 1, Y(42) - Y(190), C.chromeDark);
+  }
+  // 큰 철문 (골 진 강철, 아래 틈으로 용광로 불빛이 샌다)
+  const dx = Math.floor(tw * (mill ? 0.47 : 0.55));
+  rect(g, dx - 3, Y(80), S(66), Y(0) - Y(80), C.stoneDark);
+  rect(g, dx, Y(76), S(60), Y(0) - Y(76), C.iron);
+  for (let y = Y(74); y < Y(4); y += 4) rect(g, dx + 2, y, S(56), 1, C.ironLight);
+  glowRect(g, e, dx, Y(4), S(60), S(4), '#ec6046', '#ec6046');
+  glowRect(g, e, dx, Y(4), S(60), 1, '#ffc16e', '#ffc16e');
+  if (mill) {
+    // 전구 간판 CITADEL STEEL (창 위 벽에 건 판, 전구 몇 개는 나갔다. 화구보다 어둡게)
+    const text = 'CITADEL STEEL';
+    const s2 = 4;
+    const twd = textWidth(text, s2);
+    const tx = Math.round(tw * 0.5 - twd / 2);
+    const ty = Y(196);
+    rect(g, tx - 6, ty - 4, twd + 12, 5 * s2 + 8, C.posterRedDark);
+    rect(g, tx - 6, ty - 4, twd + 12, 1, C.iron);
+    rect(g, tx - 6, ty + 5 * s2 + 3, twd + 12, 1, C.iron);
+    const [lc, lg] = canvas(twd, 5 * s2);
+    neonText(lg, null, text, 0, 0, s2, '#fff', '#fff');
+    const img = lg.getImageData(0, 0, lc.width, lc.height).data;
+    for (let j = 1; j < lc.height; j += 2) {
+      for (let q = 1; q < lc.width; q += 2) {
+        if (img[(j * lc.width + q) * 4 + 3] < 128) continue;
+        const dead = hash(q * 13 + j * 7) < 0.12;
+        glowRect(g, e, tx + q, ty + j, 1, 1, dead ? C.iron : C.lampGlow, dead ? '#000' : C.lampWarm);
+      }
+    }
+  }
+  return { map, glow };
 }
 
-/** 용광로 굴뚝: 내화 벽돌, 쇠띠, 위로 갈수록 그을음 */
-function paintStack(w: number, h: number, seed: number): HTMLCanvasElement {
-  const [c, g] = canvas(w, h);
+/** 용광로 굴뚝: 내화 벽돌, 쇠띠, 위로 갈수록 그을음, 밑동에 아치 화구 (안쪽 쇳물 빛, 반쯤 올린 쇠문) */
+function paintStack(w: number, h: number, seed: number): { map: HTMLCanvasElement; glow: HTMLCanvasElement } {
+  const [map, g] = canvas(w, h);
+  const [glow, e] = canvas(w, h);
+  e.fillStyle = '#000';
+  e.fillRect(0, 0, w, h);
   brickWall(g, 0, 0, w, h, seed, 1);
   for (let y = 12; y < h; y += 34) rect(g, 0, y, w, 3, C.iron);
   for (let k = 0; k < 6; k++) ditherRect(g, 0, k * 10, w, 10, C.smog0, 12 - k * 2);
-  return c;
+  // 아치 화구
+  const aw = 34;
+  const ah = 40;
+  const ax = Math.round((w - aw) / 2);
+  const ay = h - ah;
+  rect(g, ax - 4, ay - 6, aw + 8, ah + 6, C.stoneDark);
+  roomWall(g, e, ax, ay, aw, ah, [[ax + aw / 2, h, aw * 0.75, ah * 0.9, 1.4], [ax + aw / 2, h - 6, aw, 10, 0.6]], 0.3, FURNACE, 4);
+  // 아치 머리 (둥글게 깎는다)
+  for (let k = 0; k < 10; k++) {
+    const inset = Math.round(10 - Math.sqrt(100 - (10 - k) * (10 - k)));
+    sil(g, e, ax, ay + k, inset, 1, C.stoneDark);
+    sil(g, e, ax + aw - inset, ay + k, inset, 1, C.stoneDark);
+  }
+  // 반쯤 올린 쇠문 (아래로 빛이 쏟아진다)
+  sil(g, e, ax + 2, ay + 4, aw - 4, 12, C.iron);
+  for (let x = ax + 4; x < ax + aw - 4; x += 5) sil(g, e, x, ay + 5, 1, 10, C.ironLight);
+  glowRect(g, e, ax + 2, ay + 16, aw - 4, 1, C.lampCore, C.lampCore);
+  return { map, glow };
 }
 
 /** 리벳 강판: 판 이음, 리벳 줄, 녹 흘러내림 */
@@ -476,57 +656,109 @@ function paintConcrete(w: number, h: number, seed: number): HTMLCanvasElement {
   return c;
 }
 
-/** 화물선: 검은 선체, 붉은 흘수선, 선교와 굴뚝, 둥근 창 */
-function paintShip(w: number, h: number): HTMLCanvasElement {
-  const [c, g] = canvas(w, h);
+/**
+ * 화물선 (멀리 정박): 검은 선체와 붉은 흘수선, 갑판 위 색 바랜 컨테이너, 하역 기둥, 선교(불 켜진 창 줄, 안에 사람)와 굴뚝,
+ * 갑판등 줄과 둥근 창 몇 개, 돛대 꼭대기 흰빛, 이물 초록·고물 붉은 등
+ */
+function paintShip(w: number, h: number): { map: HTMLCanvasElement; glow: HTMLCanvasElement } {
+  const [map, g] = canvas(w, h);
+  const [glow, e] = canvas(w, h);
+  e.fillStyle = '#000';
+  e.fillRect(0, 0, w, h);
   const deck = h - 64;
   for (let y = deck; y < h; y++) {
     const inset = Math.floor(Math.max(0, (y - deck - 40) * 0.8));
     rect(g, inset, y, w - inset * 2, 1, y > h - 12 ? C.posterRedDark : C.smog0);
   }
   rect(g, 0, deck, w, 2, C.smog2);
-  rect(g, w - 170, deck - 60, 110, 60, C.smog1);
-  rect(g, w - 160, deck - 84, 70, 24, C.smog1);
-  rect(g, w - 130, deck - 120, 20, 36, C.posterRedDark);
+  // 갑판 컨테이너와 하역 기둥
   for (let x = 40; x < w - 200; x += 70) {
     rect(g, x, deck - 40, 50, 40, [C.rust, C.paintTeal, C.paintOchre][(x / 70) % 3 | 0]);
     for (let k = 0; k < 50; k += 4) rect(g, x + k, deck - 40, 1, 40, C.iron);
   }
-  rect(g, w - 60, deck - 30, 2, 30, C.iron);
-  return c;
+  for (const mx of [100, 240]) {
+    rect(g, mx, deck - 90, 3, 90, C.iron);
+    for (let k = 0; k < 40; k++) rect(g, mx + 3 + k, deck - 88 + Math.round(k * 0.9), 1, 1, C.iron);
+    glowRect(g, e, mx, deck - 93, 3, 3, C.lampCore, C.lampCore);
+  }
+  // 선교와 굴뚝
+  const bx = w - 170;
+  rect(g, bx, deck - 60, 110, 60, C.smog1);
+  rect(g, bx + 10, deck - 84, 70, 24, C.smog1);
+  rect(g, bx + 40, deck - 120, 20, 36, C.posterRedDark);
+  rect(g, bx + 40, deck - 120, 20, 3, C.iron);
+  for (let x = bx + 14; x < bx + 76; x += 9) {
+    roomWall(g, e, x, deck - 80, 6, 5, [[x + 3, deck - 80, 6, 6, 0.8]], 0.3, WARM, 2);
+  }
+  sil(g, e, bx + 34, deck - 78, 3, 3);
+  for (let y = deck - 52; y < deck - 8; y += 12) {
+    for (let x = bx + 6; x < bx + 104; x += 10) {
+      if (hash(x * 7 + y) < 0.45) glowRect(g, e, x, y, 4, 4, C.windowLit, '#844018');
+      else rect(g, x, y, 4, 4, C.windowDark);
+    }
+  }
+  // 돛대 (꼭대기 흰빛)
+  rect(g, w - 60, deck - 120, 2, 120, C.iron);
+  glowRect(g, e, w - 61, deck - 123, 4, 3, C.lampCore, C.lampCore);
+  // 갑판등 줄과 둥근 창, 이물·고물 등
+  for (let x = 20; x < w - 20; x += 28) glowRect(g, e, x, deck - 2, 2, 1, C.sodium, '#d4792c');
+  for (let x = 30; x < w - 40; x += 26) if (hash(x * 3) < 0.35) glowRect(g, e, x, deck + 14, 2, 2, C.windowLight, '#d4792c');
+  glowRect(g, e, 6, deck - 6, 3, 3, C.neonGreen, C.neonGreen);
+  glowRect(g, e, w - 10, deck - 6, 3, 3, C.neonRed, C.neonRed);
+  glowRect(g, e, bx + 49, deck - 124, 2, 2, C.neonRed, C.neonRed);
+  return { map, glow };
 }
 
-function paintShipGlow(w: number, h: number): HTMLCanvasElement {
-  const [c, g] = canvas(w, h);
-  const deck = h - 64;
-  for (let x = w - 160; x < w - 70; x += 12) if (hash(x) < 0.6) rect(g, x, deck - 50, 6, 4, C.windowLight);
-  for (let x = 30; x < w - 40; x += 26) if (hash(x * 3) < 0.35) rect(g, x, deck + 14, 2, 2, C.windowLight);
-  rect(g, w - 122, deck - 124, 2, 2, C.neonRed);
-  return c;
-}
-
-/** 골함석 창고: 세로 골, 큰 셔터, 'WAREHOUSE 7' 페인트 글씨 */
-function paintWarehouse(w: number, h: number): HTMLCanvasElement {
-  const [c, g] = canvas(w, h);
+/**
+ * 골함석 창고: 세로 골, 'WAREHOUSE 7' 페인트 글씨, 높은 채광창 줄(몇 칸 불), 셔터 둘 —
+ * 왼쪽은 반쯤 올라가 불 켜진 창고 안(상자 더미·지게차·인부 실루엣)이 보이고, 오른쪽은 닫혀 아래 틈으로만 빛이 샌다. 문 위 거위목 등
+ */
+function paintWarehouse(w: number, h: number): { map: HTMLCanvasElement; glow: HTMLCanvasElement } {
+  const [map, g] = canvas(w, h);
+  const [glow, e] = canvas(w, h);
+  e.fillStyle = '#000';
+  e.fillRect(0, 0, w, h);
   rect(g, 0, 0, w, h, C.paintTeal);
   for (let x = 0; x < w; x += 3) rect(g, x, 0, 1, h, C.smog2);
-  ditherRect(g, 0, 0, w, h, C.smog1, 6);
-  for (const dx of [30, 140]) {
-    rect(g, dx, h - 96, 80, 96, C.iron);
-    for (let y = h - 94; y < h; y += 3) rect(g, dx + 2, y, 76, 1, C.ironLight);
+  for (let k = 0; k < w / 5; k++) rect(g, Math.floor(hash(k * 7 + 3) * w), Math.floor(hash(k * 13) * h * 0.8), 1, 6 + Math.floor(hash(k) * 30), '#2f4a40');
+  weather(g, 0, 0, w, h, 91);
+  // 채광창 줄
+  for (let x = 12; x < w - 12; x += 16) {
+    if (hash(x * 5 + 1) < 0.3) roomWall(g, e, x, 60, 10, 8, [[x + 5, 60, 10, 10, 0.6]], 0.2, WARM, 2);
+    else rect(g, x, 60, 10, 8, C.windowDark);
+    rect(g, x + 5, 60, 1, 8, C.iron);
   }
   rect(g, 20, 24, 210, 22, C.smog1);
   neonText(g, null, 'WAREHOUSE 7', 26, 28, 3, C.paintCream, C.paintCream);
-  weather(g, 0, 0, w, h, 91);
-  return c;
-}
-
-function paintWarehouseGlow(w: number, h: number): HTMLCanvasElement {
-  const [c, g] = canvas(w, h);
-  // 반쯤 열린 셔터 아래로 새는 불빛
-  rect(g, 142, h - 10, 76, 10, C.sodium);
-  ditherRect(g, 142, h - 22, 76, 12, C.sodium, 6);
-  return c;
+  // 왼쪽 셔터: 반쯤 올라갔다 (위 셔터 판, 아래는 불 켜진 창고 안)
+  const lx = 30;
+  const open = 46;
+  rect(g, lx - 4, h - 100, 88, 100, C.iron);
+  roomWall(g, e, lx, h - open, 80, open, [[lx + 24, h - open + 4, 40, 50, 0.9], [lx + 60, h - open + 2, 30, 40, 0.6]], 0.22, WARM, 8);
+  // 상자 더미와 지게차, 인부
+  sil(g, e, lx + 2, h - 26, 22, 26, '#231812');
+  sil(g, e, lx + 6, h - 40, 16, 14, '#231812');
+  glowRect(g, e, lx + 2, h - 27, 22, 1, '#93664c', '#5e2c12');
+  sil(g, e, lx + 46, h - 18, 26, 12, C.iron);
+  sil(g, e, lx + 50, h - 30, 12, 12, C.iron);
+  sil(g, e, lx + 44, h - 34, 2, 30, C.iron);
+  sil(g, e, lx + 40, h - 8, 8, 2, C.iron);
+  for (const wx of [lx + 50, lx + 66]) sil(g, e, wx - 3, h - 7, 7, 7, C.iron);
+  figure(g, e, lx + 33, h, 40, 'hat');
+  for (let y = h - 100; y < h - open; y += 3) rect(g, lx, y, 80, 2, C.ironLight);
+  rect(g, lx, h - open - 3, 80, 3, C.iron);
+  // 오른쪽 셔터: 닫힘, 아래 틈 빛
+  const rx = 140;
+  rect(g, rx - 4, h - 100, 88, 100, C.iron);
+  for (let y = h - 98; y < h; y += 3) rect(g, rx, y, 80, 2, C.ironLight);
+  glowRect(g, e, rx, h - 2, 80, 2, C.windowLight, '#d4792c');
+  // 문 위 거위목 등
+  for (const gx of [lx + 40, rx + 40]) {
+    rect(g, gx, h - 112, 1, 8, C.iron);
+    rect(g, gx - 4, h - 112, 5, 1, C.iron);
+    glowRect(g, e, gx - 7, h - 112, 5, 2, C.lampCore, C.lampGlow);
+  }
+  return { map, glow };
 }
 
 /** 선로 아래 가게 판 자리 (월드 x, 폭) */

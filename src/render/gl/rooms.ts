@@ -39,6 +39,16 @@ export const PINK: RoomRamp = [
   ['#a066a8', '#b42d86'],
 ];
 
+/** 용광로 불빛 (검붉은 어둠 → 주황 → 쇳물의 노란 심) */
+export const FURNACE: RoomRamp = [
+  ['#1c080a', '#0d0405'],
+  ['#2e0c10', '#2e0c10'],
+  ['#62181c', '#62181c'],
+  ['#a82c2a', '#a82c2a'],
+  ['#d4792c', '#ec6046'],
+  ['#ffc16e', '#ffc16e'],
+];
+
 /** 텔레비전 불빛 (푸르스름하게 깜빡이는 방) */
 export const TV: RoomRamp = [
   ['#131a2c', '#04050a'],
