@@ -66,8 +66,9 @@ async function shoot(url) {
 
 const rows = [];
 for (const p of POINTS) {
-  const bq = `?${p.q}${opt.baseQuery ? `&${opt.baseQuery}` : ''}&stopAt=300&ff=1`;
-  const nq = `?${p.q}${opt.new ? `&${opt.new}` : ''}&stopAt=300&ff=1`;
+  // 그래픽 칩이 없는 확인 환경(소프트웨어 그래픽)은 기본이 낮은 품질이라, 두 버전 모두 높은 품질로 고정해 찍는다
+  const bq = `?${p.q}&quality=high${opt.baseQuery ? `&${opt.baseQuery}` : ''}&stopAt=300&ff=1`;
+  const nq = `?${p.q}&quality=high${opt.new ? `&${opt.new}` : ''}&stopAt=300&ff=1`;
   const before = await shoot(`http://localhost:4301/${bq}`);
   const after = await shoot(`http://localhost:4302/${nq}`);
   const page = await browser.newPage();
