@@ -306,3 +306,10 @@ export function paint(g: CanvasRenderingContext2D, x: number, y: number, w: numb
   }
   g.putImageData(img, x, y);
 }
+
+/** 한 가지 색으로 칠한 4×4 그림 (발광 유리·렌즈처럼 무늬 없는 면) */
+export function solidTex(color: string): HTMLCanvasElement {
+  const [c, g] = canvas(4, 4);
+  rect(g, 0, 0, 4, 4, color);
+  return c;
+}

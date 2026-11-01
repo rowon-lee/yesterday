@@ -4,7 +4,7 @@ import { BIG, BREAK_RULES } from '../../stage/citadel';
 import type { CitadelState, PropState } from '../../sim';
 import { textWidth } from '../font';
 import { COLORS as C } from '../palette';
-import { canvas, disc, ditherRect, hash, line, rect } from '../dither';
+import { canvas, disc, ditherRect, hash, line, rect, solidTex } from '../dither';
 import { star } from './backdrops';
 import { scaleAt } from './core';
 import { Beam } from './fx';
@@ -440,12 +440,6 @@ export class Plaza {
     this.checkLight.uniforms.emissiveStrength.value = blink ? 2 : 0;
     if (blink) lightPool.add(CP.x + CP.w / 2, CP.h + 8, -20, 40, C.neonRed, 0.9);
   }
-}
-
-function solidTex(color: string): HTMLCanvasElement {
-  const [c, g] = canvas(4, 4);
-  rect(g, 0, 0, 4, 4, color);
-  return c;
 }
 
 /**

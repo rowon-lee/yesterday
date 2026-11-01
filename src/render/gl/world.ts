@@ -149,6 +149,7 @@ export class World {
     this.big.update(props, tick, p.ix, p.ix + SCREEN_W);
     this.plaza.update(tick, props, citadel);
     this.outskirts.update(tick, p.ix, p.ix + SCREEN_W);
+    this.edges.update(tick);
     this.life.update(tick, p.ix, focusX, clock, props, citadel !== null && citadel.stage === 4);
     // 이펙트 빛 (타격 번쩍임·기력·필살기·부서질 때 불꽃): 싸우는 면 바로 앞
     for (const pt of lights2d.points) lightPool.add(pt.x, GROUND - pt.y, 12, pt.r * 1.3, pt.color, pt.a * 1.6);
