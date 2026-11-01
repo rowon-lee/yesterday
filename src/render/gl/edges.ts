@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CITADEL as D } from '../../data/stages/citadel';
 import { PARK_GATE_W } from '../../stage/citadel';
+import { drawText, textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { canvas, disc, ditherRect, hash, paint, rect } from '../dither';
 import { box, Details, facedBox, plane } from './kit';
@@ -71,7 +72,7 @@ export class Edges {
       const x1 = CT.x1 - (r % 2 ? 0 : 3);
       const y = r * CT.rowH;
       const tex = litMaterial(pixelTexture(paintContainer(x1 - x0, CT.rowH, col, r)));
-      const end = litMaterial(pixelTexture(paintContainer(60, CT.rowH, col, r + 7)), { tint: 0.75 });
+      const end = litMaterial(pixelTexture(paintContainer(60, CT.rowH, col, r + 7)));
       this.group.add(facedBox(x0, x1, y, y + CT.rowH, -110, -0.6, { nx: end, px: end, py: end, pz: tex }));
     }
   }
@@ -227,16 +228,39 @@ export class Edges {
 }
 
 /** 컨테이너 옆면: 골판 줄, 문 잠금 막대, 녹과 그을음 */
+/** 컨테이너 회사 이름 (지어낸 해운사: 색 바랜 글씨) */
+const LINES = ['NORD', 'ATLAS', 'KESTREL', 'ORIENT', 'HALCYON', 'C.S.L', 'MERIDIAN'];
+
+/**
+ * 컨테이너 옆면: 칠한 색마다 한 단계 어두운 골, 빛 받는 윗테와 아래 그늘 면(2칸), 문 쪽 잠금 막대,
+ * 위에서 흘러내린 녹 줄(길이 제각각), 색 바랜 해운사 글씨 (컨테이너마다 다르다, 지침서 '컨테이너마다 색·글자·녹')
+ */
 export function paintContainer(w: number, h: number, color: string, seed: number): HTMLCanvasElement {
   const [c, g] = canvas(w, h);
   rect(g, 0, 0, w, h, color);
-  rect(g, 0, 0, w, 2, C.iron);
-  rect(g, 0, h - 1, w, 1, C.smog0);
-  for (let x = 3; x < w - 2; x += 4) rect(g, x, 3, 1, h - 5, C.iron);
-  rect(g, w - 10, 6, 2, 16, C.iron);
-  rect(g, w - 5, 6, 2, 16, C.iron);
-  for (let k = 0; k < Math.floor(w / 8); k++) rect(g, Math.floor(hash(seed * 31 + k) * w), Math.floor(hash(seed * 17 + k) * h), 2, 1, C.rust);
-  ditherRect(g, 0, 0, w, h, C.smog1, 4);
+  // 골: 같은 색 계열로 한 단계 어둡게 (검은 줄이 외곽선처럼 줄서지 않게)
+  ditherRect(g, 0, 0, w, h, C.smog1, 3, 0, 0, false);
+  for (let x = 3; x < w - 2; x += 4) ditherRect(g, x, 3, 1, h - 6, C.smog0, 6, 0, 0, false);
+  rect(g, 0, 0, w, 1, C.chromeDark);
+  rect(g, 0, 1, w, 1, C.iron);
+  rect(g, 0, h - 2, w, 2, C.smog0);
+  // 문 쪽 잠금 막대 둘 (빛 받는 왼쪽 모서리)
+  for (const lx of [w - 10, w - 5]) {
+    rect(g, lx, 4, 2, h - 8, C.iron);
+    rect(g, lx, 4, 1, h - 8, C.ironLight);
+  }
+  // 녹: 윗테에서 흘러내린 줄
+  for (let k = 0; k < Math.floor(w / 10); k++) {
+    const rx = 2 + Math.floor(hash(seed * 31 + k) * (w - 14));
+    rect(g, rx, 2, 1, 3 + Math.floor(hash(seed * 17 + k) * (h - 8)), C.rust);
+  }
+  // 해운사 글씨 (판이 넓을 때만)
+  if (w >= 50) {
+    const name = LINES[Math.floor(hash(seed * 7 + 3) * LINES.length)];
+    const tx = 4 + Math.floor(hash(seed * 11) * Math.max(1, w - 18 - textWidth(name)));
+    drawText(g, name, tx, Math.floor(h / 2) - 3, C.paintCream, 1);
+    ditherRect(g, tx, Math.floor(h / 2) - 3, textWidth(name), 5, color, 6, 0, 0, false);
+  }
   return c;
 }
 
