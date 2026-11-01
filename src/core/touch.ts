@@ -31,6 +31,11 @@ class TouchControls {
     typeof window !== 'undefined' &&
     (new URLSearchParams(location.search).get('touch') === '1' || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
 
+  /** 지금 화면에 터치 버튼이 떠 있나 */
+  get shown(): boolean {
+    return this.available && this.wanted;
+  }
+
   /** 대련 장면은 켜고, 타이틀 같은 메뉴 화면은 끈다 */
   enable(on: boolean): void {
     this.wanted = on;

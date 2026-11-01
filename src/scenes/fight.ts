@@ -313,18 +313,23 @@ export function fightScene(app?: App): Scene {
     if (cutin && !cutin.video) drawCutin(ctx, { ...cutin, length: RULES.SUPER_FREEZE });
     // 필살기 발동 정지·연출 중: 위아래 검은 띠, HUD는 감춘다
     if (s.cine) letterbox(ctx, s.tick - cineStart);
-    else if (!cutin) hud.draw(ctx, s);
+    else if (!cutin) {
+      hud.meterTop = touch.shown;
+      hud.draw(ctx, s);
+    }
     if (s.phase === 'matchEnd' && s.phaseT > 120 && !p1Cpu) {
       panel(ctx, SCREEN_W / 2 - 60, 150, 120, endMenu.items.length * 16 + 12);
       endMenu.draw(ctx, SCREEN_W / 2, 157, s.tick);
     }
     if (paused) {
       // 멈춘 화면 위에 어두운 판과 메뉴
-      if (showControls) drawControls(ctx);
-      else {
+      if (showControls) {
+        drawControls(ctx);
+        hintBar(ctx, touch.shown ? 'TAP TO CLOSE' : 'ANY KEY: CLOSE', SCREEN_H - 14);
+      } else {
         panel(ctx, SCREEN_W / 2 - 64, 88, 128, pauseMenu.items.length * 16 + 26);
         pauseMenu.draw(ctx, SCREEN_W / 2, 95, s.tick);
-        hintBar(ctx, 'J: SELECT   P / ESC: RESUME', SCREEN_H - 14);
+        hintBar(ctx, touch.shown ? 'TAP TO SELECT   II: RESUME' : 'J: SELECT   P / ESC: RESUME', SCREEN_H - 14);
       }
     }
   };

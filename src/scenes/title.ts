@@ -86,12 +86,13 @@ export function titleScene(app: App): Scene {
       drawTitle(ctx, tick);
       if (showControls) {
         drawControls(ctx);
+        hintBar(ctx, touch.available ? 'TAP TO CLOSE' : 'ANY KEY: CLOSE', SCREEN_H - 14);
         return;
       }
       const h = menu.items.length * 16 + (menu.title ? GLYPH_H + 7 : 0);
       panel(ctx, SCREEN_W / 2 - 86, 118, 172, h + 16);
       menu.draw(ctx, SCREEN_W / 2, 126, tick);
-      hintBar(ctx, 'W S: MOVE   J: SELECT   K: BACK   OR TAP', SCREEN_H - 14);
+      hintBar(ctx, touch.available ? 'TAP TO SELECT' : 'W S: MOVE   J: SELECT   K: BACK   OR TAP', SCREEN_H - 14);
     },
   };
 }
@@ -118,17 +119,28 @@ function drawTitle(ctx: CanvasRenderingContext2D, tick: number): void {
   drawText(ctx, sub, Math.round((SCREEN_W - sw) / 2), y + GLYPH_H * s + 8, (tick >> 5) % 8 === 0 ? COLORS.goldLight : COLORS.gold, 2);
 }
 
-/** 조작법 (키보드). 아무 키나 누르면 닫힌다 */
+/** 조작법 (키보드, 터치 기기면 터치). 아무 키나 누르거나 화면을 누르면 닫힌다 */
 export function drawControls(ctx: CanvasRenderingContext2D): void {
-  const rows: Array<[string, string]> = [
-    ['MOVE', 'W A S D / ARROWS'],
-    ['ATTACK', 'J   HOLD J: CHARGE'],
-    ['JUMP', 'K'],
-    ['DASH', 'L'],
-    ['SKILL 1 / 2', 'U / I'],
-    ['SUPER', 'O'],
-    ['PAUSE', 'P / ESC'],
-  ];
+  const rows: Array<[string, string]> = touch.available
+    ? [
+        ['MOVE', 'LEFT PAD'],
+        ['GUARD', 'HOLD PAD DOWN'],
+        ['ATTACK', 'TAP   HOLD: CHARGE'],
+        ['JUMP / DASH', 'RIGHT BUTTONS'],
+        ['SKILL 1 / 2', 'TOP ROW'],
+        ['SUPER', 'TOP ROW RIGHT'],
+        ['PAUSE', 'II AT TOP'],
+      ]
+    : [
+        ['MOVE', 'W A S D / ARROWS'],
+        ['GUARD', 'HOLD S / DOWN'],
+        ['ATTACK', 'J   HOLD J: CHARGE'],
+        ['JUMP', 'K'],
+        ['DASH', 'L'],
+        ['SKILL 1 / 2', 'U / I'],
+        ['SUPER', 'O'],
+        ['PAUSE', 'P / ESC'],
+      ];
   const x = SCREEN_W / 2 - 120;
   const y = 104;
   panel(ctx, x, y, 240, rows.length * 13 + 30);
