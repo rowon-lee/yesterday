@@ -25,6 +25,14 @@ const P = D.plaza;
 const K = P.keep;
 const T = P.tower;
 const W = K.x1 - K.x0;
+/**
+ * 본관을 그리는 높이 (렌더 전용). 시타델은 80층 가까운 초고층이라(2026-11-01 사용자 결정) 커튼월이 화면 위로 계속 이어진다:
+ * 카메라가 가장 높이 올라가도 본관 깊이에서 약 550px까지만 보이므로 760까지 그려 두면 꼭대기는 늘 화면 밖이다.
+ * sim의 시타델 판정 높이(D.plaza.keep.h)는 그대로 둔다.
+ */
+export const KEEP_VIS_H = 760;
+/** 무너질 때 덩어리가 내려앉는 빠르기 배율: 그리는 높이가 커져도 다 내려앉는 데 걸리는 틱은 그대로 */
+const FALL_K = (KEEP_VIS_H + 40) / (K.h + 40);
 
 /** 광장 그림(plaza.ts)이 넘겨주는 본관과 묻히는 것들 */
 export interface KeepParts {
@@ -89,7 +97,7 @@ export class KeepFall {
     const z = parts.keepZ;
     this.sk = scaleAt(z);
     this.tw = Math.round(W * this.sk);
-    this.th = Math.round(K.h * this.sk);
+    this.th = Math.round(KEEP_VIS_H * this.sk);
     // 1) 본관 정면 덧그림 (단계마다 다시 그린다): 덩어리마다 그 몫의 판을 앞에 붙여 함께 무너진다
     const [c] = canvas(this.tw, this.th);
     const [glow] = canvas(this.tw, this.th);
@@ -97,17 +105,17 @@ export class KeepFall {
     const gtex = pixelTexture(glow);
     const mat = litMaterial(tex, { emissive: gtex, emissiveStrength: 0 });
     this.overlay = { c, glow, tex, gtex, mat };
-    this.overlayWhole = plane(K.x0, K.x1, 0, K.h, z + 0.6, mat);
+    this.overlayWhole = plane(K.x0, K.x1, 0, KEEP_VIS_H, z + 0.6, mat);
     this.overlayWhole.visible = false;
     this.group.add(this.overlayWhole);
     parts.slabs.forEach((slab, i) => {
       const [x0, x1] = parts.slabX[i];
-      const geo = new THREE.PlaneGeometry(x1 - x0, K.h);
+      const geo = new THREE.PlaneGeometry(x1 - x0, KEEP_VIS_H);
       const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
       for (let k = 0; k < uv.count; k++) uv.setX(k, ((uv.getX(k) ? x1 : x0) - K.x0) / W);
       const m = new THREE.Mesh(geo, mat);
       // 덩어리 자리(밑변 가운데) 기준: 정면 바로 앞
-      m.position.set(0, K.h / 2, z + 0.6 - slab.position.z);
+      m.position.set(0, KEEP_VIS_H / 2, z + 0.6 - slab.position.z);
       slab.add(m);
     });
     // 2) 기둥탑 앞면 금 (단계마다)
@@ -224,12 +232,12 @@ export class KeepFall {
       const cx = (x0 + x1) / 2;
       const delay = 2 + Math.abs(cx - (K.x0 + W / 2)) / W * 26 + hash(i * 31 + 7) * 6;
       const q = Math.max(0, p - delay);
-      const fall = 0.5 * 0.11 * q * q;
+      const fall = 0.5 * 0.11 * q * q * FALL_K;
       const lean = (i < slabs.length / 2 ? -1 : 1) * (0.03 + 0.03 * hash(i * 13 + 3));
       m.position.y = -fall;
       m.position.x = cx + lean * fall * 0.4;
-      m.rotation.z = -lean * Math.min(1, q / 30) * 1.4;
-      m.visible = down && fall < K.h + 40;
+      m.rotation.z = (-lean * Math.min(1, q / 30) * 1.4) / FALL_K;
+      m.visible = down && fall < KEEP_VIS_H + 40;
     });
     // 먼 겹의 탑: 본관 가운데 덩어리보다 조금 늦게, 같은 화면 높이만큼 내려앉는다
     if (this.tower) {
@@ -315,7 +323,7 @@ function paintDamage(c: HTMLCanvasElement, glow: HTMLCanvasElement, stage: numbe
   e.fillRect(0, 0, glow.width, glow.height);
   if (stage <= 0) return;
   const X = (x: number) => Math.round((x - K.x0) * sk);
-  const Y = (h: number) => Math.round((K.h - h) * sk);
+  const Y = (h: number) => Math.round((KEEP_VIS_H - h) * sk);
   // 1단계부터: 로비와 아래층 커튼월을 타고 오르는 금 (싸우는 화면에 보이는 높이)
   const cracks = stage === 1 ? 16 : stage === 2 ? 26 : 36;
   for (let i = 0; i < cracks; i++) {
@@ -325,7 +333,7 @@ function paintDamage(c: HTMLCanvasElement, glow: HTMLCanvasElement, stage: numbe
   }
   if (stage >= 2) {
     // 깨진 유리: 커튼월 칸 다섯에 둘쯤 어두운 구멍, 가장자리에 남은 유리 조각
-    for (let f = 0; 162 + (f + 1) * K.floor < K.h - 14; f++) {
+    for (let f = 0; 162 + (f + 1) * K.floor < KEEP_VIS_H - 14; f++) {
       const fb = 162 + f * K.floor;
       for (let x: number = K.x0; x < K.x1; x += K.pane) {
         if (hash(f * 131 + x * 7) > 0.38) continue;

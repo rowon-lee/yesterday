@@ -286,7 +286,7 @@ export class Life {
     rect(bg, 0, 3, 8, 2, C.neonRed);
     disc(bg, 12, 4, 3, C.lampWarm);
     disc(bg, 12, 4, 1, C.lampCore);
-    this.beacons = new FarSprites(8, bc, 2, 1, 0, 1.6);
+    this.beacons = new FarSprites(12, bc, 2, 1, 0, 1.6);
     this.group.add(this.walkerSprites.mesh, this.smoke.mesh, this.beacons.mesh);
     // 시타델 탑 왕관 서치라이트 (먼 겹 깊이에 겹 배율만큼 크게)
     const ks = D.keep.speed;
