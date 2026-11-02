@@ -1,0 +1,142 @@
+# 에이전트 무인 실행 (안내: docs/tasks/에이전트실행.md).
+# GitHub 웹(휴대폰 포함)에서 Actions → "에이전트 실행" → Run workflow로 돌린다.
+# 지시문 파일을 Claude Agent SDK(scripts/agent-run.mjs)로 실행하고, 바뀐 파일을 커밋해 PR로 올린다.
+# 키는 API 크레딧용 작업 공간 키(secrets.ANTHROPIC_API_KEY_CREDITS). 공식 claude-code-action은 쓰지 않는다.
+name: 에이전트 실행
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_file:
+        description: 지시문 파일 (저장소 안 경로)
+        required: true
+        default: docs/tasks/next.md
+      note:
+        description: 지난 결과에 대한 짧은 피드백 (한 줄, 선택). 지시문 뒤에 붙는다
+        required: false
+        default: ''
+      branch:
+        description: 작업할 브랜치. main이면 agent/날짜-시간 새 브랜치와 새 PR, PR 브랜치면 그 PR에 커밋만 더한다
+        required: true
+        default: main
+      model:
+        description: 모델
+        required: true
+        default: claude-opus-5-5
+      max_turns:
+        description: 최대 턴 수
+        required: true
+        default: '200'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# 같은 브랜치에서 두 실행이 겹치지 않게 (앞 실행이 끝날 때까지 기다린다)
+concurrency:
+  group: agent-run-${{ inputs.branch }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    # 입력값은 셸 명령에 직접 끼우지 않고 환경변수로만 넘긴다 (입력칸의 글자가 명령으로 실행되지 않게)
+    env:
+      TASK_FILE: ${{ inputs.task_file }}
+      NOTE: ${{ inputs.note }}
+      BASE_BRANCH: ${{ inputs.branch }}
+      MODEL: ${{ inputs.model }}
+      MAX_TURNS: ${{ inputs.max_turns }}
+    steps:
+      # 푸시 권한은 마지막 커밋 단계에만 준다 (에이전트가 직접 푸시하지 못하게)
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # npm run shot · sheets · compare가 쓰는 브라우저
+      - name: Playwright 브라우저 설치
+        run: npx playwright install --with-deps chromium
+
+      - name: 작업 브랜치 정하기
+        id: branch
+        run: |
+          if [ "$BASE_BRANCH" = "main" ]; then
+            name="agent/$(TZ=Asia/Seoul date +%Y%m%d-%H%M%S)"
+            git switch -c "$name"
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          else
+            name="$BASE_BRANCH"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "작업 브랜치: $name"
+
+      - name: 에이전트 실행
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_CREDITS }}
+          AGENT_BRANCH: ${{ steps.branch.outputs.name }}
+        run: node scripts/agent-run.mjs
+
+      # 에이전트가 실패하거나 최대 턴에 닿아도 바뀐 것은 남긴다
+      - name: 커밋·푸시·PR
+        if: always() && steps.branch.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          NEW_BRANCH: ${{ steps.branch.outputs.new }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          title="$(head -n1 .agent/title.txt 2>/dev/null || true)"
+          [ -n "$title" ] || title="$(head -n1 "$TASK_FILE" | sed -E 's/^#+[[:space:]]*//')"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "바뀐 파일이 없어 커밋·PR을 건너뛴다." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git commit -q -m "$title" -m "에이전트 실행: 모델 $MODEL, 지시문 $TASK_FILE${NOTE:+, 메모: $NOTE}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$BRANCH"
+
+          # PR 설명 = 에이전트가 쓴 .agent/pr-body.md + 맨 아래 비용·토큰
+          body=.agent/pr-final.md
+          {
+            cat .agent/pr-body.md 2>/dev/null || echo "(에이전트가 .agent/pr-body.md를 쓰지 않았다)"
+            printf '\n---\n\n'
+            cat .agent/cost.md 2>/dev/null || echo "(비용 기록 없음)"
+          } > "$body"
+
+          num=""
+          if [ "$NEW_BRANCH" != "true" ]; then
+            num="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          fi
+          if [ -z "$num" ]; then
+            url="$(gh pr create --base main --head "$BRANCH" --title "$title" --body-file "$body")"
+            echo "PR: $url" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            # 이어서 고친 실행: 같은 PR 설명 아래에 이번 실행을 덧붙인다 (설명이 너무 길면 댓글로)
+            gh pr view "$num" --json body --jq .body > .agent/old-body.md
+            {
+              cat .agent/old-body.md
+              printf '\n\n---\n\n## 이어서 실행 (%s)%s\n\n' "$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M')" "${NOTE:+ — 메모: $NOTE}"
+              cat "$body"
+            } > .agent/new-body.md
+            if [ "$(wc -c < .agent/new-body.md)" -lt 60000 ]; then
+              gh pr edit "$num" --body-file .agent/new-body.md
+            else
+              gh pr comment "$num" --body-file "$body"
+            fi
+            echo "PR #$num 에 커밋을 더했다." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
