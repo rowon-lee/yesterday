@@ -1,0 +1,260 @@
+import type { MotionData } from '../../../anim/motion';
+import type { Pose } from '../../../anim/pose';
+import { STANCE } from '../stance';
+import { R, R_STANCE } from './stance';
+
+/*
+ * 라이덴 스킬·필살기 (캐릭터 기획서 '버튼', '필살기 연출'). 모두 128×96 칸 (동작연출지침서 1장).
+ * 기본자세에서 시작해 기본자세로 끝난다. 수치는 data/characters/raiden.ts의 moves.
+ */
+
+// ---- 스킬 1: 잔흔 (붉은 잔상을 남기며 앞으로 순간이동해 들어가, 나타나자마자 머리 높이로 하이킥) ----
+/** 몸을 낮게 숙여 웅크린다: 이 자세가 떠난 자리에 붉은 잔상으로 남는다 */
+const ZH_PREP = R({ hx: 1, hy: -14.5, tl: 32, hd: 6, aFx: 11, aFy: -1, aBx: 6, aBy: 3, lFx: 12, lBx: -12 });
+/** 나타남: 상대 앞에 낮게 웅크린 채 나타난다 (뒷다리에 힘을 싣는다) */
+const ZH_ARRIVE = R({ hx: 2.5, hy: -14, tl: 26, hd: 2, aFx: 12, aFy: -3, aBx: 7, aBy: 2, lFx: 9, lBx: -13 });
+/** 감기 (멈칫): 솟으며 뒷무릎을 가슴 앞으로 높이 끌어올린다 (앞발 하나로 버팀) */
+const ZH_CHAMBER = R({ hx: 2, hy: -21, tl: -4, hd: 10, aFx: 10, aFy: -8, aBx: 0, aBy: 6, lFx: 3, lBx: 5.5, lBy: -17 });
+/** 스미어: 정강이가 채찍처럼 머리 높이로 펴진다 (그림은 뒷다리 1.35배) */
+const ZH_SMEAR = R({ hx: 3, hy: -22, tl: -14, hd: 16, aFx: 9, aFy: -10, aBx: -9, aBy: 5, lFx: 1, lBx: 16, lBy: -34 });
+/** 타격: 뒷다리를 머리 높이로 끝까지 휘둘러 찬다: 몸을 뒤로 크게 젖히고 앞손은 얼굴, 뒷손은 뒤로 뻗어 균형 */
+const ZH_KICK = R({ hx: 3.5, hy: -22.5, tl: -20, hd: 20, aFx: 9, aFy: -10, aBx: -12, aBy: 3, lFx: -1, lBx: 21, lBy: -39 });
+const ZH_KICK2 = R({ hx: 4, hy: -22.5, tl: -21, hd: 21, aFx: 9, aFy: -10, aBx: -12.5, aBy: 2, lFx: -1, lBx: 22, lBy: -40 });
+/** 지나치기: 찬 다리가 한 박 더 위로 휘어 지나간다 */
+const ZH_OVER = R({ hx: 3.5, hy: -22.5, tl: -24, hd: 22, aFx: 9, aFy: -10, aBx: -12, aBy: 0, lFx: -1, lBx: 18, lBy: -43 });
+const ZH_HOLD = R({ hx: 3.5, hy: -22, tl: -21, hd: 21, aFx: 9, aFy: -10, aBx: -11, aBy: 2, lFx: -1, lBx: 19.5, lBy: -40 });
+/** 다리를 접어 거둔다 */
+const ZH_RETRACT = R({ hx: 2.5, hy: -20.5, tl: -6, hd: 12, aFx: 10, aFy: -8, aBx: -3, aBy: 5, lFx: 0, lBx: 7, lBy: -14 });
+/** 뒤로 내려 딛는다 */
+const ZH_STEPDOWN = R({ hx: 1, hy: -19, tl: 8, hd: 9, aFx: 11, aFy: -6, aBx: 5, aBy: 1, lFx: 4, lBx: -9, lBy: -2 });
+
+/**
+ * 스킬 1 잔흔 (128×96): 낮게 웅크렸다(2프레임) 사라져 3프레임이 시작하는 틱에 앞으로 순간이동해 웅크린 채 나타나고(3)
+ * 뒷무릎을 끌어올렸다가(4, 멈칫) 스미어(5) → 머리 높이로 크게 휘둘러 찬다(6~7프레임 판정) → 지나치기 → 여운 → 내려 딛기. 13프레임 26틱
+ */
+export const RAIDEN_ZANHEN: MotionData = {
+  name: 'raiden/zanhen',
+  label: '라이덴 스킬 1 잔흔',
+  wide: true,
+  smear: { frame: 4, limb: 'lB', stretch: 1.35 },
+  dur: [1, 2, 2, 2, 1, 2, 1, 2, 4, 3, 2, 2, 2],
+  keys: [
+    { at: 0, pose: R_STANCE },
+    { at: 1, pose: ZH_PREP, stop: true },
+    { at: 2, pose: ZH_ARRIVE, stop: true },
+    { at: 3, pose: ZH_CHAMBER, stop: true },
+    { at: 4, pose: ZH_SMEAR },
+    { at: 5, pose: ZH_KICK },
+    { at: 6, pose: ZH_KICK2 },
+    { at: 7, pose: ZH_OVER },
+    { at: 8, pose: ZH_HOLD, stop: true },
+    { at: 9, pose: ZH_RETRACT },
+    { at: 10, pose: ZH_STEPDOWN },
+    { at: 12, pose: R_STANCE },
+  ],
+};
+
+// ---- 스킬 2: 화과산 (숨을 내쉬며 몸 주변으로 스파크를 터뜨려 붙은 상대를 크게 밀어낸다) ----
+/** 들숨: 두 팔을 가슴 앞으로 모아 교차하고 다리를 벌린다 */
+const HG_INHALE = R({ hx: -1.5, hy: -18, tl: 6, hd: -4, aFx: 4, aFy: 6, aBx: 8, aBy: 4, lFx: 10, lBx: -11 });
+/** 모음 (멈칫): 몸을 웅크려 고개를 숙이고 두 팔을 가슴에 단단히 붙인다 (전류를 몸 안에 가둔다) */
+const HG_GATHER = R({ hx: -2, hy: -15, tl: 14, hd: 14, aFx: 2, aFy: 8, aBx: 6, aBy: 7, lFx: 11, lBx: -12 });
+/** 터짐: 가슴을 펴며 두 팔을 앞뒤로 활짝 내던진다 (날숨) */
+const HG_BURST = R({ hx: -1, hy: -20, tl: -6, hd: -10, aFx: 16, aFy: -6, aBx: -14, aBy: -6, lFx: 12, lBx: -13 });
+/** 판정: 고개를 젖히며 숨을 내뿜고 두 팔을 끝까지 벌린다. 다리는 넓게 버틴다 */
+const HG_HIT = R({ hx: -1, hy: -21, tl: -10, hd: -16, aFx: 17, aFy: -3, aBx: -16.5, aBy: -3, lFx: 13, lBx: -14 });
+const HG_HIT2 = R({ hx: -1, hy: -21, tl: -11, hd: -17, aFx: 17.5, aFy: -2, aBx: -17, aBy: -2, lFx: 13, lBx: -14 });
+const HG_OVER = R({ hx: -1, hy: -21.5, tl: -12, hd: -18, aFx: 17.5, aFy: -1, aBx: -17, aBy: -1, lFx: 13, lBx: -14 });
+/** 여운: 팔을 내리며 숨을 고른다 */
+const HG_HOLD = R({ hx: -1, hy: -20.5, tl: -8, hd: -12, aFx: 15, aFy: 3, aBx: -14, aBy: 3, lFx: 13, lBx: -14 });
+const HG_BACK = R({ hx: -1, hy: -18.5, tl: 6, hd: 4, aFx: 11, aFy: -2, aBx: 3, aBy: 2, lFx: 11, lBx: -11 });
+const HG_BACK2 = R({ hx: -0.5, hy: -18.5, tl: 12, hd: 7, aFx: 12.5, aFy: -3.5, aBx: 7, aBy: 0, lFx: 9, lBx: -10 });
+
+/** 스킬 2 화과산 (128×96): 들숨(2) → 웅크려 모음(3, 멈칫) → 터짐(4) → 두 팔을 벌려 내뿜기(5~7프레임 판정) → 여운 → 가드. 13프레임 28틱 */
+export const RAIDEN_HWAGWASAN: MotionData = {
+  name: 'raiden/hwagwasan',
+  label: '라이덴 스킬 2 화과산',
+  wide: true,
+  dur: [1, 2, 3, 1, 2, 1, 2, 4, 3, 3, 2, 2, 2],
+  keys: [
+    { at: 0, pose: R_STANCE },
+    { at: 1, pose: HG_INHALE },
+    { at: 2, pose: HG_GATHER, stop: true },
+    { at: 3, pose: HG_BURST },
+    { at: 4, pose: HG_HIT },
+    { at: 5, pose: HG_HIT2 },
+    { at: 6, pose: HG_OVER },
+    { at: 7, pose: HG_OVER, stop: true },
+    { at: 8, pose: HG_HOLD },
+    { at: 9, pose: HG_BACK },
+    { at: 10, pose: HG_BACK2 },
+    { at: 12, pose: R_STANCE },
+  ],
+};
+
+// ---- 필살기: 파천 (검붉은 전격을 두른 붕권. 맞으면 상대 몸통에 주먹을 댄 채 멈추고, 몸 안에서 터진 전격이 등 뒤로 뚫고 나간다) ----
+/** 가라앉으며 뒷주먹을 허리로 당기고 (세운 주먹), 앞손을 펴 앞으로 겨눈다 */
+const PC_SINK = R({ hx: -1, hy: -16, tl: 12, hd: 8, tw: 2, aFx: 13, aFy: -3, aBx: -3, aBy: 11, lFx: 11, lBx: -11 });
+/** 감기 끝 (멈칫): 낮게 버텨 앉고 (마보), 뒷주먹은 허리, 앞손은 상대를 겨눈다. 몸에 검붉은 전격이 감긴다 */
+const PC_LOAD = R({ hx: -2, hy: -13, tl: 10, hd: 10, tw: 3, aFx: 14, aFy: -2, aBx: -4, aBy: 12, lFx: 12, lBx: -13 });
+/** 진각: 앞발을 들었다가 내리찍으며 무게를 앞으로 옮긴다 */
+const PC_STOMP = R({ hx: 1, hy: -12.5, tl: 16, hd: 8, tw: 1, aFx: 12, aFy: 0, aBx: -2, aBy: 11, lFx: 16, lFy: -2, lBx: -12 });
+/** 스미어: 허리를 틀며 뒷주먹이 쏘아져 나간다 (그림은 뒷팔 1.45배), 앞손은 가슴으로 거둔다 */
+const PC_SMEAR = R({ hx: 3.5, hy: -13, tl: 22, hd: 8, tw: -4, aFx: 4, aFy: 3, aBx: 14, aBy: -5, lFx: 19, lBx: -11 });
+/** 타격: 짧고 곧은 세운 주먹 (붕권). 뒷어깨가 앞장서고, 앞발은 진각으로 디딘 채, 뒷발은 뒤로 버틴다 */
+const PC_HIT = R({ hx: 5, hy: -13, tl: 32, hd: 6, tw: -6, aFx: 2, aFy: 4, aBx: 15.8, aBy: -8.2, lFx: 20, lBx: -14 });
+const PC_HIT2 = R({ hx: 5.5, hy: -13, tl: 33, hd: 6, tw: -6.5, aFx: 2, aFy: 4, aBx: 16.2, aBy: -8.2, lFx: 20, lBx: -14.5 });
+const PC_OVER = R({ hx: 6, hy: -12.8, tl: 35, hd: 6, tw: -7, aFx: 2, aFy: 4, aBx: 16.5, aBy: -7.6, lFx: 20, lBx: -15 });
+const PC_HOLD = R({ hx: 5.5, hy: -13, tl: 33, hd: 6, tw: -6, aFx: 2, aFy: 4, aBx: 16.1, aBy: -7.6, lFx: 20, lBx: -14.5 });
+const PC_BACK = R({ hx: 3, hy: -16, tl: 20, hd: 8, tw: -2, aFx: 9, aFy: -2, aBx: 10, aBy: -2, lFx: 15, lBx: -10 });
+const PC_BACK2 = R({ hx: 1, hy: -18, tl: 16, hd: 8, aFx: 12, aFy: -4, aBx: 8.5, aBy: 0, lFx: 11, lBx: -9.5 });
+
+/**
+ * 필살기 파천 (128×96): 가라앉기(2) → 마보로 버티며 감기(3, 멈칫) → 진각(4) → 스미어(5) → 붕권(6~8프레임 판정) → 여운 → 가드.
+ * 맞으면 연출(파천 장면 셋)로, 빗나가면 풍압이 앞으로 날아가고 큰 빈틈. 14프레임 33틱
+ */
+export const RAIDEN_PACHEON: MotionData = {
+  name: 'raiden/pacheon',
+  label: '라이덴 필살기 파천',
+  wide: true,
+  smear: { frame: 4, limb: 'aB', stretch: 1.45 },
+  dur: [1, 2, 3, 3, 1, 2, 2, 2, 4, 3, 3, 3, 2, 2],
+  keys: [
+    { at: 0, pose: R_STANCE },
+    { at: 1, pose: PC_SINK },
+    { at: 2, pose: PC_LOAD, stop: true },
+    { at: 3, pose: PC_STOMP },
+    { at: 4, pose: PC_SMEAR },
+    { at: 5, pose: PC_HIT },
+    { at: 6, pose: PC_HIT2 },
+    { at: 7, pose: PC_OVER },
+    { at: 8, pose: PC_OVER, stop: true },
+    { at: 9, pose: PC_HOLD },
+    { at: 10, pose: PC_BACK },
+    { at: 12, pose: PC_BACK2 },
+    { at: 13, pose: R_STANCE },
+  ],
+};
+
+// ---- 파천 연출 (캐릭터 기획서 '필살기 연출'): 장면 하나 = 라이덴 동작 + 상대 반응 동작 (표시 틱 합이 같다) ----
+// 상대 반응은 누가 맞든 같은 동작이다 (공통 기준 자세 STANCE에서 바뀐 만큼, 그리는 겉모습은 맞은 사람 것)
+const S = (o: Partial<Pose>): Pose => ({ ...STANCE, ...o });
+
+// 장면 1 (붕권을 대고 멈춘다): 라이덴은 주먹을 상대 몸통에 댄 채 굳고, 주먹 끝에서 전격이 상대 몸 안으로 스며든다 (미세한 떨림)
+const PP_A = R({ hx: 5, hy: -13, tl: 32, hd: 6, tw: -6, aFx: 2, aFy: 4, aBx: 15.8, aBy: -8.2, lFx: 20, lBx: -14 });
+const PP_B = R({ hx: 5.3, hy: -13.2, tl: 33, hd: 7, tw: -6.2, aFx: 2, aFy: 4, aBx: 16, aBy: -8, lFx: 20, lBx: -14 });
+/** 파천 장면 1: 라이덴 — 주먹을 댄 채 멈춤 (14프레임 42틱, 떨림) */
+export const RAIDEN_PACHEON_PRESS: MotionData = {
+  name: 'raiden/pacheon_press',
+  label: '라이덴 파천 연출 1 (붕권을 대고 멈춤)',
+  wide: true,
+  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  keys: [
+    { at: 0, pose: PP_A },
+    { at: 2, pose: PP_B },
+    { at: 4, pose: PP_A },
+    { at: 6, pose: PP_B },
+    { at: 8, pose: PP_A },
+    { at: 10, pose: PP_B },
+    { at: 13, pose: PP_A },
+  ],
+};
+/** 상대 반응 1: 주먹이 박힌 배를 중심으로 몸이 굳어 살짝 접히고, 몸 안을 도는 전격에 팔다리가 경련한다 */
+const RX1_A = S({ hx: -1, hy: -19, tl: 24, hd: 10, aFx: 5, aFy: 7, aBx: 3, aBy: 9, lFx: 8, lBx: -10 });
+const RX1_B = S({ hx: -1.5, hy: -18.5, tl: 18, hd: -14, aFx: 10, aFy: -4, aBx: -5, aBy: 2, lFx: 8, lBx: -10 });
+const RX1_C = S({ hx: -1, hy: -19, tl: 22, hd: 4, aFx: 4, aFy: 10, aBx: 6, aBy: 6, lFx: 9, lBx: -9 });
+/** 파천 장면 1: 상대 반응 — 몸이 굳고 경련 (14프레임 42틱) */
+export const RAIDEN_PACHEON_REACT1: MotionData = {
+  name: 'raiden/pacheon_react1',
+  label: '파천 상대 반응 1 (몸 안의 전격에 굳음)',
+  wide: true,
+  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  keys: [
+    { at: 0, pose: RX1_A },
+    { at: 2, pose: RX1_B },
+    { at: 3, pose: RX1_C },
+    { at: 5, pose: RX1_B },
+    { at: 6, pose: RX1_A },
+    { at: 8, pose: RX1_B },
+    { at: 9, pose: RX1_C },
+    { at: 11, pose: RX1_B },
+    { at: 13, pose: RX1_A },
+  ],
+};
+
+// 장면 2 (등 뒤로 터져 나간다): 라이덴이 허리를 틀어 한 번 더 밀어 넣고, 상대 몸 안의 전격이 등 뒤로 뚫고 나가며 상대는 활처럼 젖혀진다
+const PB_DRIVE = R({ hx: 6.5, hy: -12.5, tl: 36, hd: 6, tw: -7, aFx: 2, aFy: 4, aBx: 16.6, aBy: -7.6, lFx: 21, lBx: -15 });
+const PB_HOLD = R({ hx: 6.5, hy: -12.8, tl: 35, hd: 7, tw: -7, aFx: 2, aFy: 4, aBx: 16.4, aBy: -7.6, lFx: 21, lBx: -15 });
+/** 파천 장면 2: 라이덴 — 허리를 틀어 밀어 넣고 굳힘 (13프레임 36틱) */
+export const RAIDEN_PACHEON_BURST: MotionData = {
+  name: 'raiden/pacheon_burst',
+  label: '라이덴 파천 연출 2 (밀어 넣기)',
+  wide: true,
+  dur: [2, 2, 1, 1, 2, 4, 4, 4, 4, 3, 3, 3, 3],
+  keys: [
+    { at: 0, pose: PP_A },
+    { at: 2, pose: PB_DRIVE },
+    { at: 4, pose: PB_DRIVE, stop: true },
+    { at: 12, pose: PB_HOLD },
+  ],
+};
+/** 상대 반응 2: 등 뒤로 전격이 터져 나가며 가슴이 앞으로 튀어나오고 몸이 활처럼 뒤로 젖혀진다 (팔은 앞으로 내던져진다) */
+const RX2_JOLT = S({ hx: -2, hy: -19, tl: 20, hd: 16, aFx: 6, aFy: 8, aBx: 4, aBy: 10, lFx: 8, lBx: -10 });
+const RX2_ARCH = S({ hx: -5, hy: -18, tl: -36, hd: -24, aFx: 15, aFy: -10, aBx: 12, aBy: -13, lFx: 9, lBx: -13 });
+const RX2_ARCH2 = S({ hx: -5.5, hy: -17.5, tl: -40, hd: -28, aFx: 16, aFy: -8, aBx: 13, aBy: -11, lFx: 9, lBx: -14 });
+/** 파천 장면 2: 상대 반응 — 활처럼 젖혀짐 (13프레임 36틱) */
+export const RAIDEN_PACHEON_REACT2: MotionData = {
+  name: 'raiden/pacheon_react2',
+  label: '파천 상대 반응 2 (등 뒤로 터짐)',
+  wide: true,
+  dur: [2, 2, 1, 1, 2, 4, 4, 4, 4, 3, 3, 3, 3],
+  keys: [
+    { at: 0, pose: RX1_A },
+    { at: 2, pose: RX2_JOLT },
+    { at: 3, pose: RX2_ARCH },
+    { at: 5, pose: RX2_ARCH2, stop: true },
+    { at: 9, pose: RX2_ARCH },
+    { at: 12, pose: RX2_ARCH2 },
+  ],
+};
+
+// 장면 3 (상대가 날아간다): 라이덴은 뻗은 주먹을 천천히 거두며 숨을 고르고 (잔심), 상대는 뒤로 날아간다
+const PA_EXHALE = R({ hx: 4, hy: -14, tl: 22, hd: 10, tw: -4, aFx: 4, aFy: 3, aBx: 14, aBy: -5, lFx: 20, lBx: -10 });
+const PA_LOWER = R({ hx: 2, hy: -17, tl: 16, hd: 9, tw: -1, aFx: 10, aFy: -2, aBx: 9, aBy: 0, lFx: 14, lBx: -10 });
+/** 파천 장면 3: 라이덴 — 주먹을 거두고 잔심 (12프레임 30틱) */
+export const RAIDEN_PACHEON_AFTER: MotionData = {
+  name: 'raiden/pacheon_after',
+  label: '라이덴 파천 연출 3 (잔심)',
+  wide: true,
+  dur: [3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 2, 2],
+  keys: [
+    { at: 0, pose: PB_HOLD },
+    { at: 3, pose: PB_HOLD, stop: true },
+    { at: 6, pose: PA_EXHALE },
+    { at: 9, pose: PA_LOWER },
+    { at: 11, pose: R_STANCE },
+  ],
+};
+/** 상대 반응 3: 뒤로 크게 날아간다 — 몸이 눕듯 젖혀지고 팔다리는 앞으로 끌린다 */
+const RX3_LAUNCH = S({ hx: -4, hy: -21, tl: -58, hd: -16, aFx: 14, aFy: -4, aBx: 11, aBy: -8, lFx: 14, lFy: -8, lBx: 6, lBy: -6 });
+const RX3_FLY = S({ hx: -2, hy: -22, tl: -80, hd: -10, aFx: 13, aFy: 4, aBx: 10, aBy: 2, lFx: 17, lFy: -14, lBx: 12, lBy: -10 });
+const RX3_FLY2 = S({ hx: -2, hy: -22, tl: -84, hd: -8, aFx: 14, aFy: 6, aBx: 11, aBy: 5, lFx: 18, lFy: -12, lBx: 13, lBy: -9 });
+/** 파천 장면 3: 상대 반응 — 뒤로 날아감 (12프레임 30틱) */
+export const RAIDEN_PACHEON_REACT3: MotionData = {
+  name: 'raiden/pacheon_react3',
+  label: '파천 상대 반응 3 (날아감)',
+  wide: true,
+  dur: [3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 2, 2],
+  keys: [
+    { at: 0, pose: RX2_ARCH2 },
+    { at: 2, pose: RX3_LAUNCH },
+    { at: 5, pose: RX3_FLY },
+    { at: 8, pose: RX3_FLY2 },
+    { at: 11, pose: RX3_FLY },
+  ],
+};
+
+export const RAIDEN_SKILL_MOTIONS: readonly MotionData[] = [
+  RAIDEN_ZANHEN, RAIDEN_HWAGWASAN, RAIDEN_PACHEON,
+  RAIDEN_PACHEON_PRESS, RAIDEN_PACHEON_REACT1, RAIDEN_PACHEON_BURST, RAIDEN_PACHEON_REACT2, RAIDEN_PACHEON_AFTER, RAIDEN_PACHEON_REACT3,
+];

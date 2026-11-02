@@ -1,5 +1,5 @@
 import { hitBox, hurtBox, type Box } from '../anim/boxes';
-import { DEFAULT_CELL, FOOT_X, FOOT_Y } from '../anim/motion';
+import { cellOf, type Cell } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import type { LookName } from '../anim/skeleton';
 import { isSkin, skinForMotion, SKINS, type SkinId } from '../anim/skins';
@@ -132,27 +132,29 @@ export function viewerScene(): Scene {
 
     render(ctx) {
       const m = cur();
-      const cell = m.cell ?? DEFAULT_CELL;
+      const cell = cellOf(m);
       ctx.fillStyle = COLORS.night;
       ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
-      // 큰 보기: 칸 바탕(격자), 바닥선, 캐릭터 2배
-      const size = cell * ZOOM;
+      // 큰 보기: 칸 바탕(격자), 바닥선, 캐릭터 확대 (보통 칸 3배, 큰 칸 128×96은 2배로 왼쪽에 붙여)
+      const view = viewOf(cell);
+      const sw = cell.w * view.zoom;
+      const sh = cell.h * view.zoom;
       ctx.fillStyle = COLORS.panel;
-      ctx.fillRect(VIEW_X, VIEW_Y, size, size);
+      ctx.fillRect(view.x, VIEW_Y, sw, sh);
       ctx.fillStyle = COLORS.panelLight;
-      for (let y = 0; y < size; y += 16) {
-        for (let x = ((y / 16) % 2) * 16; x < size; x += 32) ctx.fillRect(VIEW_X + x, VIEW_Y + y, 16, 16);
+      for (let y = 0; y < sh; y += 16) {
+        for (let x = ((y / 16) % 2) * 16; x < sw; x += 32) ctx.fillRect(view.x + x, VIEW_Y + y, Math.min(16, sw - x), Math.min(16, sh - y));
       }
       ctx.fillStyle = COLORS.gridLight;
-      ctx.fillRect(VIEW_X, VIEW_Y + (FOOT_Y + 1) * ZOOM, size, ZOOM);
-      ctx.drawImage(sprite(m, v.frame, v.look, v.flip, skinForMotion(m.name, v.skin)), VIEW_X, VIEW_Y, size, size);
+      ctx.fillRect(view.x, VIEW_Y + (cell.fy + 1) * view.zoom, sw, view.zoom);
+      ctx.drawImage(sprite(m, v.frame, v.look, v.flip, skinForMotion(m.name, v.skin)), view.x, VIEW_Y, sw, sh);
 
       if (v.boxes && m.joints) {
         const j = m.joints[v.frame];
-        strokeBox(ctx, hurtBox(j), COLORS.green, v.flip);
+        strokeBox(ctx, hurtBox(j), COLORS.green, v.flip, cell);
         const hb = hitBox(j, v.frame, m.hit);
-        if (hb) strokeBox(ctx, hb, COLORS.red, v.flip);
+        if (hb) strokeBox(ctx, hb, COLORS.red, v.flip, cell);
       }
 
       // 오른쪽 정보
@@ -200,21 +202,27 @@ export function viewerScene(): Scene {
 /** 한 프레임을 칸 크기 캔버스로 (확대해서 붙이기 위해) */
 const spriteCanvas = document.createElement('canvas');
 function sprite(m: (typeof MOTIONS)[number], frame: number, look: LookName, flip: boolean, skin: SkinId = 'base') {
-  const cell = m.cell ?? DEFAULT_CELL;
-  spriteCanvas.width = cell;
-  spriteCanvas.height = cell;
+  const cell = cellOf(m);
+  spriteCanvas.width = cell.w;
+  spriteCanvas.height = cell.h;
   const c = spriteCanvas.getContext('2d')!;
-  c.clearRect(0, 0, cell, cell);
+  c.clearRect(0, 0, cell.w, cell.h);
   m.draw(c, frame, 0, 0, { look, flip, skin });
   return spriteCanvas;
 }
 
-function strokeBox(ctx: CanvasRenderingContext2D, b: Box, color: string, flip: boolean) {
+/** 큰 보기 자리와 배율: 보통 칸은 3배, 큰 칸은 2배 (오른쪽 정보 칸과 겹치지 않게 왼쪽에 붙인다) */
+function viewOf(cell: Cell): { x: number; zoom: number } {
+  return cell.w > 64 ? { x: 2, zoom: 2 } : { x: VIEW_X, zoom: ZOOM };
+}
+
+function strokeBox(ctx: CanvasRenderingContext2D, b: Box, color: string, flip: boolean, cell: Cell) {
+  const view = viewOf(cell);
   const x = flip ? -(b.x + b.w) : b.x;
-  const left = VIEW_X + (FOOT_X + x) * ZOOM;
-  const top = VIEW_Y + (FOOT_Y + b.y) * ZOOM;
-  const w = b.w * ZOOM;
-  const h = b.h * ZOOM;
+  const left = view.x + (cell.fx + x) * view.zoom;
+  const top = VIEW_Y + (cell.fy + b.y) * view.zoom;
+  const w = b.w * view.zoom;
+  const h = b.h * view.zoom;
   ctx.fillStyle = color;
   ctx.fillRect(left, top, w, 1);
   ctx.fillRect(left, top + h - 1, w, 1);

@@ -3,7 +3,7 @@
 // → out/clips/<장면>.gif, 확인용으로 프레임을 이어 붙인 out/clips/<장면>-strip.png
 //
 // 장면은 아래 SCENES에 적는다: 두 사람 자리, 카메라가 자리 잡을 때까지 기다리는 틱, 그 뒤 틱마다 누를 키.
-import { mkdirSync, writeFileSync, copyFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, writeFileSync, copyFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { preview } from 'vite';
 import { chromium } from 'playwright';
@@ -147,22 +147,22 @@ const SCENES = {
     prep: 's.fighters[0].wins = 1; s.round = 2; s.fighters[1].hp = 30;',
     steps: [[[], 4], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 6], [['KeyJ'], 1], [[], 200]],
   },
-  // 라이덴 지상 평타: 공격을 4틱마다 눌러 잽 → 스트레이트 → 훅 → 니킥 (니킥에 날아감)
+  // 라이덴 지상 평타: 공격을 4틱마다 눌러 잽 → 크로스 → 미들킥 → 슈퍼맨 펀치 (슈퍼맨 펀치에 멀리 날아감, 번개가 바닥을 타고 더 달린다)
   raiden_ground: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3190, settle: 30,
     steps: [[[], 6], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [[], 50]],
   },
-  // 라이덴 띄우기(↑+공격, 어퍼컷) → 점프로 쫓아 공중 잽 → 스트레이트 → 니킥
+  // 라이덴 띄우기(↑+공격, 어퍼컷 세로 번개) → 점프로 쫓아 공중 잽 → 공중 크로스 → 공중 돌려차기 (원 번개)
   raiden_air: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
     steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [['KeyJ'], 1], [[], 3], [[], 50]],
   },
-  // 라이덴 띄우기 → 쫓아 점프 → 내려찍기(↓+공격, 해머 피스트)
+  // 라이덴 띄우기 → 쫓아 점프 → 내려찍기(↓+공격, 도끼차기: 위에서 아래 반원 번개 + 바닥 방전)
   raiden_slam: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
     steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['ArrowDown', 'KeyJ'], 1], [[], 70]],
   },
-  // 라이덴 쓸기(↓+공격, 로킥) → 상대가 일어나면 물러났다가 대시 공격(슈퍼맨 펀치)
+  // 라이덴 쓸기(↓+공격, 다리 걸기: 바닥을 쓰는 반원 번개 + 물 튐) → 상대가 일어나면 물러났다가 대시 공격(플라잉 니, 번개 꼬리)
   raiden_low: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3188, settle: 30,
     steps: [[[], 6], [['ArrowDown', 'KeyJ'], 1], [[], 100], [['ArrowLeft'], 20], [[], 6], [['KeyL'], 1], [[], 3], [['KeyJ'], 1], [[], 50]],
@@ -179,12 +179,46 @@ const SCENES = {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 4300, p2: 4350, settle: 40,
     steps: [[[], 6], [['KeyJ'], 100], [[], 70]],
   },
+  // 라이덴 스킬 1 잔흔(U): 떨어진 상대에게 붉은 잔상을 남기며 순간이동 → 하이킥 (상대는 잔상에 닿아 느려짐, 몸에 전격)
+  raiden_zanhen: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3020, p2: 3150, settle: 30,
+    prep: 's.fighters[0].meter = 100;',
+    steps: [[[], 10], [['KeyU'], 1], [[], 64]],
+  },
+  // 공중 잔흔: 띄우기 → 점프로 쫓아 공중 잽 · 스트레이트 · 니킥(상대가 비스듬히 날아감) → 공중에서 잔흔으로 쫓아가 하이킥
+  raiden_zanhen_air: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
+    prep: 's.fighters[0].meter = 100;',
+    steps: [
+      [[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8],
+      ...Array.from({ length: 9 }, () => [[['KeyJ'], 1], [[], 3]]).flat(), [[], 8], [['KeyU'], 1], [[], 60],
+    ],
+  },
+  // 라이덴 1타 잽 (동작연출지침서): 70px 떨어진 상대에게 잽 한 번 → 적뢰가 범위를 채움 (boxes=1이면 판정 상자도)
+  raiden_jab: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3120, p2: 3190, settle: 30,
+    steps: [[[], 6], [['KeyJ'], 1], [[], 34]],
+  },
+  raiden_jab_boxes: {
+    q: 'scene=fight&p2=idle&p1char=raiden&boxes=1', p1: 3120, p2: 3190, settle: 30,
+    steps: [[[], 6], [['KeyJ'], 1], [[], 34]],
+  },
+  // 헛침: 상대가 멀어도 번개가 범위를 그린다
+  raiden_jab_whiff: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3080, p2: 3260, settle: 30,
+    steps: [[[], 6], [['KeyJ'], 1], [[], 34]],
+  },
   // 공격(J)을 길게 눌러 평타 → 모으기 1·2·3단계 → 떼면 3단계 차지 (막혀도 방어를 깨고, 맞으면 벽 쪽으로 날림)
   charge: {
     p1: 4300, p2: 4356, settle: 70,
     steps: [[[], 6], [['KeyJ'], 82], [[], 56]],
   },
 };
+
+// 캐릭터별 장면 (tools/scenes/<캐릭터>.mjs: export default { 장면 이름: { … } })
+for (const file of readdirSync(new URL('./scenes/', import.meta.url)).filter((n) => n.endsWith('.mjs')).sort()) {
+  Object.assign(SCENES, (await import(`./scenes/${file}`)).default);
+}
 
 const argv = process.argv.slice(2);
 const opt = { every: 1, scale: 2, crop: '', to: '' };

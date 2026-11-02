@@ -2,6 +2,8 @@
 // MIT License
 // Copyright (c) 2026 Hugo Duprez
 // YESTERDAY 수정: 원래 이름 movement.ts. delay 옵션 추가 (게임의 대시와 같은 틱에 시작하도록 시작 지연을 0으로). 색은 부르는 쪽에서 우리 팔레트로 넘긴다.
+// blinkTimes 옵션 추가 (라이덴 잔흔: 게임의 순간이동은 한 틱이라 사라짐·나타남을 짧게), ghostSolid 옵션 추가 (떠난 자리 잔상을
+// 반투명 바둑판 대신 꽉 찬 붉은 실루엣으로 남겼다가 어두워지며 깜빡여 사라지게: 넓은 면 디더 금지 규칙).
 export interface Frame { w: number; h: number; ox: number; oy: number; color: Uint32Array; light: Uint32Array; box?: number[] }
 export type Layer = "back" | "front";
 export interface Actor { feet(): [number, number]; silhouette?(): { x: number; y: number; w: number; h: number; data: Uint32Array } | null }
@@ -24,6 +26,10 @@ export interface Options {
   cue?(name: string, data?: Record<string, number>): void;
   /** YESTERDAY: 돌진 시작까지 기다리는 시간 (초, 기본 0.12) */
   delay?: number;
+  /** YESTERDAY: blink 시간 (초). out 사라짐, in 나타나기 시작, arrive 나타나는 데 걸림, linger 떠난 자리 잔상이 남는 시간 */
+  blinkTimes?: { out: number; in: number; arrive: number; linger: number };
+  /** YESTERDAY: 떠난 자리 잔상을 꽉 찬 실루엣으로 (밝은 붉은색 → 검붉게 → 깜빡여 사라짐) */
+  ghostSolid?: boolean;
 }
 interface Kit { update(t: number, dt: number): void; draw(buf: Px, light: Px, layer: Layer, t: number): void; done(t: number): boolean }
 interface Env { o: Options; C: readonly number[]; R: Rng; ps: Particles; groundAt: (x: number) => number; feet: () => [number, number]; dust: number }
@@ -131,7 +137,8 @@ function blink(e: Env): Kit {
   const { o, R, ps } = e;
   const [AX, FY] = e.feet(), BX = o.to ?? AX + 260;
   const [C, A] = o.colors ? [o.colors, o.colors] : [ICE, ARCANE];
-  const OUT = 0.3, IN = 0.55, ARRIVE = IN + 0.35;
+  const OUT = o.blinkTimes?.out ?? 0.3, IN = o.blinkTimes?.in ?? 0.55, ARRIVE = IN + (o.blinkTimes?.arrive ?? 0.35);
+  const LINGER = o.blinkTimes?.linger ?? 0.72, SOLID = o.ghostSolid === true;
   const COLS = [WHITE, C[1]!, C[2]!, A[1]!, A[2]!, C[3]!];
   const lights: Light[] = [];
   let sil: Sil | null = null, out = false, unhid = false, arrived = false;
@@ -140,7 +147,7 @@ function blink(e: Env): Kit {
   const box = { x0: Math.round(AX / PX) - 20, y0: Math.round(FY / PX) - 48, w: 48, h: 50 };
   const cx = box.x0 + 20, my = box.y0 + box.h * 0.55, shift = Math.round((BX - AX) / PX);
   return {
-    done: (t) => t > ARRIVE + 0.5 && bits.length === 0,
+    done: (t) => t > Math.max(ARRIVE + 0.5, OUT + 0.2 + LINGER) && bits.length === 0,
     update(t, dt) {
       if (t < OUT) sil = grab(o.actor?.silhouette?.() ?? null, box.x0, box.y0, box.w, box.h) ?? sil;
       if (t < OUT && R.chance(0.6)) {
@@ -213,7 +220,15 @@ function blink(e: Env): Kit {
           for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) if (!S.px[y * S.w + x] && (n(x - 1, y) || n(x + 1, y) || n(x, y - 1) || n(x, y + 1)) && hash(x * 61 + y + Math.floor(t * 30) * 977) < 0.35 + 0.6 * k) buf.set(S.x0 + x, S.y0 + y, k > 0.7 && hash(x + y * 7) < 0.5 ? WHITE : C[2]!);
           light.glow(cx, S.y0 + S.h * 0.6, 30, C[3]!, 0.5 * k);
         }
-        if (t >= OUT && t < OUT + 0.18) {
+        if (SOLID && t >= OUT) {
+          // YESTERDAY: 사라진 순간 하얗게 번쩍인 뒤, 떠난 자리에 붉은 잔상이 꽉 찬 실루엣으로 남아 어두워지다 깜빡여 사라진다
+          const u = (t - OUT - 0.03) / LINGER;
+          if (u < 0) drawSil(buf, sil, cx, 1, WHITE, C[1]!, 1);
+          else if (u < 0.4) drawSil(buf, sil, cx, 1, A[2]!, A[4]!, 1);
+          else if (u < 0.75) drawSil(buf, sil, cx, 1, A[4]!, A[5] ?? A[4]!, 1);
+          else if (u < 1 && Math.floor(t * 30) % 2 === 0) drawSil(buf, sil, cx, 1, A[5] ?? A[4]!, A[5] ?? A[4]!, 1);
+        }
+        if (!SOLID && t >= OUT && t < OUT + 0.18) {
           const k = (t - OUT) / 0.1;
           if (k < 1) drawSil(buf, sil, cx, 1 - k, k < 0.5 ? WHITE : C[1]!, C[2]!, 1);
           else {
@@ -222,7 +237,7 @@ function blink(e: Env): Kit {
           }
           light.glow(cx, my, 40, C[2]!, 0.8);
         }
-        if (t > OUT + 0.18 && t < OUT + 0.9) drawSil(buf, sil, cx, 1, A[2]!, A[4]!, 0.45 * (1 - (t - OUT - 0.18) / 0.72));
+        if (!SOLID && t > OUT + 0.18 && t < OUT + 0.18 + LINGER) drawSil(buf, sil, cx, 1, A[2]!, A[4]!, 0.45 * (1 - (t - OUT - 0.18) / LINGER));
         if (t > IN && t < ARRIVE + 0.02) {
           const k = (t - IN) / (ARRIVE - IN);
           if (k < 0.55) {

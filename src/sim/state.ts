@@ -1,7 +1,7 @@
 import { motionFrames, motionOf, statsOf } from './frames';
 import type { CharId } from '../data/characters';
 import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isAirborne } from './fighter';
-import { resolveHits, splatLands } from './combat';
+import { resolveHits, splatLands, zanTouch } from './combat';
 import { stepCine } from './cine';
 import { crashProps, createProps, hitProps } from './props';
 import { createCitadel, hitCitadel } from './citadel';
@@ -13,6 +13,7 @@ import {
   MAX_ROUNDS, STAGE_W, WALL_R, WINS_NEEDED,
 } from './rules';
 import type { Fighter, SimState } from './types';
+import { EXT_LEN, hooksOf } from './chars';
 
 export type { Fighter, SimState, SimEvent, Mode, Phase } from './types';
 export { SUBPX } from './rules';
@@ -25,6 +26,8 @@ function newFighter(x: number, facing: 1 | -1, char: CharId): Fighter {
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
     runDist: 0, wins: 0, atkDir: 0, atkHold: 0, chargeArm: false, chargeLv: 0, cineMotion: '', buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
     wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false, citadelHit: false, kongo: 0, kongoT: 0, exhaust: 0,
+    zanX0: 0, zanX1: 0, zanY: 0, zanT: 0, zanHit: false, slowT: 0,
+    ext: new Array<number>(EXT_LEN).fill(0),
   };
 }
 
@@ -62,6 +65,7 @@ function resetRound(s: SimState): void {
     Object.assign(f, newFighter(mid + (i === 0 ? -START_GAP : START_GAP), i === 0 ? 1 : -1, f.char), keep);
     // 경기 첫 라운드: 시작 연출 동안 등장 동작 (끝나면 대기)
     if (s.round === 1) setMode(f, 'intro', motionFrames(motionOf(f.char, 'intro')).total);
+    hooksOf(f.char).reset?.(s, f);
   });
   s.phase = 'intro';
   s.phaseT = 0;
@@ -111,6 +115,8 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   settle(s, a);
   settle(s, b);
   resolveHits(s);
+  // 잔흔: 남긴 잔상에 상대가 닿으면 느려진다
+  zanTouch(s);
   crashProps(s);
   hitProps(s);
   hitCitadel(s);
@@ -137,6 +143,9 @@ function practiceRefill(s: SimState): void {
   });
 }
 
+/** 느려짐이 듣는 상태: 스스로 움직이는 상태 (맞거나 막는 경직·다운·기상·연출은 아니다) */
+const SLOWABLE: ReadonlySet<string> = new Set(['idle', 'run', 'guard', 'jumpsquat', 'air', 'land', 'dash', 'airdash', 'attack', 'charge', 'wallcling', 'wallrun', 'exhaust']);
+
 function stepFighter(s: SimState, f: Fighter, input: PlayerInput, controllable: boolean): void {
   // 맞아서 떠오르기 시작했으면 (히트스톱으로 멈춰 있어도) 서 있던 바닥을 떠난다
   if (f.vy < 0) f.floor = 0;
@@ -144,6 +153,11 @@ function stepFighter(s: SimState, f: Fighter, input: PlayerInput, controllable: 
   if (f.hitstop > 0) {
     f.hitstop--;
     return;
+  }
+  // 잔상에 닿아 느려짐 (라이덴 스킬 1 잔흔): 스스로 움직이는 상태는 두 틱에 한 번만 진행 (반 속도). 맞거나 막는 경직은 보통 속도
+  if (f.slowT > 0) {
+    f.slowT--;
+    if (f.slowT % 2 === 1 && SLOWABLE.has(f.mode)) return;
   }
   updateFighter(s, f, input, controllable);
   physics(s, f);

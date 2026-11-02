@@ -46,7 +46,7 @@ const views = viewNames.length ? VIEWS.filter((v) => viewNames.includes(v.name))
 if (!views.length) fail(`없는 화면 크기: ${viewNames}. 있는 것: ${VIEWS.map((v) => v.name).join(', ')}`);
 
 mkdirSync('out/shots', { recursive: true });
-const server = await preview({ preview: { port: 4173, strictPort: true }, logLevel: 'error' });
+const server = await preview({ preview: { port: 4173 }, logLevel: 'error' });
 const url = server.resolvedUrls.local[0];
 const browser = await chromium.launch();
 let failed = 0;

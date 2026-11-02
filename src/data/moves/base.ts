@@ -11,6 +11,8 @@ export interface MoveData {
   active: readonly number[];
   /** 판정 구간: 팔꿈치→주먹, 무릎→발. 없으면 몸 둘레 전체 (밀쳐내기류) */
   limb?: readonly [JointName, JointName];
+  /** 번개 사거리 (px): 판정 구간 끝에서 그 방향으로 이만큼 더 닿는다 (라이덴: 타격마다 뻗는 붉은 전격) */
+  reach?: number;
   damage: number;
   /** 막았을 때 깎이는 방어 내구도 */
   guardDamage: number;
@@ -29,6 +31,21 @@ export interface MoveData {
   heavy?: boolean;
   /** 이 프레임 동안 앞으로 이동 */
   step?: { from: number; to: number; speed: number };
+  /**
+   * 몸 이동 (동작연출지침서 4장): 프레임마다 앞으로 움직이는 거리 (px, 길이 = 프레임 수, 뒤로는 음수).
+   * 그 프레임의 표시 틱 동안 고르게 나눠 움직인다 (1/256px 정수, 땅·공중 모두). 있으면 step은 쓰지 않는다
+   */
+  advance?: readonly number[];
+  /**
+   * 궤적 상자 (동작연출지침서 4장·7-1장): 판정 프레임 동안 팔다리 구간 판정에 더하는 상자 (발밑 기준, 오른쪽 보는 기준 px).
+   * 라이덴은 번개가 이 상자를 그대로 채운다 (번개 범위 = 판정 범위). shape는 번개·궤적 모양 (렌더가 읽는다)
+   */
+  box?: TrailBox;
+  /**
+   * 판정은 궤적 상자만 (팔다리 구간을 더하지 않는다). 몸 관절이 아닌 곳에서 나는 공격: 오스카 검격(생겨난 검격 자리),
+   * 에드워드 해머 머리처럼 무기 끝 범위를 상자로 정한 기술 (캐릭터 기획서·CLAUDE.md 판정 예외)
+   */
+  boxOnly?: boolean;
   /** 맞히면 점프로 끊고 쫓아갈 수 있다 */
   jumpCancel?: boolean;
   /** 기력 소모 (칸) */
@@ -50,6 +67,12 @@ export interface MoveData {
    * (중력 없음, px/틱). 맞히거나 막히면 멈춘다
    */
   dive?: { from: number; to: number; vx: number; vy: number };
+  /**
+   * 순간이동 (라이덴 스킬 1 잔흔): at 프레임이 시작하는 틱에 바라보는 쪽으로 최대 dist px 순간이동한다.
+   * 상대가 앞에 있고 그 사이면 상대 바로 앞(가운데끼리 gap px)에서 멈춘다. 떠난 자리부터 나타난 자리까지 잔상이 남는다 (rules ZAN_*).
+   * 공중에서 쓰면 마지막 판정 프레임까지 그 높이에 멈춰 떠 있다
+   */
+  blink?: { at: number; dist: number; gap: number };
   /** 맞히거나 막히면 (히트스톱이 끝난 뒤) 때린 쪽이 뒤로 튕겨 오르고 판정 뒤 회복 프레임으로 넘어간다 (px/틱) */
   rebound?: { vx: number; vy: number };
   /** 헛치고 땅·발판에 닿으면 굳는 틱 (없으면 공중 공격 착지 굳음) */
@@ -89,6 +112,19 @@ export interface CineActor {
   pos: ReadonlyArray<readonly [number, number, number]>;
 }
 
+/**
+ * 궤적 상자와 그 안을 채우는 번개·궤적 모양.
+ * line: 앞으로 곧게 뻗는 줄기, arc: 반원(발차기), rise: 아래→위 세로, fall: 위→아래 반원, ground: 바닥을 쓰는 반원,
+ * circle: 원(공중 돌려차기), tail: 몸 뒤로 끌리는 꼬리(대시)
+ */
+export interface TrailBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  shape: 'line' | 'arc' | 'rise' | 'fall' | 'ground' | 'circle' | 'tail';
+}
+
 /** 차지 한 단계 */
 export interface ChargeLevel {
   at: number;
@@ -101,6 +137,8 @@ export interface ChargeLevel {
   jumpCancel?: boolean;
   /** 이 단계로 치면 기술이 끝난 뒤 이만큼 탈진한다 (아무것도 못 함, 패널티) */
   exhaust?: number;
+  /** 이 단계의 궤적 상자 (없으면 기술의 box). 단계가 오를수록 번개가 길어지는 차지 (라이덴 투전승불) */
+  box?: TrailBox;
 }
 
 const LIGHT = { guardDamage: 10, hitstun: 16, blockstun: 12, hitstop: 7, push: 1.3 };

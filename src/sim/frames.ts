@@ -91,6 +91,10 @@ export interface Move {
   step?: { from: number; to: number; speed: number };
   dive?: { from: number; to: number; vx: number; vy: number };
   rebound?: { vx: number; vy: number };
+  /** 몸 이동: 틱 t(기술 시작 뒤 1부터)에 앞으로 움직이는 거리 (1/256px, 길이 total + 1, [0]은 0) */
+  advance?: readonly number[];
+  /** 순간이동: 그 프레임이 시작하는 틱, 최대 거리·멈추는 간격 (1/256px) */
+  blink?: { tick: number; dist: number; gap: number };
 }
 
 /** 기술 하나를 만든다: 기술 수치(data)와 그 기술을 그리는 동작 그림(motion) */
@@ -110,7 +114,30 @@ function buildMove(id: MoveId, data: MoveData, motion: string): Move {
     step: data.step && { ...data.step, speed: px(data.step.speed) },
     dive: data.dive && { ...data.dive, vx: px(data.dive.vx), vy: px(data.dive.vy) },
     rebound: data.rebound && { vx: px(data.rebound.vx), vy: px(data.rebound.vy) },
+    blink: data.blink && { tick: frames.cum[data.blink.at - 1], dist: px(data.blink.dist), gap: px(data.blink.gap) },
+    advance: data.advance && advanceTicks(frames, data.advance),
   };
+}
+
+/**
+ * 프레임별 몸 이동(px) → 틱별 이동(1/256px 정수). 프레임 k는 틱 (cum[k−1], cum[k]]에 고르게 나눠 움직인다.
+ * 누적 거리를 정수로 자르고 그 차이를 쓰므로 합은 언제나 프레임 이동의 합과 같다 (결정론)
+ */
+function advanceTicks(frames: MotionFrames, adv: readonly number[]): number[] {
+  const out = [0];
+  let before = 0;
+  let prev = 0;
+  for (let k = 0; k < frames.dur.length; k++) {
+    const p = px(adv[k] ?? 0);
+    const d = frames.dur[k];
+    for (let i = 1; i <= d; i++) {
+      const total = before + Math.trunc((p * i) / d);
+      out.push(total - prev);
+      prev = total;
+    }
+    before += p;
+  }
+  return out;
 }
 
 /** 캐릭터별 기술 표: 기본 스틱맨 기술에 캐릭터가 바꾼 것(그림·판정·수치)을 덮어쓴다 */
@@ -133,17 +160,27 @@ export function movesOf(c: CharId): Record<MoveId, Move> {
 /** 기본 스틱맨 기술 표 (기술 수치만 볼 때: 기력·연출·히트스톱처럼 캐릭터와 상관없는 값) */
 export const MOVES = MOVE_SETS.base;
 
-/** 이 기술의 t틱째 공격 상자 (발밑 기준, 오른쪽 보는 기준). 판정 프레임이 아니면 null */
-export function moveHitBox(mv: Move, t: number): Box | null {
+/**
+ * 이 기술의 t틱째 공격 상자 (발밑 기준, 오른쪽 보는 기준). 판정 프레임이 아니면 null.
+ * 팔다리 구간 상자에 궤적 상자(box)를 더한 범위를 감싼다 (동작연출지침서 4장)
+ */
+export function moveHitBox(mv: Move, t: number, chargeLv = 0): Box | null {
   const f = frameAtTick(mv.frames, t);
   if (!mv.data.active.includes(f)) return null;
   const j = mv.frames.joints[f];
+  // 차지는 모은 단계마다 궤적 상자가 다를 수 있다 (라이덴 투전승불: 단계마다 번개가 길어진다)
+  const t2 = (chargeLv > 0 ? mv.data.charge?.levels[Math.min(mv.data.charge.levels.length, chargeLv) - 1]?.box : undefined) ?? mv.data.box;
+  if (mv.data.boxOnly && t2) return { x: t2.x, y: t2.y, w: t2.w, h: t2.h };
+  let b: Box | null;
   if (!mv.data.limb) {
     // 몸 둘레 전체를 감싸는 판정 (밀쳐내기류)
-    const b = hurtBox(j);
-    return { x: b.x - 10, y: b.y - 4, w: b.w + 20, h: b.h + 8 };
-  }
-  return hitBox(j, f, { frames: mv.data.active, limb: mv.data.limb });
+    const h = hurtBox(j);
+    b = { x: h.x - 10, y: h.y - 4, w: h.w + 20, h: h.h + 8 };
+  } else b = hitBox(j, f, { frames: mv.data.active, limb: mv.data.limb, reach: mv.data.reach });
+  if (!b || !t2) return b;
+  const x0 = Math.min(b.x, t2.x);
+  const y0 = Math.min(b.y, t2.y);
+  return { x: x0, y: y0, w: Math.max(b.x + b.w, t2.x + t2.w) - x0, h: Math.max(b.y + b.h, t2.y + t2.h) - y0 };
 }
 
 /** 능력치를 sim 단위로: 거리·속도·가속은 1/256px 정수, 시간은 틱 */

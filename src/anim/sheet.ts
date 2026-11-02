@@ -1,5 +1,5 @@
 import { drawText, GLYPH_H } from '../render/font';
-import { DEFAULT_CELL, FOOT_Y, MAX_FRAMES, MIN_FRAMES, type DrawOptions, type Motion } from './motion';
+import { cellOf, MAX_FRAMES, MIN_FRAMES, type DrawOptions, type Motion } from './motion';
 
 /** 규격 위반을 문장으로 돌려준다. 없으면 빈 배열. */
 export function checkMotion(m: Motion): string[] {
@@ -20,26 +20,25 @@ const LABEL_H = GLYPH_H + 2;
  * 확대는 부르는 쪽에서 한다.
  */
 export function drawStrip(m: Motion, opts: DrawOptions = {}): HTMLCanvasElement {
-  const cell = m.cell ?? DEFAULT_CELL;
+  const { w: cw, h: ch, fy: footY } = cellOf(m);
   const n = m.dur.length;
-  const footY = Math.round((FOOT_Y / DEFAULT_CELL) * cell);
   const c = document.createElement('canvas');
-  c.width = n * cell + (n - 1) * GAP;
-  c.height = LABEL_H + cell;
+  c.width = n * cw + (n - 1) * GAP;
+  c.height = LABEL_H + ch;
   const ctx = c.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#07040e';
   ctx.fillRect(0, 0, c.width, c.height);
   for (let i = 0; i < n; i++) {
-    const x = i * (cell + GAP);
+    const x = i * (cw + GAP);
     drawText(ctx, String(i + 1), x + 1, 1, '#ffd25e');
     ctx.fillStyle = '#120a24';
-    ctx.fillRect(x, LABEL_H, cell, cell);
+    ctx.fillRect(x, LABEL_H, cw, ch);
     ctx.fillStyle = '#2a1f44';
-    ctx.fillRect(x, LABEL_H + footY + 1, cell, 1);
+    ctx.fillRect(x, LABEL_H + footY + 1, cw, 1);
     ctx.save();
     ctx.beginPath();
-    ctx.rect(x, LABEL_H, cell, cell);
+    ctx.rect(x, LABEL_H, cw, ch);
     ctx.clip();
     m.draw(ctx, i, x, LABEL_H, opts);
     ctx.restore();

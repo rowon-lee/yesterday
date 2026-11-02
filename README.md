@@ -18,6 +18,9 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 | `npm run moveclip -- 장면 [--scale 1] [--every 2] [--crop x,y,w,h] [--to 경로]` | 정해 둔 키 입력으로 대전·메뉴 장면 한 토막을 GIF로 (`tools/moveclip.mjs`의 `SCENES`: 대시 공격, 차지, 연속 콤보, 필살기, 필살기 빗나감, 타이틀, 일시정지, 경기 끝, 연습, 공통 맞는 동작 6장면, 라이덴 겉모습·대기) | `out/clips/장면.gif` |
 | `npm run simtest` | CPU끼리 N판 대전. 예외, 규칙 범위(체력·기력·방어 내구도·위치), 경기 종료, `sim/`의 무작위·시간 값 사용, 같은 입력 재생·저장/복원 후 상태 해시 일치 확인. 히트·띄우기·낙법·크러시 등 집계 | 콘솔 |
 | `npm run simtest -- --matches 50 --ticks 5400 --seed 7` | 판 수·판당 최대 틱·시작 시드 지정 | |
+| `npm run simtest -- --p1 raiden --p2 oscar` | 그 캐릭터끼리 CPU 대전 (캐릭터별 시험은 `tools/simtests/캐릭터.mjs`) | |
+| `node tools/numbers.mjs --char raiden [atk1 …]` | 공격 수치표 (동작연출지침서 8장): 타격 프레임의 발 간격·엉덩이 낮춤·몸통 기울기·팔 뻗음·어깨·동작선, 발동·지속·회복 틱, 몸 이동, 궤적 상자 끝 | 콘솔 |
+| `npm run balance -- [--seeds 6] [--skill 55]` | 밸런스: 모든 캐릭터 짝(양쪽 자리)을 CPU끼리 붙여 승률·준 피해·경기 길이·기술 쓰임 표 | `out/balance.md` |
 | `npm run compare` | 무대를 바꿨을 때: 고정 카메라 지점 세 곳(극장·다이너 거리, 시타델 광장, 비상계단 아파트)을 이전 버전(기본 origin/main)과 지금 버전으로 찍어 컬러·흑백으로 나란히 놓고, 벽·바닥·주인공 간판의 흑백 밝기를 잰다. `--base 커밋`, `--only theater`, `--new "옵션"`(지금 버전 주소에 붙임) | `out/compare/<지점>-color.png`, `-gray.png`, `stats.md` |
 
 장면은 `src/scenes/index.ts`에 등록하고, 게임 주소 뒤 `?scene=이름`으로 열 수 있다.
@@ -26,7 +29,7 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 
 배포 주소: https://rowon-lee.github.io/yesterday/
 
-주소를 열면 타이틀이 나온다(`?scene=title`). 메뉴: VERSUS CPU(강도 EASY · NORMAL · HARD, 3판 2선승 · 라운드 60초) / PRACTICE(연습: 시간 멈춤, 체력 1에서 멈춤, 콤보가 끝나고 1초 뒤 체력 · 기력 · 방어가 다시 참. 상대 가만히 · 막기만 · CPU) / OPTIONS(화면 품질, 조작법, 모션 뷰어) / ONLINE(준비 중). 경기 중 Esc · P로 일시정지(계속 · 처음부터 · 조작법 · 타이틀).
+주소를 열면 타이틀이 나온다(`?scene=title`). 메뉴: VERSUS CPU(내 캐릭터 → CPU 캐릭터 → 강도 EASY · NORMAL · HARD, 3판 2선승 · 라운드 60초) / PRACTICE(내 캐릭터 → 상대 캐릭터 → 연습: 시간 멈춤, 체력 1에서 멈춤, 콤보가 끝나고 1초 뒤 체력 · 기력 · 방어가 다시 참. 상대 가만히 · 막기만 · CPU) / OPTIONS(화면 품질, 조작법, 모션 뷰어) / ONLINE(준비 중). 경기 중 Esc · P로 일시정지(계속 · 처음부터 · 조작법 · 타이틀).
 
 휴대폰은 가로로 든다. 왼쪽 아래 8방향 패드, 오른쪽 아래 버튼 6개(위 스킬 1 · 스킬 2 · 필살기, 아래 공격 · 점프 · 대시), 위 가운데 Ⅱ 일시정지. 공격 버튼을 길게 누르면 차지(모으는 동안 버튼이 주황으로 빛난다). 터치 버튼이 뜬 기기는 기력 칸이 화면 위로 올라간다. PC에서 `?touch=1`이면 터치 버튼을 마우스로 눌러 볼 수 있다.
 

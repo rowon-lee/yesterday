@@ -1,10 +1,17 @@
-import { FOOT_X, FOOT_Y } from '../anim/motion';
+import { reachTip } from '../anim/boxes';
+import { cellOf } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
-import { BREAKABLES, GRIDS, fighterPose, MOVES, movesOf, RULES, statsOf, tramRestX, type Fighter, type SimState } from '../sim';
+import { BREAKABLES, GRIDS, fighterPose, movesOf, RULES, statsOf, tramRestX, type Fighter, type SimState } from '../sim';
 import { CITADEL as D } from '../data/stages/citadel';
 import { KNOCKDOWN_RELAND } from '../data/poses/common';
+import type { TrailBox } from '../data/moves/base';
+import { HWAGWASAN, RAIDEN_EXT } from '../sim/chars/raiden';
 import type { SkinId } from '../anim/skins';
 import { Debris } from './debris';
+import arc from '../vfx/arc';
+import raidenAura, { type AuraJoints } from '../vfx/raiden-aura';
+import raidenTrail from '../vfx/raiden-trail';
+import trail from '../vfx/trail';
 import dashBlink from '../vfx/dash-blink';
 import explosion from '../vfx/explosion';
 import glint from '../vfx/glint';
@@ -19,6 +26,7 @@ import { facadeAtlas } from './gl/buildings';
 import { keepAtlas } from './gl/plaza';
 import { fxColor, fxHex, fxRamp, FX_PX, type VfxLayer } from './vfx';
 import { lights } from './light';
+import { rendersOf, type CharFx } from './chars';
 import { COLORS } from './palette';
 
 /**
@@ -40,14 +48,25 @@ const SIDE_RAMP: Record<0 | 1, ColorName[]> = {
 /** 라이덴 (캐릭터 기획서: 붉은 전격, 검붉은 잔상): 대시 잔상 등 플레이어 색 대신 쓴다 */
 const RAIDEN_RAMP: ColorName[] = ['fxWhite', 'raidenLight', 'raiden', 'fxRed', 'raidenDark', 'raidenDeep'];
 /** 이 사람의 이펙트 색: 캐릭터 대표 색이 있으면 그것, 없으면 플레이어 색 */
-const rampOf = (f: Fighter, side: 0 | 1): ColorName[] => (f.char === 'raiden' ? RAIDEN_RAMP : SIDE_RAMP[side]);
+const rampOf = (f: Fighter, side: 0 | 1): ColorName[] => (f.char === 'raiden' ? RAIDEN_RAMP : ((rendersOf(f.char).ramp as ColorName[] | undefined) ?? SIDE_RAMP[side]));
 /**
- * 라이덴 등장 번개: 등장 동작의 몇 틱째에, 제자리에서 바라보는 쪽으로 몇 px 떨어진 곳에 내리꽂힌다.
- * 라이덴은 제자리보다 14px 뒤에 섰다가 걸어 나오므로 그 양옆(-26, -2)에 먼저, 마지막 하나는 걸어 나온 뒤 등 뒤(-20)에
+ * 라이덴 등장 (사용자 요청 2026-11-01 '번개가 쾅! 치고 거기서 히어로 랜딩 자세로 떨어지자. 순간이동으로 등장한 것처럼'):
+ * 처음 hide틱은 보이지 않다가 hide틱에 붉은 번개가 제자리에 내리꽂히고, 그 번개 속에서 drop px 위에 나타나
+ * land틱에 땅에 떨어진다 (히어로 랜딩, 등장 동작 4번째 프레임). 높이는 렌더 전용 (sim 자리는 땅 그대로)
  */
-const RAIDEN_INTRO_BOLTS = [{ t: 1, dx: -26 }, { t: 6, dx: -2 }, { t: 12, dx: -15 }, { t: 30, dx: -24 }];
-/** 라이덴 등장 걸음: 발을 디디는 틱(등장 동작 4번째·7번째 프레임이 시작하는 틱)과 그 발 자리 */
-const RAIDEN_INTRO_STEPS = [{ t: 19, dx: -2 }, { t: 34, dx: 8 }];
+export const RAIDEN_INTRO = { hide: 6, land: 10, drop: 54 };
+/** 라이덴 등장 중 보이지 않는가 */
+export const raidenIntroHidden = (f: Fighter): boolean =>
+  (f.char === 'raiden' && f.mode === 'intro' && f.t < RAIDEN_INTRO.hide) || (f.mode === 'intro' && (rendersOf(f.char).introHidden?.(f) ?? false));
+/** 라이덴 등장 중 땅 위로 띄워 그리는 높이 (px): 번개 속에서 나타나 점점 빨리 떨어진다 */
+export function raidenIntroLift(f: Fighter): number {
+  // 캐릭터 고유 등장 높이 (render/chars)
+  const own = f.mode === 'intro' ? rendersOf(f.char).introLift?.(f) : undefined;
+  if (own !== undefined) return own;
+  if (f.char !== 'raiden' || f.mode !== 'intro' || f.t >= RAIDEN_INTRO.land) return 0;
+  const u = Math.max(0, (f.t - RAIDEN_INTRO.hide) / (RAIDEN_INTRO.land - RAIDEN_INTRO.hide));
+  return Math.round(RAIDEN_INTRO.drop * (1 - u * u));
+}
 /** 타격 불꽃 (뜨거운 색) */
 const WARM: ColorName[] = ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed'];
 /** 차지를 모으는 동안 몸 둘레 오라와 빛 (기본 스틱맨은 흰 주황. 캐릭터를 얹으면 대표 색) */
@@ -71,12 +90,16 @@ const SWINGS: Partial<Record<string, { size: number; squash: number; tilt: numbe
  */
 interface CineCue {
   t: number;
-  kind: 'jab' | 'upper' | 'hammer' | 'slam';
+  kind: 'jab' | 'upper' | 'hammer' | 'slam' | 'pcPress' | 'pcCrackle' | 'pcBurst' | 'pcFly';
 }
 const CINE_CUES: Record<string, CineCue[]> = {
   'base/super_rush': [3, 9, 15, 21, 27, 33].map((t) => ({ t, kind: 'jab' as const })),
   'base/super_rise': [{ t: 14, kind: 'upper' }],
   'base/super_slam': [{ t: 13, kind: 'hammer' }, { t: 26, kind: 'slam' }],
+  // 라이덴 파천: 주먹을 대는 순간 전격이 팔을 타고 상대 몸 안으로 스며들고 (그동안 몸 안에서 지직), 밀어 넣는 순간 등 뒤로 터져 나가고, 날아간다
+  'raiden/pacheon_press': [{ t: 1, kind: 'pcPress' }, { t: 11, kind: 'pcCrackle' }, { t: 21, kind: 'pcCrackle' }, { t: 31, kind: 'pcCrackle' }],
+  'raiden/pacheon_burst': [{ t: 4, kind: 'pcBurst' }],
+  'raiden/pacheon_after': [{ t: 1, kind: 'pcFly' }],
 };
 
 /** 맞은 쪽 하얀 번쩍임: 맞은 순간부터 이 틱 동안 하얗게 (센 타격은 한 번 더 깜빡) */
@@ -96,24 +119,191 @@ const chargeFist = (f: Fighter) => {
   const mv = movesOf(f.char).charge;
   return mv.frames.joints[mv.data.charge!.windup].hF;
 };
+/**
+ * 번개 휩쓸기 길 (발밑 기준 px, 오른쪽 보는 기준): 치는 팔다리 끝(주먹·발·무릎)이 판정 두 프레임 앞부터
+ * 마지막 판정 프레임까지 지나간 자리, 끝은 번개 사거리 끝 (판정 상자와 같은 자리, anim/boxes reachTip).
+ * 판정 프레임 가운데 처음 자리에서 가장 먼 사거리 끝까지 뻗는다 (곧은 주먹은 앞으로, 어퍼컷은 위로, 해머는 아래로)
+ */
+type MoveOf = ReturnType<typeof movesOf>[keyof ReturnType<typeof movesOf>];
+const sweepCache = new Map<string, Array<[number, number]>>();
+function sweepPath(mv: MoveOf): Array<[number, number]> | null {
+  const d = mv.data;
+  if (!d.limb) return null;
+  const key = d.motion;
+  const hit = sweepCache.get(key);
+  if (hit) return hit;
+  const [a, b] = d.limb;
+  const J = mv.frames.joints;
+  const first = d.active[0];
+  const last = d.active[d.active.length - 1];
+  const pts: Array<[number, number]> = [];
+  for (let i = Math.max(0, first - 2); i <= last; i++) {
+    const p = J[i][b];
+    const q = pts[pts.length - 1];
+    if (!q || q[0] !== p[0] || q[1] !== p[1]) pts.push([p[0], p[1]]);
+  }
+  let best: [number, number] = pts[pts.length - 1];
+  let far = -1;
+  for (const i of d.active) {
+    const t = reachTip(J[i][a][0], J[i][a][1], J[i][b][0], J[i][b][1], d.reach ?? 0);
+    const dist = Math.hypot(t[0] - pts[0][0], t[1] - pts[0][1]);
+    if (dist > far) {
+      far = dist;
+      best = t;
+    }
+  }
+  pts.push(best);
+  sweepCache.set(key, pts);
+  return pts;
+}
+/**
+ * 라이덴 궤적 번개 길 (발밑 기준 px, 오른쪽 보는 기준, 꼬리 → 앞끝): 치는 손발 끝이 판정 두 프레임 앞에 있던 자리에서 시작해
+ * 궤적 상자 모양대로 휜다 (사용자 레퍼런스 2026-11-01 '궤적을 따라 크게 휘는 초승달'). 앞부분이 궤적 상자(= 판정)를 덮는다.
+ * line: 살짝 위로 부푼 직선 → 상자 앞끝, arc: 뒤 아래에서 위를 돌아 앞으로 내려오는 반원, rise: 아래에서 앞으로 부풀며 위로,
+ * fall: 뒤 위에서 앞 아래로 내리긋는 반원, ground: 바닥을 스치는 낮은 반원, circle: 한 바퀴, tail: 몸 뒤에서 끌려오는 꼬리
+ */
+const trailCache = new Map<string, Array<[number, number]>>();
+type P2 = [number, number];
+/**
+ * 라이덴 기술마다 따로 잡은 번개 길 (동작연출지침서 7장 라이덴 표, 발밑 기준·오른쪽 보는 기준, 꼬리 → 앞끝).
+ * 손발 끝이 실제로 지나는 궤적을 크게 부풀린 모양이고, 앞부분이 궤적 상자(판정)를 덮는다. tip(i) = i번째 프레임의 치는 손발 끝
+ */
+const RAIDEN_TRAILS: Partial<Record<string, (tip: (i: number) => P2, b: TrailBox, a0: number) => P2[]>> = {
+  // 3타 미들킥: 뒷발이 뒤 아래에서 위로 크게 돌아 몸통 높이로 내려오는 지름 약 56px 반원
+  atk3: (_t, b) => [[b.x - 16, b.y + b.h + 6], [b.x - 10, b.y + 20], [b.x + 10, b.y + 2], [b.x + 34, b.y + 2], [b.x + b.w - 6, b.y + 14], [b.x + b.w, b.y + 28]],
+  // 띄우기: 웅크린 주먹 자리에서 앞으로 부풀며 머리 위 높이까지 솟는 세로 번개
+  launcher: (t, b, a0) => [t(a0 - 2), [b.x + b.w - 2, b.y + b.h - 26], [b.x + b.w / 2 + 4, b.y + 30], [b.x + b.w / 2 - 4, b.y]],
+  // 쓸기: 뒷발이 몸 뒤 바닥에서 앞으로 바닥을 쓸며 지나는 낮은 반원
+  sweep: (_t, b) => [[b.x - 18, b.y + b.h - 2], [b.x - 2, b.y + 6], [b.x + 22, b.y + 1], [b.x + 46, b.y + 4], [b.x + b.w, b.y + b.h - 3]],
+  // 플라잉 니: 몸 뒤로 길게 끌리다가 앞무릎에서 끝나는 꼬리
+  dashAttack: (_t, b) => [[b.x - 40, b.y + 22], [b.x - 18, b.y + 16], [b.x + 4, b.y + 12], [b.x + 26, b.y + 10], [b.x + b.w, b.y + 14]],
+  // 공중 돌려차기: 다리가 그리는 원 (뒤 아래 → 뒤 위 → 머리 위 → 앞 → 앞 아래, 거의 한 바퀴)
+  air3: (_t, b) => Array.from({ length: 12 }, (_, k): P2 => {
+    const a = ((140 + (280 * k) / 11) * Math.PI) / 180;
+    return [b.x + b.w / 2 + Math.cos(a) * (b.w / 2), b.y + b.h / 2 + Math.sin(a) * (b.h / 2)];
+  }),
+  // 도끼차기: 머리 위로 든 발에서 앞으로 크게 돌아 바닥까지 내리긋는 반원
+  slam: (_t, b) => [[b.x + 6, b.y + 2], [b.x + 28, b.y + 8], [b.x + 44, b.y + 28], [b.x + b.w - 4, b.y + 52], [b.x + 36, b.y + b.h]],
+  // 잔흔 하이킥: 뒤 아래에서 머리 위를 돌아 머리 높이로 내려오는 반원
+  skill1: (_t, b) => [[b.x - 14, b.y + b.h + 8], [b.x - 8, b.y + 18], [b.x + 12, b.y + 1], [b.x + 36, b.y + 1], [b.x + b.w - 4, b.y + 14], [b.x + b.w, b.y + 26]],
+};
+function trailPath(mv: MoveOf, id: string, b: TrailBox): Array<[number, number]> {
+  const d = mv.data;
+  const key = `${id}:${d.motion}:${b.x},${b.y},${b.w},${b.h},${b.shape}`;
+  const hit = trailCache.get(key);
+  if (hit) return hit;
+  const custom = RAIDEN_TRAILS[id];
+  const J = mv.frames.joints;
+  const end = (d.limb?.[1] ?? 'hF') as 'hF';
+  const a0 = d.active[0];
+  const tip = (i: number): [number, number] => {
+    const p = J[Math.max(0, Math.min(J.length - 1, i))][end];
+    return [p[0], p[1]];
+  };
+  const x0 = b.x;
+  const x1 = b.x + b.w;
+  const y0 = b.y;
+  const y1 = b.y + b.h;
+  const cx = (x0 + x1) / 2;
+  const cy = (y0 + y1) / 2;
+  /** 타원 위의 점 (각도는 도, 0 = 앞, 90 = 아래, 270 = 위) */
+  const ell = (ccx: number, ccy: number, rx: number, ry: number, deg: number): [number, number] => {
+    const r = (deg * Math.PI) / 180;
+    return [ccx + Math.cos(r) * rx, ccy + Math.sin(r) * ry];
+  };
+  const sweep = (ccx: number, ccy: number, rx: number, ry: number, from: number, to: number, n: number) =>
+    Array.from({ length: n + 1 }, (_, k) => ell(ccx, ccy, rx, ry, from + ((to - from) * k) / n));
+  let path: Array<[number, number]>;
+  if (custom) {
+    path = custom(tip, b, a0);
+    trailCache.set(key, path);
+    return path;
+  }
+  switch (b.shape) {
+    case 'line': {
+      const s = tip(a0 - 2);
+      const e: [number, number] = [x1, cy];
+      const m: [number, number] = [s[0] + (e[0] - s[0]) * 0.45, Math.min(s[1], e[1]) - b.h * 0.35];
+      path = [s, m, e];
+      break;
+    }
+    case 'arc':
+      path = sweep(cx, y1, b.w / 2, b.h, 170, 365, 6);
+      break;
+    case 'rise':
+      path = [[cx - b.w * 0.15, y1], [x1 - b.w * 0.1, y1 - b.h * 0.4], [cx + b.w * 0.15, y0 + b.h * 0.12], [cx - b.w * 0.2, y0]];
+      break;
+    case 'fall':
+      path = [[x0, cy], [cx - b.w * 0.15, y0], [x1 - b.w * 0.1, y0 + b.h * 0.3], [x1 - b.w * 0.15, y1]];
+      break;
+    case 'ground':
+      path = sweep(cx, y1, b.w / 2, b.h, 180, 360, 6);
+      break;
+    case 'circle':
+      path = sweep(cx, cy, b.w / 2, b.h / 2, 120, 470, 10);
+      break;
+    case 'tail':
+    default:
+      path = [[x0, cy + b.h * 0.25], [cx, cy + b.h * 0.1], [x1, cy - b.h * 0.15]];
+      break;
+  }
+  trailCache.set(key, path);
+  return path;
+}
+/** 번개 휩쓸기 굵기: 센 기술(니킥·어퍼컷·대시 공격·내려찍기·차지)은 굵게 */
+const HEAVY_SWEEP: ReadonlySet<string> = new Set(['atk4', 'launcher', 'dashAttack', 'slam', 'charge', 'skill1', 'wallKick']);
+/** 적뢰 범위 번개 색 (흰 심 → 밝은 붉은 테두리 → 붉은 → 검붉은 → 아주 어두운) */
+/** 화과산 전류 방벽 높이 (px, sim과 같은 값) */
+const RAIDEN_BARRIER_H = HWAGWASAN.barrierH;
+const BOLT_RANGE: ColorName[] = ['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep'];
+/** 적뢰 세기 (지침서 7-1장 '단계 차이': 1→4타로 갈수록 굵고 길고 가지가 많다) */
+const RANGE_POWER: Partial<Record<string, number>> = { atk1: 1, atk2: 2, atk3: 2, atk4: 4, launcher: 3, sweep: 3, dashAttack: 3, air1: 1, air2: 2, air3: 3, slam: 4, charge: 4, skill1: 3, super: 4 };
+/**
+ * 전신 전격 세기 (0~1): 감기 동안 0.45에서 0.9까지 오르고, 판정 프레임 동안 1, 그 뒤 여운·복귀에서 0.2까지 내려간다
+ */
+function auraLevelOf(mv: MoveOf, t: number): number {
+  const a = mv.activeStart;
+  const b = mv.activeEnd;
+  if (t < a) return 0.45 + 0.45 * (t / Math.max(1, a));
+  if (t < b) return 1;
+  return Math.max(0.2, 1 - (0.8 * (t - b)) / Math.max(1, mv.total - b));
+}
+/** 라이덴 번개 색 (흰 심지 → 붉은 빛 → 검붉은 테두리) */
+const BOLT: ColorName[] = ['fxWhite', 'raiden', 'fxRed', 'raidenDark', 'raidenDeep'];
+
+/** 실루엣을 그리는 캔버스 (가장 큰 칸 128×96) */
 const silCanvas = document.createElement('canvas');
-silCanvas.width = 64;
-silCanvas.height = 64;
+silCanvas.width = 128;
+silCanvas.height = 96;
 const silCache = new Map<string, Uint32Array>();
+
+/** 동작 한 프레임의 실루엣 픽셀 (칸 크기, 캐시) */
+function silData(motion: string, frame: number, facing: number, skin: SkinId) {
+  const m = motionByName.get(motion)!;
+  const cell = cellOf(m);
+  const key = `${skin}/${motion}/${frame}/${facing}`;
+  let data = silCache.get(key);
+  if (!data) {
+    const g = silCanvas.getContext('2d', { willReadFrequently: true })!;
+    g.clearRect(0, 0, cell.w, cell.h);
+    m.draw(g, frame, 0, 0, { look: 'p1', flip: facing < 0, skin });
+    data = new Uint32Array(g.getImageData(0, 0, cell.w, cell.h).data.buffer.slice(0));
+    silCache.set(key, data);
+  }
+  return { cell, data };
+}
 
 /** 지금 모습의 실루엣 (Power Up 오라·대시 잔상이 몸 윤곽을 따라가도록). 이펙트 픽셀 좌표 */
 function silhouette(f: Fighter, skin: SkinId = 'base') {
   const p = fighterPose(f);
-  const key = `${skin}/${p.motion}/${p.frame}/${f.facing}`;
-  let data = silCache.get(key);
-  if (!data) {
-    const g = silCanvas.getContext('2d', { willReadFrequently: true })!;
-    g.clearRect(0, 0, 64, 64);
-    motionByName.get(p.motion)!.draw(g, p.frame, 0, 0, { look: 'p1', flip: f.facing < 0, skin });
-    data = new Uint32Array(g.getImageData(0, 0, 64, 64).data.buffer.slice(0));
-    silCache.set(key, data);
-  }
-  return { x: Math.round(f.x / 256) - FOOT_X, y: Math.round(GROUND_Y + f.y / 256) - FOOT_Y, w: 64, h: 64, data };
+  const { cell, data } = silData(p.motion, p.frame, f.facing, skin);
+  return { x: Math.round(f.x / 256) - cell.fx, y: Math.round(GROUND_Y + f.y / 256) - cell.fy, w: cell.w, h: cell.h, data };
+}
+
+/** 정해진 동작·프레임을 월드 자리(wx, wy: 발밑, px)에 놓은 실루엣 (순간이동으로 떠난 자리에 남는 잔상) */
+function silhouetteAt(motion: string, frame: number, facing: number, skin: SkinId, wx: number, wy: number) {
+  const { cell, data } = silData(motion, frame, facing, skin);
+  return { x: Math.round(wx) - cell.fx, y: Math.round(wy) - cell.fy, w: cell.w, h: cell.h, data };
 }
 
 const feet = (f: Fighter): [number, number] => [(f.x / 256) * FX_PX, (GROUND_Y + f.y / 256) * FX_PX];
@@ -132,6 +322,22 @@ export class FightVfx {
 
   /** 두 사람의 캐릭터 겉모습 (실루엣을 따라가는 이펙트용, 대련 장면이 정한다) */
   skins: [SkinId, SkinId] = ['base', 'base'];
+  private cfxCache: CharFx | null = null;
+  /** 캐릭터 고유 연출(render/chars)에 넘기는 도구 */
+  private get cfx(): CharFx {
+    return (this.cfxCache ??= {
+      layer: this.layer,
+      fx: this.fx,
+      debris: this.debris,
+      seed: () => this.seed++,
+      glow: (x, y, r, color, a, ticks) => this.glow(x, y, r, color, a, ticks),
+      feet,
+      skinOf: (f) => this.skinOf(f),
+      silhouetteAt,
+      silhouette: (f) => silhouette(f, this.skinOf(f)),
+    });
+  }
+
   private skinOf(f: Fighter): SkinId {
     return f === this.fighters?.[1] ? this.skins[1] : this.skins[0];
   }
@@ -156,12 +362,34 @@ export class FightVfx {
       const k = 1 - g.t / g.life;
       lights.point(g.x, g.y, g.r * (0.7 + 0.3 * k), g.color, g.a * k * k);
     }
+    // 전신 전격: 몸 둘레를 붉게 비춘다 (세기만큼)
     s.fighters.forEach((f, i) => {
-      if (f.meter >= RULES.METER_MAX) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 54, f.char === 'raiden' ? COLORS.raiden : i === 0 ? COLORS.gold : COLORS.sky, 0.45);
+      const k = this.auraLevel[i];
+      if (k > 0.05) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 40 + 30 * k, COLORS.raiden, 0.3 * k * (s.tick % 3 === 0 ? 0.75 : 1));
+    });
+    // 적뢰는 무대의 실제 광원 (지침서 7-1장 '빛'): 섬광은 범위 가운데 센 흰 빛 + 화면 전체가 살짝 밝아지는 넓은 빛,
+    // 방전은 줄기를 따라 붉은 빛 세 개가 떨리며 벽·젖은 바닥·상대를 비추고, 잔광은 어둡게 남는다
+    this.bolts = this.bolts.filter((b) => !b.fx.done());
+    for (const b of this.bolts) {
+      const ph = b.fx.phase();
+      const [p0, p1, p2] = ph.pts;
+      const len = Math.hypot(p2[0] - p0[0], p2[1] - p0[1]);
+      if (ph.stage === 0) {
+        // 섬광 빛은 앞끝(상대 쪽)에 둔다: 치는 사람의 자세가 하얗게 날아가지 않게
+        lights.point(p2[0], p2[1], 40 + len * 0.6, COLORS.fxWhite, 0.8);
+        lights.point(p1[0], p1[1], 260, COLORS.raidenLight, 0.24);
+      } else if (ph.stage === 1) {
+        const fl = s.tick % 3 === 0 ? 0.75 : 1;
+        for (const p of ph.pts) lights.point(p[0], p[1], 46 + len * 0.3, COLORS.raiden, 0.85 * ph.k * fl);
+      } else lights.point(p1[0], p1[1], 40, COLORS.raidenDark, ph.k);
+    }
+    s.fighters.forEach((f, i) => rendersOf(f.char).lights?.(s, f, i));
+    s.fighters.forEach((f, i) => {
+      if (f.meter >= RULES.METER_MAX) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 26, 54, f.char === 'raiden' ? COLORS.raiden : rendersOf(f.char).light ?? (i === 0 ? COLORS.gold : COLORS.sky), 0.45);
       // 차지를 모으는 동안: 캐릭터가 광원이 되어 바닥과 벽을 비춘다 (단계마다 한 계단씩 넓고 밝게. 반짝임은 단계가 오를 때 한 번)
       if (f.mode === 'charge') {
         const lv = Math.max(1, f.chargeLv);
-        lights.point(f.x / 256, GROUND_Y + f.y / 256 - 24, 34 + 16 * lv, f.char === 'raiden' ? (lv >= 3 ? COLORS.raidenLight : COLORS.raiden) : lv >= 3 ? COLORS.fxYellow : COLORS.fxOrange, 0.3 + 0.15 * lv);
+        lights.point(f.x / 256, GROUND_Y + f.y / 256 - 24, 34 + 16 * lv, f.char === 'raiden' ? (lv >= 3 ? COLORS.raidenLight : COLORS.raiden) : rendersOf(f.char).light ?? (lv >= 3 ? COLORS.fxYellow : COLORS.fxOrange), 0.3 + 0.15 * lv);
       }
     });
     if (s.freeze > 0) {
@@ -172,6 +400,12 @@ export class FightVfx {
   }
 
   private lastCutin = 0;
+  /** 공격마다 새 번호 (전신 전격이 자기 공격이 끝났는지 안다), 지금 전신 전격 세기 (빛) */
+  private attackSerial = [0, 0];
+  private auraLevel = [0, 0];
+  private prevMoveId: Array<string | null> = [null, null];
+  /** 지금 살아 있는 적뢰 (누가 쳤는지): 맞으면 섬광으로 되돌리고, 빛을 낸다 */
+  private bolts: Array<{ who: number; fx: ReturnType<typeof raidenTrail> }> = [];
   /** 나중 틱에 낼 연출 (큰 물건이 쓰러져 땅에 닿는 순간 등). at은 sim 틱 */
   private later: Array<{ at: number; run: () => void }> = [];
   private now = 0;
@@ -198,7 +432,7 @@ export class FightVfx {
     // 필살기 연출 장면의 타격 (렌더 전용): 발동자 동작마다 정해 둔 틱에 불꽃·빛·흔들림 (피해는 끝 타격에서 한 번)
     if (s.cine) {
       const c = s.cine;
-      const motion = MOVES[c.move].data.cinematic!.scenes[c.scene].a.motion;
+      const motion = movesOf(s.fighters[c.who].char)[c.move].data.cinematic!.scenes[c.scene].a.motion;
       for (const cue of CINE_CUES[motion] ?? []) if (cue.t === c.t) this.cineCue(s, cue.kind);
     }
     for (const g of this.glows) g.t++;
@@ -210,11 +444,12 @@ export class FightVfx {
       for (const l of due) l.run();
     }
     for (const e of s.events) {
+      s.fighters.forEach((f, i) => rendersOf(f.char).event?.(this.cfx, s, e, i));
       const x = (e.x / 256) * FX_PX;
       const y = (GROUND_Y + e.y / 256) * FX_PX;
       const wx = e.x / 256;
       const wy = GROUND_Y + e.y / 256;
-      if (e.type === 'hit') this.glow(wx, wy, e.heavy ? 90 : 56, e.move === 'super' ? COLORS.fxWhite : COLORS.fxOrange, e.heavy ? 1 : 0.8, e.heavy ? 18 : 10);
+      if (e.type === 'hit') this.glow(wx, wy, e.heavy ? 90 : 56, e.move === 'super' ? COLORS.fxWhite : s.fighters[e.who]?.char === 'raiden' ? COLORS.raidenLight : (s.fighters[e.who] && rendersOf(s.fighters[e.who].char).light) || COLORS.fxOrange, e.heavy ? 1 : 0.8, e.heavy ? 18 : 10);
       else if (e.type === 'block') this.glow(wx, wy, 44, COLORS.fxBlue, 0.7, 10);
       else if (e.type === 'crush') this.glow(wx, wy, 90, COLORS.fxYellow, 1, 20);
       else if (e.type === 'ko') this.glow(wx, wy, 130, COLORS.fxOrange, 1, 40);
@@ -228,15 +463,38 @@ export class FightVfx {
       const def = s.fighters[1 - e.who];
       const angle = att && att.facing > 0 ? 0 : Math.PI;
       if (e.type === 'hit') {
-        const stop = e.move ? MOVES[e.move].data.hitstop : 7;
+        const stop = e.move && att ? movesOf(att.char)[e.move].data.hitstop : 7;
         const size = e.heavy ? 0.7 : stop >= 9 ? 0.55 : 0.42;
-        // 라이덴의 타격은 붉은 전격이 튄다 (캐릭터 기획서 '평타')
-        this.layer.add(impact({ kind: 'hit', x, y, angle, size, ramp: fxRamp(att?.char === 'raiden' ? RAIDEN_RAMP : WARM), seed: this.seed++ }));
+        // 라이덴의 타격은 붉은 전격이 튄다 (캐릭터 기획서 '평타'): 불꽃에 더해 맞힌 자리에서 사방으로 짧은 번개가 튄다
+        this.layer.add(impact({ kind: 'hit', x, y, angle, size, ramp: fxRamp(att?.char === 'raiden' ? RAIDEN_RAMP : (att && (rendersOf(att.char).ramp as ColorName[] | undefined)) || WARM), seed: this.seed++ }));
+        if (att?.char === 'raiden') {
+          // 맞으면 범위 번개가 섬광으로 되돌아가 히트스톱 동안 멈춰 보인다 (지침서 7-1장 '히트스톱')
+          const bolt = this.bolts.find((b) => b.who === e.who);
+          if (bolt) bolt.fx.rewind();
+          this.boltBurst(x, y, att.facing, e.heavy ? 5 : 3, e.heavy ? 22 : 14);
+          // 차지 3·4단계 (투전승불): 맞은 자리에 하늘에서 붉은 번개가 내리꽂힌다
+          if (e.move === 'charge' && att.chargeLv >= 3 && def) {
+            const [dx, dy] = feet(def);
+            this.layer.add(lightning({ x: dx, y: dy, length: 300 * FX_PX, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+            this.glow(dx / FX_PX, dy / FX_PX - 40, 140, COLORS.raidenLight, 1, 12);
+            this.fx.shake(0.3);
+          }
+          // 내려찍기 도끼차기: 맞은 자리에서 바닥으로 번개가 꽂혀 젖은 바닥을 타고 퍼진다
+          if (e.move === 'slam' && def) this.groundDischarge(x, y, GROUND_Y + def.floor / 256);
+        }
         this.since[1 - e.who] = 0;
         this.heavy[1 - e.who] = !!e.heavy;
         if (e.move === 'super') {
           this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.5, surface: fxColor('street'), seed: this.seed++, shake: shake(0.3) }));
         }
+      } else if (e.type === 'blink' && att && e.to !== undefined) {
+        this.teleport(att, e.x, e.y, e.to, e.move);
+      } else if (e.type === 'slowed' && def) {
+        // 잔상에 닿아 느려짐: 닿은 사람 몸에서 붉은 전격이 튀고 잠깐 붉게 비춘다
+        const [dx, dy] = feet(def);
+        this.boltBurst(dx, dy - 26 * FX_PX, -att!.facing, 4, 12);
+        this.layer.add(glint({ x: dx, y: dy - 26 * FX_PX, size: 0.7, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep']) }));
+        this.glow(dx / FX_PX, dy / FX_PX - 26, 70, COLORS.raiden, 0.8, 14);
       } else if (e.type === 'kongo' && att) {
         // 라이덴 금강불괴 발동: 몸에서 붉은 빛이 한 번 크게 반짝이고 둘레를 비춘다
         const [fx, fy] = feet(att);
@@ -296,6 +554,8 @@ export class FightVfx {
       } else if (e.type === 'round' && s.round === 1) {
         // 등장: 두 사람이 위에서 내려선 자리에 충격과 먼지, 바닥 부스러기, 가벼운 흔들림
         for (const f of s.fighters) {
+          // 라이덴은 번개와 함께 떨어지는 자기 등장 연출이 따로 있다 (raidenIntro)
+          if (f.char === 'raiden' || rendersOf(f.char).ownIntro) continue;
           const fx = f.x / 256;
           const [px, py] = feet(f);
           this.layer.add(impact({ kind: 'hit', x: px, y: py, angle: -Math.PI / 2, size: 0.3, ramp: fxRamp(COOL), seed: this.seed++ }));
@@ -326,26 +586,24 @@ export class FightVfx {
         const out = f ? f.wallSide : 1;
         this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.22, ramp: fxRamp(COOL), seed: this.seed++ }));
         this.debris.burst('brick', wx, wy, out, 3);
-      }
+      } else if (e.type === 'char' && att?.char === 'raiden') this.raidenEvent(s, e.text ?? '', e.x, e.y, e.combo ?? 1, att);
+      else if (e.type === 'cine' && e.text === 'whiff' && att?.char === 'raiden') this.pacheonWhiff(att);
     }
 
     s.fighters.forEach((f, i) => {
       const side = i as 0 | 1;
-      // 라이덴 등장 (캐릭터 기획서 '등장 연출'): 붉은 번개가 연달아 내리꽂히고, 그 사이에서 걸어 나와 발을 디딜 때마다 발밑에 불티
-      if (f.mode === 'intro' && f.char === 'raiden') {
-        const bolt = RAIDEN_INTRO_BOLTS.find((b) => b.t === f.t);
-        if (bolt) {
-          const [fx, fy] = feet(f);
-          const x = fx + f.facing * bolt.dx * FX_PX;
-          this.layer.add(lightning({ x, y: fy, length: 300 * FX_PX, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
-          this.glow(x / FX_PX, fy / FX_PX - 40, 120, COLORS.raidenLight, 0.9, 10);
-          this.debris.dustCloud(x / FX_PX - 4, x / FX_PX + 4, 0.2, fy / FX_PX - 2);
-        }
-        const step = RAIDEN_INTRO_STEPS.find((b) => b.t === f.t);
-        if (step) {
-          const [fx, fy] = feet(f);
-          this.layer.add(glint({ x: fx + f.facing * step.dx * FX_PX, y: fy - 2 * FX_PX, size: 0.35, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark']) }));
-        }
+      rendersOf(f.char).tick?.(this.cfx, s, f, i);
+      // 라이덴 등장: 번개가 쾅! 내리꽂히고 → 그 속에서 떨어져 → 히어로 랜딩 충격 (바닥 먼지·부스러기·사방으로 튀는 전격)
+      if (f.mode === 'intro' && f.char === 'raiden') this.raidenIntro(f);
+      // 라이덴 화과산이 남긴 전류 방벽과 전격 저주 (sim/chars/raiden.ts)
+      if (f.char === 'raiden') this.raidenLasting(s, f, i);
+      // 잔상에 닿아 느려진 동안: 몸 둘레에서 짧은 붉은 전격이 지직거린다
+      if (f.slowT > 0 && s.tick % 7 === 0) {
+        const [fx, fy] = feet(f);
+        const k = this.seed % 4;
+        const x0 = fx + (k - 1.5) * 6 * FX_PX;
+        const y0 = fy - (14 + ((this.seed * 7) % 20)) * FX_PX;
+        this.layer.add(arc({ path: [[x0, y0], [x0 + (k % 2 ? 9 : -9) * FX_PX, y0 + (k < 2 ? -7 : 6) * FX_PX]], ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.02, hold: 0.04, width: 0, jag: 2, forks: 0, sparks: 2 }));
       }
       // 벽을 달려 오르는 동안: 발이 벽을 딛는 자리에서 먼지가 인다
       if (f.mode === 'wallrun' && f.t % 5 === 2) {
@@ -378,10 +636,33 @@ export class FightVfx {
           shake: shake(0.4),
         }));
       }
-      // 휘두르는 공격의 궤적
+      // 휘두르는 공격의 궤적. 번개 사거리가 있는 기술(라이덴)은 치는 팔다리 끝이 지나간 길을 따라 붉은 번개가 휩쓴다
       if (f.mode === 'attack' && f.move) {
-        const swing = SWINGS[f.move];
         const mv = movesOf(f.char)[f.move];
+        // 새 공격이 시작됐다 (연타로 다음 타가 이어져도): 라이덴은 공격 내내 전격이 전신을 휘감는다
+        if (this.prevMoveT[i] < 0 || f.t < this.prevMoveT[i] || f.move !== this.prevMoveId[i]) {
+          this.attackSerial[i]++;
+          if (f.char === 'raiden') this.raidenAura(f, i, mv);
+          rendersOf(f.char).attackStart?.(this.cfx, s, f, i, f.move);
+        }
+        this.prevMoveId[i] = f.move;
+        if (f.char === 'raiden') this.auraLevel[i] = auraLevelOf(mv, f.t);
+        const swing = mv.data.reach || mv.data.box ? undefined : SWINGS[f.move];
+        const starts = f.t >= mv.activeStart && this.prevMoveT[i] < mv.activeStart;
+        // 라이덴 적뢰 (동작연출지침서 7-1장): 궤적 상자가 있는 기술은 타격 프레임에 번개가 범위를 통째로 채운다 (헛쳐도)
+        if (mv.data.box && f.char === 'raiden' && starts) {
+          if (f.move === 'skill2') this.hwagwasan(f);
+          else this.rangeBolt(f, i, f.move, mv);
+        }
+        else if (mv.data.reach && starts) this.boltSweep(f, f.move, mv);
+        // 다른 캐릭터(지금은 기본 스틱맨): 주먹·발 끝이 지난 길을 따라 대표 색 궤적 띠 (지침서 5장)
+        else if (f.char !== 'raiden' && starts) {
+          const strike = rendersOf(f.char).strike;
+          if (strike) strike(this.cfx, s, f, i, f.move);
+          else this.attackTrail(f, mv, i as 0 | 1);
+        }
+        // 크게 내디디는 프레임이 시작하면 앞발 자리에 물 튐과 먼지 (지침서 5장 '발밑')
+        if (mv.advance && f.char === 'raiden') this.stepSplash(f, mv, i);
         if (swing && f.t >= mv.activeStart && this.prevMoveT[i] < mv.activeStart) {
           const [fx, fy] = feet(f);
           this.layer.add(slash({
@@ -391,7 +672,11 @@ export class FightVfx {
           }));
         }
         this.prevMoveT[i] = f.t;
-      } else this.prevMoveT[i] = -1;
+      } else {
+        this.prevMoveT[i] = -1;
+        this.prevMoveId[i] = null;
+        this.auraLevel[i] = 0;
+      }
       // 기력 3칸이 찬 순간: 오라가 켜지고, 찬 동안 유지된다
       if (f.meter >= RULES.METER_MAX && this.prevMeter[i] < RULES.METER_MAX) {
         const fighter = f;
@@ -429,6 +714,359 @@ export class FightVfx {
     const dt = s.slow > 0 ? 0.5 : 1;
     this.debris.tick(dt);
     this.layer.tick(dt);
+  }
+
+  /** 라이덴 등장 연출 (틱마다): 번개 → 떨어짐 → 히어로 랜딩 충격 → 무릎 꿇은 동안 몸 둘레 전격 → 일어날 때 주먹 자리 먼지 */
+  private raidenIntro(f: Fighter): void {
+    const [fx, fy] = feet(f);
+    const wx = fx / FX_PX;
+    const wy = fy / FX_PX;
+    const I = RAIDEN_INTRO;
+    if (f.t === I.hide) {
+      // 쾅: 하늘에서 굵은 번개 두 줄기가 제자리에 내리꽂히고 화면이 번쩍인다
+      this.layer.add(lightning({ x: fx, y: fy, length: 320 * FX_PX, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+      this.layer.add(lightning({ x: fx + f.facing * 5 * FX_PX, y: fy, length: 300 * FX_PX, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+      this.glow(wx, wy - 50, 170, COLORS.raidenLight, 1, 16);
+      this.fx.flashFor(1);
+      this.fx.shake(0.35);
+    }
+    if (f.t === I.land) {
+      // 히어로 랜딩: 땅에 박히는 충격, 양쪽으로 부스러기와 먼지, 주먹 자리에서 사방으로 전격
+      const fist = f.facing * 18;
+      this.layer.add(impact({ kind: 'hit', x: fx + fist * FX_PX, y: fy - 2 * FX_PX, angle: -Math.PI / 2, size: 0.85, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+      this.boltBurst(fx + fist * FX_PX, fy - 2 * FX_PX, f.facing, 5, 24);
+      this.boltBurst(fx + fist * FX_PX, fy - 2 * FX_PX, -f.facing, 3, 18);
+      this.debris.dustCloud(wx - 30, wx + 30, 0.8, wy);
+      this.debris.burst('brick', wx + fist, wy - 2, 1, 7);
+      this.debris.burst('brick', wx + fist, wy - 2, -1, 7);
+      this.glow(wx + fist, wy - 10, 140, COLORS.raiden, 1, 20);
+      this.fx.shake(0.6);
+      this.fx.flashFor(1);
+    }
+    // 무릎 꿇고 있는 동안: 몸 둘레에서 짧은 붉은 전격이 지직거린다
+    if (f.t > I.land + 4 && f.t < I.land + 30 && f.t % 5 === 0) {
+      const k = this.seed % 3;
+      const x0 = fx + f.facing * (k * 7 - 6) * FX_PX;
+      const y0 = fy - (6 + k * 5) * FX_PX;
+      this.layer.add(arc({ path: [[x0, y0], [x0 + f.facing * (k % 2 ? 10 : -8) * FX_PX, y0 - (6 + k * 3) * FX_PX]], ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.02, hold: 0.05, width: 0, jag: 2, forks: 1, sparks: 2 }));
+    }
+    // 주먹으로 바닥을 밀고 일어나는 순간: 주먹 자리에서 작은 먼지
+    if (f.t === I.land + 30) this.debris.dustCloud(wx + f.facing * 14, wx + f.facing * 22, 0.3, wy);
+  }
+
+  /**
+   * 순간이동 (라이덴 스킬 1 잔흔, Dash & Blink 붉은색): 떠난 자리에 웅크린 실루엣이 붉은 잔상으로 남아 어두워지다 사라지고
+   * (sim 잔상과 같은 시간), 떠난 자리에서 나타난 자리까지 붉은 번개 한 줄기가 지나가며, 나타난 자리에서 불꽃이 터진다.
+   * x·y: 떠난 자리, to: 나타난 자리 x (1/256px)
+   */
+  private teleport(f: Fighter, x: number, y: number, to: number, move?: string): void {
+    const mv = move ? movesOf(f.char)[move as keyof ReturnType<typeof movesOf>] : undefined;
+    const frame = Math.max(0, (mv?.data.blink?.at ?? 1) - 1);
+    const wx = x / 256;
+    const wy = GROUND_Y + y / 256;
+    const tx = to / 256;
+    const sil = mv ? silhouetteAt(mv.data.motion, frame, f.facing, this.skinOf(f), wx, wy) : null;
+    this.layer.add(dashBlink({
+      kind: 'blink',
+      actor: { feet: () => [wx * FX_PX, wy * FX_PX], silhouette: () => sil },
+      to: tx * FX_PX,
+      colors: fxRamp(RAIDEN_RAMP),
+      seed: this.seed++,
+      shake: (t) => this.fx.shake(t * 0.6),
+      blinkTimes: { out: 0.02, in: 0.02, arrive: 0.06, linger: RULES.ZAN_TICKS / 60 - 0.03 },
+      ghostSolid: true,
+    }));
+    // 지나간 길: 허리 높이로 붉은 번개 한 줄기
+    if (Math.abs(tx - wx) > 4) {
+      this.layer.add(arc({
+        path: [[wx * FX_PX, (wy - 22) * FX_PX], [tx * FX_PX, (wy - 22) * FX_PX]],
+        ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.03, hold: 0.08, width: 2, jag: 3, forks: 3, sparks: 6,
+      }));
+    }
+    this.glow(wx, wy - 24, 70, COLORS.raiden, 0.9, 12);
+    this.glow(tx, wy - 24, 80, COLORS.raidenLight, 0.9, 10);
+    this.debris.dustCloud(tx - 8, tx + 8, 0.3, wy);
+  }
+
+  /**
+   * 번개 휩쓸기 (라이덴: 공격마다 붉은 전격이 휩쓴다): 판정이 나오는 틱에 치는 팔다리 끝이 지나간 길을 따라
+   * 번개 사거리 끝까지 뻗는다. 끝 자리가 잠깐 붉게 둘레를 비춘다. 차지는 모은 단계가 높을수록 굵고 갈래가 많다
+   */
+  private boltSweep(f: Fighter, id: string, mv: MoveOf): void {
+    const path = sweepPath(mv);
+    if (!path) return;
+    const ox = f.x / 256;
+    const oy = GROUND_Y + f.y / 256;
+    const world = path.map(([x, y]) => [(ox + f.facing * x) * FX_PX, (oy + y) * FX_PX] as [number, number]);
+    const lv = id === 'charge' ? Math.max(1, f.chargeLv) : 0;
+    const heavy = HEAVY_SWEEP.has(id);
+    this.layer.add(arc({
+      path: world,
+      ramp: fxRamp(BOLT),
+      seed: this.seed++,
+      width: heavy ? 2 : 1,
+      jag: heavy ? 3 : 2.5,
+      forks: 2 + lv,
+      sparks: heavy ? 8 : 5,
+      hold: 0.07 + 0.02 * lv,
+    }));
+    // 차지 3·4단계는 한 번 더 겹쳐 굵은 번개 두 줄기
+    if (lv >= 3) this.layer.add(arc({ path: world, ramp: fxRamp(BOLT), seed: this.seed++, width: 1, jag: 4, forks: 3, sparks: 6, sweep: 0.07, hold: 0.1 }));
+    const [tx, ty] = world[world.length - 1];
+    this.glow(tx / FX_PX, ty / FX_PX, heavy ? 60 + 10 * lv : 40, COLORS.raiden, heavy ? 0.9 : 0.7, heavy ? 10 : 7);
+  }
+
+  /** 전신 전격: 이 공격이 이어지는 동안 팔다리·몸통을 휘감는 붉은 전격 (사용자 피드백 '전신을 휘감고') */
+  private raidenAura(f: Fighter, i: number, mv: MoveOf): void {
+    const serial = this.attackSerial[i];
+    const end = mv.data.limb?.[1];
+    const tip = end === 'hF' || end === 'hB' || end === 'fF' || end === 'fB' || end === 'kF' || end === 'kB' ? end : 'hF';
+    this.layer.add(raidenAura({
+      joints: () => {
+        const p = fighterPose(f);
+        const ox = f.x / 256;
+        const oy = GROUND_Y + f.y / 256;
+        const W = (q: readonly [number, number]) => [(ox + f.facing * q[0]) * FX_PX, (oy + q[1]) * FX_PX] as const;
+        const j = p.joints;
+        return { hip: W(j.hip), neck: W(j.neck), head: W(j.head), shF: W(j.shF), eF: W(j.eF), hF: W(j.hF), shB: W(j.shB), eB: W(j.eB), hB: W(j.hB), kF: W(j.kF), fF: W(j.fF), kB: W(j.kB), fB: W(j.fB) } as AuraJoints;
+      },
+      level: () => this.auraLevel[i],
+      alive: () => f.mode === 'attack' && this.attackSerial[i] === serial,
+      tip,
+      ramp: fxRamp(BOLT_RANGE),
+      seed: this.seed++,
+    }));
+  }
+
+  /**
+   * 라이덴 적뢰 (동작연출지침서 7-1장): 타격 프레임에 주먹·발 끝에서 번개가 터져 궤적 상자(= sim 판정)를 섬광 → 방전 → 잔광으로 채운다.
+   * 1타 → 4타·차지로 갈수록 굵고 가지가 많다 (power). 히트스톱 동안은 멈춘다
+   */
+  private rangeBolt(f: Fighter, who: number, id: string, mv: MoveOf): void {
+    const ox = f.x / 256;
+    const oy = GROUND_Y + f.y / 256;
+    // 차지는 모은 단계마다 번개가 길어진다 (단계별 궤적 상자 = sim 판정). 3·4단계는 가장 굵게, 4단계는 화면 폭 절반까지
+    const lv = id === 'charge' ? Math.max(1, f.chargeLv) : 0;
+    const box = (lv ? mv.data.charge?.levels[lv - 1]?.box : undefined) ?? mv.data.box!;
+    const power = lv ? Math.min(4, 1 + lv) : RANGE_POWER[id] ?? 1;
+    const fighter = f;
+    const W = (x: number, y: number): P2 => [(ox + f.facing * x) * FX_PX, (oy + y) * FX_PX];
+    const fx = raidenTrail({
+      path: trailPath(mv, id, box).map(([x, y]) => W(x, y)),
+      power,
+      ramp: fxRamp(BOLT_RANGE),
+      seed: this.seed++,
+      held: () => fighter.hitstop > 0,
+      ground: (GROUND_Y + f.floor / 256) * FX_PX,
+    });
+    this.layer.add(fx);
+    this.bolts = this.bolts.filter((x) => x.who !== who);
+    this.bolts.push({ who, fx });
+    if (power >= 3) this.fx.shake(0.15 + 0.05 * power);
+    const floorY = GROUND_Y + f.floor / 256;
+    const end = box.x + box.w;
+    // 4타 슈퍼맨 펀치·차지 3단계 이상 (지침서 7-1장 '4타는 앞으로 뻗은 줄기가 맵 바닥을 타고 더 멀리 달린다', 판정은 상자까지):
+    // 상자 끝에서 바닥으로 꺾여 내려가 젖은 바닥을 타고 앞으로 더 달리는 번개
+    if (id === 'atk4' || lv >= 3) {
+      const run = id === 'atk4' ? 110 : 60 + 40 * lv;
+      const sy = box.y + box.h / 2;
+      this.layer.add(arc({
+        path: [W(end - 4, sy), W(end + 10, (sy + (floorY - oy)) / 2), W(end + 18, floorY - oy - 1), W(end + 18 + run, floorY - oy - 1)],
+        ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.1, hold: 0.12, width: 1, jag: 2.5, forks: 4, sparks: 8,
+      }));
+      this.glow(ox + f.facing * (end + 18 + run / 2), floorY - 4, 70 + run / 3, COLORS.raiden, 0.8, 14);
+    }
+    // 쓸기: 쓰는 발 끝을 따라 젖은 바닥의 물이 반원으로 튄다
+    if (id === 'sweep' && f.y >= 0) {
+      for (let k = 0; k < 4; k++) this.debris.burst('water', ox + f.facing * (box.x + (box.w * (k + 1)) / 5), floorY - 1, f.facing, 4);
+      this.debris.dustCloud(ox + f.facing * box.x, ox + f.facing * end, 0.3, floorY);
+    }
+  }
+
+  /**
+   * 라이덴 스킬 2 화과산 (판정이 시작하는 틱): 숨을 내뿜는 순간 몸 둘레로 붉은 번개 고리가 한 바퀴 돌며 터지고,
+   * 고리에서 사방으로 짧은 전격이 뻗는다 (판정 상자 = 몸 둘레 앞뒤 44px). 바닥 물이 둥글게 튄다
+   */
+  private hwagwasan(f: Fighter): void {
+    const ox = f.x / 256;
+    const oy = GROUND_Y + f.y / 256;
+    const cy = oy - 28;
+    const W = (x: number, y: number): P2 => [(ox + x) * FX_PX, (y) * FX_PX];
+    const ring = Array.from({ length: 14 }, (_, k): P2 => {
+      const a = ((200 + (330 * k) / 13) * Math.PI) / 180;
+      return W(Math.cos(a) * 40, cy + Math.sin(a) * 30);
+    });
+    // 고리는 히트스톱에 멈추지 않는다 (섬광이 두 사람을 오래 가리지 않게, 바로 방전으로)
+    const fx = raidenTrail({ path: ring, power: 3, ramp: fxRamp(BOLT_RANGE), seed: this.seed++, ground: oy * FX_PX });
+    this.layer.add(fx);
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2 + 0.3;
+      const r0 = 18;
+      const r1 = 40 + ((k * 7) % 5) * 4;
+      this.layer.add(arc({
+        path: [W(Math.cos(a) * r0, cy + Math.sin(a) * r0 * 0.8), W(Math.cos(a) * r1, cy + Math.sin(a) * r1 * 0.8)],
+        ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.03, hold: 0.08, width: 1, jag: 2.5, forks: 1, sparks: 3,
+      }));
+    }
+    this.layer.add(glint({ x: ox * FX_PX, y: cy * FX_PX, size: 1.3, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep']) }));
+    this.glow(ox, cy, 150, COLORS.raidenLight, 1, 16);
+    if (f.y >= 0) {
+      this.debris.burst('water', ox - 20, oy - 1, -1, 6);
+      this.debris.burst('water', ox + 20, oy - 1, 1, 6);
+      this.debris.dustCloud(ox - 34, ox + 34, 0.45, oy);
+    }
+    this.fx.shake(0.3);
+    this.fx.flashFor(1);
+  }
+
+  /** 라이덴 고유 사건 (sim/chars/raiden.ts): 전류 방벽이 섬, 방벽이 상대를 튕겨 냄, 전격 저주, 파천 잿더미 줄 */
+  private raidenEvent(s: SimState, text: string, x: number, y: number, dir: number, att: Fighter): void {
+    const wx = x / 256;
+    const wy = GROUND_Y + y / 256;
+    const floor = GROUND_Y + att.floor / 256;
+    if (text === 'barrier') {
+      // 밀어낸 범위 끝에 바닥에서 솟는 붉은 전류 방벽
+      for (let k = 0; k < 3; k++) {
+        this.layer.add(arc({
+          path: [[(wx + (k - 1) * 3) * FX_PX, floor * FX_PX], [(wx + (k - 1) * 3) * FX_PX, (floor - RAIDEN_BARRIER_H) * FX_PX]],
+          ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.06, hold: 0.12, width: k === 1 ? 2 : 1, jag: 3, forks: 3, sparks: 6,
+        }));
+      }
+      this.glow(wx, floor - 50, 90, COLORS.raiden, 0.9, 16);
+      this.debris.burst('water', wx, floor - 1, dir, 5);
+    } else if (text === 'deflect') {
+      // 방벽에 튕겨 나감: 부딪힌 자리에서 불꽃과 짧은 전격
+      this.layer.add(impact({ kind: 'hit', x: wx * FX_PX, y: (wy - 24) * FX_PX, angle: dir > 0 ? 0 : Math.PI, size: 0.5, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+      this.boltBurst(wx * FX_PX, (wy - 24) * FX_PX, dir, 4, 16);
+      this.glow(wx, wy - 24, 80, COLORS.raidenLight, 0.9, 10);
+      this.fx.shake(0.2);
+    } else if (text === 'curse') {
+      // 전격 저주: 밀려난 상대 몸에 붉은 전격이 들러붙는다
+      this.layer.add(glint({ x: wx * FX_PX, y: (wy - 26) * FX_PX, size: 0.8, ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep']) }));
+    } else if (text === 'ash') {
+      // 파천: 맞은 상대 등 뒤로 땅과 건물이 일직선으로 무너져 잿더미가 된다 (검은 재 구름, 불티, 바닥을 타는 번개)
+      const len = 360;
+      const x1 = wx + dir * len;
+      this.debris.dustCloud(Math.min(wx, x1), Math.max(wx, x1), 1, floor);
+      for (let d = 30; d <= len; d += 50) {
+        this.debris.burst('brick', wx + dir * d, floor - 4 - (d % 3) * 10, dir, 4);
+        this.layer.add(explosion({ x: (wx + dir * d) * FX_PX, ground: floor * FX_PX, size: 0.3 + (d % 100) / 400, surface: fxColor('street'), seed: this.seed++, fire: 0.3 }));
+      }
+      this.layer.add(arc({
+        path: [[wx * FX_PX, (floor - 2) * FX_PX], [(wx + dir * len * 0.5) * FX_PX, (floor - 4) * FX_PX], [x1 * FX_PX, (floor - 2) * FX_PX]],
+        ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.12, hold: 0.2, width: 2, jag: 3, forks: 6, sparks: 12,
+      }));
+      this.glow(wx + (dir * len) / 2, floor - 20, 220, COLORS.raidenDark, 1, 30);
+      this.fx.shake(0.7);
+    }
+    void s;
+  }
+
+  /** 화과산이 남긴 것 (틱마다): 전류 방벽이 지직거리며 서 있고, 저주받은 상대 몸에서 작은 전격이 튄다 */
+  private raidenLasting(s: SimState, f: Fighter, i: number): void {
+    const e = f.ext;
+    const floor = GROUND_Y + f.floor / 256;
+    if (e[RAIDEN_EXT.barrierT] > 0 && s.tick % 4 === i) {
+      const bx = e[RAIDEN_EXT.barrierX] / 256;
+      const k = (s.tick >> 2) % 3;
+      this.layer.add(arc({
+        path: [[(bx + k - 1) * FX_PX, floor * FX_PX], [(bx - k + 1) * FX_PX, (floor - RAIDEN_BARRIER_H * (0.7 + 0.15 * k)) * FX_PX]],
+        ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.02, hold: 0.05, width: 1, jag: 3, forks: 2, sparks: 2,
+      }));
+      if (s.tick % 8 === i) this.glow(bx, floor - 50, 70, COLORS.raiden, e[RAIDEN_EXT.barrierT] < 20 ? 0.35 : 0.6, 8);
+    }
+    if (e[RAIDEN_EXT.curseT] > 0 && s.tick % 10 === i * 5) {
+      const o = s.fighters[1 - i];
+      const [ox, oy] = feet(o);
+      this.boltBurst(ox, oy - 26 * FX_PX, f.facing, 2, 8);
+    }
+  }
+
+  /** 파천이 빗나감: 풍압이 주먹 앞으로 날아간다 (흰 바람 줄기와 바닥 먼지) */
+  private pacheonWhiff(f: Fighter): void {
+    const ox = f.x / 256;
+    const oy = GROUND_Y + f.y / 256;
+    for (let k = 0; k < 4; k++) {
+      const y = oy - 18 - k * 8;
+      const x0 = ox + f.facing * (30 + k * 6);
+      this.layer.add(arc({
+        path: [[x0 * FX_PX, y * FX_PX], [(x0 + f.facing * (120 - k * 14)) * FX_PX, (y + 2) * FX_PX]],
+        ramp: fxRamp(['fxWhite', 'white', 'paleGrey', 'suitGreyLight', 'suitGrey']), seed: this.seed++, sweep: 0.12, hold: 0.04, width: 0, jag: 0.5, forks: 0, sparks: 2,
+      }));
+    }
+    this.debris.dustCloud(Math.min(ox, ox + f.facing * 150), Math.max(ox, ox + f.facing * 150), 0.5, GROUND_Y + f.floor / 256);
+    this.fx.shake(0.2);
+  }
+
+  /**
+   * 라이덴 내려찍기 도끼차기가 맞은 순간 (지침서 7장 '바닥 방전'): 맞은 자리에서 바닥까지 번개가 내리꽂히고,
+   * 바닥에 닿은 자리에서 양옆으로 전격이 젖은 바닥을 타고 퍼진다. x·y는 맞은 자리 (이펙트 2단위)
+   */
+  private groundDischarge(x: number, y: number, floorY: number): void {
+    const gy = floorY * FX_PX;
+    this.layer.add(arc({ path: [[x, y], [x, gy - FX_PX]], ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.04, hold: 0.1, width: 2, jag: 3, forks: 2, sparks: 6 }));
+    for (const dir of [-1, 1]) {
+      this.layer.add(arc({
+        path: [[x, gy - FX_PX], [x + dir * 34 * FX_PX, gy - 2 * FX_PX], [x + dir * 70 * FX_PX, gy - FX_PX]],
+        ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.08, hold: 0.1, width: 1, jag: 2.5, forks: 3, sparks: 5,
+      }));
+    }
+    this.glow(x / FX_PX, floorY - 6, 110, COLORS.raidenLight, 0.9, 14);
+    this.debris.burst('water', x / FX_PX - 10, floorY - 1, -1, 5);
+    this.debris.burst('water', x / FX_PX + 10, floorY - 1, 1, 5);
+    this.fx.shake(0.35);
+  }
+
+  /** 궤적 띠 (동작연출지침서 5장): 판정이 나오는 틱에 끝이 지난 길(판정 두 프레임 앞부터)을 따라 초승달 띠, 6~10틱에 끝부터 사라짐 */
+  private attackTrail(f: Fighter, mv: MoveOf, side: 0 | 1): void {
+    const path = sweepPath(mv);
+    if (!path || path.length < 2) return;
+    const ox = f.x / 256;
+    const oy = GROUND_Y + f.y / 256;
+    const R = SIDE_RAMP[side];
+    this.layer.add(trail({
+      path: path.map(([x, y]) => [(ox + f.facing * x) * FX_PX, (oy + y) * FX_PX] as [number, number]),
+      width: mv.data.heavy ? 10 : 7,
+      ticks: mv.data.heavy ? 10 : 7,
+      ramp: fxRamp([R[0], R[1], R[3], R[5]]),
+    }));
+  }
+
+  /** 크게 내디디는 프레임(몸 이동이 가장 큰 프레임)이 시작하는 틱: 앞발이 닿는 자리에 물 튐과 먼지 (렌더 전용, 땅에서만) */
+  private stepSplash(f: Fighter, mv: MoveOf, i: number): void {
+    const adv = mv.data.advance!;
+    let k = 0;
+    adv.forEach((a, n) => {
+      if (a > adv[k]) k = n;
+    });
+    if (adv[k] <= 0 || f.y < 0) return;
+    const start = k === 0 ? 0 : mv.frames.cum[k - 1];
+    if (!(this.prevMoveT[i] < start && f.t >= start)) return;
+    const foot = mv.frames.joints[Math.min(mv.frames.joints.length - 1, k + 1)].fF;
+    const wx = f.x / 256 + f.facing * foot[0];
+    const wy = GROUND_Y + f.y / 256;
+    this.debris.burst('water', wx, wy - 1, f.facing, 6);
+    this.debris.dustCloud(wx - 5, wx + 5, 0.25, wy);
+  }
+
+  /** 맞힌 자리에서 사방으로 튀는 짧은 붉은 전격 (라이덴 타격). n줄기, 길이 len px */
+  private boltBurst(x: number, y: number, facing: number, n: number, len: number): void {
+    for (let k = 0; k < n; k++) {
+      // 맞힌 방향(앞)으로 많이, 위아래로 퍼지게
+      const a = (facing > 0 ? 0 : Math.PI) + ((k + 0.5) / n - 0.5) * 2.6 + ((this.seed * 37) % 7 - 3) * 0.05;
+      const l = len * (0.7 + ((this.seed * 13 + k * 5) % 7) / 14);
+      this.layer.add(arc({
+        path: [[x, y], [x + Math.cos(a) * l * FX_PX, y + Math.sin(a) * l * FX_PX]],
+        ramp: fxRamp(BOLT),
+        seed: this.seed++,
+        sweep: 0.03,
+        hold: 0.05,
+        width: 1,
+        jag: 2,
+        forks: 1,
+        sparks: 3,
+      }));
+    }
   }
 
   /** 부서지는 물건: 망가질 때 작은 충격, 부서질 때 물건마다 다른 연출 */
@@ -620,7 +1258,7 @@ export class FightVfx {
       const raiden = f.char === 'raiden';
       this.layer.add(powerUp({
         actor: { feet: () => feet(f), silhouette: () => silhouette(f, this.skinOf(f)) },
-        palette: fxHex(raiden ? RAIDEN_RAMP : CHARGE_RAMP),
+        palette: fxHex(raiden ? RAIDEN_RAMP : ((rendersOf(f.char).ramp as ColorName[] | undefined) ?? CHARGE_RAMP)),
         size: 0.36 + 0.14 * lv,
         seed: this.seed++,
         sustain: () => f.mode === 'charge',
@@ -629,8 +1267,8 @@ export class FightVfx {
       const fist = chargeFist(f);
       const gx = wx + f.facing * fist[0];
       const gy = GROUND_Y + f.y / 256 + fist[1];
-      this.layer.add(glint({ x: gx * FX_PX, y: gy * FX_PX, size: 0.5 + 0.3 * lv, ramp: fxRamp(raiden ? ['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep'] : ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame']) }));
-      this.glow(gx, gy, 40 + 12 * lv, raiden ? COLORS.raidenLight : COLORS.fxYellow, 0.9, 4);
+      this.layer.add(glint({ x: gx * FX_PX, y: gy * FX_PX, size: 0.5 + 0.3 * lv, ramp: fxRamp(raiden ? ['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep'] : rendersOf(f.char).ramp ?? ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame']) }));
+      this.glow(gx, gy, 40 + 12 * lv, raiden ? COLORS.raidenLight : rendersOf(f.char).light ?? COLORS.fxYellow, 0.9, 4);
       if (raiden && what === 'level') {
         // 몸 둘레에서 짧은 번개가 단계 수만큼 내리친다 (투전승불: 생체 전류 증폭)
         for (let k = 0; k < lv; k++) {
@@ -641,7 +1279,7 @@ export class FightVfx {
       this.fx.shake(0.06 + 0.05 * lv);
       if (lv >= 3) this.fx.flashFor(1);
     } else if (what === 'release') {
-      this.glow(wx + f.facing * 14, wy, 60 + 14 * lv, f.char === 'raiden' ? COLORS.raidenLight : COLORS.fxYellow, 0.8, 10);
+      this.glow(wx + f.facing * 14, wy, 60 + 14 * lv, f.char === 'raiden' ? COLORS.raidenLight : rendersOf(f.char).light ?? COLORS.fxYellow, 0.8, 10);
     }
   }
 
@@ -674,6 +1312,50 @@ export class FightVfx {
       this.fx.shake(0.3);
       this.since[1 - c.who] = 0;
       this.heavy[1 - c.who] = true;
+    } else if (kind === 'pcPress' || kind === 'pcCrackle') {
+      // 파천 1: 붕권이 닿은 자리에서 검붉은 전격이 팔을 타고 상대 몸 안으로 스며들어 지직거린다
+      const dir = att.facing;
+      const fistX = (att.x / 256 + dir * 34) * FX_PX;
+      const fistY = (GROUND_Y + att.y / 256 - 34) * FX_PX;
+      if (kind === 'pcPress') {
+        this.layer.add(impact({ kind: 'hit', x: fistX, y: fistY, angle: toward + Math.PI, size: 0.5, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+        this.layer.add(arc({ path: [[(att.x / 256 + dir * 10) * FX_PX, fistY + 6 * FX_PX], [fistX, fistY]], ramp: fxRamp(BOLT), seed: this.seed++, sweep: 0.05, hold: 0.25, width: 1, jag: 2, forks: 2, sparks: 4 }));
+        this.fx.shake(0.25);
+        this.since[1 - c.who] = 0;
+        this.heavy[1 - c.who] = true;
+      }
+      for (let k = 0; k < 3; k++) {
+        const a = -1.2 + k * 1.1 + ((this.seed % 5) - 2) * 0.1;
+        this.layer.add(arc({
+          path: [[x, y], [x + Math.cos(a) * 12 * FX_PX * dir, y + Math.sin(a) * 14 * FX_PX]],
+          ramp: fxRamp(['fxWhite', 'raidenLight', 'raidenDark', 'raidenDeep', 'raidenDeep']), seed: this.seed++, sweep: 0.02, hold: 0.06, width: 0, jag: 2, forks: 1, sparks: 2,
+        }));
+      }
+      this.glow(wx, wy, 60, COLORS.raidenDark, 0.9, 10);
+    } else if (kind === 'pcBurst') {
+      // 파천 2: 몸 안에서 터진 검붉은 전격이 등 뒤로 뚫고 나가, 바닥을 타고 일직선으로 멀리 달린다
+      const dir = att.facing;
+      const floorY = (GROUND_Y + def.floor / 256) * FX_PX;
+      for (let k = 0; k < 5; k++) {
+        const dy = (k - 2) * 7 * FX_PX;
+        const len = (150 + (k % 2) * 60 + (k === 2 ? 120 : 0)) * FX_PX;
+        this.layer.add(arc({
+          path: [[x, y + dy * 0.3], [x + dir * len * 0.4, y + dy], [x + dir * len, Math.min(floorY - FX_PX, y + dy * 1.6 + (k > 2 ? 20 * FX_PX : 0))]],
+          ramp: fxRamp(['fxWhite', 'raidenLight', 'raiden', 'raidenDark', 'raidenDeep']), seed: this.seed++, sweep: 0.06, hold: 0.2, width: k === 2 ? 3 : 1, jag: 4, forks: 4, sparks: 8,
+        }));
+      }
+      this.layer.add(explosion({ x: x + dir * 10 * FX_PX, ground: floorY, size: 0.7, surface: fxColor('street'), seed: this.seed++, fire: 0.2 }));
+      this.layer.add(impact({ kind: 'hit', x, y, angle: toward + Math.PI, size: 1.0, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+      this.glow(wx + dir * 60, wy, 260, COLORS.raidenLight, 1, 24);
+      this.fx.shake(0.8);
+      this.fx.flashFor(2);
+      this.since[1 - c.who] = 0;
+      this.heavy[1 - c.who] = true;
+    } else if (kind === 'pcFly') {
+      // 파천 3: 상대가 뒤로 날아간다
+      this.layer.add(impact({ kind: 'hit', x, y, angle: toward + Math.PI, size: 0.8, ramp: fxRamp(RAIDEN_RAMP), seed: this.seed++ }));
+      this.debris.dustCloud(wx - 20, wx + 20, 0.6, GROUND_Y + def.floor / 256);
+      this.fx.shake(0.4);
     } else {
       // 바닥에 꽂힘: 흙먼지 폭발과 큰 흔들림
       this.layer.add(explosion({ x, ground: (GROUND_Y + def.y / 256) * FX_PX, size: 0.55, surface: fxColor('street'), seed: this.seed++ }));

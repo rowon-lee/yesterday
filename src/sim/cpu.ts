@@ -1,5 +1,7 @@
 import { nextRandom } from '../core/rng';
-import { MOVES } from './frames';
+import { MOVES, moveHitBox, movesOf } from './frames';
+import { CHARACTERS, type CharId } from '../data/characters';
+import type { MoveId } from '../data/moves/base';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP,
   type PlayerInput,
@@ -14,7 +16,33 @@ import type { Fighter, SimState } from './types';
  * CPU 조작. 상태를 보고 입력을 만든다. 자체 시드 난수만 쓰므로 같은 시드·같은 상태면 같은 입력.
  * 반응 시간을 두고 계획(다가가기, 연타, 띄워서 공중 콤보, 방어 …)을 고른다.
  */
-type Plan = 'approach' | 'retreat' | 'guard' | 'string' | 'launch' | 'sweep' | 'jumpIn' | 'dashIn' | 'skill' | 'super' | 'wait' | 'perch' | 'charge';
+type Plan = 'approach' | 'retreat' | 'guard' | 'string' | 'launch' | 'sweep' | 'jumpIn' | 'dashIn' | 'skill' | 'skill2' | 'super' | 'wait' | 'perch' | 'charge';
+
+/**
+ * 이 캐릭터 기술이 닿는 거리 (px, 두 사람 가운데 사이): 판정 프레임 동안 공격 상자 앞끝 + 그때까지 몸이 나아간 거리.
+ * 캐릭터마다 사거리가 달라(라이덴 번개, 오스카 검격, 에드워드 해머) 거리 판단을 기술 데이터로 한다. 처음 쓸 때 계산해 둔다 (정적 데이터라 결정론)
+ */
+const reachCache = new Map<string, number>();
+export function reachOf(c: CharId, id: MoveId): number {
+  const key = `${c}/${id}`;
+  const hit = reachCache.get(key);
+  if (hit !== undefined) return hit;
+  const mv = movesOf(c)[id];
+  let far = 0;
+  let adv = 0;
+  for (let t = 0; t <= mv.total; t++) {
+    adv += mv.advance?.[t] ?? 0;
+    const b = moveHitBox(mv, t);
+    if (b) far = Math.max(far, b.x + b.w + adv / SUBPX);
+  }
+  const r = Math.max(24, Math.round(far));
+  reachCache.set(key, r);
+  return r;
+}
+/** CPU가 이 기술을 쓰는 거리 [가장 가까이, 가장 멀리] (캐릭터 데이터 cpu, 없으면 판정이 닿는 거리 안) */
+function useRange(c: CharId, id: 'skill1' | 'skill2' | 'super'): readonly [number, number] {
+  return (CHARACTERS[c] as { cpu?: Partial<Record<string, readonly [number, number]>> }).cpu?.[id] ?? [0, Math.max(id === 'super' ? 45 : 60, reachOf(c, id))];
+}
 
 export interface CpuState {
   rng: number;
@@ -97,7 +125,7 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
     if (id === 'wallKick') return me.moveConnected && roll(cpu, 2) === 0 ? IN_JUMP | fwd : 0;
     if (MOVES[id].data.air) {
       if (id === 'air2' && me.moveConnected && roll(cpu, 3) === 0) return IN_ATTACK | IN_DOWN;
-      if (op.mode === 'airhit' || dist < 40) return IN_ATTACK;
+      if (op.mode === 'airhit' || dist < Math.max(40, reachOf(me.char, 'air1'))) return IN_ATTACK;
       return 0;
     }
     if (cpu.plan === 'string' || cpu.plan === 'launch') {
@@ -195,7 +223,7 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
     case 'guard':
       return IN_DOWN;
     case 'approach':
-      return dist > 34 ? fwd : 0;
+      return dist > Math.max(34, reachOf(me.char, 'atk1') - 10) ? fwd : 0;
     case 'retreat':
       return back;
     case 'charge':
@@ -209,18 +237,30 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
       }
       return fwd;
     case 'dashIn':
-      return cpu.planT % 20 === 19 ? IN_DASH | fwd : dist < 40 ? IN_ATTACK : fwd;
+      return cpu.planT % 20 === 19 ? IN_DASH | fwd : dist < Math.max(40, reachOf(me.char, 'dashAttack') * 0.6) ? IN_ATTACK : fwd;
     case 'jumpIn':
       return cpu.planT % 30 === 29 ? IN_JUMP | fwd : fwd;
     case 'string':
     case 'launch':
-      return dist < 44 ? IN_ATTACK : fwd;
+      return dist < Math.max(44, reachOf(me.char, 'atk1')) ? IN_ATTACK : fwd;
     case 'sweep':
-      return dist < 46 ? IN_ATTACK | IN_DOWN : fwd;
+      return dist < Math.max(46, reachOf(me.char, 'sweep')) ? IN_ATTACK | IN_DOWN : fwd;
     case 'skill':
-      return dist < 90 && me.meter >= METER_BAR ? IN_SKILL1 : fwd;
-    case 'super':
-      return dist < 45 && me.meter >= METER_MAX ? IN_SUPER : fwd;
+    case 'skill2': {
+      // 스킬: 그 스킬을 쓰는 거리 안이면 쓰고, 멀면 다가가고 가까우면 물러난다
+      const id = cpu.plan === 'skill' ? 'skill1' : 'skill2';
+      const [lo, hi] = useRange(me.char, id);
+      if (me.meter < METER_BAR) return 0;
+      if (dist > hi) return fwd;
+      if (dist < lo) return back;
+      return id === 'skill1' ? IN_SKILL1 : IN_SKILL2 | (roll(cpu, 2) === 0 ? fwd : 0);
+    }
+    case 'super': {
+      const [lo, hi] = useRange(me.char, 'super');
+      if (dist > hi) return fwd;
+      if (dist < lo) return back;
+      return me.meter >= METER_MAX ? IN_SUPER : fwd;
+    }
     case 'perch': {
       // 가까운 발판으로 뛰어오른다 (이미 올라섰으면 기다린다)
       if (!cpu.tx || me.y <= cpu.ty) return 0;
@@ -246,13 +286,27 @@ function choosePlan(cpu: CpuState, s: SimState, me: Fighter, op: Fighter, dist: 
       return;
     }
   }
-  if (me.meter >= METER_MAX && dist < 120 && r < 70) plan = 'super';
-  else if (dist > 110) plan = r < 55 ? 'approach' : r < 80 ? 'dashIn' : 'jumpIn';
-  else if (dist > 50) plan = r < 35 ? 'approach' : r < 55 ? 'dashIn' : r < 70 ? 'jumpIn' : r < 80 && me.meter >= 2 * METER_BAR && me.meter < METER_MAX ? 'skill' : r < 90 ? 'wait' : 'retreat';
-  else plan = r < 40 ? 'string' : r < 65 ? 'launch' : r < 80 ? 'sweep' : r < 90 ? 'guard' : 'retreat';
+  // 거리 판단은 그 캐릭터 1타가 닿는 거리 기준 (사거리가 긴 캐릭터는 멀리서 친다)
+  const near = Math.max(50, reachOf(me.char, 'atk1') + 6);
+  const far = Math.max(110, near + 60);
+  /** 스킬 하나를 쓸 만한 거리면 그 스킬 (둘 다면 반반) */
+  const skillPlan = (): Plan | null => {
+    const ok = (id: 'skill1' | 'skill2') => {
+      const [lo, hi] = useRange(me.char, id);
+      return dist >= lo - 20 && dist <= hi + 40;
+    };
+    const a = ok('skill1');
+    const b = ok('skill2');
+    return a && b ? (roll(cpu, 2) === 0 ? 'skill' : 'skill2') : a ? 'skill' : b ? 'skill2' : null;
+  };
+  const skillReady = me.meter >= 2 * METER_BAR && me.meter < METER_MAX;
+  if (me.meter >= METER_MAX && dist < Math.max(120, useRange(me.char, 'super')[1] + 30) && r < 70) plan = 'super';
+  else if (dist > far) plan = r < 15 && skillReady && skillPlan() ? skillPlan()! : r < 55 ? 'approach' : r < 80 ? 'dashIn' : 'jumpIn';
+  else if (dist > near) plan = r < 35 ? 'approach' : r < 55 ? 'dashIn' : r < 70 ? 'jumpIn' : r < 80 && skillReady && skillPlan() ? skillPlan()! : r < 90 ? 'wait' : 'retreat';
+  else plan = r < 40 ? 'string' : r < 65 ? 'launch' : r < 80 ? 'sweep' : r < 85 && skillReady && skillPlan() ? skillPlan()! : r < 92 ? 'guard' : 'retreat';
   // 상대가 쓰러져 있으면 모아 두었다가 일어날 때 친다 (또는 기다리거나 다가간다). 가끔은 그냥 거리에서도 모은다
   if (op.mode === 'knockdown' || op.mode === 'getup') plan = r < 35 ? 'charge' : r < 70 ? 'wait' : 'approach';
-  else if (dist > 50 && dist < 110 && roll(cpu, 100) < 6) plan = 'charge';
+  else if (dist > near && dist < far && roll(cpu, 100) < 6) plan = 'charge';
   cpu.plan = plan;
   cpu.planT = 20 + roll(cpu, 40);
 }

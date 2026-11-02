@@ -1,4 +1,7 @@
-import { BREAKABLES, createCity } from '../sim';
+import { BREAKABLES, createCity, motionOf, type CharId } from '../sim';
+import { MOTIONS } from '../anim/motions';
+import { cellOf } from '../anim/motion';
+import { isSkin } from '../anim/skins';
 import { MAP_H } from '../stage/citadel';
 import { drawText, GLYPH_H, textWidth } from '../render/font';
 import { hintBar, Menu, panel, type MenuItem } from '../render/menu';
@@ -12,7 +15,8 @@ import { touch } from '../core/touch';
 
 /**
  * 타이틀 (?scene=title, 처음 여는 화면). 비 오는 밤 거리를 카메라가 천천히 지나가고, 위에 제목과 메뉴.
- * 메뉴: 대련(CPU 강도) / 연습(상대 고르기) / 설정(품질·조작법·모션 뷰어) / 온라인(준비 중, 흐리게).
+ * 메뉴: 대련(내 캐릭터 → CPU 캐릭터 → CPU 강도) / 연습(내 캐릭터 → 상대 캐릭터 → 상대 고르기) / 설정(품질·조작법·모션 뷰어) / 온라인(준비 중, 흐리게).
+ * 캐릭터를 고르는 동안 고른 줄의 캐릭터가 메뉴 왼쪽에 2배 크기로 대기 동작을 한다.
  * 키보드(W·S 또는 ↑↓, J·Enter, K·Esc)와 화면 누르기로 고른다. 글자는 도트 폰트 하나(영문 대문자).
  */
 export function titleScene(app: App): Scene {
@@ -28,14 +32,34 @@ export function titleScene(app: App): Scene {
   // 타이틀에는 터치 패드·버튼을 띄우지 않는다 (메뉴는 화면을 바로 누른다)
   touch.enable(false);
 
-  const start = (opts: Record<string, string>) => app.goto('fight', opts);
+  /** 고를 수 있는 캐릭터 (도트 폰트는 영문 대문자뿐이라 영문 이름) */
+  const ROSTER: ReadonlyArray<readonly [CharId, string]> = [['raiden', 'RAIDEN'], ['eunwoo', 'BAEK EUNWOO'], ['edward', 'EDWARD'], ['oscar', 'OSCAR']];
+  let mode: 'vs' | 'practice' = 'vs';
+  const picked: [CharId, CharId] = ['raiden', 'raiden'];
+  const start = (opts: Record<string, string>) => app.goto('fight', { ...opts, p1char: picked[0], p2char: picked[1] });
   const level = (name: string): MenuItem => ({ label: name, act: () => start({ mode: 'vs', cpu: name.toLowerCase() }) });
   const dummy = (label: string, value: string): MenuItem => ({ label, act: () => start({ mode: 'practice', dummy: value }) });
 
   let menu: Menu;
+  /** 캐릭터 고르기: who 0 = 내 캐릭터, 1 = 상대. 고르면 다음 메뉴로 */
+  const pick = (who: 0 | 1, title: string): Menu =>
+    new Menu([
+      ...ROSTER.map(([id, name]): MenuItem => ({
+        label: name,
+        act: () => {
+          picked[who] = id;
+          menu = who === 0 ? (mode === 'vs' ? rivalVs : rivalPractice) : mode === 'vs' ? vs : practice;
+        },
+      })),
+      { label: 'BACK', act: () => { menu = main; } },
+    ], title);
+  const fighter = pick(0, 'YOUR FIGHTER');
+  const rivalVs = pick(1, 'CPU FIGHTER');
+  const rivalPractice = pick(1, 'DUMMY FIGHTER');
+  const picking = (m: Menu) => m === fighter || m === rivalVs || m === rivalPractice;
   const main: Menu = new Menu([
-    { label: 'VERSUS CPU', act: () => { menu = vs; } },
-    { label: 'PRACTICE', act: () => { menu = practice; } },
+    { label: 'VERSUS CPU', act: () => { mode = 'vs'; menu = fighter; } },
+    { label: 'PRACTICE', act: () => { mode = 'practice'; menu = fighter; } },
     { label: 'OPTIONS', act: () => { menu = options; } },
     { label: 'ONLINE', disabled: true, note: 'SOON' },
   ]);
@@ -92,9 +116,41 @@ export function titleScene(app: App): Scene {
       const h = menu.items.length * 16 + (menu.title ? GLYPH_H + 7 : 0);
       panel(ctx, SCREEN_W / 2 - 86, 118, 172, h + 16);
       menu.draw(ctx, SCREEN_W / 2, 126, tick);
+      // 캐릭터를 고르는 중: 고른 줄의 캐릭터가 왼쪽(내 캐릭터)·오른쪽(상대)에서 대기 동작
+      if (picking(menu)) {
+        const it = ROSTER[menu.sel];
+        if (it) drawFighter(ctx, it[0], menu === fighter ? 0 : 1, tick);
+      }
       hintBar(ctx, touch.available ? 'TAP TO SELECT' : 'W S: MOVE   J: SELECT   K: BACK   OR TAP', SCREEN_H - 14);
     },
   };
+}
+
+/** 캐릭터 미리보기를 그리는 캔버스 (가장 큰 칸) */
+const previewCanvas = document.createElement('canvas');
+previewCanvas.width = 128;
+previewCanvas.height = 96;
+/**
+ * 고르는 중인 캐릭터의 대기 동작 (2배, 정수배 확대). who 0 = 내 캐릭터(메뉴 왼쪽, 오른쪽을 봄), 1 = 상대(메뉴 오른쪽, 왼쪽을 봄).
+ * 발밑을 판 아래 같은 줄에 맞춘다
+ */
+function drawFighter(ctx: CanvasRenderingContext2D, c: CharId, who: 0 | 1, tick: number): void {
+  const name = motionOf(c, 'idle');
+  const m = MOTIONS.find((x) => x.name === name);
+  if (!m) return;
+  const total = m.dur.reduce((a, b) => a + b, 0);
+  let t = tick % total;
+  let frame = 0;
+  while (t >= m.dur[frame]!) t -= m.dur[frame++]!;
+  const cell = cellOf(m);
+  const p = previewCanvas.getContext('2d')!;
+  p.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  m.draw(p, frame, 0, 0, { skin: isSkin(c) ? c : 'base', look: who === 0 ? 'p1' : 'p2', flip: who === 1 });
+  ctx.imageSmoothingEnabled = false;
+  const S = 2;
+  const footX = who === 0 ? SCREEN_W / 2 - 140 : SCREEN_W / 2 + 140;
+  const footY = 214;
+  ctx.drawImage(previewCanvas, 0, 0, cell.w, cell.h, footX - (who === 1 ? cell.w - cell.fx : cell.fx) * S, footY - cell.fy * S, cell.w * S, cell.h * S);
 }
 
 /** 제목: YESTERDAY (크게, 빛 받는 윗줄), 아래에 STICK ACTION */

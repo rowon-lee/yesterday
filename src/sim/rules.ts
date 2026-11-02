@@ -15,7 +15,8 @@ export const WALL_R = px(MAP_ENDS.right);
 /** 두 사람은 화면 한 칸 안에서 벗어날 수 없다 */
 export const MAX_SEPARATION = px(440);
 /** 몸끼리 겹치지 않는 폭 */
-export const PUSH_W = px(14);
+/** 두 캐릭터 몸 중심의 최소 거리 (동작연출지침서 4장 '최소 16px', 이전 14px) */
+export const PUSH_W = px(16);
 export const PUSH_H = px(40);
 
 // 라운드 (3판 2선승, 60초)
@@ -119,9 +120,19 @@ export const FLASH_TICKS = 6;
  * 발동하면 스택은 0. 금강불괴 동안에는 스택이 쌓이지 않는다. 필살기 연출과 쓰러짐은 막지 못한다.
  */
 export const KONGO_MAX = 4;
-export const KONGO_TICKS = 120;
+export const KONGO_TICKS = 45;
 /** 금강불괴 동안 밀리는 힘 (%) */
 export const KONGO_PUSH = 20;
+/**
+ * 라이덴 스킬 1 잔흔 (캐릭터 기획서): 붉은 잔상을 남기며 앞으로 순간이동해 들어간다. 상대가 잔상에 닿으면 잠깐 느려진다.
+ * 잔상은 떠난 자리부터 나타난 자리까지 이어진 띠로 ZAN_TICKS 동안 남는다 (높이 ZAN_H, 양옆 ZAN_PAD px 더).
+ * 닿으면 ZAN_SLOW 동안 느려짐: 스스로 움직이는 상태(서기·걷기·점프·대시·공격…)는 두 틱에 한 번만 진행한다 (반 속도).
+ * 맞거나 막는 경직 동안은 보통 속도 (경직이 길어져 콤보가 늘어나지 않게). 잔상 하나는 한 번만 닿는다.
+ */
+export const ZAN_TICKS = 45;
+export const ZAN_SLOW = 60;
+export const ZAN_H = 50;
+export const ZAN_PAD = 8;
 /** 막았을 때 히트스톱은 이만큼 짧게 (최소 4) */
 export const BLOCK_HITSTOP_CUT = 3;
 /** 필살 컷인 동안 둘 다 멈춤 */

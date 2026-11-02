@@ -1,4 +1,7 @@
 import { BASE_STATS } from './base';
+import { EDWARD } from './edward';
+import { EUNWOO } from './eunwoo';
+import { OSCAR } from './oscar';
 import { RAIDEN } from './raiden';
 import type { CharacterData, MotionSlot } from './types';
 
@@ -32,5 +35,8 @@ const BASE: CharacterData = { id: 'base', label: '기본 스틱맨', stats: { ..
 export const CHARACTERS = {
   base: BASE,
   raiden: RAIDEN,
+  eunwoo: EUNWOO,
+  edward: EDWARD,
+  oscar: OSCAR,
 } as const satisfies Record<string, CharacterData>;
 export type CharId = keyof typeof CHARACTERS;

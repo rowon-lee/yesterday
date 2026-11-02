@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Motion } from '../../anim/motion';
 import type { LookName } from '../../anim/skeleton';
 import type { SkinId } from '../../anim/skins';
-import { FOOT_X, FOOT_Y } from '../../anim/motion';
+import { cellOf } from '../../anim/motion';
 import { GROUND } from '../../stage/citadel';
 import { SCREEN_H, SCREEN_W } from '../screen';
 import { canvas } from '../dither';
@@ -203,11 +203,14 @@ export class Actors {
       const mat = m.material as THREE.ShaderMaterial;
       const u = mat.uniforms;
       u.map.value = this.texture(sheet);
-      const n = sheet.width / 64;
+      // 칸 크기는 동작마다 (보통 64×64 발밑 32,61 · 큰 칸 128×96 발밑 64,93): 판을 칸 크기로 늘리고 발밑을 맞춘다
+      const cell = cellOf(d.motion);
+      const n = sheet.width / cell.w;
       u.frame.value.set(d.frame / n, 0, 1 / n, 1);
       u.texel.value.set(1 / sheet.width, 1 / sheet.height);
-      // 발밑 기준점 (32, 61): 판 가운데는 발에서 위로 29px
-      m.position.set(Math.round(d.x) - FOOT_X + 32, Math.round(d.h) + FOOT_Y - 32, 0);
+      m.scale.set(cell.w / 64, cell.h / 64, 1);
+      // 판 가운데는 발에서 위로 (발밑 줄 − 칸 높이의 반)px
+      m.position.set(Math.round(d.x) - cell.fx + cell.w / 2, Math.round(d.h) + cell.fy - cell.h / 2, 0);
       m.renderOrder = 10 + d.order;
       // 테두리 빛: 몸 가운데 둘레에서 가장 센 빛 쪽으로
       const l = d.rim ? lightPool.strongest(d.x, d.h + 26, 0) : null;

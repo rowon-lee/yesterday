@@ -1,9 +1,10 @@
 import type { TickInput } from '../core/input';
-import { FOOT_X, FOOT_Y } from '../anim/motion';
+import { cellOf } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import { drawCutin, playCutscene } from '../render/cutin';
 import { drawDust, Effects, type Dust } from '../render/effects';
-import { FightVfx } from '../render/fightvfx';
+import { FightVfx, raidenIntroHidden, raidenIntroLift } from '../render/fightvfx';
+import { rendersOf } from '../render/chars';
 import { VfxLayer } from '../render/vfx';
 import { Hud } from '../render/hud';
 import { COLORS } from '../render/palette';
@@ -12,7 +13,7 @@ import { drawPlatforms } from '../render/platforms';
 import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import {
   boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
-  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, MOVES, movesOf, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
+  IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, movesOf, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
@@ -251,7 +252,7 @@ export function fightScene(app?: App): Scene {
       g.view.setZoom(2, (ax + bx) / 2, (ay + by) / 2);
       return;
     }
-    const caster = s.fighters.find((f) => f.mode === 'attack' && f.move && MOVES[f.move].data.cinematic && !f.moveHit);
+    const caster = s.fighters.find((f) => f.mode === 'attack' && f.move && movesOf(f.char)[f.move].data.cinematic && !f.moveHit);
     if (caster) {
       const [x, y] = at(caster);
       g.view.setZoom(2, x + caster.facing * 20, y);
@@ -313,11 +314,12 @@ export function fightScene(app?: App): Scene {
         skin: skins[i],
         flip: f.facing < 0,
         x: f.x / 256 + jitter,
-        h: -f.y / 256,
+        // 라이덴 등장: 번개 속에서 나타나 위에서 떨어진다 (렌더 전용 높이)
+        h: -f.y / 256 + raidenIntroLift(f),
         floor: -floorBelow(s, f.x, f.y) / 256,
         rim: !white,
-        // 대시 중 순간이동 구간은 깜빡인다
-        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2),
+        // 대시 중 순간이동 구간은 깜빡인다. 순간이동 기술(라이덴 잔흔)은 사라지는 틱에 한 번 보이지 않는다
+        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f) && !raidenIntroHidden(f) && !rendersOf(f.char).hidden?.(s, f, i),
         order: order.indexOf(f),
       };
     }));
@@ -455,21 +457,29 @@ function chargeGlow(f: Fighter): 0 | 1 | 2 {
   return since >= 0 && since < 3 ? 2 : 1;
 }
 
+/** 순간이동 기술이 사라지는 틱인가 (그 틱은 Dash & Blink 이펙트만 보인다) */
+function blinkingNow(f: Fighter): boolean {
+  if (f.mode !== 'attack' || !f.move) return false;
+  const b = movesOf(f.char)[f.move].blink;
+  return b !== undefined && f.t === b.tick;
+}
+
 /** 잔상을 남길 만큼 빠른가: 3px/틱 이상으로 움직일 때 (대시는 Sprite Fusion 잔상이 따로 있어 뺀다) */
 function isFast(f: Fighter): boolean {
   return f.mode !== 'dash' && f.mode !== 'airdash' && Math.abs(f.vx) >= 3 * 256;
 }
 
+/** 잔상 캔버스 (가장 큰 칸 128×96) */
 const ghostCanvas = document.createElement('canvas');
-ghostCanvas.width = 64;
-ghostCanvas.height = 64;
+ghostCanvas.width = 128;
+ghostCanvas.height = 96;
 /** 바둑판 무늬 (반투명 대신 디더링) */
 const checker = (() => {
   const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 64;
+  c.width = 128;
+  c.height = 96;
   const g = c.getContext('2d')!;
-  for (let y = 0; y < 64; y++) for (let x = y & 1; x < 64; x += 2) g.fillRect(x, y, 1, 1);
+  for (let y = 0; y < 96; y++) for (let x = y & 1; x < 128; x += 2) g.fillRect(x, y, 1, 1);
   return c;
 })();
 
@@ -482,17 +492,18 @@ function drawGhost(
   skin: SkinId = 'base',
 ) {
   const m = motionByName.get(g.motion)!;
+  const cell = cellOf(m);
   const gc = ghostCanvas.getContext('2d')!;
   gc.globalCompositeOperation = 'source-over';
-  gc.clearRect(0, 0, 64, 64);
+  gc.clearRect(0, 0, 128, 96);
   m.draw(gc, g.frame, 0, 0, { look, flip: g.facing < 0, skin });
   gc.globalCompositeOperation = 'destination-in';
   gc.drawImage(checker, 0, 0);
   gc.globalCompositeOperation = 'source-over';
   // 더 오래된 잔상은 한 줄 걸러 지워 더 옅게
-  if (faint) for (let y = 0; y < 64; y += 2) gc.clearRect(0, y, 64, 1);
+  if (faint) for (let y = 0; y < cell.h; y += 2) gc.clearRect(0, y, cell.w, 1);
   const [sx, sy] = toScreen(g.x / 256, g.y / 256);
-  ctx.drawImage(ghostCanvas, sx - FOOT_X, sy - FOOT_Y);
+  ctx.drawImage(ghostCanvas, 0, 0, cell.w, cell.h, sx - cell.fx, sy - cell.fy, cell.w, cell.h);
 }
 
 /** 맞아서 멈춘 동안(히트스톱) 맞은 쪽이 좌우로 1px씩 떨린다 */
