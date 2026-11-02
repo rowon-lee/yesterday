@@ -1,5 +1,5 @@
 import { AIR_CHAIN, CHARGE_FROM, GROUND_CHAIN, type MoveId } from '../data/moves/base';
-import { motionFrames, motionOf, MOVES, movesOf, statsOf } from './frames';
+import { advanceOf, motionFrames, motionOf, MOVES, movesOf, statsOf } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
@@ -121,8 +121,9 @@ function startMove(s: SimState, f: Fighter, id: MoveId): void {
     f.vy = 0;
   }
   if (mv.data.cutin) {
-    s.freeze = SUPER_FREEZE;
-    s.events.push({ type: 'cutin', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: mv.data.cutin, move: id });
+    const c = mv.data.cutin;
+    s.freeze = typeof c === 'string' ? SUPER_FREEZE : c.freeze ?? SUPER_FREEZE;
+    s.events.push({ type: 'cutin', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: typeof c === 'string' ? c : c.id, move: id });
   }
   hooksOf(f.char).start?.(s, f, id);
 }
@@ -594,11 +595,12 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       // 캐릭터 고유 기술 규칙 (순간이동 방향, 끌어당김, 원격 베기…). true면 이 틱 기본 몸 이동을 건너뛴다
       const own = hooksOf(f.char).move?.(s, f, f.move!, input) === true;
       if (f.mode !== 'attack' || !f.move) break;
-      // 몸 이동 (동작연출지침서 4장): 프레임별 이동값대로 자리를 옮긴다 (땅에서는 미끄러지던 속도를 줄인다)
+      // 몸 이동 (동작연출지침서 4장): 프레임별 이동값대로 자리를 옮긴다 (땅에서는 미끄러지던 속도를 줄인다). 차지는 모은 단계의 이동값
+      const adv = advanceOf(mv, f.chargeLv);
       if (own) {
         // 캐릭터 규칙이 이 틱의 이동을 정했다
-      } else if (mv.advance) {
-        f.x += f.facing * (mv.advance[f.t] ?? 0);
+      } else if (adv) {
+        f.x += f.facing * (adv[f.t] ?? 0);
         if (!isAirborne(f)) f.vx = friction(f.vx);
       } else if (mv.blink) blinkControl(s, f, mv);
       else if (mv.dive) diveControl(s, f, mv);
@@ -872,6 +874,8 @@ function land(s: SimState, f: Fighter): void {
         f.bounce = false;
         f.vy = BOUNCE_VY;
         f.y -= 1;
+        // 튀어 오르면 내려선 바닥(발판)을 다시 떠난다 (발판 위에서 튈 때 바닥 값이 남지 않게)
+        f.floor = 0;
         f.vx = Math.trunc(f.vx / 2);
       } else {
         setMode(f, 'knockdown', KNOCKDOWN_TICKS);

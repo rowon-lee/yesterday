@@ -35,10 +35,14 @@ export interface CharHooks {
   hit?(s: SimState, att: Fighter, def: Fighter, id: MoveId, blocked: boolean, shielded: boolean): void;
   /** 필살기 연출이 끝나 끝 타격을 준 뒤 */
   cineEnd?(s: SimState, att: Fighter, def: Fighter, id: MoveId): void;
+  /** 필살기 연출의 장면이 바뀌는 틱 (scene = 새 장면 번호, 1부터). 연출 중 파괴 같은 효과 */
+  cineScene?(s: SimState, att: Fighter, def: Fighter, id: MoveId, scene: number): void;
+  /** 이 기술을 다른 그림(기술 데이터 alt)으로 보이는가 (상태만 읽는다: 렌더와 판정이 같은 답을 얻는다) */
+  altMotion?(f: Fighter, id: MoveId): boolean;
 }
 
 /** f.ext 길이 */
-export const EXT_LEN = 24;
+export const EXT_LEN = 32;
 
 const NONE: CharHooks = {};
 let table: Partial<Record<CharId, CharHooks>> | null = null;

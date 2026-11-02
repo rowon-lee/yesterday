@@ -4,6 +4,7 @@ import { COLORS, COMMON, RAMP_SETS, type RampName } from '../palette';
 import { SCREEN_W } from '../screen';
 import { FAR, MARGIN, NEAR, RT_H, RT_W, type Placed } from './core';
 import { LIGHT_N, loadedLights } from './lights';
+import { SHEAR_MAX, shearFrame, tint } from '../screenfx';
 
 /**
  * 구간 팔레트 (맵 아트 지침서 '팔레트'): 구간마다 늘 쓰는 색(캐릭터·이펙트) + 그 구간이 고른 계단 묶음 (data/stages moods[구간].ramps).
@@ -182,6 +183,8 @@ uniform float gradeSat;
 uniform float gradeContrast;
 uniform float exposure;
 uniform float vignette;
+/** 화면 물들이기 (render/screenfx tint): rgb는 밝기 1로 맞춘 색, a는 세기. 밝기는 그대로 색만 그 쪽으로 */
+uniform vec4 wash;
 varying vec2 vUv;
 
 vec3 toSrgb(vec3 c) {
@@ -202,6 +205,7 @@ vec3 grade(vec3 c) {
   vec3 t = mix(c, c * tint, 0.4);
   t *= l / max(dot(t, LUMA), 1e-5);
   t = mix(vec3(l), t, gradeSat);
+  t = mix(t, l * wash.rgb, wash.a);
   // 아주 센 빛의 심(네온 관·전구·가로등 유리)은 필름처럼 하얗게 날아간다
   float hot = smoothstep(0.7, 2.2, l);
   return mix(t, vec3(max(t.r, max(t.g, t.b))), hot * 0.65);
@@ -372,6 +376,40 @@ void main() {
 }
 `;
 
+/**
+ * 선 따라 어긋남 (render/screenfx): 마지막 팔레트 화면을 칸 단위로 옮겨 찍는다 (새 색이 생기지 않는다).
+ * 선마다 A = (시작점 x, y, 방향 x, y: 화면 px, y 아래로 +), B = (길이 (0 = 끝없음), 미치는 범위 (0 = 화면 끝까지), + 쪽 밀림, − 쪽 밀림).
+ * + 쪽 = 선 방향의 오른쪽 (오른쪽으로 긋는 선이면 아래). 밀림은 선 방향으로 px, 여러 선이면 더한다
+ */
+const SHEAR_FRAG = /* glsl */ `
+uniform sampler2D src;
+uniform vec2 size;
+uniform float margin;
+uniform int count;
+uniform vec4 lineA[${SHEAR_MAX}];
+uniform vec4 lineB[${SHEAR_MAX}];
+varying vec2 vUv;
+void main() {
+  vec2 frag = floor(vUv * size);
+  vec2 p = vec2(frag.x - margin + 0.5, size.y - 1.0 - frag.y - margin + 0.5);
+  vec2 off = vec2(0.0);
+  for (int i = 0; i < ${SHEAR_MAX}; i++) {
+    if (i >= count) break;
+    vec4 A = lineA[i];
+    vec4 B = lineB[i];
+    vec2 q = p - A.xy;
+    float t = dot(q, A.zw);
+    float s = A.z * q.y - A.w * q.x;
+    float w = 1.0;
+    if (B.x > 0.0) w *= clamp(1.0 - max(-t, t - B.x) / 8.0, 0.0, 1.0);
+    if (B.y > 0.0) w *= clamp(2.0 - abs(s) / B.y, 0.0, 1.0);
+    off += A.zw * (s > 0.0 ? B.z : B.w) * w;
+  }
+  vec2 sp = p - floor(off + 0.5);
+  gl_FragColor = texture2D(src, vec2(sp.x + margin, size.y - sp.y - margin) / size);
+}
+`;
+
 /** 팔레트 여럿 → 32×32×32 색 상자마다 가장 가까운 팔레트 색 표를 세로로 쌓은 그림 (가로 1024 = 파랑 32칸 × 빨강 32칸, 표마다 세로 초록 32칸) */
 function buildLut(palettes: string[][]): THREE.DataTexture {
   const n = palettes.length;
@@ -478,6 +516,7 @@ export class Post {
   /** 품질 낮음: 경계 디더 없이 팔레트만 (칸마다 텍스처를 덜 읽는다) */
   private readonly paletteFast: THREE.ShaderMaterial;
   private readonly blit: THREE.ShaderMaterial;
+  private readonly shear: THREE.ShaderMaterial;
   private readonly tmp = new THREE.Vector3();
   private readonly haloMesh: THREE.Mesh;
   private readonly haloGeo: THREE.InstancedBufferGeometry;
@@ -539,6 +578,7 @@ export class Post {
       gradeContrast: { value: 0.12 },
       exposure: { value: 1 },
       vignette: { value: 0.2 },
+      wash: { value: new THREE.Vector4(1, 1, 1, 0) },
     });
     this.palette = mat(PALETTE_FRAG, {
       graded: { value: this.graded.texture },
@@ -559,6 +599,14 @@ export class Post {
       vertexShader: FULL_VERT, fragmentShader: PALETTE_FRAG, uniforms: this.palette.uniforms, depthTest: false, depthWrite: false,
     });
     this.blit = mat(BLIT_FRAG, { src: { value: this.final.texture } });
+    this.shear = mat(SHEAR_FRAG, {
+      src: { value: this.final.texture },
+      size: { value: new THREE.Vector2(RT_W, RT_H) },
+      margin: { value: MARGIN },
+      count: { value: 0 },
+      lineA: { value: Array.from({ length: SHEAR_MAX }, () => new THREE.Vector4()) },
+      lineB: { value: Array.from({ length: SHEAR_MAX }, () => new THREE.Vector4()) },
+    });
     this.haloGeo = new THREE.InstancedBufferGeometry();
     this.haloGeo.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], 3));
     this.haloGeo.setIndex([0, 1, 2, 0, 2, 3]);
@@ -616,7 +664,7 @@ export class Post {
     r.origin.value.set(placed.ix, placed.iy);
     this.pass(renderer, this.reflect, this.lit);
     const L = this.look;
-    this.drawHalos(renderer, camera, 0.1 * L.halo);
+    this.drawHalos(renderer, camera, 0.1 * L.halo * tint.halo);
     if (opts.bloom) {
       this.bright.uniforms.src.value = this.lit.texture;
       this.pass(renderer, this.bright, this.q[0]);
@@ -648,14 +696,39 @@ export class Post {
     u.gradeSat.value = L.sat;
     u.gradeContrast.value = L.contrast;
     u.exposure.value = L.exposure;
+    // 화면 물들이기 (캐릭터 연출, render/screenfx): 색 보정의 두 색과 채도를 그 색 쪽으로, 그리고 색을 그 색으로 씻는다
+    if (tint.k > 0) {
+      const k = Math.min(1, tint.k);
+      u.gradeShadow.value.lerp(this.tintColor.set(tint.shadow), k);
+      u.gradeHigh.value.lerp(this.tintColor.set(tint.high), k);
+      u.gradeSat.value += (tint.sat - u.gradeSat.value) * k;
+      const c = this.tintColor.set(tint.high);
+      const l = Math.max(0.001, 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b);
+      u.wash.value.set(c.r / l, c.g / l, c.b / l, 0.55 * k);
+    } else u.wash.value.w = 0;
 
     this.pass(renderer, this.composite, this.graded);
     // 디더 무늬는 싸우는 면에 붙여 카메라가 움직여도 지글거리지 않게
     this.palette.uniforms.ditherOrigin.value.set(placed.ix, -placed.iy);
     this.palette.uniforms.viewX.value = placed.ix - MARGIN - 0.5;
     this.pass(renderer, opts.bloom ? this.palette : this.paletteFast, this.final);
+    // 선 따라 어긋남 (render/screenfx): final → graded로 옮겨 찍고 다시 final로 (확인 도구가 final을 읽는다)
+    const cuts = shearFrame(time, placed.ix, placed.iy);
+    if (cuts.length) {
+      const su = this.shear.uniforms;
+      su.count.value = cuts.length;
+      cuts.forEach((c, i) => {
+        su.lineA.value[i].set(c.ax, c.ay, c.dx, c.dy);
+        su.lineB.value[i].set(c.len, c.reach, c.pos, c.neg);
+      });
+      this.pass(renderer, this.shear, this.graded);
+      this.blit.uniforms.src.value = this.graded.texture;
+      this.pass(renderer, this.blit, this.final);
+      this.blit.uniforms.src.value = this.final.texture;
+    }
     this.pass(renderer, this.blit, null);
   }
+  private readonly tintColor = new THREE.Color();
 
   /** 빛 무리: 실린 광원마다 화면 자리를 한 번 계산해 둘레 판을 lit 위에 더한다 */
   private drawHalos(renderer: THREE.WebGLRenderer, camera: THREE.Camera, strength: number): void {

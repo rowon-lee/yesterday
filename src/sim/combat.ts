@@ -1,6 +1,6 @@
 import { hurtBox, type Box } from '../anim/boxes';
 import type { MoveId } from '../data/moves/base';
-import { movesOf, moveHitBox } from './frames';
+import { movesOf, moveHitBox, moveHitLine } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
 import { CITY_RULES as CITY, KEEP_RULES } from '../stage/citadel';
 import { damageCitadel, superCitadel, towerBehind } from './citadel';
@@ -32,6 +32,40 @@ export function toWorld(f: Fighter, b: Box): WBox {
 
 export const overlap = (a: WBox, b: WBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
+/**
+ * 판정 선(휘는 무기)이 상자를 지나는가: 이은 선분 하나라도 상자 안에 들어오거나 상자 변과 만나면 참.
+ * 점은 월드 1/256px 정수라 정수 비교·곱만 쓴다 (결정론)
+ */
+function lineHits(pts: ReadonlyArray<readonly [number, number]>, b: WBox): boolean {
+  const inside = (x: number, y: number) => x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1;
+  const cross = (ax: number, ay: number, bx: number, by: number, cx: number, cy: number) => Math.sign((bx - ax) * (cy - ay) - (by - ay) * (cx - ax));
+  const meets = (p: readonly [number, number], q: readonly [number, number], c: readonly [number, number], d: readonly [number, number]) =>
+    cross(p[0], p[1], q[0], q[1], c[0], c[1]) * cross(p[0], p[1], q[0], q[1], d[0], d[1]) <= 0 &&
+    cross(c[0], c[1], d[0], d[1], p[0], p[1]) * cross(c[0], c[1], d[0], d[1], q[0], q[1]) <= 0;
+  const corners: Array<readonly [number, number]> = [[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]!;
+    if (inside(p[0], p[1])) return true;
+    const q = pts[i + 1];
+    if (!q) break;
+    // 선분이 상자 둘레 상자 밖으로 완전히 벗어나면 건너뛴다
+    if (Math.max(p[0], q[0]) < b.x0 || Math.min(p[0], q[0]) > b.x1 || Math.max(p[1], q[1]) < b.y0 || Math.min(p[1], q[1]) > b.y1) continue;
+    for (let k = 0; k < 4; k++) if (meets(p, q, corners[k]!, corners[(k + 1) % 4]!)) return true;
+  }
+  return false;
+}
+
+/** 판정 선의 굵기 (px): 그린 칼날 굵기(2px)와 외곽선만큼, 선에서 이만큼 안이면 닿는다 */
+const LINE_PAD = 3;
+
+/** 지금 판정 선이 있는 기술이면 그 선이 상자 hu를 지나는가 (선이 없으면 늘 참: 상자끼리 겹침으로 정한다) */
+function lineReaches(f: Fighter, hu: WBox): boolean {
+  const line = f.move ? moveHitLine(movesOf(f.char)[f.move], f.t) : null;
+  if (!line) return true;
+  const p = px(LINE_PAD);
+  return lineHits(line.map(([x, y]) => [f.x + px(f.facing * x), f.y + px(y)] as const), { x0: hu.x0 - p, y0: hu.y0 - p, x1: hu.x1 + p, y1: hu.y1 + p });
+}
+
 /** 피격 상자: 지금 프레임의 몸 관절을 감싼 상자. 무적이면 null */
 export function hurtOf(f: Fighter): WBox | null {
   // 다운은 내내 무적. 기상은 무적 틱(앞 20틱)이 지나면 다시 맞는다 (공통 동작 사양서)
@@ -43,13 +77,18 @@ export function hurtOf(f: Fighter): WBox | null {
 /** 지금 기술의 판정 상자 (이미 맞혔어도). 부서지는 물건 판정용 */
 export function activeHitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || !f.move) return null;
-  const b = moveHitBox(movesOf(f.char)[f.move], f.t, f.chargeLv);
+  const mv = movesOf(f.char)[f.move];
+  // 판정을 캐릭터 고유 규칙이 직접 내는 기술 (오스카 베기 선): 공통 판정·물건 깎기를 하지 않는다
+  if (mv.data.selfHit) return null;
+  const b = moveHitBox(mv, f.t, f.chargeLv);
   return b && toWorld(f, b);
 }
 
 export function hitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || f.moveHit || !f.move) return null;
-  const b = moveHitBox(movesOf(f.char)[f.move], f.t, f.chargeLv);
+  const mv = movesOf(f.char)[f.move];
+  if (mv.data.selfHit) return null;
+  const b = moveHitBox(mv, f.t, f.chargeLv);
   return b && toWorld(f, b);
 }
 
@@ -67,7 +106,7 @@ export function resolveHits(s: SimState): void {
   for (const [att, def] of [[a, b], [b, a]] as const) {
     const hb = hitOf(att);
     const hu = hurtOf(def);
-    if (hb && hu && overlap(hb, hu)) hits.push([att, def, hb, att.move!]);
+    if (hb && hu && overlap(hb, hu) && lineReaches(att, hu)) hits.push([att, def, hb, att.move!]);
   }
   for (const [att, def, hb, id] of hits) applyHit(s, att, def, hb, id);
 }
@@ -110,7 +149,11 @@ function applyHitInner(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: Mo
   const baseDamage = lvl?.damage ?? d.damage;
   const guardDamage = lvl?.guardDamage ?? d.guardDamage;
   const end = final ? d.cinematic?.end : undefined;
-  const launch = end ? { vx: px(end.launch.vx), vy: px(end.launch.vy) } : lvl ? { vx: px(lvl.launch.vx), vy: px(lvl.launch.vy) } : mv.launch;
+  // 차지 단계에 날리기가 없으면 띄우지 않고 그 단계의 밀림(push)으로 땅에서 밀려난다
+  const launch = end
+    ? { vx: px(end.launch.vx), vy: px(end.launch.vy) }
+    : lvl ? (lvl.launch && { vx: px(lvl.launch.vx), vy: px(lvl.launch.vy) }) : mv.launch;
+  const push = lvl?.push !== undefined ? px(lvl.push) : mv.push;
   const wall = end ? end.wall === true : lvl ? lvl.wall === true : d.wall === true;
   const dir = att.facing;
   const who = s.fighters.indexOf(att);
@@ -147,14 +190,14 @@ function applyHitInner(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: Mo
     if (def.guard <= 0) {
       def.guard = 0;
       setMode(def, 'crush', CRUSH_TICKS);
-      def.vx = dir * mv.push;
+      def.vx = dir * push;
       s.events.push({ type: 'crush', who, x: ex, y: ey, heavy: true, move: mv.id });
     } else {
       setMode(def, 'blockstun', d.blockstun);
-      def.vx = dir * mv.push;
+      def.vx = dir * push;
       s.events.push({ type: 'block', who, x: ex, y: ey, move: mv.id });
     }
-    pushOffWall(att, def, mv.push);
+    pushOffWall(att, def, push);
     return 'block';
   }
 
@@ -194,7 +237,7 @@ function applyHitInner(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: Mo
     def.comboHits = 0;
     if (!airborne) {
       // 하던 동작이 속도를 정하므로 밀림은 자리로 준다: 보통 경직 동안 밀리는 거리(약 4틱 × 밀림 속도)의 20%
-      const shove = Math.trunc((mv.push * KONGO_PUSH * 4) / 100);
+      const shove = Math.trunc((push * KONGO_PUSH * 4) / 100);
       def.x += dir * shove;
       pushOffWall(att, def, shove);
     }
@@ -239,8 +282,8 @@ function applyHitInner(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: Mo
   const decay = Math.max(0, def.comboHits - STUN_DECAY_FROM) * STUN_DECAY_STEP;
   setMode(def, 'hitstun', Math.max(Math.ceil((d.hitstun * STUN_DECAY_MIN) / 100), d.hitstun - decay));
   def.heavyHit = d.hitstun >= 24;
-  def.vx = dir * mv.push;
-  pushOffWall(att, def, mv.push);
+  def.vx = dir * push;
+  pushOffWall(att, def, push);
   return 'hit';
 }
 

@@ -43,6 +43,14 @@ export const COLORS = {
   hairBrownDark: '#5e3e28',
   thread: '#e8b84a',
   threadLight: '#fff0a0',
+  // 피부 (얼굴·손, 2026-11-02 '피부는 손·얼굴만'): 창백한 살빛 세 단계
+  skin: '#e6c9bc',
+  skinLight: '#f6e4da',
+  skinDark: '#ad8879',
+  // 백은우 일러스트 (2026-11-02): 잿빛 머리 (분홍기 도는 회갈색)
+  ash: '#a8998f',
+  ashLight: '#d6cac2',
+  ashDark: '#6e625d',
   // 에드워드 (붉은 정장·흰 넥타이·푸른 장막·청동). 몸은 붉은 정장(라이덴 붉은색보다 푸른 기 도는 짙은 다홍), 머리는 흰색
   crimson: '#a3233f',
   crimsonLight: '#d0455f',
@@ -211,7 +219,7 @@ export const COMMON: readonly ColorName[] = [
   // 라이덴
   'raiden', 'raidenLight', 'raidenDark', 'raidenDeep', 'suit', 'suitLight', 'suitDark', 'suitGrey', 'suitGreyLight', 'suitGreyDark', 'paleGrey',
   // 백은우
-  'lily', 'lilyLight', 'lilyDark', 'lilyDeep', 'gown', 'gownShade', 'gownDark', 'hairBrown', 'hairBrownLight', 'hairBrownDark', 'thread', 'threadLight',
+  'lily', 'lilyLight', 'lilyDark', 'lilyDeep', 'gown', 'gownShade', 'gownDark', 'hairBrown', 'hairBrownLight', 'hairBrownDark', 'thread', 'threadLight', 'ash', 'ashLight', 'ashDark', 'skin', 'skinLight', 'skinDark',
   // 에드워드
   'crimson', 'crimsonLight', 'crimsonDark', 'crimsonDeep', 'veil', 'veilLight', 'veilDark', 'bronze', 'bronzeLight', 'bronzeDark', 'hammer', 'hammerLight', 'hammerDark',
   // 오스카

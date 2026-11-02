@@ -33,10 +33,14 @@ export interface Pose {
    * 그림 전용 (캐릭터 장식이 읽는다. 판정은 공격 데이터의 궤적 상자). 무기가 있는 캐릭터만 쓴다 (에드워드 해머)
    */
   wa?: number;
+  /**
+   * 바람 (0~1, 없으면 0): 옷자락·넥타이를 위로 날리는 정도 (수직으로 떨어질 때). 그림 전용 (캐릭터 장식이 읽는다: 에드워드 등장)
+   */
+  wind?: number;
 }
 
 export const POSE_KEYS: readonly (keyof Pose)[] = [
-  'hx', 'hy', 'tl', 'hd', 'aFx', 'aFy', 'aBx', 'aBy', 'lFx', 'lFy', 'lBx', 'lBy', 'tw', 'wa',
+  'hx', 'hy', 'tl', 'hd', 'aFx', 'aFy', 'aBx', 'aBy', 'lFx', 'lFy', 'lBx', 'lBy', 'tw', 'wa', 'wind',
 ];
 
 /** 뼈 길이 (px) */
@@ -58,6 +62,8 @@ export interface Joints {
   ha: number;
   /** 무기 각도 (라디안, 그리기 전용: 포즈의 wa) */
   wa: number;
+  /** 바람 (0~1, 그리기 전용: 포즈의 wind) */
+  wind: number;
   eF: Point;
   hF: Point;
   eB: Point;
@@ -66,9 +72,27 @@ export interface Joints {
   fF: Point;
   kB: Point;
   fB: Point;
+  /** 따라 움직이는 것 (그리기 전용, 동작 데이터에 follow가 있을 때만: anim/follow.ts) */
+  fx?: FollowFrame;
 }
 
-export type JointName = Exclude<keyof Joints, 'ha' | 'wa'>;
+/**
+ * 프레임마다 관절에 붙는 2차 동작 값 (anim/follow.ts가 동작 그림을 미리 그릴 때 한 번 계산한다).
+ * rib: 휘는 무기(백은우 연검) 점 10개 = 손, 손잡이 끝, 날 마디 끝 8개 (발밑 기준 정수 px). 없으면 그 프레임에는 무기를 그리지 않는다.
+ * disc: 무기를 빠르게 돌려 만든 원 (가운데는 손), gown·hair: 옷자락·머리가 뒤로 휘날리는 정도 (늦게 따라오고 지나쳤다 돌아온다)
+ */
+export interface FollowFrame {
+  rib?: Point[];
+  /** 리본이 몸 뒤로 돌아간 프레임 (몸보다 먼저 그린다: 피루엣) */
+  back?: boolean;
+  disc?: { r: number; phase: number };
+  gown: number;
+  hair: number;
+  /** 옷자락이 둥글게 펼쳐지는 정도 0~1 (돌 때) */
+  flare?: number;
+}
+
+export type JointName = Exclude<keyof Joints, 'ha' | 'wa' | 'fx' | 'wind'>;
 
 /**
  * 발목을 발밑보다 이만큼 올린다. 4px 붓은 중심에서 아래로 1px 더 칠하므로,
@@ -114,8 +138,9 @@ export function ik(a: Point, t: Point, l1: number, l2: number, bend: 1 | -1): [P
  * 포즈 → 관절 위치. 팔꿈치는 아래·뒤, 무릎은 앞으로 굽는다.
  * 결과는 정수로 반올림한다. 나중에 sim이 판정에 쓸 때 브라우저마다 삼각함수 끝자리가
  * 달라도 같은 값이 나오게 하려는 것이다.
+ * k: 몸 크기 배율 (동작 데이터의 scale). 풀린 관절을 발밑 기준점 (0, 0)에서 k배로 키운 뒤 반올림한다 (뼈 길이·포즈 수치는 그대로).
  */
-export function solve(p: Pose): Joints {
+export function solve(p: Pose, k = 1): Joints {
   const r = Math.PI / 180;
   const t = p.tl * r;
   const hip: Point = [p.hx, p.hy];
@@ -130,9 +155,9 @@ export function solve(p: Pose): Joints {
   const aB = ik(shB, [shB[0] + p.aBx, shB[1] + p.aBy], BONE.upperArm, BONE.foreArm, -1);
   const lF = ik(hip, [p.lFx, p.lFy - ANKLE_LIFT], BONE.thigh, BONE.shin, 1);
   const lB = ik(hip, [p.lBx, p.lBy - ANKLE_LIFT], BONE.thigh, BONE.shin, 1);
-  const R = (q: Point): Point => [Math.round(q[0]), Math.round(q[1])];
+  const R = (q: Point): Point => [Math.round(q[0] * k), Math.round(q[1] * k)];
   return {
-    hip: R(hip), neck: R(neck), sh: R(sh), shF: R(shF), shB: R(shB), head: R(head), ha, wa: (p.wa ?? 0) * r,
+    hip: R(hip), neck: R(neck), sh: R(sh), shF: R(shF), shB: R(shB), head: R(head), ha, wa: (p.wa ?? 0) * r, wind: Math.max(0, Math.min(1, p.wind ?? 0)),
     eF: R(aF[0]), hF: R(aF[1]), eB: R(aB[0]), hB: R(aB[1]),
     kF: R(lF[0]), fF: R(lF[1]), kB: R(lB[0]), fB: R(lB[1]),
   };

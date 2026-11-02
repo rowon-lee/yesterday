@@ -1,6 +1,6 @@
-// YESTERDAY: 오스카 차지 만검지화 — 모으는 동안 앞 허공에 하나씩 만개하는 검영 (렌더 전용).
-// 가운데 한 점에서 은빛 칼 그림자 세 줄이 별꽃처럼 펼쳐지고(6틱), 모으는 동안 천천히 숨 쉬듯 빛난다.
-// alive()가 거짓이 되면 (떼서 베이거나, 맞아서 취소) 꽃잎이 흩어지며 사라진다. 좌표는 2단위 = 1px.
+// YESTERDAY: 오스카 차지 만검지화 — 검영 꽃 (캐릭터 기획서 13-5): 한 점에서 꽃잎처럼 퍼지는 은빛 선 5~6줄 (24~32px). 렌더 전용, 앞 겹.
+// 피는 4틱 동안 선이 가운데에서 바깥으로 자란다. 모으는 동안(alive) 은은하게 빛이 선을 따라 돈다. 떼면 2틱 만에 사라진다
+// (그 자리에서 선 다발이 펼쳐진다: oscar-cut). 좌표는 월드 px, petals는 [각도(도), 길이 px] (오른쪽 보는 기준, facing으로 뒤집는다).
 // 색: [흰, 달빛 밝은, 달빛, 달빛 어두운, 짙은 바다 밝은].
 import type { Frame, Layer } from './impact';
 import { glow, put } from './oscar-px';
@@ -8,54 +8,51 @@ import { glow, put } from './oscar-px';
 export interface Options {
   x: number;
   y: number;
+  facing: number;
+  petals: ReadonlyArray<readonly [number, number]>;
+  /** 모으는 동안 true */
   alive: () => boolean;
   ramp?: readonly number[];
-  /** 꽃잎 각도를 조금씩 다르게 */
-  turn?: number;
 }
 
-const PX = 2;
-const OPEN = 6;
-const FADE = 8;
-const R = 13;
+const GROW = 4;
 
 export default function oscarBloom(o: Options) {
   const C = o.ramp ?? [0xffffffff, 0xfffff8f4, 0xffecd8cd, 0xffa68a7c, 0xff806629];
-  const cx = o.x / PX;
-  const cy = o.y / PX;
-  const turn = o.turn ?? 0;
+  const P = o.petals.map(([deg, len]) => {
+    const r = (deg * Math.PI) / 180;
+    return { ux: Math.cos(r) * o.facing, uy: Math.sin(r), len };
+  });
   let t = 0;
   let gone = -1;
   return {
     update(dt: number) {
       t += dt;
-      if (gone < 0 && !o.alive()) gone = t;
+      if (gone < 0 && !o.alive()) gone = t * 60;
     },
     done() {
-      return gone >= 0 && (t - gone) * 60 >= FADE;
+      return gone >= 0 && t * 60 - gone > 2;
     },
     draw(f: Frame, layer?: Layer) {
       const tick = t * 60;
-      const open = Math.min(1, tick / OPEN);
-      const fade = gone >= 0 ? (t - gone) * 60 / FADE : 0;
-      const breath = 0.5 + 0.5 * Math.sin(tick * 0.18);
+      const grow = Math.min(1, tick / GROW);
       if (layer === 'back') {
-        for (let q = -6; q <= 6; q += 2) for (let p = -6; p <= 6; p += 2) glow(f, cx + p, cy + q, C[4]!, (0.3 + 0.2 * breath) * (1 - fade) * (1 - Math.hypot(p, q) / 9));
+        glow(f, o.x, o.y, C[1]!, 0.5 * grow);
+        for (const p of P) for (let s = 4; s <= p.len * grow; s += 4) glow(f, o.x + p.ux * s, o.y + p.uy * s, C[4]!, 0.25);
         return;
       }
-      // 세 줄 별꽃 (60°씩), 흩어질 때는 바깥으로 밀려나며 끊긴다
-      for (let k = 0; k < 3; k++) {
-        const a = turn + (k * Math.PI) / 3 + Math.PI / 4;
-        const dx = Math.cos(a);
-        const dy = Math.sin(a);
-        const len = R * open;
-        for (let d = -len; d <= len; d++) {
-          if (fade > 0 && (Math.abs(Math.round(d)) + k) % 3 === 0) continue;
-          const push = fade * 6 * Math.sign(d);
-          const c = Math.abs(d) < 2 ? C[0]! : Math.abs(d) < len - 3 ? (breath > 0.6 ? C[1]! : C[2]!) : C[3]!;
-          put(f, cx + dx * (d + push), cy + dy * (d + push), c);
+      if (gone >= 0 && (tick - gone) >= 1 && Math.floor(tick) % 2 === 0) return;
+      P.forEach((p, i) => {
+        const n = Math.round(p.len * grow);
+        // 빛이 꽃잎을 따라 바깥으로 흐른다 (꽃잎마다 박자가 다르다)
+        const run = (tick * 1.5 + i * 7) % (p.len + 10);
+        for (let s = 1; s <= n; s++) {
+          if (s > p.len - 3 && s % 2 === 0) continue;
+          const c = tick < GROW + 1 ? C[0]! : Math.abs(s - run) < 2 ? C[1]! : s < p.len * 0.6 ? C[2]! : C[3]!;
+          put(f, o.x + p.ux * s, o.y + p.uy * s, c);
         }
-      }
+      });
+      put(f, o.x, o.y, C[0]!);
     },
   };
 }

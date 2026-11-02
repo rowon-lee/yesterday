@@ -113,7 +113,7 @@ export function paint(img: Indexed, m: Mask, s: Shade, lightDx: 1 | -1 = 1): voi
  * 칠해진 모양 전체의 바깥 둘레 1px(상하좌우로 맞닿은 빈 칸)에 외곽선.
  * 부위 사이에 갇힌 빈 칸(바깥과 이어지지 않은 구멍)은 외곽선 대신 옆 색으로 메운다.
  */
-export function outlineSilhouette(img: Indexed, outline: number): void {
+export function outlineSilhouette(img: Indexed, outline: number, keepHoles = 0): void {
   const { w, h } = img;
   // 그림 테두리에서 빈 칸을 따라 퍼져 나가 바깥 공간을 표시한다.
   const outside = new Uint8Array(w * h);
@@ -129,6 +129,27 @@ export function outlineSilhouette(img: Indexed, outline: number): void {
     if (x < w - 1) stack.push(i + 1);
     if (i >= w) stack.push(i - w);
     if (i < (h - 1) * w) stack.push(i + w);
+  }
+  // keepHoles > 0: 이보다 큰 구멍(휘는 리본이 몸·다리와 만든 고리 등)은 메우지 않고 바깥처럼 둔다 (안쪽 둘레에 외곽선이 생긴다)
+  if (keepHoles > 0) {
+    const seen = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) {
+      if (img.a[i] !== 0 || outside[i] || seen[i]) continue;
+      const comp: number[] = [];
+      stack.push(i);
+      seen[i] = 1;
+      while (stack.length) {
+        const k = stack.pop()!;
+        comp.push(k);
+        const x = k % w;
+        for (const n of [x > 0 ? k - 1 : -1, x < w - 1 ? k + 1 : -1, k - w, k + w]) {
+          if (n < 0 || n >= w * h || seen[n] || outside[n] || img.a[n] !== 0) continue;
+          seen[n] = 1;
+          stack.push(n);
+        }
+      }
+      if (comp.length > keepHoles) for (const k of comp) outside[k] = 1;
+    }
   }
   for (let i = 0; i < w * h; i++) {
     if (img.a[i] !== 0 || outside[i]) continue;

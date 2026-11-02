@@ -290,13 +290,13 @@ function charChecks() {
     });
     out.push([`1~4타 연타 동안 두 몸 중심이 ${sim.RULES.PUSH_W / 256}px 넘게 떨어짐 (겹치지 않음)`, minGap >= sim.RULES.PUSH_W / 256, `가장 가까울 때 ${minGap.toFixed(1)}px, 맞힌 기술 ${hits2.join(' → ')}`]);
   }
-  // 라이덴 차지 투전승불: 길게 누르면 평타 뒤 모으기, 4단계까지 오르고 떼면 뒷주먹 (4단계는 벽 쪽으로 날림)
+  // 라이덴 차지 투전승불: 길게 누르면 평타 뒤 모으기, 4단계(모은 지 110틱)까지 오르고 떼면 뒷주먹 (4단계는 벽 쪽으로 날림)
   {
     st = rfresh(3150, 3200);
     let maxLv = 0;
     const charged = [];
-    for (let t = 0; t < 160; t++) {
-      sim.step(st, [t < 100 ? sim.IN_ATTACK : 0, 0]);
+    for (let t = 0; t < 200; t++) {
+      sim.step(st, [t < 140 ? sim.IN_ATTACK : 0, 0]);
       for (const e of st.events) {
         if (e.type === 'charge' && e.who === 0) maxLv = Math.max(maxLv, e.combo ?? 0);
         if (e.type === 'hit' && e.who === 0 && e.move === 'charge') charged.push(st.fighters[1].wallFly || st.fighters[1].mode === 'wallsplat');
@@ -306,16 +306,16 @@ function charChecks() {
       `가장 높은 단계 ${maxLv}, 차지 맞힘 ${charged.length}번${charged.length ? `, 벽 쪽으로 ${charged[0]}` : ''}`]);
   }
   {
-    // 4단계로 치면 끝난 뒤 탈진(36틱): 아무것도 못 하다가 대기로
+    // 4단계로 치면 끝난 뒤 탈진(40틱, 사용자 피드백 2026-11-02 9-1): 아무것도 못 하다가 대기로
     st = rfresh(3150, 3200);
     let exT = 0;
     let after = '';
-    for (let t = 0; t < 200; t++) {
-      sim.step(st, [t < 100 ? sim.IN_ATTACK : t % 3 === 0 ? sim.IN_ATTACK : 0, 0]);
+    for (let t = 0; t < 260; t++) {
+      sim.step(st, [t < 140 ? sim.IN_ATTACK : t % 3 === 0 ? sim.IN_ATTACK : 0, 0]);
       if (st.fighters[0].mode === 'exhaust') exT++;
       else if (exT > 0 && !after) after = st.fighters[0].mode;
     }
-    out.push(['투전승불 4단계 뒤 탈진 36틱 (그동안 공격 버튼을 눌러도 못 움직임)', exT === 36 && after !== '', `탈진 ${exT}틱, 그 뒤 ${after || '-'}`]);
+    out.push(['투전승불 4단계 뒤 탈진 40틱 (그동안 공격 버튼을 눌러도 못 움직임)', exT === 40 && after !== '', `탈진 ${exT}틱, 그 뒤 ${after || '-'}`]);
   }
   // 라이덴 스킬 1 잔흔: 붉은 잔상을 남기며 앞으로 순간이동(상대가 앞에 있으면 바로 앞에서 멈춤) → 하이킥. 잔상에 닿은 상대는 느려진다
   {

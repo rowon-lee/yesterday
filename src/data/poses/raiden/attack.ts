@@ -37,7 +37,8 @@ export const RAIDEN_JAB: MotionData = {
   label: '라이덴 1타 잽',
   wide: true,
   smear: { frame: 3, limb: 'aF', stretch: 1.4 },
-  dur: [1, 2, 2, 1, 2, 1, 1, 4, 3, 2, 2, 2],
+  // 박자 (사용자 피드백 2026-11-02 '1·2타는 붙여서 빠르게'): 감기 3틱 + 스미어 1틱 → 판정 5~6프레임
+  dur: [1, 1, 1, 1, 2, 1, 1, 3, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: R_STANCE },
     { at: 1, pose: JAB_LOAD },
@@ -79,7 +80,8 @@ export const RAIDEN_CROSS: MotionData = {
   label: '라이덴 2타 크로스',
   wide: true,
   smear: { frame: 3, limb: 'aB', stretch: 1.4 },
-  dur: [1, 2, 2, 1, 2, 1, 1, 4, 3, 2, 2, 2],
+  // 박자: 잽에 붙여 빠르게 (감기 3틱 + 스미어 1틱)
+  dur: [1, 1, 1, 1, 2, 1, 1, 3, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: R_STANCE },
     { at: 1, pose: CR_LOAD },
@@ -123,7 +125,8 @@ export const RAIDEN_MIDDLE_KICK: MotionData = {
   label: '라이덴 3타 미들킥',
   wide: true,
   smear: { frame: 3, limb: 'lB', stretch: 1.35 },
-  dur: [1, 2, 2, 1, 2, 1, 1, 4, 3, 2, 2, 2, 2],
+  // 박자: 3타 앞에 짧은 틈 (내디딤 3틱·무릎 끌어올림 2틱에 멈칫 + 스미어 1틱 = 7틱)
+  dur: [1, 3, 2, 1, 2, 1, 1, 4, 3, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: R_STANCE },
     { at: 1, pose: MK_STEP },
@@ -173,7 +176,8 @@ export const RAIDEN_SUPERMAN_PUNCH: MotionData = {
   label: '라이덴 4타 슈퍼맨 펀치',
   wide: true,
   smear: { frame: 4, limb: 'aB', stretch: 1.45 },
-  dur: [1, 2, 2, 1, 1, 2, 1, 2, 4, 3, 3, 2, 2, 2],
+  // 박자: 4타 앞 감기가 가장 길다 (내디딤 2·차는 척 3·멈칫 3·박참 2 + 스미어 1 = 11틱)
+  dur: [2, 3, 3, 2, 1, 2, 1, 2, 4, 3, 3, 2, 2, 2],
   keys: [
     { at: 0, pose: R_STANCE },
     { at: 1, pose: SM_STEP },

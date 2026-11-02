@@ -18,7 +18,10 @@ import type { Fighter, SimState } from './types';
  */
 export function startCine(s: SimState, att: Fighter, def: Fighter, move: MoveId): void {
   const who = s.fighters.indexOf(att);
-  s.cine = { who, move, scene: 0, t: 0, ox: att.x, oy: att.y, dir: att.facing };
+  // 같은 경기 두 번째 연출부터는 짧은 판 (있으면)
+  const short = att.cines > 0 && !!movesOf(att.char)[move].data.cinematic!.short;
+  att.cines++;
+  s.cine = { who, move, scene: 0, t: 0, ox: att.x, oy: att.y, dir: att.facing, short };
   for (const f of [att, def]) {
     setMode(f, 'cine');
     f.vx = 0;
@@ -36,36 +39,52 @@ export function startCine(s: SimState, att: Fighter, def: Fighter, move: MoveId)
 export function stepCine(s: SimState): void {
   const c = s.cine!;
   const ch = s.fighters[c.who].char;
-  const cin = movesOf(ch)[c.move].data.cinematic!;
+  const scenes = scenesOf(ch, c.move, c.short);
   c.t++;
-  if (c.t >= sceneTicks(ch, c.move, c.scene)) {
+  if (c.t >= sceneTicks(ch, c.move, c.scene, c.short)) {
     c.scene++;
     c.t = 0;
-    if (c.scene >= cin.scenes.length) {
+    if (c.scene >= scenes.length) {
       finish(s);
       return;
     }
     s.events.push({ type: 'cine', who: c.who, x: s.fighters[c.who].x, y: s.fighters[c.who].y, text: 'scene', combo: c.scene, move: c.move });
+    place(s);
+    // 캐릭터 고유 규칙: 장면이 바뀌는 틱의 효과 (라이덴 파천: 넷째 장면에 등 뒤 일직선 잿더미)
+    hooksOf(s.fighters[c.who].char).cineScene?.(s, s.fighters[c.who], s.fighters[1 - c.who], c.move, c.scene);
+    return;
   }
   place(s);
 }
 
 /** 장면 하나의 길이 (발동자 동작의 표시 틱 합) */
-export function sceneTicks(ch: CharId, move: MoveId, scene: number): number {
-  return motionFrames(movesOf(ch)[move].data.cinematic!.scenes[scene].a.motion).total;
+export function sceneTicks(ch: CharId, move: MoveId, scene: number, short = false): number {
+  return motionFrames(scenesOf(ch, move, short)[scene].a.motion).total;
+}
+
+/** 이번 연출의 장면들: 짧은 판이면 short (없으면 scenes) */
+export function scenesOf(ch: CharId, move: MoveId, short = false): NonNullable<ReturnType<typeof movesOf>[MoveId]['data']['cinematic']>['scenes'] {
+  const cin = movesOf(ch)[move].data.cinematic!;
+  return short && cin.short ? cin.short : cin.scenes;
+}
+
+/** 지금 재생 중인 연출의 장면들 (렌더가 쓴다) */
+export function cineScenes(s: SimState): ReturnType<typeof scenesOf> {
+  const c = s.cine!;
+  return scenesOf(s.fighters[c.who].char, c.move, c.short);
 }
 
 /** 연출 전체 길이 (틱) */
-export function cineTicks(ch: CharId, move: MoveId): number {
-  return movesOf(ch)[move].data.cinematic!.scenes.reduce((n, _, i) => n + sceneTicks(ch, move, i), 0);
+export function cineTicks(ch: CharId, move: MoveId, short = false): number {
+  return scenesOf(ch, move, short).reduce((n, _, i) => n + sceneTicks(ch, move, i, short), 0);
 }
 
 function place(s: SimState): void {
   const c = s.cine!;
   const att = s.fighters[c.who];
   const def = s.fighters[1 - c.who];
-  const sc = movesOf(att.char)[c.move].data.cinematic!.scenes[c.scene];
-  const u = Math.min(1, c.t / Math.max(1, sceneTicks(att.char, c.move, c.scene)));
+  const sc = scenesOf(att.char, c.move, c.short)[c.scene];
+  const u = Math.min(1, c.t / Math.max(1, sceneTicks(att.char, c.move, c.scene, c.short)));
   for (const [f, actor] of [[att, sc.a], [def, sc.d]] as const) {
     const [x, y] = posAt(actor.pos, u);
     f.x = c.ox + c.dir * px(x);

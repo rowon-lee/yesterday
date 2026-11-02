@@ -24,6 +24,7 @@ export const EUNWOO_WALL_CLING: MotionData = {
   name: 'eunwoo/wall_cling',
   label: '백은우 벽 붙기',
   dur: [1, 2, 2, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+  follow: { ribbon: { air: true, stiff: 0.6 }, breeze: 0.4 },
   keys: [
     { at: 0, pose: CL_TOUCH },
     { at: 2, pose: CL_SOFT, stop: true },
@@ -48,6 +49,7 @@ export const EUNWOO_WALL_JUMP: MotionData = {
   name: 'eunwoo/wall_jump',
   label: '백은우 벽 점프',
   dur: [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+  follow: { ribbon: { air: true, stiff: 0.5, gravity: 0.4, damp: 0.9 }, wind: 0.4 },
   keys: [
     { at: 0, pose: WJ_PUSH },
     { at: 3, pose: WJ_SWAN, stop: true },
@@ -58,12 +60,12 @@ export const EUNWOO_WALL_JUMP: MotionData = {
 };
 
 // ---- 벽 달리기 (벽은 앞 x = +7. 벽을 바라보며 발끝으로 가볍게 달려 오른다) ----
-/** 대시에서 이어져 앞발끝을 벽에 댄다 */
-const WR_PLANT = E({ hx: 0, hy: -21, tl: 14, hd: -10, aFx: 4, aFy: 6, aBx: -6, aBy: 6, lFx: 7, lFy: -14, lBx: -5, lBy: -1 });
-/** 앞발로 벽을 밀어 오르며 뒷무릎을 높이 차올린다 (뒷팔이 앞으로, 연검 쥔 앞팔은 뒤로) */
-const WR_A = E({ hx: 0, hy: -25, tl: 8, hd: -18, aFx: 2, aFy: 8, aBx: 8, aBy: -8, lFx: 7, lFy: -24, lBx: 2, lBy: -8 });
+/** 대시에서 이어져 앞발끝을 벽에 댄다 (몸을 벽 쪽으로 기울인다) */
+const WR_PLANT = E({ hx: 0, hy: -22, tl: 20, hd: -8, aFx: -2, aFy: 10, aBx: -6, aBy: 6, lFx: 7, lFy: -12, lBx: -5, lBy: -1 });
+/** 앞발끝으로 벽을 가볍게 밀어 오르며 뒷무릎을 차올린다 (뒷팔이 앞으로, 연검 쥔 앞팔은 뒤아래로) */
+const WR_A = E({ hx: 0.5, hy: -25, tl: 18, hd: -14, aFx: -3, aFy: 11, aBx: 8, aBy: -7, lFx: 7, lFy: -22, lBx: 2, lBy: -9 });
 /** 발을 바꿔 뒷발끝을 높이 벽에 댄다 (팔도 바뀐다) */
-const WR_B = E({ hx: 0, hy: -25, tl: 8, hd: -18, aFx: 9, aFy: -6, aBx: -4, aBy: 8, lFx: 2, lFy: -8, lBx: 7, lBy: -24 });
+const WR_B = E({ hx: 0.5, hy: -25, tl: 18, hd: -14, aFx: 5, aFy: 4, aBx: -5, aBy: 9, lFx: 2, lFy: -9, lBx: 7, lBy: -22 });
 /** 꼭대기 모서리에 두 손을 짚는다 */
 const WR_GRAB = E({ hx: 0, hy: -24, tl: 4, hd: -20, aFx: 5, aFy: -16, aBx: 3, aBy: -16, lFx: 5, lFy: -9, lBx: 1, lBy: -2 });
 /** 짚은 손으로 몸을 띄워 다리를 높이 넘긴다 (물구나무 넘기) */
@@ -71,18 +73,18 @@ const WR_VAULT = E({ hx: 2, hy: -28, tl: 62, hd: 12, aFx: 2, aFy: 10, aBx: 0, aB
 /** 윗면에 발끝으로 내려서며 연검을 앞으로 */
 const WR_OVER = E({ hx: 3, hy: -22, tl: 14, hd: 0, aFx: 12, aFy: -4, aBx: -8, aBy: -2, lFx: 9, lFy: -10, lBx: -5, lBy: -6 });
 
-/** 벽 달리기: 1~10프레임 발끝으로 번갈아 가볍게 벽을 밀며 달려 오름, 11~14프레임 모서리를 짚고 다리를 넘겨 올라섬. 14프레임 */
+/** 벽 달리기 (11-1: 가장 가볍게, 벽 쪽으로 기울어 발끝으로 세 걸음): 1~10프레임 발끝으로 번갈아 가볍게 벽을 밀며 달려 오름, 11~14프레임 모서리를 짚고 다리를 넘겨 올라섬. 14프레임 */
 export const EUNWOO_WALL_RUN: MotionData = {
   name: 'eunwoo/wall_run',
   label: '백은우 벽 달리기',
   dur: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3],
+  // 오르는 동안 가운 자락·연검이 아래로 끌린다
+  follow: { ribbon: { air: true, stiff: 0.5, keys: [{ at: 0, gravity: 1.8 }, { at: 9, gravity: 1.8 }, { at: 11, gravity: 0.8 }] }, wind: 0.8 },
   keys: [
     { at: 0, pose: WR_PLANT },
-    { at: 1, pose: WR_A },
-    { at: 3, pose: WR_B },
-    { at: 5, pose: WR_A },
-    { at: 7, pose: WR_B },
-    { at: 9, pose: WR_A },
+    { at: 2, pose: WR_A },
+    { at: 5, pose: WR_B },
+    { at: 8, pose: WR_A },
     { at: 10, pose: WR_GRAB },
     { at: 11, pose: WR_VAULT, stop: true },
     { at: 13, pose: WR_OVER },
@@ -106,6 +108,7 @@ export const EUNWOO_WALL_TECH: MotionData = {
   name: 'eunwoo/wall_tech',
   label: '백은우 벽 낙법',
   dur: [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3],
+  follow: { ribbon: { air: true, stiff: 0.5, gravity: 0.4, damp: 0.9 }, wind: 0.5 },
   keys: [
     { at: 0, pose: WT_HIT },
     { at: 1, pose: WT_COIL },
@@ -144,6 +147,7 @@ export const EUNWOO_WALL_KICK: MotionData = {
   name: 'eunwoo/wall_kick',
   label: '백은우 벽 박차기 공격',
   wide: true,
+  follow: { ribbon: { air: true, stiff: 0.8, damp: 0.92, keys: [{ at: 2, stiff: 0.5, curl: 1 }, { at: 3.5, stiff: 2.4, curl: 0.35 }, { at: 6, stiff: 1.2, curl: 0.7 }, { at: 10, stiff: 0.6, curl: 1 }] }, wind: 0.6 },
   smear: { frame: 3, limb: 'aF', stretch: 1.4 },
   dur: [2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 3, 3],
   keys: [

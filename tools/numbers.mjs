@@ -13,8 +13,8 @@ const ids = rest.length ? rest : ['atk1', 'atk2', 'atk3', 'atk4', 'launcher', 's
 const moves = sim.movesOf(char);
 const stanceHip = sim.motionFrames(sim.motionOf(char, 'idle')).joints[0].hip[1];
 const deg = (r) => (r * 180) / Math.PI;
-/** 무기 길이 (px): 에드워드 해머 머리까지 */
-const WEAPON = { edward: 21 };
+/** 무기 길이 (그림 px): 에드워드 해머 머리까지 (src/anim/decor/edward.ts HAMMER.reach, 2026-11-02 자루 30px) */
+const WEAPON = { edward: 30 };
 const rows = [];
 for (const id of ids) {
   const mv = moves[id];

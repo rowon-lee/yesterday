@@ -5,6 +5,7 @@ import { hash } from '../dither';
 import { scaleAt } from './core';
 import { LIGHTS_DECL, shared, withLights } from './lights';
 import { keepAlpha } from './shaders';
+import { rainHold } from '../screenfx';
 
 /**
  * 비 (렌더 전용): 얇고 무채색인 빗줄기 세 겹 (먼 겹·싸우는 면 바로 뒤·카메라 앞).
@@ -33,7 +34,8 @@ const LAYERS: readonly RainLayer[] = [
 
 const RAIN_VERT = /* glsl */ `
 ${LIGHTS_DECL}
-uniform float uTime;
+uniform float rainTime;
+uniform vec3 redAt;
 uniform vec2 camCenter;
 uniform vec2 camTopLeft;
 uniform float depth;
@@ -47,7 +49,7 @@ varying vec3 vColor;
 void main() {
   float span = ${SCREEN_H.toFixed(1)} + len + 20.0;
   float wspan = ${SCREEN_W.toFixed(1)} + 60.0;
-  float sy = mod(seed.y * span + uTime * speed, span) - len - 10.0;
+  float sy = mod(seed.y * span + rainTime * speed, span) - len - 10.0;
   float sx = mod(seed.x * wspan - camTopLeft.x * camFollow + sy * ${SLANT.toFixed(2)}, wspan) - 30.0;
   // position.y: 0(위 끝) ~ 1(아래 끝), position.x: -0.5 ~ 0.5 (폭 1px)
   float py = sy + position.y * len;
@@ -65,6 +67,8 @@ void main() {
     lit += uLightCol[i].rgb * k * k * k * spot;
   }
   vColor = vec3(0.62, 0.66, 0.72) * base + lit * 1.6;
+  // 시간이 멈춘 연출 (라이덴 파천 정적): 한 점(주먹이 닿은 자리) 둘레의 멈춘 빗방울만 붉게
+  if (redAt.z > 0.0 && distance(vec2(px, py), redAt.xy) < redAt.z) vColor = vec3(0.85, 0.16, 0.18);
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
 `;
@@ -80,6 +84,14 @@ export class Rain {
   private readonly splash: THREE.InstancedMesh;
   private readonly splashMat: THREE.ShaderMaterial;
   private half = false;
+  /**
+   * 비가 내린 시간 (틱). 시간이 멈춘 연출 동안은 늘지 않는다 (빗방울이 공중에 선다):
+   * 라이덴 파천 정적(setFrozen), 오스카 월령수류 전개(render/screenfx rainHold)
+   */
+  private readonly time = { value: 0 };
+  private readonly red = { value: new THREE.Vector3() };
+  private lastTick = -1;
+  private frozen = false;
 
   constructor() {
     for (const L of LAYERS) {
@@ -97,6 +109,8 @@ export class Rain {
       const mat = keepAlpha(withLights(new THREE.ShaderMaterial({
         uniforms: {
           ...shared,
+          rainTime: this.time,
+          redAt: this.red,
           camCenter: { value: new THREE.Vector2() },
           camTopLeft: { value: new THREE.Vector2() },
           depth: { value: L.z },
@@ -167,12 +181,25 @@ export class Rain {
     });
   }
 
+  /** 시간이 멈춘 연출: 빗방울과 물방울이 그 자리에 선다. red = [화면 x, 화면 y, 반지름] 둘레의 빗방울만 붉게 */
+  setFrozen(on: boolean, red: readonly [number, number, number] | null = null): void {
+    this.frozen = on;
+    this.red.value.set(red?.[0] ?? 0, red?.[1] ?? 0, red?.[2] ?? 0);
+  }
+
   update(tick: number, camCenterX: number, camCenterY: number, ix: number, iy: number): void {
+    // 비 멈춤: 라이덴 파천 정적(setFrozen)이나 캐릭터 연출(render/screenfx rainHold, 오스카 월령수류) 동안 빗줄기 시계를 세운다
+    const held = this.frozen || rainHold.on;
+    if (this.lastTick >= 0 && !held) this.time.value += Math.max(0, Math.min(4, tick - this.lastTick));
+    this.lastTick = tick;
     for (const m of this.mats) {
       m.uniforms.camCenter.value.set(camCenterX, camCenterY);
       m.uniforms.camTopLeft.value.set(ix, iy);
     }
-    // 물방울: 3틱마다 자리를 바꾼다. 셋 중 하나는 화면에 보이는 발판 위
+    // 월령수류 동안은 바닥에 물이 차 있어 물방울을 숨긴다
+    this.splash.visible = !rainHold.on;
+    // 물방울: 3틱마다 자리를 바꾼다. 셋 중 하나는 화면에 보이는 발판 위 (멈춘 동안은 그대로)
+    if (held) return;
     const frame = Math.floor(tick / 3);
     const tops = SURFACES.filter((sf) => sf.x1 > ix && sf.x0 < ix + SCREEN_W);
     const m4 = new THREE.Matrix4();

@@ -1,3 +1,4 @@
+import { bakeFollow } from './follow';
 import { keyed } from './keyed';
 import { SMALL_CELL, WIDE_CELL, type Motion, type MotionData } from './motion';
 import { solve, type Joints, type Point } from './pose';
@@ -17,7 +18,10 @@ interface Baked {
  */
 export function buildMotion(d: MotionData): Motion & { bake(skin?: SkinId): void } {
   const n = d.dur.length;
-  const joints = keyed(n, d.keys).map(solve);
+  // 몸 크기 배율 (에드워드처럼 큰 체격): 관절을 발밑 기준점에서 키운다. sim 판정도 이 관절을 쓰므로 함께 커진다
+  const joints = keyed(n, d.keys).map((p) => solve(p, d.scale ?? 1));
+  // 따라 움직이는 것 (연검 리본·옷자락·머리): 동작 자신의 손·몸 움직임으로 한 번 계산해 관절에 붙인다
+  if (d.follow) bakeFollow(d.name, d.follow, joints, d.dur, !!d.loop).forEach((fx, i) => (joints[i] = { ...joints[i]!, fx }));
   const cell = d.wide ? WIDE_CELL : SMALL_CELL;
   const { w: cw, h: ch, fx, fy } = cell;
   // 그리는 관절: 스미어 프레임만 치는 팔다리를 늘린다 (판정 관절 joints는 그대로)
@@ -29,7 +33,11 @@ export function buildMotion(d: MotionData): Motion & { bake(skin?: SkinId): void
     if (done) return done;
     const img = new Indexed(n * cw, ch);
     const decor = (SKINS[skin] as { decor?: Parameters<typeof drawSkeleton>[4] }).decor;
-    drawn.forEach((j, i) => drawSkeleton(img, j, i * cw + fx, fy, decor, [i * cw, (i + 1) * cw]));
+    drawn.forEach((j, i) => {
+      // 스미어 프레임: 앞 프레임 관절에서 지금까지 잔상 (장식이 ghost를 그리는 캐릭터만)
+      const g = d.smear?.ghosts && d.smear.frame === i && i > 0 ? { prev: joints[i - 1], n: d.smear.ghosts } : undefined;
+      drawSkeleton(img, j, i * cw + fx, fy, decor, [i * cw, (i + 1) * cw], g);
+    });
     const make = (look: LookName): Baked => {
       const right = document.createElement('canvas');
       right.width = img.w;

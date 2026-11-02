@@ -58,27 +58,65 @@ export default function checks(sim) {
     }
     results.push(['헛쳐도 판정 끝 = 궤적 상자 끝 (잽·어퍼컷·다리 걸기)', ok, got.join(', ')]);
   }
-  // 3) 투전승불: 단계마다 번개(= 판정)가 길어져 4단계는 주먹 끝에서 화면 폭 절반(240px)까지
+  // 3) 투전승불 (사용자 피드백 2026-11-02 9-1): 모은 틱 20·45·75·110에 1~4단계 (20틱 전에 떼도 1단계).
+  //    떼면 몸 이동 12/16/20/24px, 판정(원뿔) 끝 56/64/72/80px (몸 가운데에서)
   {
     const levels = M.charge.data.charge.levels;
-    const ends = [];
-    for (const hold of [24, 45, 70, 100]) {
+    const ats = levels.map((l) => l.at).join('/');
+    const rows = [];
+    // 쥔 틱 → 모은 틱 ≈ 쥔 틱 − 18 (잽 뒤에 모으기 시작): 12(0단계 → 1단계 수치), 52, 82, 122
+    for (const hold of [30, 70, 100, 140]) {
       const s = fresh(3000, 3600);
       let reach = -1;
       let lv = 0;
-      for (let t = 0; t < hold + 40; t++) {
+      let x0 = null;
+      let x1 = null;
+      for (let t = 0; t < hold + 60; t++) {
         sim.step(s, [t < hold ? sim.IN_ATTACK : 0, 0]);
         const f = s.fighters[0];
         if (f.mode === 'attack' && f.move === 'charge') {
+          if (x0 === null) x0 = f.x;
+          x1 = f.x;
           lv = f.chargeLv;
           const hb = sim.boxesOf(f).hit;
           if (hb) reach = Math.max(reach, Math.round((hb.x1 - f.x) / 256));
         }
       }
-      ends.push([lv, reach]);
+      rows.push({ lv, reach, adv: x0 === null ? -1 : Math.round((x1 - x0) / 256) });
     }
-    const ok = ends.every(([lv, r]) => lv >= 1 && r === levels[lv - 1].box.x + levels[lv - 1].box.w) && ends[3][0] === 4 && ends[3][1] === 240;
-    results.push(['투전승불: 단계마다 판정이 길어져 4단계는 240px (번개 = 판정)', ok, ends.map(([lv, r]) => `${lv}단계 ${r}px`).join(', ')]);
+    const wantReach = [56, 64, 72, 80];
+    const wantAdv = [12, 16, 20, 24];
+    // 몸 이동은 떼는 틱(스미어 프레임 시작)부터 재므로 첫 틱 이동분은 빠질 수 있다 (±1)
+    const ok = ats === '20/45/75/110' && rows.every((r, k) => r.lv === k + 1 && r.reach === wantReach[k] && Math.abs(r.adv - wantAdv[k]) <= 1);
+    results.push(['투전승불: 단계 20·45·75·110틱, 떼면 몸 이동 12/16/20/24 · 원뿔 판정 끝 56/64/72/80px', ok,
+      `단계 틱 ${ats}, ` + rows.map((r) => `${r.lv}단계 끝 ${r.reach}px 이동 ${r.adv}px`).join(', ')]);
+    // 상대 반응: 1 짧게 < 2 중간 < 3 멀리 < 4 아주 멀리 (밀려난 거리), 4단계는 막아도 방어가 깨진다
+    // 벽꽝이 나지 않는 자리 (공원: 뒤에 건물 정면·큰 물건이 없다)
+    const pushed = [];
+    for (const hold of [30, 70, 100, 140]) {
+      const s = fresh(4490, 4550, ['raiden', 'raiden']);
+      s.fighters[0].kongo = -9;
+      s.fighters[1].kongo = -9;
+      let dx = 0;
+      let before = null;
+      for (let t = 0; t < hold + 90; t++) {
+        sim.step(s, [t < hold ? sim.IN_ATTACK : 0, 0]);
+        for (const e of s.events) if (e.type === 'hit' && e.who === 0 && e.move === 'charge') before = s.fighters[1].x;
+      }
+      if (before !== null) dx = Math.round((s.fighters[1].x - before) / 256);
+      pushed.push(dx);
+    }
+    const s4 = fresh(4490, 4550, ['raiden', 'raiden']);
+    s4.fighters[0].kongo = -9;
+    s4.fighters[1].kongo = -9;
+    let crushed = false;
+    for (let t = 0; t < 200; t++) {
+      sim.step(s4, [t < 140 ? sim.IN_ATTACK : 0, sim.IN_DOWN]);
+      crushed ||= s4.events.some((e) => e.type === 'crush' && e.who === 0 && e.move === 'charge');
+    }
+    const order = pushed.every((d, k) => k === 0 || d > pushed[k - 1]);
+    results.push(['투전승불: 밀려난 거리 1 < 2 < 3 < 4단계, 4단계는 막아도 가드 크러시', order && pushed[0] > 0 && crushed,
+      `밀려난 거리 ${pushed.map((d) => `${d}px`).join(' / ')}, 4단계 막음 → 크러시 ${crushed}`]);
   }
   // 4) 4타 슈퍼맨 펀치: 상대가 멀리 날아간다 (벽 쪽으로 날림)
   {
@@ -93,13 +131,25 @@ export default function checks(sim) {
   {
     const s = fresh(3150, 3180);
     s.fighters[0].meter = sim.RULES.METER_MAX;
-    const ev = run(s, [sim.IN_SKILL1 * 0 + sim.IN_SKILL2, ...Array(50).fill(0)]);
+    let before = 0;
+    const ev = [];
+    for (let t = 0; t < 51; t++) {
+      const x = s.fighters[1].x;
+      sim.step(s, [t === 0 ? sim.IN_SKILL2 : 0, 0]);
+      for (const e of s.events) {
+        ev.push({ ...e, t });
+        if (e.type === 'hit' && e.who === 0 && e.move === 'skill2') before = x;
+      }
+    }
     const hit = ev.find((e) => e.type === 'hit' && e.who === 0 && e.move === 'skill2');
-    const pushed = (s.fighters[1].x - s.fighters[0].x) / 256;
+    // 사용자 피드백 2026-11-02 (9-3): 날숨 판정 7~10틱, 상대 64~80px 밀림, 라이덴 앞 40px에 방벽
+    const pushed = (s.fighters[1].x - before) / 256;
     const cursed = s.fighters[0].ext[0] > 0;
     const barrier = ev.find((e) => e.type === 'char' && e.text === 'barrier');
-    results.push(['화과산: 붙은 상대를 크게 밀어내고 (60px 넘게) 전격 저주·전류 방벽', !!hit && pushed > 60 && cursed && !!barrier,
-      `맞힘 ${!!hit}, 떨어진 거리 ${pushed.toFixed(0)}px, 저주 ${s.fighters[0].ext[0]}틱, 방벽 ${barrier ? `${(barrier.x - s.fighters[0].x) / 256}px` : '없음'}`]);
+    const bdist = barrier ? Math.round((barrier.x - s.fighters[0].x) / 256) : -1;
+    results.push(['화과산: 날숨(7~10틱)에 붙은 상대를 64~80px 밀어내고 전격 저주·라이덴 앞 40px 전류 방벽',
+      !!hit && hit.t >= 6 && hit.t <= 10 && pushed >= 64 && pushed <= 80 && cursed && bdist === 40,
+      `맞힘 ${hit ? `${hit.t}틱` : '없음'}, 밀린 거리 ${pushed.toFixed(0)}px, 저주 ${s.fighters[0].ext[0]}틱, 방벽 ${bdist}px`]);
     // 상대가 대시로 다시 들어오면 방벽에 튕겨 나간다
     for (let t = 0; t < 30 && s.fighters[1].mode !== 'idle'; t++) sim.step(s, [0, 0]);
     const ev2 = run(s, Array(40).fill(0), () => sim.IN_LEFT);
@@ -130,14 +180,18 @@ export default function checks(sim) {
     const s = fresh(3150, 3185);
     s.fighters[0].meter = sim.RULES.METER_MAX;
     const ev = run(s, [sim.IN_SUPER, ...Array(260).fill(0)]);
+    const cut = ev.find((e) => e.type === 'cutin');
     const start = ev.find((e) => e.type === 'cine' && e.text === 'start');
-    const scenes = ev.filter((e) => e.type === 'cine' && e.text === 'scene').length;
+    const sceneEv = ev.filter((e) => e.type === 'cine' && e.text === 'scene');
     const end = ev.find((e) => e.type === 'cine' && e.text === 'end');
     const ash = ev.find((e) => e.type === 'char' && e.text === 'ash');
-    const city = ev.filter((e) => e.type === 'city' && end && e.t >= end.t).length;
+    const city = ev.filter((e) => e.type === 'city' && ash && e.t >= ash.t).length;
     const total = sim.cineTicks('raiden', 'super');
-    results.push(['파천: 맞으면 장면 셋 (붕권 → 등 뒤로 터짐 → 날아감) 연출 뒤 잿더미 줄', !!start && scenes === 2 && !!end && end.t - start.t === total && !!ash,
-      `연출 ${start && end ? end.t - start.t : '-'}틱 (데이터 ${total}), 장면 넘김 ${scenes}, 잿더미 ${!!ash}, 깎인 건물 사건 ${city}`]);
+    // 사용자 피드백 2026-11-02 (9-4): 발동부터 연출 끝까지 150틱 (정지 20 + 발동 12 + 장면 24·24·16·34·20), 넷째 장면(96틱째)에 잿더미 줄
+    const all = cut && end ? end.t - cut.t : -1;
+    const ashAt = cut && ash ? ash.t - cut.t : -1;
+    results.push(['파천: 150틱 (정지 20·발동 12·장면 다섯 118), 넷째 장면 시작(96틱)에 잿더미 줄', !!start && sceneEv.length === 4 && !!end && end.t - start.t === total && all === 150 && ashAt === 96,
+      `발동~끝 ${all}틱, 연출 ${start && end ? end.t - start.t : '-'}틱 (데이터 ${total}), 장면 넘김 ${sceneEv.length}, 잿더미 ${ashAt}틱째, 깎인 건물 사건 ${city}`]);
     const s2 = fresh(3000, 3500);
     s2.fighters[0].meter = sim.RULES.METER_MAX;
     let lag = 0;

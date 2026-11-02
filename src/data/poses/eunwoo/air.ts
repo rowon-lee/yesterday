@@ -21,30 +21,37 @@ export function spin(p: Pose, deg: number): Pose {
   return { ...p, tl: p.tl + deg, aFx, aFy, aBx, aBy, lFx: p.hx + fx, lFy: p.hy + fy, lBx: p.hx + bx, lBy: p.hy + by };
 }
 
-// ---- 점프: 다리를 앞뒤로 활짝 찢으며 솟는다 (그랑 주테) ----
-/** 가볍게 웅크린다 (점프 준비 2틱): 팔은 뒤로, 무릎을 굽힌다 */
-const J_SQUAT = E({ hx: -0.5, hy: -16.5, tl: 16, hd: -2, aFx: 4, aFy: 10, aBx: -8, aBy: 10, lFx: 8, lBx: -8 });
-/** 박차며 솟는다: 몸이 쭉 펴지고 두 팔이 앞위로 휘둘러 올라간다, 앞무릎을 차올린다 */
-const J_PUSH = E({ hx: 0.5, hy: -24, tl: 4, hd: -6, aFx: 9, aFy: -9, aBx: 3, aBy: -11, lFx: 9, lFy: -9, lBx: -3, lBy: 2 });
-/** 다리를 찢기 시작한다: 앞다리는 앞으로 뻗고 뒷다리는 뒤로 들린다 */
-const J_OPEN = E({ hx: 0.5, hy: -24.5, tl: 8, hd: -6, aFx: 12, aFy: -9, aBx: -6, aBy: -10, lFx: 15, lFy: -9, lBx: -13, lBy: -7 });
-/** 꼭대기 근처: 다리를 앞뒤로 활짝 찢고 연검 쥔 팔은 앞위로, 뒷팔은 뒤로 펼친다 */
-const J_SPLIT = E({ hx: 0, hy: -25, tl: 10, hd: -4, aFx: 14, aFy: -7, aBx: -11, aBy: -5, lFx: 17, lFy: -13, lBx: -17, lBy: -11 });
-/** 찢은 다리를 조금 모은다 (내려오기 앞) */
-const J_SPLIT2 = E({ hx: 0, hy: -25, tl: 9, hd: -2, aFx: 13, aFy: -5, aBx: -10, aBy: -3, lFx: 14, lFy: -12, lBx: -14, lBy: -9 });
+const TAU = Math.PI * 2;
 
-/** 점프: 1프레임 웅크림 → 2~3프레임 솟음 → 다리를 활짝 찢음(5~9) → 조금 모음. 12프레임 × 2틱 (솟는 동안 2틱째부터) */
+// ---- 점프 (11-1): 등을 활처럼 젖히며 솟고, 연검 쥔 손이 원을 두 번 그려 칼날이 나선으로 감긴다 ----
+/** 가볍게 웅크린다 (점프 준비 2틱): 팔은 뒤로, 무릎을 굽힌다 */
+const J_SQUAT = E({ hx: -0.5, hy: -17, tl: 14, hd: -2, aFx: 2, aFy: 13, aBx: -7, aBy: 10, lFx: 7, lBx: -7 });
+/** 박차며 솟는다: 몸이 쭉 펴지고 두 팔이 앞위로 휘둘러 올라간다 */
+const J_PUSH = E({ hx: 0.5, hy: -25, tl: 2, hd: -8, aFx: 8, aFy: -8, aBx: 2, aBy: -10, lFx: 5, lFy: -6, lBx: -3, lBy: 1 });
+/** 등을 활처럼 젖힌다: 가슴을 열고 고개를 뒤로, 두 다리는 뒤로 모아 접고 뒷팔은 뒤로 펼친다 (앞손은 원을 그린다) */
+const archAt = (k: number): Pose => {
+  const a = (k / 8) * TAU * 2 - Math.PI / 2;
+  return E({
+    hx: 0, hy: -25.5, tl: -12 - 3 * Math.sin((k / 8) * Math.PI), hd: -14,
+    aFx: 9 + 5 * Math.cos(a), aFy: -6 + 5 * Math.sin(a), aBx: -11, aBy: -6,
+    lFx: -1, lFy: -10, lBx: -9, lBy: -8,
+  });
+};
+/** 꼭대기 근처: 몸을 펴며 떨어질 준비 (낙하 첫 자세 쪽으로) */
+const J_TOP = E({ hx: 0, hy: -25, tl: 4, hd: -4, aFx: 12, aFy: -4, aBx: -10, aBy: -5, lFx: 6, lFy: -8, lBx: -6, lBy: -5 });
+
+/** 점프: 웅크림 → 솟음 → 등을 젖히고 연검으로 나선(2~10프레임) → 펴며 꼭대기. 12프레임 × 2틱 (솟는 동안 2틱째부터) */
 export const EUNWOO_JUMP: MotionData = {
   name: 'eunwoo/jump',
   label: '백은우 점프',
   dur: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: J_SQUAT },
-    { at: 2, pose: J_PUSH },
-    { at: 4, pose: J_OPEN },
-    { at: 7, pose: J_SPLIT, stop: true },
-    { at: 11, pose: J_SPLIT2 },
+    { at: 1, pose: J_PUSH },
+    ...Array.from({ length: 8 }, (_, k) => ({ at: 2 + k, pose: archAt(k) })),
+    { at: 11, pose: J_TOP },
   ],
+  follow: { ribbon: { air: true, stiff: 0.45, gravity: 0.35, damp: 0.9 }, wind: 0.2 },
 };
 
 // ---- 2단 점프: 앞으로 한 바퀴 공중제비 ----
@@ -60,6 +67,7 @@ export const EUNWOO_JUMP2: MotionData = {
   name: 'eunwoo/jump2',
   label: '백은우 2단 점프',
   dur: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+  follow: { ribbon: { air: true, stiff: 0.5, gravity: 0.3, damp: 0.9 }, wind: 0.3 },
   keys: [
     { at: 0, pose: J2_REACH },
     { at: 2, pose: spin(J2_BALL, 40) },
@@ -84,6 +92,8 @@ export const EUNWOO_FALL: MotionData = {
   name: 'eunwoo/fall',
   label: '백은우 낙하',
   dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  // 빨리 떨어질수록 칼날·자락이 위로 떠오른다 (맞바람)
+  follow: { ribbon: { air: true, stiff: 0.6, curl: 0.7, keys: [{ at: 0, gravity: 0.5 }, { at: 6, gravity: 0 }, { at: 11, gravity: -0.3 }] }, wind: 0.15 },
   keys: [
     { at: 0, pose: F_FLOAT },
     { at: 5, pose: F_DROP },
@@ -92,22 +102,27 @@ export const EUNWOO_FALL: MotionData = {
   ],
 };
 
-// ---- 착지: 발끝으로 사뿐히 (sim은 착지 길이에 맞춰 늘이거나 줄인다) ----
-/** 발끝이 닿는다 (아직 발뒤꿈치는 들림) */
-const L_TOE = E({ hx: 0, hy: -22.5, tl: 6, hd: 0, aFx: 12, aFy: -1, aBx: -9, aBy: 0, lFx: 8, lFy: -1, lBx: -6, lBy: -1 });
-/** 무릎으로 부드럽게 받는다 (깊지 않게) */
-const L_SOFT = E({ hx: 0, hy: -19, tl: 12, hd: 2, aFx: 11, aFy: 3, aBx: -7, aBy: 6, lFx: 8, lBx: -8 });
+// ---- 착지 (11-1): 발끝으로 닿아 무릎을 깊이 굽혀 받고, 가운이 부풀었다가 가라앉는다 (sim은 착지 길이 3틱에 맞춰 0·4·8프레임을 보인다) ----
+/** 발끝이 닿는다 (아직 뒤꿈치는 들림, 몸은 곧게) */
+const L_TOE = E({ hx: 0, hy: -23.5, tl: 4, hd: 0, aFx: 11, aFy: -2, aBx: -9, aBy: -2, lFx: 6, lFy: -1.5, lBx: -5, lBy: -1 });
+/** 무릎을 깊이 굽혀 받는다: 몸이 앞으로 실리고 두 팔은 옆으로 펼쳐 균형 */
+const L_DEEP = E({ hx: 0.5, hy: -14.5, tl: 20, hd: 4, aFx: 10, aFy: 7, aBx: -10, aBy: 3, lFx: 8, lBx: -8 });
+/** 일어선다 */
+const L_RISE = E({ hx: -0.5, hy: -20.5, tl: 8, hd: 4, aFx: 6, aFy: 12, aBx: -5, aBy: 12, lFx: 7, lBx: -6 });
 
-/** 착지: 발끝 → 무릎으로 살짝 받음 → 기본자세. 12프레임 × 1틱 */
+/** 착지: 발끝 → 깊이 굽혀 받음(3~5) → 일어섬 → 기본자세. 12프레임 × 1틱 (리본·자락은 낙하 끝 모습에서 이어 받는다) */
 export const EUNWOO_LAND: MotionData = {
   name: 'eunwoo/land',
   label: '백은우 착지',
   dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
   keys: [
     { at: 0, pose: L_TOE },
-    { at: 4, pose: L_SOFT, stop: true },
+    { at: 3, pose: L_DEEP },
+    { at: 5, pose: L_DEEP, stop: true },
+    { at: 8, pose: L_RISE },
     { at: 11, pose: E_STANCE },
   ],
+  follow: { ribbon: { stiff: 0.6 }, from: { motion: 'eunwoo/fall', frame: 11 } },
 };
 
 // ---- 지상 대시: 손가락으로 금색 실을 앞으로 쏘고, 그 실을 따라 낮게 미끄러진다 (sim: 12틱) ----
@@ -123,6 +138,8 @@ export const EUNWOO_DASH: MotionData = {
   name: 'eunwoo/dash',
   label: '백은우 지상 대시',
   dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  // 가운·머리·연검이 곧게 뒤로 날린다
+  follow: { ribbon: { stiff: 0.5, gravity: 0.4, keys: [{ at: 0, wind: 0.5 }, { at: 2, wind: 1.1 }, { at: 8, wind: 1.1 }, { at: 11, wind: 0.2 }] }, wind: 1 },
   keys: [
     { at: 0, pose: E_STANCE },
     { at: 1, pose: D_FLICK },
@@ -142,6 +159,7 @@ export const EUNWOO_AIR_DASH: MotionData = {
   name: 'eunwoo/air_dash',
   label: '백은우 공중 대시',
   dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  follow: { ribbon: { air: true, stiff: 0.5, gravity: 0.3, keys: [{ at: 0, wind: 0.6 }, { at: 2, wind: 1.1 }, { at: 8, wind: 1.1 }, { at: 11, wind: 0.2 }] }, wind: 1 },
   keys: [
     { at: 0, pose: F_FLOAT },
     { at: 2, pose: AD_LINE },

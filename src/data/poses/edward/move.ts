@@ -1,48 +1,55 @@
 import type { MotionData } from '../../../anim/motion';
 import type { Pose } from '../../../anim/pose';
 import type { Key } from '../../../anim/keyed';
-import { E, E_STANCE } from './stance';
+import { E, E_SCALE, E_STANCE } from './stance';
 
 /*
  * 에드워드 대기·걷기 (캐릭터 기획서 '움직임': 해머를 어깨에 걸친 채 여유롭게 걷는 가주. 걸음은 느리고 보폭이 크다).
  */
 
-// ---- 대기: 느린 숨. 가슴이 부풀며 해머가 어깨 위에서 조금 들렸다 내려앉는다 ----
-/** 들숨: 가슴을 펴고 턱을 든다, 해머가 1px 들린다 */
-const ID_IN = E({ hx: 0.3, hy: -23.2, tl: -4.5, hd: -4, aFx: 5.2, aFy: 5.2, wa: -152 });
-/** 날숨: 어깨가 내려앉고 몸이 조금 앞으로 (무게가 앞발로) */
-const ID_OUT = E({ hx: 0.6, hy: -22.1, tl: -1.5, hd: -1, aFx: 5, aFy: 6.6, wa: -148 });
+// ---- 대기 (2026-11-02 피드백 12-4): 가슴을 펴고 턱을 든 당당한 자세, 해머는 오른쪽(앞) 어깨, 왼손(뒷손)은 바지 주머니 ----
+// 아주 느린 숨 (한 바퀴 120틱), 숨 끝에 해머 자루로 어깨를 한 번 툭 (들었다 떨어뜨린다)
+/** 들숨: 가슴이 부풀고 턱이 더 든다 */
+const ID_IN = E({ hx: 0.2, hy: -23.1, tl: -5.5, hd: -6, aFx: 4.6, aFy: 5.8, wa: -149 });
+/** 날숨: 어깨가 내려앉는다 */
+const ID_OUT = E({ hx: 0.3, hy: -22.2, tl: -3.5, hd: -3.5, aFx: 4.5, aFy: 6.8, wa: -147 });
+/** 해머로 어깨 툭: 앞손이 자루를 조금 들어 해머 머리가 어깨에서 뜬다 */
+const ID_TAP_UP = E({ hx: 0.3, hy: -22.4, tl: -4, hd: -4, aFx: 5, aFy: 4.6, wa: -136 });
+/** 툭 떨어져 어깨에 걸친다 (조금 더 내려앉았다 돌아온다) */
+const ID_TAP_DOWN = E({ hx: 0.2, hy: -22.3, tl: -4, hd: -4.5, aFx: 4.6, aFy: 6.9, wa: -152 });
 
-/** 대기: 숨 한 번 (들숨 → 멈춤 → 날숨). 14프레임 70틱 */
+/** 대기: 숨 한 번 (들숨 → 멈춤 → 날숨) → 해머로 어깨 툭. 14프레임 120틱 */
 export const EDWARD_IDLE: MotionData = {
   name: 'edward/idle',
   label: '에드워드 대기',
   loop: true,
-  dur: [5, 5, 5, 5, 6, 6, 5, 5, 5, 5, 5, 5, 4, 4],
+  dur: [10, 10, 10, 10, 8, 8, 8, 10, 10, 8, 6, 6, 8, 8],
   keys: [
     { at: 0, pose: E_STANCE },
-    { at: 4, pose: ID_IN, stop: true },
-    { at: 6, pose: ID_IN },
-    { at: 10, pose: ID_OUT, stop: true },
+    { at: 3, pose: ID_IN, stop: true },
+    { at: 5, pose: ID_IN },
+    { at: 8, pose: ID_OUT, stop: true },
+    { at: 10, pose: ID_TAP_UP },
+    { at: 11, pose: ID_TAP_DOWN, stop: true },
+    { at: 12, pose: E_STANCE },
     { at: 14, pose: E_STANCE },
   ],
 };
 
-// ---- 걷기: 큰 보폭의 느린 걸음 (두 다리를 번갈아 앞으로 내딛는다) ----
+// ---- 걷기 (2026-11-02 피드백 12-4): 보폭 24px의 느린 걸음, 한 바퀴(두 걸음) 약 70틱 ----
 /*
  * 한 바퀴 = 두 걸음, 14프레임. 발 하나는 8프레임 동안 바닥을 딛고(몸이 나아간 만큼 뒤로 밀려 미끄러지지 않는다)
- * 6프레임 동안 들려 앞으로 나간다. 앞다리(밝은 쪽)와 뒷다리(어두운 쪽)는 반 바퀴 어긋난다.
- * 두 발이 다 닿는 순간(내딛는 순간)에 엉덩이가 가장 낮고, 한 발로 설 때 가장 높다 (묵직하게 오르내린다).
- * 해머는 어깨 위에서 걸음마다 한 박자 늦게 흔들리고, 뒷손은 주머니에 넣은 채다.
+ * 6프레임 동안 들려 앞으로 나간다. 내딛는 발은 무릎을 펴 발뒤꿈치부터 닿는다. 디디는 순간 엉덩이가 2px 내려앉고 (묵직하게),
+ * 어깨와 해머는 걸음과 반대 방향으로 흔들린다 (앞발이 나가면 앞어깨가 뒤로). 뒷손은 주머니에 넣은 채다.
  */
-/** 앞 걷기 한 바퀴 거리 (px): 한 걸음 24px. 능력치 runCycle */
+/** 앞 걷기 한 바퀴 거리 (px, 그림): 한 걸음 24px. 능력치 runCycle (포즈는 배율로 나눠 적는다) */
 export const E_WALK_F = 48;
-/** 뒤 걷기 한 바퀴 거리 (px): 한 걸음 20px. 능력치 runBackCycle */
-export const E_WALK_B = 40;
+/** 뒤 걷기 한 바퀴 거리 (px, 그림): 한 걸음 16px. 능력치 runBackCycle */
+export const E_WALK_B = 32;
 const FRAMES = 14;
 const STANCE = 8;
 
-/** 발 하나의 자리 (발밑 기준): 바퀴 속 위치 k (0~13)에서. dir 1 앞으로 걸음, -1 뒤로 걸음 */
+/** 발 하나의 자리 (발밑 기준, 포즈 단위): 바퀴 속 위치 k (0~13)에서. dir 1 앞으로 걸음, -1 뒤로 걸음 */
 function foot(k: number, d: number, dir: number, lift: number, center: number): [number, number] {
   const half = (STANCE / 2) * d;
   if (k < STANCE) return [center + dir * (half - k * d), 0];
@@ -51,25 +58,27 @@ function foot(k: number, d: number, dir: number, lift: number, center: number): 
   return [center + dir * (-half + 2 * half * e), -lift * Math.sin(Math.PI * s)];
 }
 
-function walk(dist: number, dir: number, o: { low: number; high: number; tl: number; hd: number; lift: number; center: number; hx: number }): Key[] {
-  const d = dist / FRAMES;
+function walk(dist: number, dir: number, o: { low: number; high: number; tl: number; hd: number; lift: number; center: number; hx: number; sway: number }): Key[] {
+  // 그림 거리 → 포즈 단위 (몸 배율로 나눈다: 그려진 발이 그림 거리만큼 디딘다)
+  const d = dist / E_SCALE / FRAMES;
   const keys: Key[] = [];
   for (let i = 0; i <= FRAMES; i++) {
     const k = i % FRAMES;
     const [fx, fy] = foot(k, d, dir, o.lift, o.center);
     const [bx, by] = foot((k + FRAMES / 2) % FRAMES, d, dir, o.lift, o.center);
-    // 엉덩이: 두 발이 닿는 순간(0, 7) 가장 낮고, 한 발로 설 때(3.5, 10.5) 가장 높다
+    // 엉덩이: 두 발이 닿는 순간(0, 7) 가장 낮고 (2px 내려앉음), 한 발로 설 때(3.5, 10.5) 가장 높다
     const up = Math.sin((Math.PI * k) / (FRAMES / 2)) ** 2;
-    // 해머·몸통은 엉덩이보다 한 박자 늦게 흔들린다
-    const lag = Math.sin((Math.PI * (k - 1.5)) / (FRAMES / 2)) ** 2;
+    // 어깨·해머: 걸음과 반대로 흔들린다 (앞발이 앞이면 앞어깨가 뒤로), 몸통보다 한 박자 늦게
+    const sw = Math.cos((2 * Math.PI * (k - 1)) / FRAMES);
     const pose: Pose = E({
       hx: o.hx,
       hy: -(o.low + (o.high - o.low) * up),
-      tl: o.tl + 1.2 * (lag - 0.5),
-      hd: o.hd - 1.2 * (lag - 0.5),
-      aFx: 5,
-      aFy: 6.6 - 1.4 * lag,
-      wa: -150 + 4 * (lag - 0.5),
+      tl: o.tl,
+      hd: o.hd,
+      tw: 1.5 - o.sway * sw,
+      aFx: 4.5,
+      aFy: 6.5 + 0.6 * (1 - up),
+      wa: -148 + 5 * sw,
       lFx: fx,
       lFy: fy,
       lBx: bx,
@@ -80,22 +89,22 @@ function walk(dist: number, dir: number, o: { low: number; high: number; tl: num
   return keys;
 }
 
-/** 앞 걷기 (sim 자리 run_f): 큰 보폭으로 느긋하게. 14프레임, 표시 틱은 1.7px/틱으로 한 바퀴 48px를 가는 시간 */
+/** 앞 걷기 (sim 자리 run_f): 보폭 24px로 느긋하게, 발뒤꿈치부터. 14프레임 70틱 (0.7px/틱으로 한 바퀴 48px) */
 export const EDWARD_WALK_F: MotionData = {
   name: 'edward/walk_f',
   label: '에드워드 앞 걷기',
   loop: true,
-  dur: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-  keys: walk(E_WALK_F, 1, { low: 19, high: 21.6, tl: -2.5, hd: -2, lift: 4, center: 0.5, hx: 0.3 }),
+  dur: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+  keys: walk(E_WALK_F, 1, { low: 19.6, high: 21.4, tl: -3.5, hd: -4, lift: 4, center: 0.5, hx: 0.3, sway: 2.5 }),
 };
 
-/** 뒤 걷기 (sim 자리 run_b): 같은 걸음으로 물러난다 (발 디딤은 거꾸로). 몸을 조금 세우고 턱을 든다. 한 바퀴 40px, 1.4px/틱 */
+/** 뒤 걷기 (sim 자리 run_b): 몸을 돌리지 않고 상대를 본 채 천천히 물러난다 (보폭 16px). 14프레임 64틱 (0.5px/틱으로 한 바퀴 32px) */
 export const EDWARD_WALK_B: MotionData = {
   name: 'edward/walk_b',
   label: '에드워드 뒤 걷기',
   loop: true,
-  dur: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-  keys: walk(E_WALK_B, -1, { low: 19.8, high: 21.8, tl: -4, hd: -3, lift: 3, center: -0.5, hx: -0.3 }),
+  dur: [5, 5, 5, 4, 5, 5, 4, 5, 5, 4, 5, 5, 4, 3],
+  keys: walk(E_WALK_B, -1, { low: 20.2, high: 21.6, tl: -5, hd: -5, lift: 3, center: -0.5, hx: -0.3, sway: 1.5 }),
 };
 
 export const EDWARD_MOVE_MOTIONS: readonly MotionData[] = [EDWARD_IDLE, EDWARD_WALK_F, EDWARD_WALK_B];

@@ -2,6 +2,7 @@ import type { TickInput } from '../core/input';
 import { cellOf } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import { drawCutin, playCutscene } from '../render/cutin';
+import type { CutinData } from '../data/moves/base';
 import { drawDust, Effects, type Dust } from '../render/effects';
 import { FightVfx, raidenIntroHidden, raidenIntroLift } from '../render/fightvfx';
 import { rendersOf } from '../render/chars';
@@ -12,7 +13,7 @@ import { SCREEN_H, SCREEN_W } from '../render/screen';
 import { drawPlatforms } from '../render/platforms';
 import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import {
-  boxesOf, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
+  boxesOf, cineScenes, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
   IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, movesOf, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
@@ -111,7 +112,7 @@ export function fightScene(app?: App): Scene {
   let fightVfx: FightVfx;
   let hud: Hud;
   /** 필살 컷인 (video: 컷씬 영상 훅이 영상을 틀어 기본 띠를 그리지 않음) */
-  let cutin: { who: number; text: string; t: number; video: boolean } | null = null;
+  let cutin: { who: number; text: string; t: number; video: boolean; length: number; style?: CutinData } | null = null;
   /** 카메라: 화면 왼쪽 위의 월드 좌표 (px, 렌더 전용). x가 -1이면 아직 안 정함 */
   let cam = { x: -1, y: 0 };
   let camVy = 0;
@@ -193,7 +194,9 @@ export function fightScene(app?: App): Scene {
    * 스프링이 늦어도 머리와 발이 화면 밖으로 나가지는 않게 막는다.
    */
   const followCamera = () => {
-    const [a, b] = s.fighters;
+    const sc = cineScene();
+    const solo = sc?.cam === 'a' ? s.fighters[s.cine!.who] : null;
+    const [a, b] = solo ? [solo, solo] : s.fighters;
     const first = cam.x < 0;
     const mid = (a.x + b.x) / 2 / 256;
     const tx = mid - SCREEN_W / 2;
@@ -243,13 +246,23 @@ export function fightScene(app?: App): Scene {
    * 맞아서 연출이 도는 동안은 두 사람 가운데를 2배로 잡는다. 빗나가거나 막히면 풀린다
    */
   let cineStart = 0;
+  /** 지금 연출 장면의 표시 (카메라·확대·멈춤, 렌더 전용) */
+  const cineScene = () => (s.cine ? cineScenes(s)[s.cine.scene] : undefined);
   const applyZoom = (v: { x: number; y: number }) => {
     const g = gl();
     const at = (f: Fighter): [number, number] => [f.x / 256 - v.x, GROUND_Y + f.y / 256 - v.y - 26];
     if (s.cine) {
+      // 장면마다: 확대 배수 (정수만: 소수 배율은 도트 크기가 칸마다 달라져 1.75배 대신 2배), 발동자에 머물기
+      const sc = cineScene();
+      const att = s.fighters[s.cine.who];
       const [ax, ay] = at(s.fighters[0]);
       const [bx, by] = at(s.fighters[1]);
-      g.view.setZoom(2, (ax + bx) / 2, (ay + by) / 2);
+      // 확대 배수: 장면 표시(zoom) → 기술 전체 값(cinematic.zoom, 영역 전개형은 1: 확대하지 않는다) → 기본 2배
+      const z = sc?.zoom ?? movesOf(att.char)[s.cine.move].data.cinematic?.zoom ?? 2;
+      if (sc?.cam === 'a') {
+        const [cx, cy] = at(att);
+        g.view.setZoom(z, cx + att.facing * 20, cy);
+      } else g.view.setZoom(z, (ax + bx) / 2, (ay + by) / 2);
       return;
     }
     const caster = s.fighters.find((f) => f.mode === 'attack' && f.move && movesOf(f.char)[f.move].data.cinematic && !f.moveHit);
@@ -259,12 +272,45 @@ export function fightScene(app?: App): Scene {
     } else g.view.setZoom(1);
   };
 
+  /**
+   * 시간 정지 컷인의 배경 (컷인 데이터 dark, 라이덴 파천): 화면을 거의 검게 덮고 두 사람만 그 위에 다시 그린다.
+   * 3D 화면은 확대(정수배)돼 있으므로 같은 확대로 시트 칸을 옮겨 그린다 (빛·테두리 빛 없이 평평하게)
+   */
+  const darkFreeze = (ctx: CanvasRenderingContext2D, v: { x: number; y: number }) => {
+    const z = gl().view.zoomRect();
+    ctx.fillStyle = COLORS.night;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.imageSmoothingEnabled = false;
+    s.fighters.forEach((f, i) => {
+      const pose = fighterPose(f);
+      const m = motionByName.get(pose.motion);
+      if (!m) return;
+      const cell = cellOf(m);
+      const sheet = m.sheet!(i === 0 ? 'p1' : 'p2', f.facing < 0, skins[i]);
+      const left = f.facing < 0 ? cell.w - 1 - cell.fx : cell.fx;
+      const sx = Math.round(f.x / 256 - v.x) - left;
+      const sy = Math.round(GROUND_Y + f.y / 256 - v.y) - cell.fy;
+      ctx.drawImage(sheet, pose.frame * cell.w, 0, cell.w, cell.h, (sx - z.x) * z.z, (sy - z.y) * z.z, cell.w * z.z, cell.h * z.z);
+    });
+  };
+
   const render3d = (ctx: CanvasRenderingContext2D) => {
     const g = gl();
     const [ox, oy] = fx.offset();
     const placed = g.view.begin({ x: cam.x - ox, y: cam.y - oy }, s.tick);
     lights2d.clear();
     fightVfx.emitLights(s);
+    {
+      const sc = cineScene();
+      const still = (s.freeze > 0 && !!cutin?.style?.dark) || !!sc?.still;
+      let red: [number, number, number] | null = null;
+      if (sc?.still && s.cine) {
+        const att = s.fighters[s.cine.who];
+        const fist = fighterPose(att).joints.hB;
+        red = [att.x / 256 + att.facing * fist[0] - placed.ix, GROUND_Y + att.y / 256 + fist[1] - placed.iy, 22];
+      }
+      g.world.freezeRain(still, red);
+    }
     g.world.update(g.view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256, s.clock, s.citadel);
     g.view.commitLights();
     const v = { x: placed.ix, y: placed.iy };
@@ -319,7 +365,7 @@ export function fightScene(app?: App): Scene {
         floor: -floorBelow(s, f.x, f.y) / 256,
         rim: !white,
         // 대시 중 순간이동 구간은 깜빡인다. 순간이동 기술(라이덴 잔흔)은 사라지는 틱에 한 번 보이지 않는다
-        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f) && !raidenIntroHidden(f) && !rendersOf(f.char).hidden?.(s, f, i),
+        visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f) && !raidenIntroHidden(f) && !rendersOf(f.char).hidden?.(s, f, i) && !fightVfx.hides(i),
         order: order.indexOf(f),
       };
     }));
@@ -335,8 +381,14 @@ export function fightScene(app?: App): Scene {
       ctx.fillStyle = COLORS.white;
       for (let y = 0; y < SCREEN_H; y += 2) for (let x = (y >> 1) & 1; x < SCREEN_W; x += 2) ctx.fillRect(x, y, 1, 1);
     }
-    if (cutin && !cutin.video) drawCutin(ctx, { ...cutin, length: RULES.SUPER_FREEZE });
+    if (cutin && !cutin.video) {
+      if (cutin.style?.dark) darkFreeze(ctx, v);
+      drawCutin(ctx, cutin);
+    }
     // 필살기 발동 정지·연출 중: 위아래 검은 띠, HUD는 감춘다
+    // 캐릭터 연출이 3D 화면 위에 겹쳐 그리는 것 (월령수류의 흰 화면과 먹빛 선 등, 위아래 검은 띠 아래)
+    const pl = gl().view.placed;
+    s.fighters.forEach((f, i) => rendersOf(f.char).overlay?.(ctx, s, f, i, { x: pl.ix, y: pl.iy }));
     if (s.cine) letterbox(ctx, s.tick - cineStart);
     else if (!cutin) {
       hud.meterTop = touch.shown;
@@ -404,8 +456,11 @@ export function fightScene(app?: App): Scene {
       for (const e of s.events) {
         if (e.type !== 'cutin') continue;
         // 나중에 AI 컷씬 영상을 끼울 자리: 훅이 영상을 틀면 기본 컷인 띠는 그리지 않는다
-        const video = playCutscene({ who: e.who, move: e.move ?? '', text: e.text ?? '', ticks: RULES.SUPER_FREEZE });
-        cutin = { who: e.who, text: e.text ?? '', t: 0, video };
+        const data = e.move ? movesOf(s.fighters[e.who].char)[e.move as keyof ReturnType<typeof movesOf>]?.data.cutin : undefined;
+        const style = typeof data === 'object' ? data : undefined;
+        const length = style?.freeze ?? RULES.SUPER_FREEZE;
+        const video = playCutscene({ who: e.who, move: e.move ?? '', text: e.text ?? '', ticks: length });
+        cutin = { who: e.who, text: e.text ?? '', t: 0, video, length, style };
       }
       watchMotion();
       followCamera();
@@ -453,6 +508,8 @@ function chargeGlow(f: Fighter): 0 | 1 | 2 {
   // 라이덴 금강불괴: 10틱마다 3틱 몸이 대표 색으로 번뜩인다 (단단해진 몸)
   if (f.kongoT > 0 && f.mode !== 'charge') return f.kongoT % 10 < 3 ? 1 : 0;
   if (f.mode !== 'charge') return 0;
+  // 라이덴 투전승불은 몸을 칠하지 않는다: 전류 윤곽·붉게 물드는 머리·맥동은 이펙트가 그린다 (사용자 피드백 2026-11-02 9-1)
+  if (f.char === 'raiden') return 0;
   const since = f.t - chargeLevelAt(f)[Math.max(0, f.chargeLv - 1)];
   return since >= 0 && since < 3 ? 2 : 1;
 }

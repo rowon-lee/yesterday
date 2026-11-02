@@ -1,176 +1,232 @@
+import { restRibbon } from '../follow';
 import type { Joints, Point } from '../pose';
-import type { Decor, Look } from '../skeleton';
+import type { Decor, DecorPen, Look } from '../skeleton';
 import type { Skin } from '../skins';
+import { add, flutter, hangDir, headFrame, norm, torso } from './kit';
 
 /*
- * 백은우 표식 (캐릭터 기획서): 가는 체형, 밝은 갈색 꽁지머리, 흰 의사 가운 자락, 하네스, 연검 스텔라리스.
- * 모두 관절에 붙는 도형이라 어떤 동작에서도 따라간다. 오른쪽을 보는 모습 기준 (왼쪽은 시트를 그릴 때 뒤집는다).
- * - 몸(팔다리)은 백합 연분홍, 가운은 흰색(그늘은 차가운 회청), 하네스·실은 금색, 칼날은 은빛.
- * - 가운: 무릎까지 오는 흰 가운. 뒷자락은 다리 뒤로 늘어지고, 몸을 숙이거나 뒷다리를 뒤로 뻗을수록 크게 뒤로 휘날린다
- *   (그림에는 속도가 없으니 몸의 기울기와 뒷다리가 뒤로 간 만큼 자락이 뒤로 들린다).
- * - 꽁지머리: 머리 뒤 위에서 묶어 아래·뒤로 늘어진다. 몸을 숙일수록 뒤로 날린다.
- * - 연검: 앞손에 쥐고, 칼날은 손목 방향으로 뻗다 끝이 리본처럼 아래로 휜다 (채찍처럼 늘어나는 끝은 공격 이펙트가 그린다).
+ * 백은우 표식 (캐릭터 기획서 + 사용자 일러스트 2026-11-02 `docs/refs/백은우_일러스트.png` + 1차본 피드백 11-0·11-1).
+ * - 색 (11-1): 흰 의사 가운, 안쪽 옷(셔츠·바지)은 짙은 회색이라 팔다리가 가운과 갈라져 읽힌다. 피부는 손·얼굴만.
+ *   몸 색 = 안쪽 옷(회색), 옷 색 = 가운(흰색), 피부 = 얼굴·손.
+ * - 잿빛 머리(분홍기 도는 회갈색): 숱 많고 흐트러진 머리, 눈을 덮는 긴 앞머리, 턱까지 오는 옆머리, 목덜미에서 낮게 묶은 꽁지머리.
+ *   꽁지머리와 가운 자락은 동작보다 늦게 따라오고 멈출 때 한 번 지나쳤다 돌아온다 (anim/follow.ts의 hair·gown, 서로 다른 박자)
+ * - 가운: 어깨에서 무릎 아래까지, 앞이 열려 회색 셔츠가 보인다. 금색 하네스(어깨끈·허리띠), 꽁지머리를 묶은 연분홍 끈
+ * - 연검 스텔라리스 (11-0): 앞손에 쥔다. 손잡이 6px(금실 감김) + 날 32px = 38px, 날은 굵기 2px(안쪽 은빛 + 바깥쪽 가장자리 1px 밝게).
+ *   늘 S자나 나선으로 휜 리본이고 곧게 펴지지 않는다. 모양은 동작마다 미리 계산한 리본 점(j.fx.rib)을 잇는다 (없으면 쉬는 S자)
  * 눈은 그리지 않는다 (CLAUDE.md, 설정의 금색 눈도 그리지 않음).
  */
 
-const add = (a: Point, b: Point, k = 1): Point => [a[0] + b[0] * k, a[1] + b[1] * k];
-const norm = (v: Point): Point => {
-  const d = Math.hypot(v[0], v[1]) || 1;
-  return [v[0] / d, v[1] / d];
-};
-const dot = (a: Point, b: Point): number => a[0] * b[0] + a[1] * b[1];
+/** 휘날림: 미리 계산한 값이 있으면 그것 (늦게 따라오고 지나쳤다 돌아온다), 없으면 자세로 짐작 */
+const gownK = (j: Joints) => j.fx?.gown ?? flutter(j);
+const hairK = (j: Joints) => j.fx?.hair ?? flutter(j);
 
-/** 몸통 방향(엉덩이 → 목)과 몸의 앞쪽 (오른쪽을 볼 때 가슴 쪽) */
-function torso(j: Joints): { up: Point; down: Point; front: Point } {
-  const up = norm([j.neck[0] - j.hip[0], j.neck[1] - j.hip[1]]);
-  return { up, down: [-up[0], -up[1]], front: [-up[1], up[0]] };
+/** 선분 a→b를 곧은 쪽 가장자리로 1px 옮긴 선 (n: 바깥쪽, 가로·세로 중 큰 쪽으로 맞춘다) */
+const snap = (n: Point): Point => (Math.abs(n[0]) > Math.abs(n[1]) ? [Math.sign(n[0]), 0] : [0, Math.sign(n[1]) || -1]);
+
+/**
+ * 연검: 손잡이(금실 감긴 2px) → 날 (안쪽 1px 은빛 + 휜 바깥쪽 1px 밝은 가장자리).
+ * 바깥쪽 = 그 마디에서 리본이 휘는 반대쪽 (곧으면 위쪽: 빛 받는 쪽)
+ */
+function sword(pen: DecorPen, r: readonly Point[]): void {
+  pen.fill('accent', (s) => s.line(r[0]!, r[1]!, 2));
+  const core: Array<[Point, Point]> = [];
+  const edge: Array<[Point, Point]> = [];
+  for (let k = 1; k + 1 < r.length; k++) {
+    const a = r[k]!;
+    const b = r[k + 1]!;
+    const d = norm([b[0] - a[0], b[1] - a[1]]);
+    const p = r[k - 1]!;
+    const q = r[Math.min(r.length - 1, k + 2)]!;
+    const d0 = norm([a[0] - p[0], a[1] - p[1]]);
+    const d1 = norm([q[0] - b[0], q[1] - b[1]]);
+    const turn = d0[0] * d1[1] - d0[1] * d1[0];
+    let n: Point = turn >= 0 ? [d[1], -d[0]] : [-d[1], d[0]];
+    if (Math.abs(turn) < 0.05) n = d[0] >= 0 ? [d[1], -d[0]] : [-d[1], d[0]];
+    const o = snap(n);
+    core.push([a, b]);
+    edge.push([add(a, o), add(b, o)]);
+  }
+  // 날 전체(안쪽 + 가장자리)를 은빛으로: 몸·가운 위를 지나는 곳은 둘레가 외곽선 색이라 흰 가운 위에서도 보인다
+  pen.fill('blade', (s) => {
+    core.forEach(([a, b]) => s.line(a, b, 1));
+    edge.forEach(([a, b]) => s.line(a, b, 1));
+  });
+  // 바깥쪽 가장자리 1px을 밝게
+  pen.fill('metal', (s) => edge.forEach(([a, b]) => s.line(a, b, 1)));
 }
 
-/** 가운 뒷자락이 뒤로 들리는 정도 (0 늘어짐 ~ 1 크게 휘날림): 몸이 앞으로 숙을수록, 뒷다리가 엉덩이 뒤로 멀리 갈수록 */
-function flutter(j: Joints): number {
-  const { up, front } = torso(j);
-  const lean = Math.max(0, Math.min(1, (up[0] - 0.1) / 0.6));
-  const back = dot([j.fB[0] - j.hip[0], j.fB[1] - j.hip[1]], [-front[0], -front[1]]);
-  const stride = Math.max(0, Math.min(1, (back - 6) / 12));
-  return Math.max(lean, stride * 0.8);
+/** 빠르게 돌려 만든 은빛 원 (방어): 손을 가운데로 호 세 개 (사이가 비어 안이 막히지 않는다), 앞끝은 더 밝게 */
+function disc(pen: DecorPen, c: Point, r: number, phase: number): void {
+  const arcs: Point[][] = [];
+  const heads: Point[][] = [];
+  for (let a = 0; a < 3; a++) {
+    const from = phase * 38 + a * 120;
+    const pts: Point[] = [];
+    for (let k = 0; k <= 8; k++) {
+      const t = ((from + k * 10) * Math.PI) / 180;
+      pts.push([Math.round(c[0] + Math.cos(t) * r), Math.round(c[1] + Math.sin(t) * r)]);
+    }
+    arcs.push(pts.slice(0, 7));
+    heads.push(pts.slice(6));
+  }
+  pen.fill('blade', (s) => arcs.forEach((pts) => pts.slice(1).forEach((p, i) => s.line(pts[i]!, p, 1))));
+  pen.fill('metal', (s) => heads.forEach((pts) => pts.slice(1).forEach((p, i) => s.line(pts[i]!, p, 1))));
 }
 
 export const EUNWOO_DECOR: Decor = {
+  skin: { face: true, hands: true },
+  // 리본이 다리·몸과 만든 고리는 비워 둔다 (작은 틈만 메운다)
+  keepHoles: 6,
   /**
-   * 가운 뒷자락: 어깨 뒤에서 엉덩이를 지나 무릎 높이까지 늘어지는 흰 천. 다리보다 뒤에 그린다.
-   * 자락 끝은 몸 아래 방향과 중력을 섞어 처지고, flutter만큼 뒤로 들려 휘날린다
+   * 가운 뒷자락: 어깨 뒤에서 엉덩이를 지나 무릎 아래까지 늘어지는 흰 천 (한 단계 어둡게). 다리보다 뒤에 그린다.
+   * 끝은 몸 아래와 중력을 섞어 처지고, 휘날리는 만큼 뒤로 들린다. 끝단은 두 갈래로 갈라진다 (가운 뒤트임)
    */
   behind(pen, j) {
-    const { down, front } = torso(j);
-    const back: Point = [-front[0], -front[1]];
-    const k = flutter(j);
-    // 처지는 방향: 몸 아래와 중력(아래)을 섞고, 휘날릴수록 뒤쪽으로 기운다
-    const hang = norm([down[0] * 0.5 + back[0] * (0.25 + 0.9 * k), down[1] * 0.5 + 0.5 + back[1] * (0.25 + 0.9 * k)]);
+    // 몸 뒤로 돌아간 연검 (피루엣)
+    if (j.fx?.back && j.fx.rib) sword(pen, j.fx.rib);
+    const { down, front, back } = torso(j);
+    const k = gownK(j);
+    const fl = j.fx?.flare ?? 0;
+    const hang = hangDir(j, Math.min(1.2, k));
     const top = add(j.neck, down, 2);
-    const len = 15 + 3 * k;
+    const len = 17 + 3 * Math.min(1, k);
     pen.fill('clothBack', (s) => s.poly([
       add(top, back, 2.5),
       add(top, front, 1),
-      add(add(j.hip, front, 1.5), hang, 6),
-      add(add(j.hip, front, -1), hang, len - 2),
-      add(add(j.hip, back, 3 + 2 * k), hang, len + 1),
-      add(add(j.hip, back, 5 + 3 * k), hang, len - 4),
+      add(add(j.hip, front, 1.5), hang, 7),
+      add(add(j.hip, front, -0.5), hang, len - 1),
+      add(add(j.hip, back, 2 + 2 * k), hang, len - 3),
+      add(add(j.hip, back, 3.5 + 2.5 * k), hang, len + 1),
+      add(add(j.hip, back, 5.5 + 3 * k), hang, len - 3),
       add(j.hip, back, 4.5),
     ]));
+    // 돌 때 둥글게 펼쳐지는 뒷자락: 엉덩이 높이에서 뒤로 넓게 퍼진다
+    if (fl > 0.05) {
+      const out = norm([back[0] * 0.9 + down[0] * 0.5, back[1] * 0.9 + down[1] * 0.5]);
+      pen.fill('clothBack', (s) => s.poly([
+        add(j.hip, down, -2),
+        add(add(j.hip, out, 9 + 7 * fl), down, -1 - 4 * fl),
+        add(add(j.hip, out, 11 + 8 * fl), down, 4),
+        add(j.hip, down, 9),
+      ]));
+    }
   },
-  /** 가운 몸판·앞자락(앞 허벅지를 덮는다), 하네스(금색 어깨끈·허리띠) */
+  /** 가운 몸판·앞자락(흰색), 가운 깃 사이로 보이는 회색 셔츠, 하네스 (금색 어깨끈·허리띠) */
   body(pen, j) {
     const { up, down, front } = torso(j);
     const top = add(j.neck, down, 1.5);
-    const k = flutter(j);
+    const k = gownK(j);
     const hang = norm([down[0] * 0.6 - front[0] * 0.2 * k, down[1] * 0.6 + 0.4 - front[1] * 0.2 * k]);
+    const fl = j.fx?.flare ?? 0;
+    // 돌 때 둥글게 펼쳐지는 앞자락: 엉덩이 높이에서 앞으로 넓게 퍼진다
+    if (fl > 0.05) {
+      const out = norm([front[0] * 0.9 + down[0] * 0.5, front[1] * 0.9 + down[1] * 0.5]);
+      pen.fill('cloth', (s) => s.poly([
+        add(j.hip, down, -2),
+        add(add(j.hip, out, 8 + 7 * fl), down, -1 - 4 * fl),
+        add(add(j.hip, out, 10 + 8 * fl), down, 4),
+        add(j.hip, down, 9),
+      ]));
+    }
     pen.fill('cloth', (s) => {
       // 몸판: 어깨에서 엉덩이까지 몸통보다 조금 넓게
-      s.poly([
-        add(top, front, 2.6),
-        add(top, front, -3.2),
-        add(j.hip, front, -3.6),
-        add(j.hip, front, 3),
-      ]);
-      // 앞자락: 엉덩이 앞에서 무릎 위까지 (열린 가운이라 앞쪽은 짧고 가볍다)
+      s.poly([add(top, front, 2.6), add(top, front, -3.2), add(j.hip, front, -3.6), add(j.hip, front, 3)]);
+      // 앞자락: 엉덩이 앞에서 무릎 아래까지 (열린 가운이라 앞쪽은 가볍게 흔들린다)
       s.poly([
         add(j.hip, front, 3),
         add(j.hip, front, -1.5),
-        add(add(j.hip, front, -1), hang, 9 + 2 * k),
-        add(add(j.hip, front, 2.5), hang, 7),
+        add(add(j.hip, front, -1), hang, 11 + 2 * Math.min(1, k)),
+        add(add(j.hip, front, 2.5), hang, 9),
       ]);
     });
-    // 깃: 목 아래 앞쪽 좁은 V (안쪽 그늘)
-    pen.fill('clothBack', (s) => s.poly([add(top, front, 0.4), add(top, front, 2.4), add(add(top, down, 4), front, 1.6)]));
+    // 열린 가운 앞으로 보이는 회색 셔츠: 목 앞에서 가슴까지 좁은 띠
+    pen.fill('body', (s) => s.poly([add(top, front, 0.4), add(top, front, 2.6), add(add(top, down, 6.5), front, 2.4), add(add(top, down, 6.5), front, 1.2)]));
     // 하네스: 어깨에서 허리 앞으로 내려오는 금색 끈과 허리띠
     pen.fill('accent', (s) => {
       s.line(add(add(top, front, -1.5), up, 0.5), add(add(j.hip, front, 2), up, 3), 1);
       s.line(add(add(j.hip, front, -3), up, 3), add(add(j.hip, front, 3), up, 3), 1);
     });
   },
-  /** 머리: 둥근 머리 볼륨 + 앞머리 + 뒤 위에서 묶어 늘어진 꽁지머리 (몸을 숙일수록 뒤로 날린다) */
+  /**
+   * 머리 (일러스트): 아랫단(목덜미·꽁지머리) → 숱 많은 볼륨 → 눈을 덮는 긴 앞머리·턱까지 오는 옆머리 → 삐친 가닥 → 연분홍 머리끈.
+   * 꽁지머리는 목덜미에서 낮게 묶어 짧게 늘어지고, 몸이 움직이면 늦게 따라 뒤로 날린다 (멈추면 앞으로 한 번 넘어왔다 돌아온다)
+   */
   head(pen, j) {
-    const c = j.head;
-    const r = j.ha;
-    const u: Point = [Math.sin(r), -Math.cos(r)];
-    const f: Point = [-u[1], u[0]];
-    const at = (p: readonly [number, number]): Point => [c[0] + f[0] * p[0] + u[0] * p[1], c[1] + f[1] * p[0] + u[1] * p[1]];
-    // 꽁지머리: 머리 뒤 위에서 높이 묶어, 뒤로 살짝 솟았다가 목덜미 뒤로 늘어진다 (몸을 숙일수록 뒤로 날린다)
-    const tie = at([-3.6, 3.8]);
+    const { c, u, f, at } = headFrame(j);
     const back: Point = [-f[0], -f[1]];
-    const k = flutter(j);
-    // 처지는 방향: 중력(아래)과 머리 뒤쪽을 섞는다. 휘날릴수록 뒤쪽이 세진다
+    const k = hairK(j);
+    const tie = at([-5.0, -2.2]);
     const sag = (b: number, g: number): Point => norm([back[0] * b, back[1] * b + g]);
-    const d1 = sag(1.2 + k, -0.2);
-    const d2 = sag(0.7 + 1.0 * k, 1.0 - 0.4 * k);
-    const d3 = sag(0.35 + 1.2 * k, 1.0 - 0.5 * k);
-    const p1 = add(tie, d1, 3);
-    const p2 = add(p1, d2, 6);
-    const p3 = add(p2, d3, 6);
+    const p1 = add(tie, sag(0.45 + 1.2 * k, 1.0 - 0.3 * k), 3);
+    const p2 = add(p1, sag(0.25 + 1.4 * k, 1.0 - 0.4 * k), 4);
     pen.fill('hairBack', (s) => {
-      // 아랫단 (한 단계 어둡게): 묶은 자리 → 끝으로 가늘어지는 굵은 붓질 (다각형은 꺾이면 겹쳐 줄무늬가 생겨 선으로 긋는다)
+      // 목덜미를 덮는 뒷머리 아랫단 (한 단계 어둡게)
+      s.poly([at([-1.2, 0.6]), at([-5.8, 1.0]), at([-5.6, -3.0]), at([-2.8, -2.8])]);
+      // 낮게 묶은 꽁지머리 아랫단
       s.line(tie, p1, 3);
-      s.line(p1, p2, 3);
-      s.line(p2, p3, 2);
+      s.line(p1, p2, 2);
     });
     pen.fill('hair', (s) => {
-      // 머리 볼륨: 머리 위·뒤를 덮는다 (얼굴 쪽 앞 아래는 남긴다)
-      const o = at([-0.6, 0.8]);
-      s.area(c[0] - 8, c[1] - 8, c[0] + 8, c[1] + 8, (x, y) => {
+      // 숱 많은 볼륨: 머리 위·뒤를 머리보다 조금 크게 덮는다 (얼굴 앞 아래는 남긴다)
+      const o = at([-0.6, 0.6]);
+      s.area(c[0] - 9, c[1] - 9, c[0] + 9, c[1] + 9, (x, y) => {
         const dx = x - c[0];
         const dy = y - c[1];
         const upk = dx * u[0] + dy * u[1];
         const fr = dx * f[0] + dy * f[1];
-        return Math.hypot(x - o[0], y - o[1]) <= 5.7 && (upk >= 0.9 || fr <= -1.0);
+        return Math.hypot(x - o[0], y - o[1]) <= 5.8 && (upk >= 0.8 || fr <= -1.0);
       });
-      // 앞머리: 이마를 비스듬히 덮고, 볼 옆으로 한 가닥 내려온다
-      s.poly([at([0.0, 5.8]), at([5.6, 2.8]), at([5.0, 0.8]), at([2.0, 2.4])]);
-      s.poly([at([1.2, 2.2]), at([2.6, 1.6]), at([1.8, -4.2])]);
+      // 긴 앞머리: 이마를 덮고 눈 높이까지, 한 가닥은 볼까지 내려온다
+      s.poly([at([-0.6, 6.0]), at([5.4, 3.8]), at([5.6, 0.2]), at([3.4, 2.0])]);
+      s.poly([at([2.0, 5.0]), at([4.6, 2.6]), at([3.2, -1.6]), at([2.2, 1.8])]);
+      // 옆머리: 귀 앞에서 턱까지 늘어진 가닥
+      s.poly([at([1.6, 2.4]), at([-0.2, 2.6]), at([0.6, -5.2])]);
       // 꽁지머리 윗단: 아랫단보다 조금 위로 비켜 가늘게 (빛 받는 쪽)
-      const lift: Point = [0, -0.7];
+      const lift: Point = [u[0] * 0.7, u[1] * 0.7];
       s.line(add(tie, lift), add(p1, lift), 2);
-      s.line(add(p1, lift), add(p2, lift), 2);
-      s.line(add(p2, lift), p3, 1);
+      s.line(add(p1, lift), p2, 1);
+      // 흐트러진 끝: 정수리 뒤와 뒤통수에서 짧게 삐친다
+      s.line(at([-2.2, 5.8]), at([-3.0, 6.8]), 1);
+      s.line(at([-5.4, 2.6]), at([-6.6, 3.0]), 1);
     });
-    // 머리끈 (금색 한 점)
-    pen.fill('accent', (s) => s.disc(tie, 0.6));
+    // 연분홍 머리끈
+    pen.fill('trim', (s) => s.disc(tie, 0.7));
   },
-  /** 연검 스텔라리스: 앞손에 쥔다. 칼날은 손목 방향으로 뻗다가 끝이 리본처럼 아래로 휜다 (은빛 1px + 금색 코등이) */
+  /** 연검 (맨 위: 앞손에 쥔다). 방어에서 돌리는 동안은 손잡이와 은빛 원 */
   top(pen, j) {
-    const dir = norm([j.hF[0] - j.eF[0], j.hF[1] - j.eF[1]]);
-    const n: Point = [-dir[1], dir[0]];
-    const p0 = add(j.hF, dir, 1.5);
-    const p1 = add(p0, dir, 4.5);
-    const d2 = norm([dir[0], dir[1] + 0.45]);
-    const p2 = add(p1, d2, 4);
-    const d3 = norm([dir[0] * 0.7, dir[1] * 0.7 + 0.9]);
-    const p3 = add(p2, d3, 3.5);
-    pen.fill('trim', (s) => {
-      s.line(p0, p1, 1);
-      s.line(p1, p2, 1);
-      s.line(p2, p3, 1);
-    });
-    pen.fill('accent', (s) => s.line(add(add(j.hF, dir, 1), n, -1.2), add(add(j.hF, dir, 1), n, 1.2), 1));
+    if (j.fx?.disc) {
+      const d = norm([j.hF[0] - j.eF[0], j.hF[1] - j.eF[1]]);
+      pen.fill('accent', (s) => s.line(j.hF, add(j.hF, d, 5), 2));
+      disc(pen, j.hF, j.fx.disc.r, j.fx.disc.phase);
+      return;
+    }
+    if (j.fx?.back) return;
+    const rib = j.fx ? j.fx.rib : restRibbon(j);
+    if (rib) sword(pen, rib);
   },
 };
 
-/** 1P: 연분홍 몸, 흰 가운(차가운 회청 그늘), 밝은 갈색 머리, 금색 하네스, 은빛 칼날 */
+/** 1P: 흰 가운(차가운 회청 그늘), 짙은 회색 셔츠·바지, 잿빛 머리, 금색 하네스·손잡이 금실, 연분홍 머리끈, 은빛 연검, 창백한 살빛 */
 const P1: Look = {
-  outline: 'ink', shadow: 'lilyDark', base: 'lily', light: 'lilyLight',
-  hair: ['hairBrownDark', 'hairBrown', 'hairBrownLight'],
+  outline: 'ink', shadow: 'suitGreyDark', base: 'suitGrey', light: 'suitGreyLight',
+  hair: ['ashDark', 'ash', 'ashLight'],
   cloth: ['gownShade', 'gown', 'white'],
   accent: ['thread', 'threadLight'],
-  trim: 'paleGrey',
+  trim: 'lily',
   glow: 'threadLight',
+  metal: ['moonDark', 'moon', 'moonLight'],
+  skin: ['skinDark', 'skin', 'skinLight'],
 };
-/** 2P (같은 캐릭터끼리): 짙은 분홍 몸, 회청 가운, 짙은 갈색 머리, 어두운 금색 */
+/** 2P: 백합 연분홍 가운, 더 짙은 셔츠·바지, 기획서의 밝은 갈색 머리, 어두운 금색 */
 const P2: Look = {
-  outline: 'ink', shadow: 'lilyDeep', base: 'lilyDark', light: 'lily',
-  hair: ['suitDark', 'hairBrownDark', 'hairBrown'],
-  cloth: ['gownDark', 'gownShade', 'gown'],
+  outline: 'ink', shadow: 'suitDark', base: 'suit', light: 'suitLight',
+  hair: ['hairBrownDark', 'hairBrown', 'hairBrownLight'],
+  cloth: ['lilyDark', 'lily', 'lilyLight'],
   accent: ['goldDark', 'gold'],
-  trim: 'paleGrey',
+  trim: 'white',
   glow: 'thread',
+  metal: ['moonDark', 'moon', 'moonLight'],
+  skin: ['skinDark', 'skin', 'skinLight'],
 };
 /** 금색 잔상 (금색 실을 따라 미끄러지는 대시·순간이동) */
 const GHOST: Look = { outline: 'thread', shadow: 'thread', base: 'thread', light: 'thread' };

@@ -13,6 +13,7 @@ import { Outskirts } from './outskirts';
 import { lightPool, shared } from './lights';
 import { moodAt } from './mood';
 import { lightningAt, skyMaterial } from './sky';
+import { tint } from '../screenfx';
 import { Plaza } from './plaza';
 import { Props } from './props';
 import { Rain } from './rain';
@@ -55,6 +56,7 @@ export class World {
   private skyRT: THREE.WebGLRenderTarget | null = null;
   private skyAt = -1e9;
   private skyFlash = 0;
+  private readonly tintAmbient = new THREE.Color();
   /** 겹 사이 안개 판 (구간 분위기로 짙기를 바꾼다)와 처음 짙기 */
   private readonly hazes: Array<[THREE.ShaderMaterial, number]> = [];
 
@@ -122,6 +124,11 @@ export class World {
       });
       o.matrixWorldAutoUpdate = false;
     }
+  }
+
+  /** 시간이 멈춘 연출 (라이덴 파천): 비가 공중에 서고, red 둘레 빗방울만 붉다 (렌더 전용) */
+  freezeRain(on: boolean, red: readonly [number, number, number] | null = null): void {
+    this.rain.setFrozen(on, red);
   }
 
   /**
@@ -197,6 +204,12 @@ export class World {
     shared.uMist.value = m.mist;
     shared.uAmbient.value.copy(m.ambient);
     shared.uAmbientGround.value.copy(m.ambientGround);
+    // 화면 물들이기 (캐릭터 연출, render/screenfx): 환경광도 그 색 쪽으로
+    if (tint.k > 0) {
+      const k = Math.min(1, tint.k);
+      shared.uAmbient.value.lerp(this.tintAmbient.set(tint.ambient), k);
+      shared.uAmbientGround.value.lerp(this.tintAmbient, k);
+    }
     if (bolt.flash > 0) {
       shared.uAmbient.value.r += 0.1 * bolt.flash;
       shared.uAmbient.value.g += 0.11 * bolt.flash;

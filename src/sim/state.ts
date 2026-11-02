@@ -26,7 +26,7 @@ function newFighter(x: number, facing: 1 | -1, char: CharId): Fighter {
     airJumpUsed: false, airDashUsed: false, comboHits: 0, bounce: false, heavyHit: false,
     runDist: 0, wins: 0, atkDir: 0, atkHold: 0, chargeArm: false, chargeLv: 0, cineMotion: '', buf: [0, 0, 0, 0, 0, 0], prevInput: 0, propHits: [], cityHits: [], floor: 0, dropT: 0,
     wallFly: false, wallId: -1, wallCount: 0, wallX: 0, wallSide: 0, driftLock: 0, dashUp: false, citadelHit: false, kongo: 0, kongoT: 0, exhaust: 0,
-    zanX0: 0, zanX1: 0, zanY: 0, zanT: 0, zanHit: false, slowT: 0,
+    zanX0: 0, zanX1: 0, zanY: 0, zanT: 0, zanHit: false, slowT: 0, cines: 0,
     ext: new Array<number>(EXT_LEN).fill(0),
   };
 }
@@ -58,10 +58,16 @@ export function createState(seed: number, opts: MatchOptions = {}): SimState {
   return s;
 }
 
+/** 이번 라운드 시작 연출 길이 (틱): 첫 라운드는 두 사람 등장 동작 중 긴 쪽과 INTRO_TICKS 중 긴 쪽 */
+function introTicks(s: SimState): number {
+  if (s.round !== 1) return INTRO_TICKS;
+  return Math.max(INTRO_TICKS, ...s.fighters.map((f) => motionFrames(motionOf(f.char, 'intro')).total));
+}
+
 function resetRound(s: SimState): void {
   const mid = px(STAGE_W / 2);
   s.fighters.forEach((f, i) => {
-    const keep = { wins: f.wins, meter: f.meter };
+    const keep = { wins: f.wins, meter: f.meter, cines: f.cines };
     Object.assign(f, newFighter(mid + (i === 0 ? -START_GAP : START_GAP), i === 0 ? 1 : -1, f.char), keep);
     // 경기 첫 라운드: 시작 연출 동안 등장 동작 (끝나면 대기)
     if (s.round === 1) setMode(f, 'intro', motionFrames(motionOf(f.char, 'intro')).total);
@@ -216,7 +222,8 @@ function roundFlow(s: SimState): void {
   switch (s.phase) {
     case 'intro':
       if (s.phaseT === 1) s.events.push({ type: 'round', who: -1, x: 0, y: 0, text: `ROUND ${s.round}` });
-      if (s.phaseT >= INTRO_TICKS) {
+      // 첫 라운드는 두 사람의 등장 동작이 다 끝날 때까지 (등장이 긴 캐릭터: 백은우 나비 떼 등)
+      if (s.phaseT >= introTicks(s)) {
         s.phase = 'fight';
         s.phaseT = 0;
         s.events.push({ type: 'fight', who: -1, x: 0, y: 0, text: 'FIGHT' });
