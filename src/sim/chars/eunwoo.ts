@@ -29,6 +29,9 @@ export const EW = {
   DULL: 3,
   /** 스킬 2로 회복한 양 (확인용) */
   HEALED: 4,
+  /** 백합 방어막이 막아 낸 뒤 미끄러지는 남은 틱, 방향 (+1 오른쪽) */
+  SLIDE: 5,
+  SLIDE_DIR: 6,
 } as const;
 
 export const EUNWOO_RULES = {
@@ -44,6 +47,8 @@ export const EUNWOO_RULES = {
   SKILL2_HEAL: 3,
   /** 스킬 2: 뛰는 속도 더하기 (%) */
   SKILL2_SPEED: 25,
+  /** 백합 방어막이 막아 낸 뒤 뒤로 미끄러지는 거리 (틱마다 px, 모두 8px) */
+  SHIELD_SLIDE: [2, 2, 1.5, 1, 1, 0.5],
   SUPER_HEAL: 260,
   DULL_TICKS: 300,
 } as const;
@@ -85,6 +90,12 @@ export const EUNWOO_HOOKS: CharHooks = {
   tick(s, f) {
     const R = EUNWOO_RULES;
     const e = f.ext;
+    // 백합 방어막이 막아 낸 뒤: 맞는 동작 없이 조금 미끄러진다 (히트스톱이 끝난 뒤)
+    if (e[EW.SLIDE] > 0 && f.hitstop === 0 && !s.cine) {
+      const k = R.SHIELD_SLIDE[R.SHIELD_SLIDE.length - e[EW.SLIDE]]!;
+      f.x = Math.max(wallLeft(f.y), Math.min(WALL_R, f.x + e[EW.SLIDE_DIR] * px(k)));
+      e[EW.SLIDE]--;
+    }
     // 스킬 2: 나비가 도는 동안 조금씩 회복, 뛰는 속도 25% 더
     if (e[EW.BUFF] > 0) {
       e[EW.BUFF]--;
@@ -141,6 +152,9 @@ export const EUNWOO_HOOKS: CharHooks = {
     // 백합 낙인: 다음 공격 한 번을 방어막이 막는다 (필살기 연출의 끝 타격은 막지 않는다)
     if (def.ext[EW.LILY] > 0 && !movesOf(att.char)[id].data.cinematic) {
       def.ext[EW.LILY] = 0;
+      // 맞는 동작 없이 조금만 뒤로 미끄러진다 (11-4): 히트스톱이 끝난 뒤 몇 틱 동안 (tick)
+      def.ext[EW.SLIDE] = EUNWOO_RULES.SHIELD_SLIDE.length;
+      def.ext[EW.SLIDE_DIR] = def.x >= att.x ? 1 : -1;
       return -1;
     }
     return damage;

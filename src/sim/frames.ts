@@ -93,6 +93,8 @@ export interface Move {
   rebound?: { vx: number; vy: number };
   /** 몸 이동: 틱 t(기술 시작 뒤 1부터)에 앞으로 움직이는 거리 (1/256px, 길이 total + 1, [0]은 0) */
   advance?: readonly number[];
+  /** 차지 단계별 몸 이동 (단계 데이터에 advance가 있을 때만, 없는 단계는 undefined → advance) */
+  levelAdvance?: ReadonlyArray<readonly number[] | undefined>;
   /** 순간이동: 그 프레임이 시작하는 틱, 최대 거리·멈추는 간격 (1/256px) */
   blink?: { tick: number; dist: number; gap: number };
 }
@@ -116,7 +118,15 @@ function buildMove(id: MoveId, data: MoveData, motion: string): Move {
     rebound: data.rebound && { vx: px(data.rebound.vx), vy: px(data.rebound.vy) },
     blink: data.blink && { tick: frames.cum[data.blink.at - 1], dist: px(data.blink.dist), gap: px(data.blink.gap) },
     advance: data.advance && advanceTicks(frames, data.advance),
+    levelAdvance: data.charge?.levels.some((l) => l.advance)
+      ? data.charge.levels.map((l) => l.advance && advanceTicks(frames, l.advance))
+      : undefined,
   };
+}
+
+/** 지금 쓰는 몸 이동 (차지는 모은 단계의 것, 1단계 미만이면 1단계) */
+export function advanceOf(mv: Move, chargeLv: number): readonly number[] | undefined {
+  return mv.levelAdvance?.[Math.max(0, Math.min(mv.levelAdvance.length, chargeLv) - 1)] ?? mv.advance;
 }
 
 /**
@@ -167,6 +177,15 @@ export const MOVES = MOVE_SETS.base;
 export function moveHitBox(mv: Move, t: number, chargeLv = 0): Box | null {
   const f = frameAtTick(mv.frames, t);
   if (!mv.data.active.includes(f)) return null;
+  // 판정 선이 있는 프레임: 선을 감싼 상자 (선 굵기 3px까지. 실제로 맞는지는 combat이 선으로 다시 본다)
+  const line = mv.data.line?.[f];
+  if (line) {
+    const xs = line.map((p) => p[0]);
+    const ys = line.map((p) => p[1]);
+    const x0 = Math.min(...xs);
+    const y0 = Math.min(...ys);
+    return { x: x0 - 3, y: y0 - 3, w: Math.max(...xs) - x0 + 6, h: Math.max(...ys) - y0 + 6 };
+  }
   const j = mv.frames.joints[f];
   // 차지는 모은 단계마다 궤적 상자가 다를 수 있다 (라이덴 투전승불: 단계마다 번개가 길어진다)
   const t2 = (chargeLv > 0 ? mv.data.charge?.levels[Math.min(mv.data.charge.levels.length, chargeLv) - 1]?.box : undefined) ?? mv.data.box;
@@ -181,6 +200,13 @@ export function moveHitBox(mv: Move, t: number, chargeLv = 0): Box | null {
   const x0 = Math.min(b.x, t2.x);
   const y0 = Math.min(b.y, t2.y);
   return { x: x0, y: y0, w: Math.max(b.x + b.w, t2.x + t2.w) - x0, h: Math.max(b.y + b.h, t2.y + t2.h) - y0 };
+}
+
+/** 이 기술의 t틱째 판정 선 (발밑 기준 px, 오른쪽 보는 기준). 판정 선이 없는 프레임이면 null */
+export function moveHitLine(mv: Move, t: number): ReadonlyArray<readonly [number, number]> | null {
+  if (!mv.data.line) return null;
+  const f = frameAtTick(mv.frames, t);
+  return mv.data.active.includes(f) ? (mv.data.line[f] ?? null) : null;
 }
 
 /** 능력치를 sim 단위로: 거리·속도·가속은 1/256px 정수, 시간은 틱 */

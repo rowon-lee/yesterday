@@ -47,8 +47,14 @@ export interface CharRender {
   ramp?: readonly ColorName[];
   /** 대표 빛 색 ('#rrggbb'): 차지·기력·타격 때 무대를 비추는 빛 */
   light?: string;
+  /** 맞힌 자리 불꽃을 스스로 그린다 (공통 Impact 불꽃·필살기 끝 폭발을 쓰지 않는다. 빛은 그대로) */
+  ownSpark?: boolean;
   /** 등장 연출을 스스로 그린다 (기본 '위에서 내려선 자리 충격·먼지'를 쓰지 않는다) */
   ownIntro?: boolean;
+  /** 차지를 모으는 동안의 몸 둘레 오라를 스스로 그린다 (기본 Power Up 오라를 쓰지 않는다. 단계 반짝임·빛은 그대로) */
+  ownChargeAura?: boolean;
+  /** 지상 대시를 스스로 그린다 (기본 Dash 잔상·먼지를 쓰지 않는다. 공중 대시는 그대로) */
+  ownDash?: boolean;
   /** 등장 중 그림을 숨기는가 (렌더 전용) */
   introHidden?(f: Fighter): boolean;
   /** 등장 중 땅 위로 띄워 그리는 높이 (px, 렌더 전용). undefined면 0 */
@@ -65,6 +71,11 @@ export interface CharRender {
   lights?(s: SimState, f: Fighter, i: number): void;
   /** 이 틱에 몸을 감추는가 (등장 연출 등). scenes/fight.ts가 캐릭터 판을 그리지 않는다 */
   hidden?(s: SimState, f: Fighter, i: number): boolean;
+  /**
+   * 3D 화면 위 2D 화면(480×270)에 겹쳐 그린다 (필살기 연출의 화면 전체 흰색처럼 무대 앞 물건까지 덮어야 할 때).
+   * cam: 화면 왼쪽 위의 월드 좌표 (px). 연출 중 위아래 검은 띠보다 아래, HUD보다 아래에 그린다
+   */
+  overlay?(ctx: CanvasRenderingContext2D, s: SimState, f: Fighter, i: number, cam: { x: number; y: number }): void;
   /** HUD: 특성 표시 (껍데기 게이지·낙인·검영 수…) */
   hud?(ctx: CanvasRenderingContext2D, s: SimState, f: Fighter, i: number, slot: HudSlot): void;
 }

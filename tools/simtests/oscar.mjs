@@ -27,12 +27,14 @@ export default function checks(sim, { runCpuMatch, replay } = {}) {
   };
   const evs = (log, pred) => log.flatMap((l) => l.ev).filter(pred);
 
-  // 1) 1타: 검격은 몸에서 떨어진 앞 허공에 생긴다 — 50px 떨어진 상대가 맞고, 몸 가운데끼리 16px 넘게 떨어져 있다
+  // 1) 1타: 베기 선은 몸에서 떨어진 앞 허공에 한 번에 생기고, 상대는 선보다 3틱 늦게 맞는다 — 50px 떨어진 상대가 맞는다
   let s = fresh(2400, 2450);
   let f = s.fighters[0];
   let log = run(s, [I.IN_ATTACK, ...hold(0, 20)]);
   const hit1 = evs(log, (e) => e.type === 'hit' && e.move === 'atk1').length;
-  results.push(['1타 검격이 50px 떨어진 상대를 벤다 (판정 = 검격 자리)', hit1 === 1, `맞힘 ${hit1}`]);
+  const cutT = log.findIndex((l) => l.ev.some((e) => e.type === 'char' && e.text === 'cut'));
+  const hitT = log.findIndex((l) => l.ev.some((e) => e.type === 'hit'));
+  results.push(['1타 베기 선이 50px 떨어진 상대를 벤다 (판정 = 선), 선보다 3틱 늦게 맞는다', hit1 === 1 && hitT - cutT === 3, `맞힘 ${hit1}, 선 ${cutT + 1}틱째 → 맞음 ${hitT + 1}틱째`]);
   results.push(['1타 뒤 검영이 하나 남는다', shadows(f) === 1, `검영 ${shadows(f)}`]);
 
   // 2) 1~4타 연타: 네 번 다 맞고, 그동안 두 몸 중심은 16px 넘게 떨어져 있다
@@ -40,7 +42,7 @@ export default function checks(sim, { runCpuMatch, replay } = {}) {
   f = s.fighters[0];
   let minGap = 1e9;
   log = [];
-  for (let k = 0; k < 60; k++) {
+  for (let k = 0; k < 80; k++) {
     sim.step(s, [k % 4 === 0 && k < 48 ? I.IN_ATTACK : 0, 0]);
     log.push({ ev: s.events.slice() });
     minGap = Math.min(minGap, Math.abs(s.fighters[1].x - f.x) / 256);
@@ -61,7 +63,7 @@ export default function checks(sim, { runCpuMatch, replay } = {}) {
   run(s, hold(0, 420));
   results.push(['검영은 일정 시간 뒤 사라진다', before === 1 && shadows(f) === 0, `${before} → ${shadows(f)}`]);
 
-  // 4) 스킬 1: 멀리(190px) 선 상대 자리에 표식이 뜨고, 가만히 있으면 23틱 뒤 베인다 / 표식 뒤 비켜나면 헛벤다
+  // 4) 스킬 1: 멀리(190px) 선 상대 자리에 표식(점선)이 뜨고, 가만히 있으면 18틱째 실선으로 베이고 3틱 늦게 맞는다 / 표식 뒤 비켜나면 헛벤다
   s = fresh(2400, 2590);
   f = s.fighters[0];
   f.meter = 100;
@@ -69,7 +71,8 @@ export default function checks(sim, { runCpuMatch, replay } = {}) {
   const mark = evs(log, (e) => e.type === 'char' && e.text === 'mark');
   const cutAt = log.findIndex((l) => l.ev.some((e) => e.type === 'char' && e.text === 'cut'));
   const s1hit = evs(log, (e) => e.type === 'hit' && e.move === 'skill1').length;
-  results.push(['스킬 1: 상대 자리에 표식 → 그 자리를 곧바로 벤다 (190px 밖에서도)', mark.length === 1 && s1hit === 1 && cutAt >= 20, `표식 ${mark.length}, 벰 ${cutAt + 1}틱째, 맞힘 ${s1hit}`]);
+  const s1At = log.findIndex((l) => l.ev.some((e) => e.type === 'hit' && e.move === 'skill1'));
+  results.push(['스킬 1: 상대 자리에 표식 → 18틱째 그 자리를 곧바로 벤다 (190px 밖에서도), 3틱 늦게 맞음', mark.length === 1 && s1hit === 1 && cutAt === 18 && s1At === cutAt + 3, `표식 ${mark.length}, 벰 ${cutAt + 1}틱째, 맞음 ${s1At + 1}틱째, 맞힘 ${s1hit}`]);
   s = fresh(2400, 2590);
   f = s.fighters[0];
   f.meter = 100;
@@ -105,8 +108,8 @@ export default function checks(sim, { runCpuMatch, replay } = {}) {
   f.ext[0] = 2500 * 256;
   f.ext[5] = -90 * 256;
   f.ext[10] = 300;
-  log = run(s, [I.IN_SKILL2, ...hold(0, 6)]);
-  results.push(['스킬 2: 높이 뜬 검영 위에 서서 뛰어오른다 (2단 점프 다시)', f.mode === 'air' && f.vy < 0 && !f.airJumpUsed && Math.abs(f.x - 2500 * 256) < 256, `${f.mode} vy ${(f.vy / 256).toFixed(1)} x ${(f.x / 256).toFixed(0)}`]);
+  log = run(s, [I.IN_SKILL2, ...hold(0, 10)]);
+  results.push(['스킬 2: 고른 검영 자리로 (9틱째) — 높이 뜬 검영 위에 서서 뛰어오른다 (2단 점프 다시)', f.mode === 'air' && f.vy < 0 && !f.airJumpUsed && Math.abs(f.x - 2500 * 256) < 256, `${f.mode} vy ${(f.vy / 256).toFixed(1)} x ${(f.x / 256).toFixed(0)}`]);
 
   // 6) 차지 만검지화: 길게 눌러 3단계 → 떼면 만개한 자리 셋이 한꺼번에 베이고 (맞힘 한 번), 벤 자리 셋이 검영으로 남는다
   s = fresh(2400, 2470);
@@ -118,7 +121,7 @@ export default function checks(sim, { runCpuMatch, replay } = {}) {
   results.push(['차지: 3단계로 떼면 검영 셋이 한꺼번에 베인다 (맞힘 1번)', lv === 3 && cut === 3 && chit === 1, `단계 ${lv}, 벤 자리 ${cut}, 맞힘 ${chit}`]);
   results.push(['차지: 벤 자리가 검영으로 남는다 (1타 1개 + 만개 3개)', shadows(f) === 4, `검영 ${shadows(f)}`]);
 
-  // 7) 필살기 월령수류: 맞으면 연출 → 끝에 피해 220 + 검영 하나에 24, 검영은 모두 쓴다. 빗나가면 40틱 굳음
+  // 7) 필살기 월령수류: 맞으면 연출 → 끝에 피해 (기술 데이터) + 검영 하나에 24, 검영은 모두 쓴다. 빗나가면 40틱 굳음
   const superDamage = (n) => {
     const st = fresh(2400, 2480);
     const a = st.fighters[0];
@@ -130,20 +133,58 @@ export default function checks(sim, { runCpuMatch, replay } = {}) {
       a.ext[10 + i] = 400;
     }
     const hp0 = d.hp;
-    const l = run(st, [I.IN_SUPER, ...hold(0, 300)]);
+    const l = run(st, [I.IN_SUPER, ...hold(0, 360)]);
     const ends = evs(l, (e) => e.type === 'cine' && e.text === 'end').length;
     return { dmg: hp0 - d.hp, ends, left: shadows(a) };
   };
   const s0 = superDamage(0);
   const s5 = superDamage(5);
-  results.push(['필살기: 맞으면 연출이 끝까지 가고 피해 220', s0.ends === 1 && s0.dmg === 220, `연출 끝 ${s0.ends}, 피해 ${s0.dmg}`]);
-  results.push(['필살기: 검영 5개면 피해 220 + 5×24 = 340, 검영은 모두 쓴다', s5.dmg === 340 && s5.left === 0, `피해 ${s5.dmg}, 남은 검영 ${s5.left}`]);
+  // 기본 피해는 기술 데이터에서 읽는다 (밸런스로 바뀐다), 검영 하나에 24
+  const base = sim.movesOf('oscar').super.data.damage;
+  results.push([`필살기: 맞으면 연출이 끝까지 가고 피해 ${base} (기술 데이터)`, s0.ends === 1 && s0.dmg === base, `연출 끝 ${s0.ends}, 피해 ${s0.dmg}`]);
+  results.push([`필살기: 검영 5개면 피해 ${base} + 5×24 = ${base + 120}, 검영은 모두 쓴다`, s5.dmg === base + 120 && s5.left === 0, `피해 ${s5.dmg}, 남은 검영 ${s5.left}`]);
   s = fresh(2400, 2700);
   f = s.fighters[0];
   f.meter = 300;
   log = run(s, [I.IN_SUPER, ...hold(0, 140)]);
   const stuck = log.filter((l) => l.a.startsWith('land')).length;
-  results.push(['필살기: 빗나가면 크게 굳는다', stuck >= 40, `굳은 틱 ${stuck}`]);
+  results.push(['필살기: 빗나가면 크게 굳는다 (240px 밖)', stuck >= 40, `굳은 틱 ${stuck}`]);
+
+  // 7-2) 월령수류는 보이는 화면 전체를 벤다 (220px 떨어져도 맞음). 연출 220틱 (전개 70·검영 40·정적 20·백색 20·어긋남 40·납도 30),
+  //      같은 경기 두 번째부터 짧은 판 150틱 (전개·검영을 40틱으로). 막으면 연출 없이 막힌다
+  const cineLen = (l) => {
+    const a = l.findIndex((x) => x.ev.some((e) => e.type === 'cine' && e.text === 'start'));
+    const b = l.findIndex((x) => x.ev.some((e) => e.type === 'cine' && e.text === 'end'));
+    return a >= 0 && b > a ? b - a : -1;
+  };
+  s = fresh(2400, 2620);
+  f = s.fighters[0];
+  f.meter = 300;
+  log = run(s, [I.IN_SUPER, ...hold(0, 360)]);
+  const full = cineLen(log);
+  s.fighters[0].meter = 300;
+  s.fighters[0].x = 2400 * 256;
+  s.fighters[1].x = 2480 * 256;
+  while (s.fighters[0].mode !== 'idle' || s.fighters[1].mode !== 'idle') sim.step(s, [0, 0]);
+  log = run(s, [I.IN_SUPER, ...hold(0, 300)]);
+  const second = cineLen(log);
+  results.push(['필살기: 220px 떨어진 상대도 벤다 (화면 전체), 연출 220틱 → 같은 경기 두 번째는 짧은 판 150틱', full === 220 && second === 150, `첫 연출 ${full}틱, 두 번째 ${second}틱`]);
+  s = fresh(2400, 2520);
+  f = s.fighters[0];
+  f.meter = 300;
+  log = run(s, [I.IN_SUPER, ...hold(0, 120)], I.IN_DOWN);
+  const blocked = evs(log, (e) => e.type === 'block' && e.move === 'super').length;
+  const cined = evs(log, (e) => e.type === 'cine' && e.text === 'start').length;
+  results.push(['필살기: 막으면 연출 없이 막힌다 (빗나감은 없지만 방어는 된다)', blocked === 1 && cined === 0, `막힘 ${blocked}, 연출 ${cined}`]);
+
+  // 9) 선에 걸린 작은 물건(가로등)은 잘려 부서진다: 가로등 앞에서 1타 (선이 기둥을 지난다)
+  const lampI = I.BREAKABLES.findIndex((b) => b.kind === 'lamp' && b.x > 900);
+  if (lampI >= 0) {
+    const lamp = I.BREAKABLES[lampI];
+    s = fresh(Math.round(lamp.x - 40), Math.round(lamp.x + 260));
+    log = run(s, [I.IN_ATTACK, ...hold(0, 20)]);
+    results.push(['선에 걸린 가로등은 한 번에 잘려 부서진다', s.props[lampI].stage === 2, `가로등 ${lampI} 단계 ${s.props[lampI].stage}`]);
+  }
 
   // 8) 결정론: 오스카가 낀 CPU 대전 (재생·저장 복원 같은 해시)
   if (runCpuMatch && replay) {

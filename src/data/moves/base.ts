@@ -46,6 +46,18 @@ export interface MoveData {
    * 에드워드 해머 머리처럼 무기 끝 범위를 상자로 정한 기술 (캐릭터 기획서·CLAUDE.md 판정 예외)
    */
   boxOnly?: boolean;
+  /**
+   * 판정 선 (휘는 무기: 백은우 연검, 사용자 피드백 2026-11-02 11-0): 판정 프레임마다 그 프레임 무기 위의 점 6~8개를 이은 선
+   * (발밑 기준, 오른쪽 보는 기준 px). 그 프레임에 선이 있으면 상자 대신 이 선이 상대 피격 상자를 지나야 맞는다.
+   * 공격 상자(moveHitBox)는 선을 감싼 상자 (부서지는 물건·판정 표시). 값은 동작 그림의 리본에서 뽑아 적어 둔다
+   * (tools/ribbon-lines.mjs → data/moves/lines.ts, simtest가 그림과 같은지 확인한다)
+   */
+  line?: Readonly<Record<number, ReadonlyArray<readonly [number, number]>>>;
+  /**
+   * 판정을 캐릭터 고유 규칙이 직접 낸다 (sim/chars가 strikeBox로): 공통 판정(궤적 상자 겹침)과 물건 깎기를 하지 않는다.
+   * 궤적 상자(box)는 사거리 계산(CPU)용으로만 쓴다. 오스카 베기 선 (두께 6px의 긴 선, 선보다 늦게 맞는다)
+   */
+  selfHit?: boolean;
   /** 맞히면 점프로 끊고 쫓아갈 수 있다 */
   jumpCancel?: boolean;
   /** 기력 소모 (칸) */
@@ -60,8 +72,11 @@ export interface MoveData {
   airFollow?: number;
   /** 벽 쪽으로 날림: 맞은 쪽 뒤에 건물 정면이 있으면 정면에 박힌다 (벽꽝) */
   wall?: boolean;
-  /** 화면을 어둡게 하고 컷인을 띄운 뒤 발동 */
-  cutin?: string;
+  /**
+   * 화면을 멈추고 컷인을 띄운 뒤 발동. 문자열(예전 형식: 사건·영상 훅 이름만)이나 컷인 데이터 (띠 색·한국어 이름·한자·정지 길이).
+   * 컷인 그림은 render/cutin.ts가 이 데이터로 그린다
+   */
+  cutin?: string | CutinData;
   /**
    * 벽 박차기: from 프레임 전까지는 벽에 머물고, from~to 프레임 동안 바라보는 쪽 아래 대각선으로 곧게 날아간다
    * (중력 없음, px/틱). 맞히거나 막히면 멈춘다
@@ -92,6 +107,43 @@ export interface MoveData {
   };
   /** 필살기 연출 (맞으면 장면 재생, 빗나가면 큰 빈틈) */
   cinematic?: Cinematic;
+  /**
+   * 다른 그림: 캐릭터 고유 규칙(CharHooks.altMotion)이 고르면 이 동작 그림으로 보인다 (판정 관절도 이 그림). 표시 틱은 motion과 같아야 한다
+   * (발동·지속·회복은 motion으로 계산). 에드워드 염동력: 앞+스킬 2 끌어당김은 motion, 뒤+스킬 2 밀어냄은 alt
+   */
+  alt?: string;
+}
+
+/**
+ * 필살기 컷인 (사용자 피드백 2026-11-02 '10. 공통 — 필살기 컷인'): 띠 색은 캐릭터 대표 색, 글자는 한국어 기술 이름
+ * (한자가 있으면 한자를 크게, 한국어 이름은 작게). 영어를 쓰지 않는다. 색은 팔레트 이름 (render/palette.ts)
+ */
+export interface CutinData {
+  /** 사건·영상 훅에 넘기는 이름 (화면에는 쓰지 않는다) */
+  id: string;
+  /** 기술 이름 (한국어, 도트 글자는 render/glyphs-ko.ts) */
+  name: string;
+  /** 한자 (있으면 크게) */
+  hanja?: string;
+  /** 띠 색 [어두운 아랫단, 바탕, 밝은 테두리 줄] */
+  band: readonly [string, string, string];
+  /** 글자 색 [심, 테두리] */
+  ink: readonly [string, string];
+  /** 덧무늬: 라이덴 번개 · 백은우 금실 · 에드워드 푸른 베일 · 오스카 핏빛 달 */
+  accent?: { motif: 'bolt' | 'thread' | 'veil' | 'moon'; color: string; light: string };
+  /** 발동 정지 길이 (틱, 없으면 RULES.SUPER_FREEZE) */
+  freeze?: number;
+  /** 정지 동안 배경을 거의 검게 (두 사람만 남긴다) */
+  dark?: boolean;
+}
+
+/** 필살기 연출 장면 하나: 발동자 동작 + 상대 반응 동작 (표시 틱 합이 같다)과 렌더 표시 (카메라·확대·비 멈춤) */
+export interface CineScene {
+  a: CineActor;
+  d: CineActor;
+  cam?: 'a' | 'both';
+  zoom?: number;
+  still?: boolean;
 }
 
 /**
@@ -99,9 +151,20 @@ export interface MoveData {
  * 끝에 피해·날리기·파괴를 한 번에 준다. 장면 하나 = 발동자 동작 하나 + 상대 반응 동작 하나 (표시 틱 합이 같다).
  */
 export interface Cinematic {
-  scenes: ReadonlyArray<{ a: CineActor; d: CineActor }>;
+  /**
+   * 장면들. 렌더 표시 (sim은 읽지 않는다): cam 'a'면 카메라가 발동자에 머문다 (상대가 멀리 날아가도), zoom 확대 배수 (없으면 아래 zoom),
+   * still이면 그 장면 동안 시간이 멈춘 듯 비가 공중에 선다
+   */
+  scenes: ReadonlyArray<CineScene>;
+  /**
+   * 짧은 판 (2026-11-02 '영역 전개형은 한 경기에서 두 번째부터 짧은 판'): 있으면 같은 경기에서 이 사람의 두 번째 연출부터 이 장면들을 재생한다
+   * (전개 과정을 압축, 약 3초). 없으면 늘 scenes
+   */
+  short?: ReadonlyArray<CineScene>;
   /** 빗나가면 기술이 끝난 뒤 이만큼 더 굳는다 (큰 빈틈) */
   whiff: number;
+  /** 연출 동안 카메라 확대 (렌더 전용, 정수배). 없으면 2배. 영역 전개형은 1 (보이는 화면 전체가 무대) */
+  zoom?: number;
   /** 연출 끝에 상대를 날리는 힘과 벽 쪽으로 날림 */
   end: { launch: { vx: number; vy: number }; wall?: boolean };
 }
@@ -115,14 +178,15 @@ export interface CineActor {
 /**
  * 궤적 상자와 그 안을 채우는 번개·궤적 모양.
  * line: 앞으로 곧게 뻗는 줄기, arc: 반원(발차기), rise: 아래→위 세로, fall: 위→아래 반원, ground: 바닥을 쓰는 반원,
- * circle: 원(공중 돌려차기), tail: 몸 뒤로 끌리는 꼬리(대시)
+ * circle: 원(공중 돌려차기), tail: 몸 뒤로 끌리는 꼬리(대시), cone: 상자 왼쪽 가운데 꼭짓점에서 앞으로 퍼지는 원뿔(라이덴 투전승불 떼기),
+ * dome: 바닥에 붙은 반구 (라이덴 화과산 날숨)
  */
 export interface TrailBox {
   x: number;
   y: number;
   w: number;
   h: number;
-  shape: 'line' | 'arc' | 'rise' | 'fall' | 'ground' | 'circle' | 'tail';
+  shape: 'line' | 'arc' | 'rise' | 'fall' | 'ground' | 'circle' | 'tail' | 'cone' | 'dome';
 }
 
 /** 차지 한 단계 */
@@ -130,7 +194,12 @@ export interface ChargeLevel {
   at: number;
   damage: number;
   guardDamage: number;
-  launch: { vx: number; vy: number };
+  /** 날리기 (없으면 띄우지 않고 땅에서 밀려난다: push) */
+  launch?: { vx: number; vy: number };
+  /** 땅에서 밀려나는 속도 (px/틱, 없으면 기술의 push). launch가 없는 단계에 쓴다 */
+  push?: number;
+  /** 이 단계의 프레임별 몸 이동 (없으면 기술의 advance). 단계마다 더 깊이 디디는 차지 (라이덴 투전승불) */
+  advance?: readonly number[];
   /** 벽 쪽으로 날림 (벽꽝) */
   wall?: boolean;
   /** 맞히면 점프로 끊고 쫓아갈 수 있다 */

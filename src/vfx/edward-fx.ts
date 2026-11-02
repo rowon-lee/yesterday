@@ -1,6 +1,8 @@
 // YESTERDAY: 에드워드 이펙트 (렌더 전용, Sprite Fusion 이펙트와 같은 구조로 새로 만듦: update/draw(frame, layer)/done).
 // 좌표는 2단위 = 1px (FX_PX), 색은 부르는 쪽이 우리 팔레트로 넘긴다 (0xAABBGGRR, 흰 → 밝은 → 대표 → 어두운 …).
-// - hammerArc: 해머 머리가 지난 길을 따라 굵고 짧은 원호 (동작연출지침서 7장 '굵고 짧은 원호'). 새 쪽이 가장 굵고 꼬리부터 사라진다
+// - hammerArc: 해머 머리가 지난 길을 따라 굵고 짧은 원호 (동작연출지침서 7장 '굵고 짧은 원호'). 새 쪽이 가장 굵고 꼬리부터 사라진다.
+//   청동빛 원호 + 푸른 해머 머리 잔상 (2026-11-02 피드백 12-1)
+// - dome: 내려찍기 착지 지점의 반원 충격파 (반지름 48px)와 패인 자국
 // - shockwave: 바닥을 타고 앞으로 달리는 충격파 (솟은 물결 + 갈라진 자국 + 튀는 파편)
 // - veilRing: 바닥에 납작하게 퍼지는 푸른 고리 (2단 점프 디딤, 착지)
 // - veilShell: 몸 윤곽을 따라 푸른 장막이 비친다 (껍데기가 피해를 대신 받을 때). 깨지면 조각이 흩어진다
@@ -100,12 +102,22 @@ export interface ArcOptions {
   ticks?: number;
   /** 바깥쪽 (궤적이 휘는 바깥): 1 법선 쪽, -1 반대쪽. 없으면 길의 휘는 방향으로 정한다 */
   side?: number;
+  /** 원호 색 (흰 심 → 밝은 → 대표 → 어두운 테두리): 에드워드는 청동빛 */
   ramp: readonly number[];
+  /** 해머 머리 잔상 색 [밝은, 대표, 어두운] (없으면 잔상 없음): 에드워드는 푸른 장막 (껍데기 색) */
+  ghost?: readonly number[];
+  /** 잔상 개수 (길을 따라 고르게) */
+  heads?: number;
+  /** 해머 머리 크기 (px): 자루와 수직 반길이, 자루 방향 반두께 */
+  head?: { half: number; thick: number };
   /** 히트스톱 동안 멈춘다 */
   held?: () => boolean;
 }
 
-/** 굵고 짧은 원호: 해머 머리가 지난 길을 따라, 새 쪽이 가장 굵다. 흰 심 → 밝은 푸른 → 푸른 → 어두운 테두리. 꼬리부터 사라진다 */
+/**
+ * 굵고 짧은 원호: 해머 머리가 지난 길을 따라, 새 쪽이 가장 굵다 (흰 심 → 밝은 → 대표 → 어두운 테두리). 꼬리부터 사라진다.
+ * ghost가 있으면 길을 따라 해머 머리 잔상(머리 모양 네모)이 원호 뒤에 남아 오래된 것부터 흐려진다
+ */
 export function hammerArc(o: ArcOptions) {
   const C = o.ramp;
   const W = o.width ?? 10;
@@ -120,6 +132,13 @@ export function hammerArc(o: ArcOptions) {
     const cross = (m.x - a.x) * (b.y - a.y) - (m.y - a.y) * (b.x - a.x);
     side = cross > 0 ? 1 : -1;
   }
+  // 잔상: 길을 따라 고르게 (새 쪽 끝은 실제 해머 머리라 빼고)
+  const nh = o.ghost ? (o.heads ?? 4) : 0;
+  const heads = Array.from({ length: nh }, (_, k) => {
+    const q = pts[Math.min(pts.length - 1, Math.round(((k + 0.5) / (nh + 0.5)) * (pts.length - 1)))]!;
+    return { q, u: (k + 0.5) / (nh + 0.5) };
+  });
+  const hh = o.head ?? { half: 6, thick: 4.5 };
   let t = 0;
   return {
     update(dt: number) {
@@ -130,9 +149,33 @@ export function hammerArc(o: ArcOptions) {
       return t >= life;
     },
     draw(f: Frame, layer?: Layer) {
-      if (layer === 'back') return;
       const p = pen(f);
       const k = t / life;
+      if (layer === 'back') {
+        // 해머 머리 잔상: 길의 접선이 자루와 수직 (머리가 길을 따라 미끄러진다). 오래된 것부터 사라진다
+        const G = o.ghost;
+        if (!G) return;
+        for (const h of heads) {
+          const fade = k * 1.3 - (1 - h.u) * 0.3;
+          if (fade >= 1) continue;
+          const tx = h.q.ny;
+          const ty = -h.q.nx;
+          const half = hh.half * (0.75 + 0.25 * h.u);
+          const thick = hh.thick * (0.75 + 0.25 * h.u);
+          for (let a = -half; a <= half; a += 0.5) {
+            for (let b = -thick; b <= thick; b += 0.5) {
+              // 해머 머리: 길 방향(tx, ty)으로 반길이, 법선 방향으로 반두께
+              const x = h.q.x + tx * a + h.q.nx * b;
+              const y = h.q.y + ty * a + h.q.ny * b;
+              const edge = Math.abs(a) > half - 1 || Math.abs(b) > thick - 1;
+              if (fade > 0.45 && ((Math.round(x) + Math.round(y)) & 1)) continue;
+              p.put(x, y, edge ? G[0]! : fade < 0.3 ? G[1]! : G[2]!, Math.round(220 * (1 - Math.max(0, fade))));
+            }
+          }
+          p.glow(h.q.x, h.q.y, G[0]!, 0.4 * (1 - fade));
+        }
+        return;
+      }
       const cut = Math.max(0, (k - 0.15) / 0.85);
       for (let i = 0; i < pts.length; i++) {
         const q = pts[i]!;
@@ -147,6 +190,87 @@ export function hammerArc(o: ArcOptions) {
           p.put(q.x + q.nx * s * side, q.y + q.ny * s * side, c);
         }
         if (i % 2 === 0) for (let s = -2; s < h + 3; s++) p.glow(q.x + q.nx * s * side, q.y + q.ny * s * side, C[1]!, 0.35 * (1 - k));
+      }
+    },
+  };
+}
+
+export interface DomeOptions {
+  /** 가운데 (2단위, 바닥) */
+  x: number;
+  y: number;
+  /** 가장 넓어지는 반지름 (px) */
+  radius: number;
+  ticks?: number;
+  /** 테두리 색 (흰 → 밝은 → 대표 → 어두운) */
+  ramp: readonly number[];
+  /** 바닥에 남는 패인 자국 색 */
+  crack?: number;
+  seed?: number;
+}
+
+/**
+ * 반원 충격파 (내려찍기 착지): 바닥에서 반원 껍질이 반지름까지 퍼지며 엷어진다 (테두리 2px, 안쪽은 빛만).
+ * 가운데 바닥에 패인 자국 (금이 양옆으로), 앞뒤로 흙·물이 튄다
+ */
+export function dome(o: DomeOptions) {
+  const C = o.ramp;
+  const life = (o.ticks ?? 16) / 60;
+  const cx = o.x / PX;
+  const cy = o.y / PX;
+  const r = rng(o.seed ?? 11);
+  const cracks: P[][] = [];
+  for (const dir of [-1, 1]) {
+    for (let n = 0; n < 2; n++) {
+      const line: P[] = [[cx, cy]];
+      let x = cx;
+      let y = cy;
+      const len = o.radius * (0.45 + r() * 0.35);
+      while (Math.abs(x - cx) < len) {
+        x += dir * (2 + Math.floor(r() * 3));
+        y = cy - (r() < 0.3 ? 1 : 0);
+        line.push([x, y]);
+      }
+      cracks.push(line);
+    }
+  }
+  let t = 0;
+  return {
+    update(dt: number) {
+      t += dt;
+    },
+    done() {
+      return t >= life + 0.8;
+    },
+    draw(f: Frame, layer?: Layer) {
+      const p = pen(f);
+      if (layer === 'back') {
+        // 패인 자국: 오래 남았다가 사라진다
+        const fade = t < life ? 1 : Math.max(0, 1 - (t - life) / 0.8);
+        for (const line of cracks) {
+          for (let i = 0; i + 1 < line.length; i++) {
+            if ((i * 5) % 7 > fade * 7) continue;
+            const a = line[i]!;
+            const b = line[i + 1]!;
+            for (let s = 0; s <= 1; s += 0.34) p.put(a[0] + (b[0] - a[0]) * s, a[1], o.crack ?? C[C.length - 1]!);
+          }
+        }
+        for (let dx = -5; dx <= 5; dx++) p.put(cx + dx, cy - (Math.abs(dx) < 3 ? 1 : 0), o.crack ?? C[C.length - 1]!);
+        return;
+      }
+      if (t >= life) return;
+      const k = t / life;
+      const R = 4 + (o.radius - 4) * (1 - (1 - k) * (1 - k));
+      const n = Math.max(24, Math.round(R * 3.2));
+      for (let i = 0; i <= n; i++) {
+        const a = Math.PI + (i / n) * Math.PI;
+        for (let w = 0; w < 2; w++) {
+          const x = cx + Math.cos(a) * (R - w);
+          const y = cy + Math.sin(a) * (R - w) * 0.9;
+          if (k > 0.5 && (i * 3 + w) % 5 < (k - 0.5) * 8) continue;
+          p.put(x, y, k < 0.25 ? C[0]! : w === 0 ? C[1]! : C[2]!);
+        }
+        if (i % 2 === 0) p.glow(cx + Math.cos(a) * R, cy + Math.sin(a) * R * 0.9, C[1]!, 0.5 * (1 - k));
       }
     },
   };
@@ -581,6 +705,597 @@ export function tether(o: TetherOptions) {
       // 손끝 고리
       const r = 3 + Math.sin(t * 40);
       for (let a = 0; a < 12; a++) p.put(A[0] + Math.cos((a / 12) * Math.PI * 2) * r, A[1] + Math.sin((a / 12) * Math.PI * 2) * r, C[1]!);
+    },
+  };
+}
+
+export interface ScrapeOptions {
+  /** 해머 머리 자리 (2단위, 틱마다 읽는다). null이면 끌기가 끝났다 */
+  head: () => [number, number] | null;
+  /** 바닥 높이 (2단위) */
+  ground: number;
+  /** 홈 색, 불꽃 색 [밝은, 대표, 어두운] */
+  groove: number;
+  sparks: readonly number[];
+  seed?: number;
+}
+
+/**
+ * 해머 머리가 바닥을 긁는다 (차지 모으기): 머리가 지난 바닥에 어두운 홈이 남고, 머리 자리에서 청동빛 불꽃이 튄다.
+ * 끌기가 끝나면 불꽃은 멎고 홈은 천천히 사라진다
+ */
+export function scrape(o: ScrapeOptions) {
+  const y0 = o.ground / PX;
+  let lo = Infinity;
+  let hi = -Infinity;
+  const r = rng(o.seed ?? 13);
+  const bits: Array<{ x: number; y: number; vx: number; vy: number; t: number; c: number }> = [];
+  let t = 0;
+  let endT = -1;
+  return {
+    update(dt: number) {
+      t += dt;
+      const h = endT < 0 ? o.head() : null;
+      if (endT < 0 && !h) endT = t;
+      if (h && Math.abs(h[1] / PX - y0) < 12) {
+        const x = h[0] / PX;
+        lo = Math.min(lo, x);
+        hi = Math.max(hi, x);
+        for (let n = 0; n < 2; n++) bits.push({ x, y: y0 - 1, vx: (r() - 0.5) * 70, vy: -(30 + r() * 70), t: 0, c: o.sparks[Math.floor(r() * o.sparks.length)]! });
+      }
+      for (const b of bits) {
+        b.t += dt;
+        b.x += b.vx * dt;
+        b.y = Math.min(y0, b.y + b.vy * dt);
+        b.vy += 260 * dt;
+      }
+      for (let i = bits.length - 1; i >= 0; i--) if (bits[i]!.t > 0.3) bits.splice(i, 1);
+    },
+    done() {
+      return endT >= 0 && t - endT > 1.2;
+    },
+    draw(f: Frame, layer?: Layer) {
+      const p = pen(f);
+      if (layer === 'back') {
+        if (lo > hi) return;
+        const fade = endT < 0 ? 1 : Math.max(0, 1 - (t - endT) / 1.2);
+        for (let x = Math.floor(lo); x <= hi; x++) {
+          if (fade < 1 && (x * 7) % 10 > fade * 10) continue;
+          p.put(x, y0, o.groove);
+          if ((x & 3) === 0) p.put(x, y0 - 1, o.groove);
+        }
+        return;
+      }
+      for (const b of bits) {
+        p.put(b.x, b.y, b.c);
+        p.glow(b.x, b.y, o.sparks[0]!, 0.6);
+      }
+    },
+  };
+}
+
+export interface AuraOptions {
+  /** 지금 몸 실루엣 */
+  silhouette: () => Sil | null;
+  /** 지금 단계 (0이면 끝) */
+  level: () => number;
+  /** 발밑 x (2단위)와 바라보는 쪽: 등 쪽을 안다 */
+  feet: () => [number, number];
+  facing: () => number;
+  /** [흰, 밝은, 대표, 어두운] */
+  ramp: readonly number[];
+}
+
+/**
+ * 차지를 모으는 동안 팔·등에 푸른 장막 윤곽이 짙어진다 (2026-11-02 피드백 12-2): 몸 둘레 1px 바깥에, 등 쪽과 팔(위쪽)부터.
+ * 1단계 어두운 푸른 점선(등), 2단계 푸른 선(등·팔), 3단계 밝은 푸른 선 두 겹(등·팔) + 빛
+ */
+export function veilAura(o: AuraOptions) {
+  const C = o.ramp;
+  let t = 0;
+  return {
+    update(dt: number) {
+      t += dt;
+    },
+    done() {
+      return o.level() <= 0;
+    },
+    draw(f: Frame, layer?: Layer) {
+      if (layer !== 'back') return;
+      const lv = o.level();
+      const sil = o.silhouette();
+      if (!sil || lv <= 0) return;
+      const p = pen(f);
+      const fx = o.feet()[0] / PX;
+      const face = o.facing();
+      const on = (x: number, y: number) => x >= 0 && y >= 0 && x < sil.w && y < sil.h && sil.data[y * sil.w + x]! >>> 24 !== 0;
+      // 몸 윗부분 (팔·어깨): 실루엣 높이의 위 60%
+      let top = -1;
+      let bottom = -1;
+      for (let y = 0; y < sil.h; y++) {
+        for (let x = 0; x < sil.w; x++) {
+          if (!on(x, y)) continue;
+          if (top < 0) top = y;
+          bottom = y;
+          break;
+        }
+      }
+      if (top < 0) return;
+      const upper = top + (bottom - top) * 0.6;
+      const flick = Math.floor(t * 20) & 1;
+      for (let y = 0; y < sil.h; y++) {
+        for (let x = 0; x < sil.w; x++) {
+          if (on(x, y)) continue;
+          let d = 0;
+          if (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1)) d = 1;
+          else if (lv >= 3 && (on(x - 2, y) || on(x + 2, y) || on(x, y - 2) || on(x, y + 2))) d = 2;
+          if (!d) continue;
+          const wx = sil.x + x;
+          const back = (wx - fx) * face < 2;
+          const arm = y < upper;
+          if (lv === 1 && (!back || ((x + y + flick) & 1))) continue;
+          if (lv >= 2 && !back && !arm) continue;
+          const c = lv >= 3 ? (d === 1 ? C[1]! : C[2]!) : lv === 2 ? C[2]! : C[3]!;
+          p.put(wx, sil.y + y, c);
+          if (lv >= 2) p.glow(wx, sil.y + y, C[1]!, 0.25 * lv);
+        }
+      }
+    },
+  };
+}
+
+export interface SlabOptions {
+  /** 파도가 시작하는 자리 (2단위, 바닥) */
+  x: number;
+  y: number;
+  /** 나아가는 쪽 */
+  dir: number;
+  /** 길이 (px) */
+  len: number;
+  /** 끝까지 가는 틱 */
+  ticks: number;
+  /** 바닥 판 색 [밝은 윗면, 판, 어두운 옆면, 그늘] */
+  ramp: readonly number[];
+  /** 잔해가 남아 있는가 (sim 파괴 상태가 이 잔해를 가리키는 동안 true) */
+  keep: () => boolean;
+  /** 솟는 판 밑에서 새어 나오는 빛 (푸른 장막) */
+  glow?: number;
+  seed?: number;
+}
+
+/**
+ * 차지 올려치기의 바닥 파도: 앞쪽 바닥 판(8px)이 차례로 솟구쳤다가 기울어진 채 내려앉아 잔해로 남는다 (2026-11-02 피드백 12-2).
+ * 판마다 솟는 높이·기울기가 조금씩 다르다. keep()이 거짓이 되면 (다음 차지가 덮어쓰거나 라운드가 바뀌면) 흐려져 사라진다
+ */
+export function slabs(o: SlabOptions) {
+  const C = o.ramp;
+  const W = 8;
+  const n = Math.max(1, Math.round(o.len / W));
+  const r = rng(o.seed ?? 21);
+  const x0 = o.x / PX;
+  const y0 = o.y / PX;
+  const run = o.ticks / 60;
+  const plates = Array.from({ length: n }, (_, k) => ({
+    k,
+    at: (run * (k + 0.5)) / n,
+    peak: 12 + r() * 8 + (k / n) * 6,
+    tilt: (0.25 + r() * 0.35) * (r() < 0.75 ? 1 : -1),
+    rest: 2 + r() * 3,
+    w: W - 1 - Math.floor(r() * 2),
+  }));
+  let t = 0;
+  let gone = -1;
+  return {
+    update(dt: number) {
+      t += dt;
+      if (gone < 0 && t > run + 0.4 && !o.keep()) gone = t;
+    },
+    done() {
+      return gone >= 0 && t - gone > 0.5;
+    },
+    draw(f: Frame, layer?: Layer) {
+      const p = pen(f);
+      const fade = gone < 0 ? 1 : Math.max(0, 1 - (t - gone) / 0.5);
+      for (const pl of plates) {
+        const s = t - pl.at;
+        if (s < 0) continue;
+        // 솟는 동안은 사람 앞 겹 (무대 앞 물건에 가리지 않게), 내려앉은 잔해는 뒤 겹
+        if ((s < 0.3) !== (layer === 'front')) continue;
+        // 솟았다가 (0.12초) 내려앉아 기울어진 채 남는다
+        const up = s < 0.12 ? Math.sin((s / 0.12) * (Math.PI / 2)) : Math.max(0, 1 - (s - 0.12) / 0.18);
+        const lift = pl.rest + (pl.peak - pl.rest) * up;
+        const tilt = pl.tilt * (0.4 + 0.6 * Math.min(1, s / 0.12));
+        const cx = x0 + o.dir * (pl.k * W + W / 2);
+        for (let a = -pl.w / 2; a <= pl.w / 2; a += 0.5) {
+          const top = y0 - lift - a * tilt * o.dir;
+          for (let b = 0; b < 5; b++) {
+            const x = cx + a;
+            const y = top + b;
+            if (y > y0) continue;
+            if (fade < 1 && ((Math.round(x) * 3 + Math.round(y)) % 4) >= fade * 4) continue;
+            p.put(x, y, b === 0 ? C[0]! : b < 3 ? C[1]! : C[2]!);
+          }
+          // 판 밑 그늘 (들린 틈), 솟는 동안은 밑에서 푸른 빛이 새어 나온다
+          if (fade >= 1) for (let y = top + 5; y <= y0; y += 2) p.put(cx + a, y, C[3]!);
+          if (o.glow !== undefined && s < 0.3) p.glow(cx + a, y0 - 1, o.glow, 0.8 * (1 - s / 0.3));
+        }
+      }
+    },
+  };
+}
+
+/** 장막 조각: 깨진 장막 테두리가 흩어진다 (2px, 밝은 푸른 → 푸른, 중력) */
+interface Shard {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  c: number;
+}
+function shatter(pts: ReadonlyArray<readonly [number, number]>, cx: number, cy: number, C: readonly number[], r: () => number, n: number): Shard[] {
+  const out: Shard[] = [];
+  for (let k = 0; k < n && pts.length; k++) {
+    const q = pts[Math.floor(r() * pts.length)]!;
+    const dx = q[0] - cx;
+    const dy = q[1] - cy;
+    const d = Math.hypot(dx, dy) || 1;
+    out.push({ x: q[0], y: q[1], vx: (dx / d) * (40 + r() * 70), vy: (dy / d) * (40 + r() * 50) - 40, c: C[Math.floor(r() * 2)]! });
+  }
+  return out;
+}
+function drawShards(p: ReturnType<typeof pen>, shards: Shard[], k: number, glow: number): void {
+  for (const s of shards) {
+    if ((Math.round(s.x) + Math.round(s.y)) % 4 < k * 4) continue;
+    p.put(s.x, s.y, s.c);
+    p.put(s.x + 1, s.y, s.c);
+    p.glow(s.x, s.y, glow, 0.5 * (1 - k));
+  }
+}
+function moveShards(shards: Shard[], dt: number): void {
+  for (const s of shards) {
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.vy += 220 * dt;
+  }
+}
+
+export interface BandOptions {
+  /** 손 (2단위), 상대 가슴 (2단위): 틱마다 읽는다 */
+  from: () => [number, number];
+  to: () => [number, number];
+  /** 붙잡고 있는가 (거짓이 되면 띠가 끊겨 사라진다) */
+  alive: () => boolean;
+  /** [흰, 밝은, 대표, 어두운] */
+  ramp: readonly number[];
+}
+
+/**
+ * 염동력 끌어당김의 장막 띠 (2026-11-02 피드백 12-3): 손에서 상대까지 꼬인 푸른 띠 세 가닥 (폭 3px, 반투명 + 밝은 심).
+ * 4틱 동안 손에서 뻗어 나가고, 붙잡는 동안 서로 감기며 흐른다. 놓으면 끊겨 흐려진다
+ */
+export function veilBands(o: BandOptions) {
+  const C = o.ramp;
+  let t = 0;
+  let end = -1;
+  return {
+    update(dt: number) {
+      t += dt;
+      if (end < 0 && !o.alive()) end = t;
+    },
+    done() {
+      return end >= 0 && t - end > 0.12;
+    },
+    draw(f: Frame, layer?: Layer) {
+      if (layer === 'back') return;
+      const p = pen(f);
+      const [ax, ay] = o.from();
+      const [bx, by] = o.to();
+      const A: P = [ax / PX, ay / PX];
+      const B: P = [bx / PX, by / PX];
+      const len = Math.hypot(B[0] - A[0], B[1] - A[1]);
+      const n = Math.max(8, Math.round(len * 1.5));
+      const reach = Math.min(1, t / (4 / 60));
+      const fade = end < 0 ? 1 : Math.max(0, 1 - (t - end) / 0.12);
+      const nx = -(B[1] - A[1]) / Math.max(1, len);
+      const ny = (B[0] - A[0]) / Math.max(1, len);
+      for (let strand = 0; strand < 3; strand++) {
+        for (let i = 0; i <= n * reach; i++) {
+          const u = i / n;
+          if (fade < 1 && (i * 3 + strand) % 4 >= fade * 4) continue;
+          // 세 가닥이 서로 감긴다 (위상 120°씩), 가운데가 조금 처진다
+          const tw = Math.sin(u * Math.PI * 4 + strand * 2.1 + t * 10) * 3 * Math.sin(Math.PI * u);
+          const x = A[0] + (B[0] - A[0]) * u + nx * tw;
+          const y = A[1] + (B[1] - A[1]) * u + ny * tw + 4 * Math.sin(Math.PI * u);
+          for (let w = -1; w <= 1; w++) {
+            p.put(x + nx * w, y + ny * w, w === 0 ? C[1]! : C[2]!);
+          }
+          if (i % 3 === 0) p.glow(x, y, C[1]!, 0.35 * fade);
+        }
+      }
+    },
+  };
+}
+
+export interface GripOptions {
+  /** 상대 몸 가운데 (2단위): 틱마다 읽는다 */
+  at: () => [number, number];
+  /** 손이 오는 쪽 (에드워드 쪽: 1 오른쪽, -1 왼쪽) */
+  from: number;
+  /** 상대 키의 반 (px): 손은 한 둘레 크다 */
+  size: number;
+  alive: () => boolean;
+  ramp: readonly number[];
+  seed?: number;
+}
+
+/**
+ * 장막 손: 상대보다 한 둘레 큰 손 모양 반투명 장막 (손바닥은 에드워드 쪽, 손가락 넷이 머리 위를 넘어 반대편으로 감싼다).
+ * 나타날 때 크게 펼쳤다가 움켜쥐며 조인다. 놓으면 (alive 거짓) 조각나 흩어진다. 반투명 푸른 면 + 1px 밝은 테두리 (흑백에서도 보이게)
+ */
+export function veilHand(o: GripOptions) {
+  const C = o.ramp;
+  const r = rng(o.seed ?? 17);
+  let t = 0;
+  let end = -1;
+  let shards: Shard[] = [];
+  let last: Array<[number, number]> = [];
+  let center: [number, number] = [0, 0];
+  return {
+    update(dt: number) {
+      t += dt;
+      if (end < 0 && !o.alive()) {
+        end = t;
+        shards = shatter(last, center[0], center[1], C, r, 34);
+      }
+      moveShards(shards, dt);
+    },
+    done() {
+      return end >= 0 && t - end > 0.45;
+    },
+    draw(f: Frame, layer?: Layer) {
+      const p = pen(f);
+      if (end >= 0) {
+        if (layer !== 'back') drawShards(p, shards, (t - end) / 0.45, C[1]!);
+        return;
+      }
+      const [cx0, cy0] = o.at();
+      const cx = cx0 / PX;
+      const cy = cy0 / PX;
+      center = [cx, cy];
+      // 펼쳤다가 (1.3배) 움켜쥐며 조인다 (0.9배)
+      const k = t < 0.07 ? 1.3 - (t / 0.07) * 0.3 : Math.max(0.9, 1 - (t - 0.07) * 0.5);
+      const H = o.size * 1.25 * k;
+      const W = o.size * 0.62 * k;
+      const back = layer === 'back';
+      const edge: Array<[number, number]> = [];
+      const inPalm = (x: number, y: number) => ((x - (cx + o.from * W * 0.55)) / (W * 0.5)) ** 2 + ((y - cy) / H) ** 2 <= 1;
+      // 손가락: 손바닥 위쪽에서 머리 위를 넘어 반대편으로 휘는 굵은 활 네 개
+      const inFinger = (x: number, y: number) => {
+        for (let fi = 0; fi < 4; fi++) {
+          const rr = H * (0.78 + fi * 0.09);
+          const d = Math.hypot(x - cx, (y - cy) * 1.1);
+          if (Math.abs(d - rr) > 2.2) continue;
+          const a = Math.atan2(y - cy, (x - cx) * o.from);
+          // 손바닥 쪽 위(-100°)에서 반대편 옆(+20° 앞)까지
+          const lo = -2.6 + fi * 0.12;
+          const hi = 0.1 + fi * 0.1;
+          if (a >= lo && a <= hi && !(a > -1.2 && a < 0.4 && (x - cx) * o.from > 0)) return true;
+        }
+        return false;
+      };
+      const inside = (x: number, y: number) => inPalm(x, y) || inFinger(x, y);
+      const x0 = Math.floor(cx - H * 1.3);
+      const x1 = Math.ceil(cx + H * 1.3);
+      const y0 = Math.floor(cy - H * 1.3);
+      const y1 = Math.ceil(cy + H * 1.2);
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          if (!inside(x, y)) continue;
+          const isEdge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+          if (isEdge) edge.push([x, y]);
+          // 뒤 겹: 반투명 면 (빛만 더해 뒤가 비친다: 점무늬로 칠하지 않는다), 앞 겹: 밝은 테두리 (손가락은 상대 앞을 지난다)
+          if (back && !isEdge) p.glow(x, y, C[2]!, 0.45);
+          if (!back && isEdge) {
+            p.put(x, y, C[1]!);
+            p.glow(x, y, C[1]!, 0.25);
+          }
+        }
+      }
+      last = edge;
+      // 붙잡는 순간 흰 번쩍 (1틱)
+      if (!back && t < 1 / 60) for (const [x, y] of edge) p.put(x, y, C[0]!);
+    },
+  };
+}
+
+export interface WallOptions {
+  /** 장막 벽 자리 (2단위, 바닥): 틱마다 읽는다 */
+  at: () => [number, number];
+  /** 밀어내는 쪽 */
+  dir: number;
+  /** 높이 (px) */
+  height: number;
+  alive: () => boolean;
+  ramp: readonly number[];
+  seed?: number;
+}
+
+/**
+ * 장막 벽 (염동력 밀어냄): 높이 70px 반투명 푸른 벽이 앞으로 밀려 나간다 (밀어내는 쪽 면은 1px 밝은 테두리, 가운데가 조금 부푼다).
+ * 놓으면 (alive 거짓) 터져 조각이 앞으로 흩어진다
+ */
+export function veilWall(o: WallOptions) {
+  const C = o.ramp;
+  const r = rng(o.seed ?? 19);
+  let t = 0;
+  let end = -1;
+  let shards: Shard[] = [];
+  let last: Array<[number, number]> = [];
+  let center: [number, number] = [0, 0];
+  return {
+    update(dt: number) {
+      t += dt;
+      if (end < 0 && !o.alive()) {
+        end = t;
+        shards = shatter(last, center[0] - o.dir * 6, center[1], C, r, 40);
+      }
+      moveShards(shards, dt);
+    },
+    done() {
+      return end >= 0 && t - end > 0.5;
+    },
+    draw(f: Frame, layer?: Layer) {
+      const p = pen(f);
+      if (end >= 0) {
+        if (layer !== 'back') drawShards(p, shards, (t - end) / 0.5, C[1]!);
+        return;
+      }
+      if (layer === 'back') return;
+      const [gx, gy] = o.at();
+      const x0 = gx / PX;
+      const y0 = gy / PX;
+      const grow = Math.min(1, t / (4 / 60));
+      const H = o.height * grow;
+      center = [x0, y0 - H / 2];
+      const edge: Array<[number, number]> = [];
+      for (let h = 0; h <= H; h++) {
+        const y = y0 - h;
+        // 가운데가 밀어내는 쪽으로 부푼다
+        const bulge = Math.round(3 * Math.sin((Math.PI * h) / Math.max(1, H)));
+        for (let w = 0; w < 10; w++) {
+          const x = x0 + o.dir * (bulge - w);
+          const front = w === 0;
+          const top = h >= H - 1;
+          if (front || top) {
+            p.put(x, y, C[1]!);
+            edge.push([x, y]);
+          } else p.glow(x, y, w < 4 ? C[1]! : C[2]!, w < 4 ? 0.7 : 0.45);
+        }
+        if (h % 3 === 0) p.glow(x0 + o.dir * bulge, y, C[1]!, 0.35);
+      }
+      last = edge;
+    },
+  };
+}
+
+export interface BoxOptions {
+  /** 물건 상자 (2단위) */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  ticks: number;
+  ramp: readonly number[];
+  seed?: number;
+}
+
+/** 염동력이 물건을 감싼다: 물건 둘레에 같은 장막 (반투명 + 밝은 테두리)이 덮였다가 조이며 으스러뜨리고 조각난다 */
+export function veilBox(o: BoxOptions) {
+  const C = o.ramp;
+  const r = rng(o.seed ?? 23);
+  const life = o.ticks / 60;
+  let t = 0;
+  let shards: Shard[] = [];
+  let made = false;
+  const x0 = o.x / PX;
+  const y0 = o.y / PX;
+  const w = o.w / PX;
+  const h = o.h / PX;
+  return {
+    update(dt: number) {
+      t += dt;
+      if (!made && t >= life) {
+        made = true;
+        const pts: Array<[number, number]> = [];
+        for (let k = 0; k < 40; k++) pts.push([x0 + r() * w, y0 + r() * h]);
+        shards = shatter(pts, x0 + w / 2, y0 + h / 2, C, r, 30);
+      }
+      moveShards(shards, dt);
+    },
+    done() {
+      return made && t - life > 0.45;
+    },
+    draw(f: Frame, layer?: Layer) {
+      const p = pen(f);
+      if (made) {
+        if (layer !== 'back') drawShards(p, shards, (t - life) / 0.45, C[1]!);
+        return;
+      }
+      if (layer === 'back') return;
+      // 조인다: 끝으로 갈수록 상자가 8%까지 좁아진다
+      const k = 1 + 0.25 * (1 - t / life);
+      const cx = x0 + w / 2;
+      const cy = y0 + h / 2;
+      const hw = (w / 2) * k + 3;
+      const hh = (h / 2) * k + 3;
+      for (let y = Math.floor(cy - hh); y <= cy + hh; y++) {
+        for (let x = Math.floor(cx - hw); x <= cx + hw; x++) {
+          const edge = x - (cx - hw) < 1 || cx + hw - x < 1 || y - (cy - hh) < 1 || cy + hh - y < 1;
+          if (edge) {
+            p.put(x, y, C[1]!);
+            p.glow(x, y, C[1]!, 0.3);
+          } else p.glow(x, y, C[2]!, 0.45);
+        }
+      }
+    },
+  };
+}
+
+export interface CrackOptions {
+  /** 가운데 (2단위) */
+  x: number;
+  y: number;
+  /** 금 개수, 길이 (px) */
+  count: number;
+  len: number;
+  color: number;
+  /** 남아 있는 시간 (틱) */
+  ticks?: number;
+  seed?: number;
+}
+
+/** 벽·바닥에 간 금: 한 점에서 지그재그로 뻗는 짧은 금들 (발바닥으로 찍은 자리). 한동안 남았다가 흐려진다 */
+export function cracks(o: CrackOptions) {
+  const r = rng(o.seed ?? 29);
+  const cx = o.x / PX;
+  const cy = o.y / PX;
+  const lines: P[][] = [];
+  for (let k = 0; k < o.count; k++) {
+    const a = (k / o.count) * Math.PI * 2 + r() * 0.6;
+    const line: P[] = [[cx, cy]];
+    let x = cx;
+    let y = cy;
+    const len = o.len * (0.6 + r() * 0.4);
+    for (let d = 0; d < len; d += 2) {
+      const j = (r() - 0.5) * 1.2;
+      x += Math.cos(a + j) * 2;
+      y += Math.sin(a + j) * 2;
+      line.push([x, y]);
+    }
+    lines.push(line);
+  }
+  const life = (o.ticks ?? 90) / 60;
+  let t = 0;
+  return {
+    update(dt: number) {
+      t += dt;
+    },
+    done() {
+      return t >= life;
+    },
+    draw(f: Frame, layer?: Layer) {
+      if (layer !== 'back') return;
+      const p = pen(f);
+      const fade = t < life * 0.6 ? 1 : 1 - (t - life * 0.6) / (life * 0.4);
+      for (const line of lines) {
+        for (let i = 0; i + 1 < line.length; i++) {
+          if ((i * 5) % 7 >= fade * 7) continue;
+          const a = line[i]!;
+          const b = line[i + 1]!;
+          p.put(a[0], a[1], o.color);
+          p.put((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, o.color);
+        }
+      }
     },
   };
 }

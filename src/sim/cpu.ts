@@ -44,6 +44,22 @@ function useRange(c: CharId, id: 'skill1' | 'skill2' | 'super'): readonly [numbe
   return (CHARACTERS[c] as { cpu?: Partial<Record<string, readonly [number, number]>> }).cpu?.[id] ?? [0, Math.max(id === 'super' ? 45 : 60, reachOf(c, id))];
 }
 
+/** 상대 기술이 닿을 만한 거리 (그 기술 사거리 + 여유, 적어도 80px) */
+function threatRange(op: Fighter): number {
+  return op.move ? Math.max(80, reachOf(op.char, op.move) + 10) : 80;
+}
+/** 상대 기술의 판정이 이미 끝났는가 (후딜레이) */
+function pastActive(op: Fighter): boolean {
+  if (op.mode !== 'attack' || !op.move) return false;
+  const mv = movesOf(op.char)[op.move];
+  return mv.data.active.length > 0 && op.t > mv.activeEnd;
+}
+/** 상대가 헛친 기술의 남은 후딜레이 틱 (헛친 게 아니면 0): 판정이 끝났고 이번 기술이 아무것도 맞히거나 막히지 않았다 */
+function whiffLeft(op: Fighter): number {
+  if (!pastActive(op) || op.moveHit) return 0;
+  return movesOf(op.char)[op.move!].total - op.t;
+}
+
 export interface CpuState {
   rng: number;
   plan: Plan;
@@ -207,8 +223,25 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
   if (op.mode === 'charge' && NEUTRAL_GROUND.has(me.mode) && me.mode !== 'land' && dist < 140 && roll(cpu, 100) < cpu.skill) {
     return dist > 60 ? IN_DASH | fwd : IN_ATTACK;
   }
-  // 상대가 가까이서 공격하면 방어 (실력에 따라)
-  const threat = op.mode === 'attack' && dist < 80 && (me.x - op.x) * op.facing > 0;
+  // 상대가 헛친 기술의 후딜레이 (판정이 끝났는데 아무것도 못 맞힘): 닿으면 그 틈을 친다 (실력에 따라).
+  // 사거리가 짧은 캐릭터도 긴 기술을 헛친 상대에게는 들어갈 수 있다 (붙어 있으면 평타, 조금 멀면 대시해서)
+  const whiff = whiffLeft(op);
+  if (whiff > 6 && NEUTRAL_GROUND.has(me.mode) && me.mode !== 'land' && roll(cpu, 100) < cpu.skill) {
+    const r1 = reachOf(me.char, 'atk1');
+    if (dist < r1) {
+      cpu.plan = 'string';
+      cpu.planT = 30;
+      return IN_ATTACK;
+    }
+    if (dist < r1 + 60 && whiff > 14) {
+      cpu.plan = 'dashIn';
+      cpu.planT = 20;
+      return IN_DASH | fwd;
+    }
+  }
+  // 상대가 닿을 거리에서 공격하면 방어 (실력에 따라). 닿는 거리는 그 기술의 사거리 (번개·검격·해머처럼 긴 기술도 막는다),
+  // 판정이 이미 끝난 후딜레이에는 막지 않는다
+  const threat = op.mode === 'attack' && dist < threatRange(op) && (me.x - op.x) * op.facing > 0 && !pastActive(op);
   if (threat && NEUTRAL_GROUND.has(me.mode) && cpu.plan !== 'guard') {
     if (roll(cpu, 100) < cpu.skill) {
       cpu.plan = 'guard';
@@ -252,7 +285,15 @@ function decide(cpu: CpuState, s: SimState, me: Fighter, op: Fighter): PlayerInp
       const [lo, hi] = useRange(me.char, id);
       if (me.meter < METER_BAR) return 0;
       if (dist > hi) return fwd;
-      if (dist < lo) return back;
+      if (dist < lo) {
+        // 너무 가까우면 (순간이동으로 상대 앞에 내려섰을 때 등) 물러나지 않고 평타로 잇는다
+        if (dist <= reachOf(me.char, 'atk1')) {
+          cpu.plan = 'string';
+          cpu.planT = 25;
+          return IN_ATTACK;
+        }
+        return back;
+      }
       return id === 'skill1' ? IN_SKILL1 : IN_SKILL2 | (roll(cpu, 2) === 0 ? fwd : 0);
     }
     case 'super': {

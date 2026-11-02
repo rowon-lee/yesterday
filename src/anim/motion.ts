@@ -1,4 +1,5 @@
 import type { HitSpec } from './boxes';
+import type { FollowSpec } from './follow';
 import type { Key } from './keyed';
 import type { Joints } from './pose';
 import type { LookName } from './skeleton';
@@ -20,9 +21,19 @@ export interface MotionData {
   wide?: boolean;
   /**
    * 스미어 프레임 (동작연출지침서 3장 '팔다리를 1.3~1.5배 늘려 그린다'): 그 프레임만 치는 팔다리(limb)를 stretch배 길이로 그린다.
-   * 그림 전용 (판정 관절은 그대로)
+   * 그림 전용 (판정 관절은 그대로). ghosts: 그 프레임에 앞 프레임부터의 잔상 개수 (장식의 ghost가 그린다: 에드워드 해머 머리)
    */
-  smear?: { frame: number; limb: 'aF' | 'aB' | 'lF' | 'lB' | 'kF' | 'kB'; stretch: number };
+  smear?: { frame: number; limb: 'aF' | 'aB' | 'lF' | 'lB' | 'kF' | 'kB'; stretch: number; ghosts?: number };
+  /**
+   * 따라 움직이는 것 (anim/follow.ts): 휘는 무기(연검 리본)·옷자락·머리의 늦게 따라오는 움직임을 미리 계산해 프레임마다 관절(fx)에 붙인다.
+   * 그림 전용 (연검 판정 선은 여기서 뽑아 공격 데이터에 적는다)
+   */
+  follow?: FollowSpec;
+  /**
+   * 몸 크기 배율 (없으면 1): 풀린 관절을 발밑 기준점에서 이만큼 키운다 (포즈 수치·뼈 길이는 그대로, 그림·판정 관절 모두).
+   * 체격이 큰 캐릭터 (에드워드 키 약 58px, 2026-11-02 피드백 12-0)
+   */
+  scale?: number;
 }
 
 /** 캐릭터 칸: 크기와 발밑 기준점 (칸 왼쪽 위 기준) */

@@ -2,42 +2,50 @@ import type { MotionData } from '../../../anim/motion';
 import { O_STANCE, OD, OR } from './stance';
 
 /*
- * 오스카 등장·승리 (캐릭터 기획서 '등장 연출').
- * 등장: 허공에 은빛 선이 그어지고 공간이 잘려 열린다. 그 틈에서 칼자루에 손을 얹은 채 유유히 걸어 나오고, 뒤에서 틈이 조용히 닫힌다.
- * sim 자리는 그대로이고, 그림 안에서 엉덩이가 틈(발밑 뒤 18px) 속에서 제자리까지 걸어 나온다. 틈과 은빛 선은 렌더 (render/chars/oscar.ts).
- * 처음 14틱은 틈이 열리는 동안 틈 속에 서 있다 (틈의 어둠이 몸을 덮는다).
+ * 오스카 등장·승리 (캐릭터 기획서 13-6 '허공을 베고 나와서 납도').
+ * 등장: 0~16틱 빈 자리 허공에 세로 베기 선 → 16~36 선이 좌우로 벌어져 날카로운 세로 틈 (폭 0 → 12px, 안은 달빛 어둠) →
+ * 36~70 칼을 뽑아 든 채 틈에서 천천히 걸어 나온다 (굽은 노인의 걸음 세 걸음, 칼날에 달빛) → 70~80 뒤에서 틈이 선으로 닫힌다 →
+ * 80~110 멈춰 서서 천천히 납도 ('탁' 1프레임 멈춤, 칼자루에 작은 은빛 반짝) → 칼자루에 손을 얹은 대기 자세.
+ * sim 자리는 그대로이고, 그림 안에서 엉덩이가 틈(발밑 뒤 20px)에서 제자리까지 걸어 나온다. 선·틈·반짝임은 렌더 (render/chars/oscar.ts).
+ * 처음 36틱은 몸을 감춘다 (틈이 열리는 동안). 칼집이 칸 밖으로 나가지 않게 128×96 칸.
  */
 
-/** 틈 속: 기본자세 그대로 18px 뒤에 서 있다 */
-const IN_RIFT = OR({ hx: -17.5, lFx: -12, lBx: -24 });
-/** 첫 걸음: 뒷발을 낮게 들어 옮긴다 */
-const STEP1_MID = OR({ hx: -14.5, hy: -22.6, lFx: -12, lBx: -15, lBy: -2 });
-/** 첫 걸음을 딛는다 */
-const STEP1 = OR({ hx: -11, hy: -21.6, lFx: -12, lBx: -5 });
-/** 둘째 걸음: 앞발을 옮긴다 */
-const STEP2_MID = OR({ hx: -6.5, hy: -22.6, lFx: -3, lFy: -2, lBx: -5 });
-/** 둘째 걸음을 딛는다 */
-const STEP2 = OR({ hx: -2, hy: -21.6, lFx: 6, lBx: -5 });
-/** 엄지로 날밑을 밀어 칼날이 3px 비친다 (고개를 들어 상대를 본다) */
-const NOTICE = OR({ hd: 6, tl: 11 }, 3);
-/** 칼을 밀어 넣으며 고개를 까딱 숙인다 */
-const NOD = OR({ hd: 16, tl: 14 });
+/** 틈 속: 칼을 뽑아 든 채 20px 뒤에 서 있다 */
+const IN_SLIT = OD({ hx: -20, lFx: -14, lBx: -26 }, 14);
+/** 세 걸음: 앞발이 나가고 뒷발이 끌려온다 (노인의 걸음) */
+const W1_MID = OD({ hx: -17.5, hy: -22.4, lFx: -10, lFy: -2, lBx: -26 }, 14);
+const W1 = OD({ hx: -15, lFx: -7, lBx: -21, lBy: -1 }, 14);
+const W2_MID = OD({ hx: -10.5, hy: -22.4, lFx: -3, lFy: -2, lBx: -18 }, 14);
+const W2 = OD({ hx: -8, lFx: 0, lBx: -14, lBy: -1 }, 14);
+const W3_MID = OD({ hx: -3.5, hy: -22.4, lFx: 3, lFy: -2, lBx: -10 }, 14);
+const W3 = OD({ hx: 0, lFx: 6, lBx: -6 }, 14);
+/** 멈춰 서서 천천히 밀어 넣는다 */
+const SH1 = OD({ hd: 14 }, 9);
+const SH2 = OD({ hd: 15 }, 4);
+const SH3 = OD({ hd: 16 }, 1);
+/** '탁' — 칼자루가 칼집에 닿는다 (1프레임 멈춤) */
+const CLICK = OD({ hd: 17 }, 0);
 
-/** 등장: 틈 속에 섬 → 두 걸음에 걸어 나옴 → 엄지로 날밑을 밀어 상대를 봄 → 칼을 넣으며 고개를 까딱 → 기본자세. 14프레임 68틱 */
+/** 등장: 틈 속 (36틱 숨김) → 세 걸음 (36~70) → 틈이 닫히는 동안 섬 (70~80) → 납도 (80~102) → '탁' 멈춤 → 대기 자세. 14프레임 112틱 */
 export const OSCAR_INTRO: MotionData = {
   name: 'oscar/intro',
   label: '오스카 등장',
-  dur: [14, 5, 5, 5, 5, 4, 8, 6, 5, 3, 2, 2, 2, 2],
+  wide: true,
+  dur: [36, 6, 5, 6, 5, 6, 6, 10, 7, 7, 6, 2, 3, 7],
   keys: [
-    { at: 0, pose: IN_RIFT },
-    { at: 1, pose: STEP1_MID },
-    { at: 2, pose: STEP1 },
-    { at: 3, pose: STEP2_MID },
-    { at: 4, pose: STEP2 },
-    { at: 5, pose: O_STANCE },
-    { at: 6, pose: NOTICE, stop: true },
-    { at: 7, pose: NOTICE },
-    { at: 8, pose: NOD, stop: true },
+    { at: 0, pose: IN_SLIT },
+    { at: 1, pose: W1_MID },
+    { at: 2, pose: W1 },
+    { at: 3, pose: W2_MID },
+    { at: 4, pose: W2 },
+    { at: 5, pose: W3_MID },
+    { at: 6, pose: W3, stop: true },
+    { at: 7, pose: W3, stop: true },
+    { at: 8, pose: SH1 },
+    { at: 9, pose: SH2 },
+    { at: 10, pose: SH3 },
+    { at: 11, pose: CLICK, stop: true },
+    { at: 12, pose: CLICK, stop: true },
     { at: 13, pose: O_STANCE },
   ],
 };

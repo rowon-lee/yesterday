@@ -20,6 +20,10 @@ export const SLOT = {
   accent: 11, accentLight: 12,
   trim: 13,
   glow: 14,
+  /** 무기 쇠붙이 (칼날·해머 머리): 어둠, 바탕, 밝음 */
+  metalShadow: 15, metal: 16, metalLight: 17,
+  /** 피부 (얼굴·손, 장식이 skin을 켠 캐릭터만): 어둠, 바탕, 밝음 */
+  skinShadow: 18, skin: 19, skinLight: 20,
 } as const;
 
 /** 캐릭터 색 한 벌: 어두운 단계, 바탕, 밝은 단계 (+ 장식 색: 없으면 몸 색으로) */
@@ -38,6 +42,10 @@ export interface Look {
   trim?: ColorName;
   /** 빛나는 곳 */
   glow?: ColorName;
+  /** 무기 쇠붙이 [어둠, 바탕, 밝음] (없으면 몸 색) */
+  metal?: readonly [ColorName, ColorName, ColorName];
+  /** 피부 [어둠, 바탕, 밝음] (없으면 몸 색. 장식의 skin이 켠 곳만 칠한다) */
+  skin?: readonly [ColorName, ColorName, ColorName];
 }
 
 /** 아직 캐릭터가 없어서 뼈대만 그릴 때 쓰는 색 (1P, 2P) */
@@ -65,11 +73,17 @@ const INNER_LINE: number = 0;
 
 /** 앞쪽 부위와 몸통: 빛 받는 쪽 한 단계 밝게 */
 const FRONT: Shade = { base: SLOT.base, light: SLOT.light, inner: INNER_LINE };
+/** 피부 (얼굴·앞손), 뒷손은 한 단계 어둡게 */
+const SKIN_FRONT: Shade = { base: SLOT.skin, light: SLOT.skinLight, inner: 0 };
+const SKIN_BACK: Shade = { base: SLOT.skinShadow, light: SLOT.skin, inner: 0 };
 /** 뒤쪽 팔다리: 전체를 한 단계 어둡게 */
 const BACK: Shade = { base: SLOT.shadow, light: SLOT.base, inner: INNER_LINE };
 
-/** 장식을 칠할 색 갈래: 머리카락·머리카락 아랫단·옷·뒤쪽 옷(한 단계 어둡게)·작은 장식·밝은 천·빛나는 곳·몸 색 */
-export type DecorPart = 'hair' | 'hairBack' | 'cloth' | 'clothBack' | 'accent' | 'trim' | 'glow' | 'body';
+/**
+ * 장식을 칠할 색 갈래: 머리카락·머리카락 아랫단·옷·뒤쪽 옷(한 단계 어둡게)·작은 장식·밝은 천·빛나는 곳·몸 색·뒤쪽 몸 색(한 단계 어둡게, 코트 뒷자락)
+ * ·쇠붙이·어두운 쇠붙이(손잡이·칼집 그늘)·가는 칼날(몸 위를 지나면 둘레에 외곽선 색)
+ */
+export type DecorPart = 'hair' | 'hairBack' | 'cloth' | 'clothBack' | 'accent' | 'trim' | 'glow' | 'body' | 'bodyBack' | 'metal' | 'metalBack' | 'blade';
 const PART_SHADE: Record<DecorPart, Shade> = {
   hair: { base: SLOT.hair, light: SLOT.hairLight, inner: 0 },
   /** 머리카락 아랫단 (그늘진 안쪽 층, 한 단계 어둡게) */
@@ -80,6 +94,11 @@ const PART_SHADE: Record<DecorPart, Shade> = {
   trim: { base: SLOT.trim, light: SLOT.trim, inner: 0 },
   glow: { base: SLOT.glow, light: SLOT.glow, inner: 0 },
   body: FRONT,
+  bodyBack: BACK,
+  metal: { base: SLOT.metal, light: SLOT.metalLight, inner: 0 },
+  metalBack: { base: SLOT.metalShadow, light: SLOT.metal, inner: 0 },
+  /** 가는 칼날 (쇠붙이 바탕 한 색): 몸·옷 위를 지나는 곳은 둘레 1px을 외곽선 색으로 그어 흰 옷 위에서도 갈라져 보인다 (백은우 연검) */
+  blade: { base: SLOT.metal, light: SLOT.metal, inner: SLOT.outline },
 };
 
 /** 장식 도형을 마스크에 찍는 붓 (좌표는 발밑 기준점 상대, 오른쪽을 보는 모습) */
@@ -97,17 +116,34 @@ export interface DecorPen {
 }
 /**
  * 캐릭터 장식 (머리 모양, 옷자락, 넥타이…): 관절에 붙는 도형 함수. 몸을 그리는 순서 사이사이에 끼워 그린다.
- * behind: 뒷다리보다 먼저 (몸 뒤로 늘어지는 자락) / body: 앞다리 뒤·앞팔 앞 (옷·넥타이) / head: 머리 위 (머리카락) / top: 맨 위
+ * behind: 뒷다리보다 먼저 (몸 뒤로 늘어지는 자락) / backLeg: 뒷다리 바로 뒤·뒷팔 앞 (뒷다리 바지) /
+ * body: 앞다리 뒤·앞팔 앞 (앞다리 바지·옷·넥타이) / head: 머리 위 (머리카락) / top: 맨 위
  */
 export interface Decor {
+  /**
+   * 피부색으로 칠할 곳 (얼굴 = 목·머리, 손 = 두 주먹). 없으면 몸 색 그대로 (라이덴·기본 스틱맨).
+   * 옷(몸 색)과 피부를 나눠 팔다리가 읽히게 한다 (사용자 피드백 2026-11-02 '피부는 손·얼굴만')
+   */
+  skin?: { face?: boolean; hands?: boolean };
+  /**
+   * 구멍 남기기 (px 수): 그림 안에 갇힌 빈 칸 덩어리가 이보다 크면 메우지 않고 안쪽 둘레에 외곽선만 두른다.
+   * 없으면 모든 구멍을 옆 색으로 메운다. 휘는 리본(백은우 연검)이 몸·다리와 고리를 만들 때 속이 차 보이지 않게
+   */
+  keepHoles?: number;
   /** 캐릭터 체격: 팔다리·몸통 굵기, 머리 반지름 (없으면 4·5·5. 에드워드는 한 단계 굵게) */
   limbW?: number;
   torsoW?: number;
   headR?: number;
   behind?(pen: DecorPen, j: Joints): void;
+  backLeg?(pen: DecorPen, j: Joints): void;
   body?(pen: DecorPen, j: Joints): void;
   head?(pen: DecorPen, j: Joints): void;
   top?(pen: DecorPen, j: Joints): void;
+  /**
+   * 스미어 프레임의 잔상 (동작 데이터 smear.ghosts): 앞 프레임 관절(prev)에서 지금 관절까지 무기 끝 같은 것을 n개 잔상으로 그린다.
+   * 몸보다 먼저 (맨 뒤). 에드워드 해머 머리 잔상 3개 (2026-11-02 피드백 12-1)
+   */
+  ghost?(pen: DecorPen, j: Joints, prev: Joints, n: number): void;
 }
 
 /**
@@ -116,7 +152,9 @@ export interface Decor {
  * 검은 외곽선은 다 그린 뒤 전체 모양의 바깥 둘레에만 두른다.
  * clip: 장식이 이 칸(x0~x1) 밖으로 나가 옆 프레임에 번지지 않게 자른다.
  */
-export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number, decor?: Decor, clip?: readonly [number, number]): void {
+export function drawSkeleton(
+  img: Indexed, j: Joints, ox: number, oy: number, decor?: Decor, clip?: readonly [number, number], ghost?: { prev: Joints; n: number },
+): void {
   const P = (q: Point): Point => [ox + q[0], oy + q[1]];
   const group = (draw: (m: Mask) => void, shade: Shade) => {
     const m = new Mask(img.w, img.h);
@@ -146,19 +184,7 @@ export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number, de
     },
   };
   const seg = (m: Mask, a: Point, b: Point, w: number) => stampLine(m, ...P(a), ...P(b), w);
-  /** 정강이 방향에 수직으로 앞쪽에 발끝. 발목보다 아래로는 내리지 않는다 (바닥을 뚫지 않게). */
-  const toe = (knee: Point, foot: Point): Point => {
-    const dx = foot[0] - knee[0];
-    const dy = foot[1] - knee[1];
-    const d = Math.hypot(dx, dy) || 1;
-    let tx = dy / d;
-    let ty = -dx / d;
-    if (ty > 0) {
-      tx = 1;
-      ty = 0;
-    }
-    return [Math.round(foot[0] + tx * TOE_LEN), Math.round(foot[1] + ty * TOE_LEN)];
-  };
+  const toe = toeOf;
   const leg = (m: Mask, knee: Point, foot: Point) => {
     const w = decor?.limbW ?? LIMB_W;
     seg(m, j.hip, knee, w);
@@ -169,12 +195,15 @@ export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number, de
   const LW = decor?.limbW ?? LIMB_W;
   const TW = decor?.torsoW ?? TORSO_W;
   const HR = decor?.headR ?? HEAD_R;
+  if (ghost) decor?.ghost?.(pen, j, ghost.prev, ghost.n);
   decor?.behind?.(pen, j);
   group((m) => leg(m, j.kB, j.fB), BACK);
+  decor?.backLeg?.(pen, j);
   group((m) => {
     seg(m, j.shB, j.eB, LW);
     seg(m, j.eB, j.hB, LW);
   }, BACK);
+  if (decor?.skin?.hands) group((m) => seg(m, j.hB, j.hB, LW), SKIN_BACK);
   group((m) => {
     seg(m, j.hip, j.neck, TW);
     seg(m, j.neck, j.head, LW);
@@ -182,6 +211,12 @@ export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number, de
     // 어깨 비틀기: 뒷어깨에서 앞어깨까지 어깨선 (비틀지 않으면 한 점이라 그대로)
     if (j.shF[0] !== j.shB[0] || j.shF[1] !== j.shB[1]) seg(m, j.shB, j.shF, LW);
   }, FRONT);
+  if (decor?.skin?.face) {
+    group((m) => {
+      seg(m, j.neck, j.head, LW - 1);
+      stampDisc(m, ...P(j.head), HR);
+    }, SKIN_FRONT);
+  }
   group((m) => leg(m, j.kF, j.fF), FRONT);
   decor?.body?.(pen, j);
   decor?.head?.(pen, j);
@@ -190,8 +225,23 @@ export function drawSkeleton(img: Indexed, j: Joints, ox: number, oy: number, de
     seg(m, j.eF, j.hF, LW);
     seg(m, j.hF, j.hF, FIST_W + (LW - LIMB_W));
   }, FRONT);
+  if (decor?.skin?.hands) group((m) => seg(m, j.hF, j.hF, FIST_W + (LW - LIMB_W)), SKIN_FRONT);
   decor?.top?.(pen, j);
-  outlineSilhouette(img, SLOT.outline);
+  outlineSilhouette(img, SLOT.outline, decor?.keepHoles ?? 0);
+}
+
+/** 발끝: 정강이 방향에 수직으로 앞쪽. 발목보다 아래로는 내리지 않는다 (바닥을 뚫지 않게). 장식(바지·신발)도 같은 자리를 쓴다 */
+export function toeOf(knee: Point, foot: Point): Point {
+  const dx = foot[0] - knee[0];
+  const dy = foot[1] - knee[1];
+  const d = Math.hypot(dx, dy) || 1;
+  let tx = dy / d;
+  let ty = -dx / d;
+  if (ty > 0) {
+    tx = 1;
+    ty = 0;
+  }
+  return [Math.round(foot[0] + tx * TOE_LEN), Math.round(foot[1] + ty * TOE_LEN)];
 }
 
 /** 다각형 채우기 (짝홀 규칙, 칸 가운데로 판단) */
@@ -240,6 +290,14 @@ export function toImageData(img: Indexed, look: Look): ImageData {
   table[SLOT.accentLight] = rgb(accent[1]);
   table[SLOT.trim] = rgb(look.trim ?? look.light);
   table[SLOT.glow] = rgb(look.glow ?? look.light);
+  const skin = look.skin ?? [look.shadow, look.base, look.light];
+  table[SLOT.skinShadow] = rgb(skin[0]);
+  table[SLOT.skin] = rgb(skin[1]);
+  table[SLOT.skinLight] = rgb(skin[2]);
+  const metal = look.metal ?? [look.shadow, look.base, look.light];
+  table[SLOT.metalShadow] = rgb(metal[0]);
+  table[SLOT.metal] = rgb(metal[1]);
+  table[SLOT.metalLight] = rgb(metal[2]);
   const out = new ImageData(img.w, img.h);
   for (let i = 0; i < img.a.length; i++) {
     const c = img.a[i];

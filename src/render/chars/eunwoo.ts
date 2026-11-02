@@ -1,13 +1,15 @@
 import type { CharFx, CharRender } from '.';
-import type { MoveId } from '../../data/moves/base';
-import { fighterPose, movesOf, statsOf, type Fighter, type SimState } from '../../sim';
+import { fighterPose, movesOf, statsOf, type Fighter, type SimState, cineScenes } from '../../sim';
 import { EUNWOO_RULES, EW } from '../../sim/chars/eunwoo';
 import { GROUND as GROUND_Y } from '../../stage/citadel';
 import eunwooButterflies from '../../vfx/eunwoo-butterfly';
-import { lilyMark, lilyShield } from '../../vfx/eunwoo-lily';
+import { lilyAura, lilyMark, lilyShield } from '../../vfx/eunwoo-lily';
 import eunwooMind from '../../vfx/eunwoo-mind';
-import eunwooRibbon from '../../vfx/eunwoo-ribbon';
+import { MOTIONS } from '../../anim/motions';
 import eunwooThread from '../../vfx/eunwoo-thread';
+import eunwooIntro from '../../vfx/eunwoo-intro';
+import eunwooTrail from '../../vfx/eunwoo-trail';
+import { EUNWOO_INTRO_PILLAR, EUNWOO_INTRO_T } from '../../data/poses/eunwoo/show';
 import impact from '../../vfx/impact';
 import { lights } from '../light';
 import { COLORS, type ColorName } from '../palette';
@@ -23,95 +25,37 @@ import { fxRamp, FX_PX } from '../vfx';
  * - 선의: 연출 동안 화면이 백합이 핀 물가의 심상세계로 바뀐다. 끝나면 상대 몸 위로 무거운 잿빛 알갱이가 떨어진다(둔해짐).
  */
 
-type MoveOf = ReturnType<typeof movesOf>[MoveId];
 type P = [number, number];
 
-/** 은빛 리본 색: 흰 심 → 밝은 은빛 → 은빛 → 회청 → 어두운 회청 → 금색 반짝임 */
-const RIBBON: ColorName[] = ['fxWhite', 'gown', 'paleGrey', 'gownShade', 'gownDark', 'threadLight'];
+/** 연검 궤적 띠 색 (11-2: 리본 자체를 따라가는 은빛 띠 + 금실 한 줄): 흰 심 → 밝은 은빛 → 은빛 → 회청 → 어두운 회청 */
+const TRAIL: ColorName[] = ['fxWhite', 'moonLight', 'moon', 'gownShade', 'gownDark'];
+const TRAIL_GOLD: ColorName[] = ['threadLight', 'thread'];
+/** 칼끝 섬광 (칼끝이 꺾이는 순간·맞힌 순간) */
+const TIP: ColorName[] = ['fxWhite', 'moonLight', 'moon', 'moonDark'];
 /** 금색 실 (대시·순간이동), 은빛 와이어 (내려찍기·차지) */
 const GOLD: ColorName[] = ['threadLight', 'thread', 'goldDark'];
 const SILVER: ColorName[] = ['fxWhite', 'gown', 'gownShade'];
 /** 나비 [흰 날개, 그늘, 연분홍, 금빛], 백합 [흰 꽃잎, 연분홍, 분홍, 짙은 분홍, 금빛 꽃술], 심상세계 하늘·물 */
 const BUTTERFLY: ColorName[] = ['fxWhite', 'gown', 'lilyLight', 'threadLight'];
 const LILY: ColorName[] = ['fxWhite', 'lilyLight', 'lily', 'lilyDark', 'threadLight'];
-const MIND_SKY: ColorName[] = ['fxNavy', 'gownDark', 'gownShade', 'gownDark', 'gownShade', 'gown', 'fxWhite'];
+/** 심상세계 하늘 [맨 위, 위, 가운데, 아래, 수평선 분홍 짙음, 수평선 분홍, 금빛 줄], 물 [깊음, 가운데, 수평선 아래, 물결 밝음, 물결 흰] */
+const MIND_SKY: ColorName[] = ['fxNavy', 'gownDark', 'moonDark', 'moon', 'lily', 'lilyLight', 'threadLight'];
+const MIND_WATER: ColorName[] = ['fxNavy', 'gownDark', 'moonDark', 'moon', 'moonLight'];
 
-/** 기술마다 리본 굵기 (px): 1~3타 가늘게, 4타·띄우기·쓸기·대시·차지는 굵게 */
-const WIDTH: Partial<Record<MoveId, number>> = {
-  atk1: 6, atk2: 7, atk3: 8, atk4: 10, launcher: 9, sweep: 8, dashAttack: 8, air1: 6, air2: 7, air3: 8, wallKick: 8, charge: 12,
-};
-
-/**
- * 리본 길 (발밑 기준 px, 오른쪽 보는 기준, 꼬리 → 앞끝): 칼 쥔 손이 판정 두 프레임 앞에 있던 자리에서 시작해
- * 궤적 상자 모양대로 휘어 상자 끝까지 (판정 범위를 덮는다). 앞끝 말림은 리본 이펙트가 더한다
- */
-const pathCache = new Map<string, P[]>();
-function ribbonPath(mv: MoveOf): P[] {
-  const d = mv.data;
-  const b = d.box!;
-  const key = `${d.motion}:${b.x},${b.y},${b.w},${b.h},${b.shape}`;
-  const hit = pathCache.get(key);
-  if (hit) return hit;
-  const J = mv.frames.joints;
-  const end = (d.limb?.[1] ?? 'hF') as 'hF' | 'hB';
-  const a0 = d.active[0];
-  const hand = (i: number): P => {
-    const p = J[Math.max(0, Math.min(J.length - 1, i))][end];
-    return [p[0], p[1]];
-  };
-  const x0 = b.x;
-  const x1 = b.x + b.w;
-  const y0 = b.y;
-  const y1 = b.y + b.h;
-  const cx = (x0 + x1) / 2;
-  const cy = (y0 + y1) / 2;
-  const ell = (ccx: number, ccy: number, rx: number, ry: number, deg: number): P => {
-    const r = (deg * Math.PI) / 180;
-    return [ccx + Math.cos(r) * rx, ccy + Math.sin(r) * ry];
-  };
-  const sweep = (ccx: number, ccy: number, rx: number, ry: number, from: number, to: number, n: number): P[] =>
-    Array.from({ length: n + 1 }, (_, k) => ell(ccx, ccy, rx, ry, from + ((to - from) * k) / n));
-  let path: P[];
-  switch (b.shape) {
-    case 'line': {
-      // 곧게 쏘아 나간다: 손에서 출발해 살짝 위로 부풀었다가 상자 끝
-      const s = hand(a0 - 1);
-      const e: P = [x1, cy];
-      path = [s, hand(a0), [s[0] + (e[0] - s[0]) * 0.6, Math.min(s[1], e[1]) - b.h * 0.3], e];
-      break;
-    }
-    case 'fall':
-      // 위 뒤에서 앞아래로 내리친다
-      path = [hand(a0 - 2), [x0 + b.w * 0.2, y0], [cx + b.w * 0.15, y0 + b.h * 0.15], [x1 - b.w * 0.05, cy], [x1 - b.w * 0.2, y1]];
-      break;
-    case 'rise':
-      // 아래 앞에서 위로 올려 벤다
-      path = [hand(a0 - 2), [x1 - b.w * 0.1, y1 - b.h * 0.25], [x1 - b.w * 0.05, cy], [cx, y0 + b.h * 0.08], [x0 + b.w * 0.2, y0]];
-      break;
-    case 'ground':
-      // 바닥을 스치며 앞으로
-      path = [hand(a0 - 2), ...sweep(cx, y1, b.w / 2, b.h, 200, 350, 5)];
-      break;
-    case 'circle':
-      path = sweep(cx, cy, b.w / 2, b.h / 2, 150, 500, 12);
-      break;
-    case 'arc':
-    default:
-      // 뒤 아래에서 위를 돌아 앞으로 크게 반원
-      path = [hand(a0 - 2), ...sweep(cx, y1, b.w / 2, b.h, 190, 350, 6)];
-      break;
-  }
-  pathCache.set(key, path);
-  return path;
-}
-
-/** 살아 있는 리본·실·나비·막 (빛을 낸다) */
-const ribbons: Array<ReturnType<typeof eunwooRibbon>> = [];
+/** 살아 있는 궤적·실·나비·막 (빛을 낸다) */
+const trails: Array<ReturnType<typeof eunwooTrail> | null> = [null, null];
+/** 사람마다 등장 나비 (11-3) */
+const intros: Array<ReturnType<typeof eunwooIntro> | null> = [null, null];
+/** 등장 나비 색: 흰 날개, 옅은 금빛 테두리, 몸, 빛 먼지 */
+const INTRO_FLY: ColorName[] = ['fxWhite', 'threadLight', 'gown', 'goldLight'];
+/** 사람마다 지난 틱의 동작 프레임 (프레임이 바뀌는 순간을 잡는다) */
+const lastFrame: Array<string> = ['', ''];
 const threads: Array<{ fx: ReturnType<typeof eunwooThread>; color: string }> = [];
 const swarms: Array<ReturnType<typeof eunwooButterflies>> = [];
 const shields: Array<ReturnType<typeof lilyShield>> = [];
 /** 사람마다 지금 붙어 있는 낙인·심상세계 (없으면 null) */
 const marks: Array<ReturnType<typeof lilyMark> | null> = [null, null];
+const auras: Array<ReturnType<typeof lilyAura> | null> = [null, null];
 const minds: Array<ReturnType<typeof eunwooMind> | null> = [null, null];
 
 /** 월드 좌표 (2단위): 발밑 기준 관절 p를 그 사람 방향·자리로 */
@@ -128,12 +72,54 @@ function sparkle(c: CharFx, x: number, y: number, size: number): void {
   c.layer.add(impact({ kind: 'hit', x, y, angle: -Math.PI / 2, size, ramp: fxRamp(['fxWhite', 'threadLight', 'thread', 'goldDark']), seed: c.seed() }));
 }
 
+/** 몸 가운데 (엉덩이와 목 사이, 이펙트 2단위): 백합 방어막 타원의 가운데 */
+function bodyCenter(f: Fighter): [number, number] {
+  const j = fighterPose(f).joints;
+  return toFx(f, [(j.hip[0] + j.neck[0]) / 2, Math.min(-30, (j.hip[1] + j.neck[1]) / 2)]);
+}
+
+/** 지금 프레임의 연검 리본 (월드 px 점 10개). 리본이 없는 프레임이면 null */
+function ribbonWorld(f: Fighter): P[] | null {
+  const rib = fighterPose(f).joints.fx?.rib;
+  if (!rib) return null;
+  return rib.map((p) => [f.x / 256 + f.facing * p[0], GROUND_Y + f.y / 256 + p[1]] as P);
+}
+/** 칼끝 (월드 px) */
+function ribbonTip(f: Fighter): P | null {
+  const r = ribbonWorld(f);
+  return r ? r[r.length - 1]! : null;
+}
+/** 칼끝 섬광: 작은 은빛 터짐 + 잠깐 비추는 은빛 광원 */
+function tipFlash(c: CharFx, p: P, size: number): void {
+  c.layer.add(impact({ kind: 'hit', x: p[0] * FX_PX, y: p[1] * FX_PX, angle: -Math.PI / 2, size, ramp: fxRamp(TIP), seed: c.seed() }));
+  c.glow(p[0], p[1], 20 + 60 * size, COLORS.moonLight, 0.5 + size, 6);
+}
+
+/** 동작 이름 → 표시 틱 합 */
+const motionTotal = new Map(MOTIONS.map((m) => [m.name, m.dur.reduce((a, b) => a + b, 0)]));
+/**
+ * 선의 전체 기준 틱 (0~30 발동, 30부터 연출): 지금 연출 장면·틱에서 센다. 짧은 판은 첫 장면(전개)을 30~90에 늘려 맞춘다.
+ * 이 사람의 선의 연출이 아니면 -1
+ */
+function superTime(s: SimState, i: number): number {
+  const c = s.cine;
+  if (!c || c.who !== i || c.move !== 'super') return -1;
+  const sc = cineScenes(s);
+  const ticks = sc.map((x) => motionTotal.get(x.a.motion) ?? 0);
+  let el = c.t;
+  for (let k = 0; k < c.scene; k++) el += ticks[k]!;
+  const first = ticks[0]!;
+  return el < first ? 30 + (el * 60) / first : 90 + el - first;
+}
+
+/** HUD 백합 낙인 (가슴 문양과 같은 7×7) */
+const HUD_LILY = ['...3...', '.3.1.3.', '..121..', '3122213', '..121..', '.3.1.3.', '...3...'];
+
 export const EUNWOO_RENDER: CharRender = {
   strike(c, s, f, _i, id) {
     const mv = movesOf(f.char)[id];
-    if (!mv.data.box) return;
-    // 내려찍기: 뒷손에서 은빛 와이어가 앞아래로 쏘아 나가 감아 채고, 끌어당겨 거둔다
-    if (id === 'slam') {
+    // 내려찍기: 뒷손에서 은빛 와이어(연검과 따로, 1px 곧은 쇠줄 11-0)가 앞아래로 쏘아 나가 감아 채고, 끌어당겨 거둔다
+    if (id === 'slam' && mv.data.box) {
       const b = mv.data.box;
       const tip: P = [b.x + b.w * 0.8, b.y + b.h * 0.8];
       const ox = f.x;
@@ -147,43 +133,69 @@ export const EUNWOO_RENDER: CharRender = {
           if (f.moveConnected) return [(d.x / 256) * FX_PX, (GROUND_Y + d.y / 256 - 26) * FX_PX];
           return [(ox / 256 + facing * tip[0]) * FX_PX, (GROUND_Y + oy / 256 + tip[1]) * FX_PX];
         },
-        shoot: 3, hold: 8, back: 6, retract: true, sag: 4, width: 2,
+        shoot: 3, hold: 8, back: 6, retract: true, sag: 0, width: 1,
         ramp: fxRamp(SILVER), seed: c.seed(), held: () => f.hitstop > 0,
       });
       c.layer.add(fx);
       threads.push({ fx, color: COLORS.gown });
       return;
     }
-    const fighter = f;
-    const fx = eunwooRibbon({
-      path: ribbonPath(mv).map((p) => toFx(f, p)),
-      width: WIDTH[id] ?? 7,
-      curl: id === 'atk4' || id === 'charge' ? 14 : 10,
-      ticks: id === 'atk4' || id === 'charge' ? 16 : 12,
-      ramp: fxRamp(RIBBON),
-      seed: c.seed(),
-      held: () => fighter.hitstop > 0,
-    });
-    c.layer.add(fx);
-    ribbons.push(fx);
+    // 연검: 칼끝이 꺾이는 순간 칼끝에 작은 은빛 섬광 (궤적 띠는 tick이 리본을 따라 그린다)
+    const tip = ribbonTip(f);
+    if (tip) tipFlash(c, tip, 0.2);
     if (id === 'atk4' || id === 'launcher' || id === 'charge') c.fx.shake(id === 'charge' ? 0.3 : 0.18);
   },
   tick(c, s, f, i) {
     const e = f.ext;
-    // 백합 낙인: 가슴에 작은 백합 (낙인이 있는 동안)
+    // 연검 궤적 (11-2): 공격 중 판정 두 프레임 앞부터 판정 두 프레임 뒤까지, 그 순간 리본을 궤적 띠에 넣는다
+    const pose = fighterPose(f);
+    const key = `${pose.motion}#${pose.frame}`;
+    const changed = key !== lastFrame[i];
+    lastFrame[i] = key;
+    if ((f.mode === 'attack' || f.mode === 'charge') && f.move) {
+      const mv = movesOf(f.char)[f.mode === 'charge' ? 'charge' : f.move];
+      const a0 = mv.data.active[0] ?? 99;
+      const a1 = mv.data.active[mv.data.active.length - 1] ?? -99;
+      const rib = pose.motion === mv.frames.name && pose.frame >= a0 - 2 && pose.frame <= a1 + 2 ? ribbonWorld(f) : null;
+      if (rib && f.move !== 'slam' && f.move !== 'super') {
+        let tr = trails[i];
+        if (!tr || tr.done()) {
+          const fighter = f;
+          tr = eunwooTrail({ ramp: fxRamp(TRAIL), gold: fxRamp(TRAIL_GOLD), held: () => fighter.hitstop > 0 });
+          trails[i] = tr;
+          c.layer.add(tr);
+        }
+        if (f.hitstop === 0) tr.feed(rib);
+      }
+      // 4타: 칼끝이 앞 바닥에 꽂히는 순간 은빛 섬광과 물보라
+      if (changed && f.move === 'atk4' && pose.frame === a1 && pose.motion === mv.frames.name) {
+        const tip = ribbonTip(f);
+        if (tip) {
+          tipFlash(c, tip, 0.4);
+          c.debris.burst('water', tip[0], GROUND_Y + f.y / 256, f.facing, 7);
+        }
+      }
+    }
+    // 백합 낙인 (11-4): 가슴에 7×7 백합 문양 + 몸을 둘러싼 36×60 방어막 (낙인이 있는 동안)
     if (e[EW.LILY] > 0 && !marks[i] && f.mode !== 'ko') {
+      const fighter = f;
+      const alive = () => fighter.ext[EW.LILY] > 0 && fighter.mode !== 'ko';
       const mk = lilyMark({
         at: () => {
-          const j = fighterPose(f).joints;
-          return toFx(f, [(j.neck[0] * 2 + j.hip[0]) / 3 + 2, (j.neck[1] * 2 + j.hip[1]) / 3]);
+          const j = fighterPose(fighter).joints;
+          return toFx(fighter, [(j.neck[0] * 2 + j.hip[0]) / 3 + 1, (j.neck[1] * 2 + j.hip[1]) / 3 + 1]);
         },
-        alive: () => f.ext[EW.LILY] > 0 && f.mode !== 'ko',
+        alive,
         ramp: fxRamp(LILY),
       });
+      const au = lilyAura({ center: () => bodyCenter(fighter), alive, ramp: fxRamp(LILY) });
       marks[i] = mk;
+      auras[i] = au;
+      c.layer.add(au);
       c.layer.add(mk);
     }
     if (marks[i]?.done()) marks[i] = null;
+    if (auras[i]?.done()) auras[i] = null;
     // 아직 여기 있어: 회복하는 동안 금빛 반짝임이 오른다
     if (e[EW.BUFF] > 0 && e[EW.BUFF] % (EUNWOO_RULES.SKILL2_EVERY * 3) === 0 && f.hp < statsOf(f.char).hp) {
       const [x, y] = joint(f, 'neck');
@@ -205,48 +217,64 @@ export const EUNWOO_RENDER: CharRender = {
       c.layer.add(fx);
       threads.push({ fx, color: COLORS.thread });
     }
-    // 등장: 흰 나비 떼가 날아와 모였다가 흩어지면 은우가 서 있다 (몇 마리는 어깨 둘레를 돌다 사라진다)
-    if (f.mode === 'intro' && f.t === 1) {
-      const sw = eunwooButterflies({
-        center: () => toFx(f, [0, -26]), mode: 'gather', count: 26, gather: 14, hold: 4, scatter: 26,
-        ramp: fxRamp(BUTTERFLY), seed: c.seed(),
+    // 등장 (11-3): 빛나는 흰 나비가 날아와 나선 기둥이 되고, 맥박치듯 빛난 뒤 흩어지면 그 속에서 걸어 나온다
+    if (f.mode === 'intro' && f.t <= 1 && !intros[i]) {
+      const fighter = f;
+      const ox = f.x;
+      const oy = f.y;
+      const facing = f.facing;
+      const fx = eunwooIntro({
+        t: () => (fighter.mode === 'intro' ? fighter.t : -1),
+        base: () => [ox / 256 + facing * EUNWOO_INTRO_PILLAR, GROUND_Y + oy / 256],
+        shoulder: () => {
+          const j = fighterPose(fighter).joints.shF;
+          return [fighter.x / 256 + fighter.facing * j[0], GROUND_Y + fighter.y / 256 + j[1]];
+        },
+        ramp: fxRamp(INTRO_FLY),
+        seed: c.seed(),
       });
-      c.layer.add(sw);
-      swarms.push(sw);
+      intros[i] = fx;
+      c.layer.add(fx);
     }
-    // 선의: 연출 동안 백합이 핀 물가의 심상세계
+    if (intros[i]?.done()) intros[i] = null;
+    // 선의 (11-5): 연출 동안 발밑에서 물결이 퍼지며 도시가 지워지고 새벽 물가의 심상세계가 된다 (sim 연출 장면·틱을 따라간다)
     const cine = s.cine;
     if (cine && cine.who === i && cine.move === 'super' && !minds[i]) {
       const d = opponent(s, f);
-      const total = movesOf(f.char).super.data.cinematic!.scenes.length;
+      const fighter = f;
       const md = eunwooMind({
-        origin: () => [(f.x / 256) * FX_PX, (GROUND_Y + f.y / 256) * FX_PX],
-        target: () => [(d.x / 256) * FX_PX, (GROUND_Y + d.y / 256) * FX_PX],
-        bloom: () => {
-          const c2 = s.cine;
-          if (!c2) return 1;
-          return Math.max(0, Math.min(1, (c2.scene + c2.t / 42 - (total - 2.2)) / 1.8));
+        T: () => superTime(s, i),
+        feet: () => [fighter.x / 256, GROUND_Y + fighter.y / 256],
+        target: () => [d.x / 256, GROUND_Y + d.y / 256],
+        hand: () => {
+          const j = fighterPose(fighter).joints.hB;
+          return [fighter.x / 256 + fighter.facing * j[0], GROUND_Y + fighter.y / 256 + j[1]];
         },
-        alive: () => !!s.cine && s.cine.who === i,
-        sky: fxRamp(MIND_SKY), lily: fxRamp(LILY), seed: c.seed(),
+        bodies: () => [c.silhouette(fighter), c.silhouette(d)],
+        sky: fxRamp(MIND_SKY), water: fxRamp(MIND_WATER), lily: fxRamp(LILY), gold: fxRamp(['threadLight', 'thread']), fly: fxRamp(INTRO_FLY),
+        seed: c.seed(),
       });
       minds[i] = md;
       c.layer.add(md);
     }
     if (minds[i]?.done()) minds[i] = null;
-    // 선의로 둔해진 상대: 몸 위로 무거운 잿빛 알갱이가 천천히 떨어진다
-    if (e[EW.DULL] > 0 && s.tick % 5 === 0) {
+    // 선의로 둔해진 상대 (11-5): 둔해짐이 남은 동안 발밑에 작은 물결과 백합 꽃잎이 남는다
+    if (e[EW.DULL] > 0 && !s.cine) {
       const d = opponent(s, f);
-      const x = (d.x / 256 + (((s.tick * 13) % 21) - 10)) * FX_PX;
-      const y = (GROUND_Y + d.y / 256 - 52) * FX_PX;
-      c.layer.add(impact({ kind: 'hit', x, y, angle: Math.PI / 2, size: 0.12, ramp: fxRamp(['gown', 'gownShade', 'gownDark', 'suitGrey']), seed: c.seed() }));
+      const x = d.x / 256;
+      const y = GROUND_Y + d.y / 256;
+      if (s.tick % 16 === 0 && d.y === 0) c.debris.burst('water', x + (((s.tick * 13) % 17) - 8), y, 0, 2);
+      if (s.tick % 22 === 5) {
+        c.layer.add(impact({ kind: 'hit', x: (x + (((s.tick * 7) % 15) - 7)) * FX_PX, y: (y - 2) * FX_PX, angle: -Math.PI / 2, size: 0.12, ramp: fxRamp(['fxWhite', 'lilyLight', 'lily', 'lilyDark']), seed: c.seed() }));
+      }
     }
   },
   event(c, s, e, i) {
     const f = s.fighters[i]!;
     // 맞히면 리본이 가장 크게 펼친 순간으로 돌아가 히트스톱 동안 멈춘다 (은빛 섬광 한 번)
     if (e.type === 'hit' && e.who === i) {
-      ribbons[ribbons.length - 1]?.rewind();
+      const tip = ribbonTip(f);
+      if (tip && e.move !== 'slam' && e.move !== 'super') tipFlash(c, tip, e.heavy ? 0.45 : 0.32);
       c.glow(e.x / 256, GROUND_Y + e.y / 256, e.heavy ? 70 : 48, COLORS.gown, e.heavy ? 0.9 : 0.7, e.heavy ? 14 : 9);
       // 스텔라리스 발도: 뒷손의 은빛 와이어가 맞은 상대에게 감겨 끌어당긴다
       if (e.move === 'charge') {
@@ -254,7 +282,7 @@ export const EUNWOO_RENDER: CharRender = {
         const fx = eunwooThread({
           from: () => joint(f, 'hB'),
           to: () => [(d.x / 256) * FX_PX, (GROUND_Y + d.y / 256 - 26) * FX_PX],
-          shoot: 2, hold: 14, back: 6, retract: true, sag: 3, width: 2,
+          shoot: 2, hold: 14, back: 6, retract: true, sag: 0, width: 1,
           ramp: fxRamp(SILVER), seed: c.seed(), held: () => f.hitstop > 0,
         });
         c.layer.add(fx);
@@ -284,31 +312,31 @@ export const EUNWOO_RENDER: CharRender = {
       const [nx, ny] = joint(f, 'neck');
       sparkle(c, nx, ny, 0.4);
     } else if (e.text === 'shield') {
-      // 백합 낙인 방어막: 맞은 자리 앞에 연분홍 막이 번쩍 생겼다가 깨지며 꽃잎이 흩날린다
+      // 백합 방어막이 막아 냄 (11-4): 맞은 쪽 테두리에서 꽃잎 조각이 흩어지고 흰 고리 섬광 한 번 (낙인은 꺼진다)
       const att = opponent(s, f);
       const side = att.x > f.x ? 1 : -1;
-      const sh = lilyShield({ x: (f.x / 256 + side * 6) * FX_PX, y: (GROUND_Y + f.y / 256 - 26) * FX_PX, facing: side, ramp: fxRamp(LILY), seed: c.seed() });
+      const [bx, by] = bodyCenter(f);
+      const sh = lilyShield({ x: bx, y: by, facing: side, ramp: fxRamp(LILY), seed: c.seed() });
       c.layer.add(sh);
       shields.push(sh);
+      c.glow(bx / FX_PX, by / FX_PX, 70, COLORS.fxWhite, 0.9, 8);
       c.fx.shake(0.2);
     } else if (e.text === 'lily') {
       c.glow(f.x / 256, GROUND_Y + f.y / 256 - 30, 50, COLORS.lilyLight, 0.8, 16);
     }
   },
-  hidden(s, f) {
-    // 등장: 나비 떼가 모여드는 동안은 보이지 않는다 (흩어지면 그 자리에 서 있다)
-    return f.mode === 'intro' && s.round === 1 && f.t < 15;
-  },
+  ownIntro: true,
+  // 등장: 나비가 모여 기둥이 되고 맥박치는 동안(0~80틱)은 몸을 감춘다
+  introHidden: (f) => f.t < EUNWOO_INTRO_T.reveal,
   lights(s, f, i) {
     // 리본은 무대의 은빛 광원 (펼쳐진 동안 밝고, 걷히며 어두워진다)
-    for (let k = ribbons.length - 1; k >= 0; k--) {
-      const r = ribbons[k]!;
-      if (r.done()) {
-        ribbons.splice(k, 1);
-        continue;
-      }
-      const ph = r.phase();
-      for (const [x, y] of ph.pts) lights.point(x, y, 44, COLORS.gown, 0.55 * ph.k);
+    const tr = trails[i];
+    if (tr && !tr.done()) for (const [x, y] of tr.points()) lights.point(x, y, 40, COLORS.moon, 0.45);
+    // 방어: 돌리는 연검의 은빛 원이 은은히 빛난다
+    const disc = fighterPose(f).joints.fx?.disc;
+    if (disc) {
+      const j = fighterPose(f).joints.hF;
+      lights.point(f.x / 256 + f.facing * j[0], GROUND_Y + f.y / 256 + j[1], 34, COLORS.moon, 0.35 + 0.1 * Math.sin(s.tick / 3));
     }
     for (let k = threads.length - 1; k >= 0; k--) {
       const t = threads[k]!;
@@ -339,29 +367,39 @@ export const EUNWOO_RENDER: CharRender = {
     }
     // 백합 낙인: 은은한 연분홍 빛, 심상세계: 은우 위로 넓은 흰 빛
     if (f.ext[EW.LILY] > 0 && f.mode !== 'ko') lights.point(f.x / 256, GROUND_Y + f.y / 256 - 30, 26, COLORS.lilyLight, 0.25 + 0.08 * Math.sin(s.tick / 8));
+    const it = intros[i];
+    if (it) {
+      const lv = it.level();
+      if (lv > 0) {
+        const bx = f.x / 256 + f.facing * EUNWOO_INTRO_PILLAR;
+        const by = GROUND_Y + f.y / 256;
+        lights.point(bx, by - 28, 50 + 40 * lv, COLORS.gown, 0.7 * lv);
+        lights.point(bx, by - 3, 36 + 24 * lv, COLORS.threadLight, 0.45 * lv);
+      }
+    }
     const md = minds[i];
     if (md) lights.point(f.x / 256, GROUND_Y + f.y / 256 - 60, 160, COLORS.gown, 0.28 * md.level());
   },
   hud(ctx, s, f, _i, slot) {
     // 이름 옆: 백합 낙인(연분홍 백합), 아직 여기 있어가 남은 동안 흰 나비와 남은 시간 막대
     let x = slot.left ? slot.nameEdge + 4 : slot.nameEdge - 4 - 7;
-    const y = 18;
+    const y = 16;
     ctx.fillStyle = COLORS.ink;
-    ctx.fillRect(x - 1, y - 1, 9, 8);
-    const px = (dx: number, dy: number, c: string) => {
-      ctx.fillStyle = c;
-      ctx.fillRect(x + dx, y + dy, 1, 1);
-    };
+    ctx.fillRect(x - 1, y - 1, 9, 9);
+    // 백합 낙인 (11-4): 가슴의 문양과 같은 7×7 백합 (분홍 꽃잎, 흰 심). 낙인이 없으면 어두운 빈 칸
     if (f.ext[EW.LILY] > 0) {
       const pulse = (s.tick >> 3) & 1;
-      px(3, 0, COLORS.threadLight);
-      for (const [dx, dy] of [[3, 1], [2, 2], [4, 2], [1, 3], [5, 3], [3, 3]] as const) px(dx, dy, COLORS.fxWhite);
-      for (const [dx, dy] of [[0, 2], [6, 2], [2, 4], [4, 4]] as const) px(dx, dy, pulse ? COLORS.lilyLight : COLORS.lily);
-      px(3, 4, COLORS.lilyDark);
-      px(3, 5, COLORS.lilyDark);
+      HUD_LILY.forEach((row, dy) => {
+        for (let dx = 0; dx < 7; dx++) {
+          const v = row[dx];
+          if (v === '.') continue;
+          ctx.fillStyle = v === '2' ? COLORS.fxWhite : v === '3' ? (pulse ? COLORS.lilyLight : COLORS.lily) : COLORS.lily;
+          ctx.fillRect(x + dx, y + dy, 1, 1);
+        }
+      });
     } else {
       ctx.fillStyle = COLORS.panel;
-      ctx.fillRect(x, y, 7, 6);
+      ctx.fillRect(x, y, 7, 7);
     }
     const buff = f.ext[EW.BUFF];
     if (buff > 0) {

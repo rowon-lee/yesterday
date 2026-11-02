@@ -12,34 +12,35 @@ export const EDWARD: CharacterData = {
   label: '에드워드',
   stats: {
     ...BASE_STATS,
-    // 체력은 넷 가운데 가장 낮다 (껍데기 300이 먼저 받는다: sim/chars/edward.ts)
-    hp: 820,
-    // 걷기: 큰 보폭(한 걸음 24px)으로 느리게. 한 바퀴(두 걸음)를 걷는 동안 그림 한 바퀴
-    runForward: 1.7,
-    runBack: 1.4,
+    // 체력은 낮은 편 (껍데기 300이 먼저 받는다: sim/chars/edward.ts). 느린 대신 한 방이 크다 (피드백 12-1 뒤 밸런스: 체력 820 → 900, 껍데기 300 → 400, 평타 피해 약 1.7배)
+    hp: 900,
+    // 걷기 (2026-11-02 피드백 12-4): 보폭 24px, 한 바퀴(두 걸음 48px) 약 70틱 → 0.7px/틱. 뒤 걷기는 보폭 16px로 천천히 (0.5px/틱).
+    // 걸은 거리로 그림 프레임을 넘긴다 (한 바퀴 거리 = runCycle): 발이 미끄러지지 않는다
+    runForward: 0.7,
+    runBack: 0.5,
     runCycle: E_WALK_F,
     runBackCycle: E_WALK_B,
-    // 점프: 준비가 길고 낮게 뜬다 (약 72px, 2단 점프 약 50px), 무겁게 떨어진다
-    jumpSquat: 3,
-    jumpVy: 8.2,
+    // 점프 (피드백 12-4): 무릎을 깊이 굽히는 준비 8틱, 낮게 뜬다 (약 63px, 2단 점프 약 45px), 무겁게 떨어진다
+    jumpSquat: 8,
+    jumpVy: 7.6,
     jumpVx: 3.0,
-    doubleJumpVy: 6.8,
+    doubleJumpVy: 6.4,
     chaseJumpVy: 11.2,
     chaseJumpVx: 2.0,
     gravity: 0.46,
     maxFall: 10.5,
     airAccel: 0.12,
     airMaxVx: 3.0,
-    // 대시: 짧고 묵직한 돌진 (2~7틱째 7.5px/틱 = 약 45px), 끝에 쿵 멈추느라 길다
-    dashTicks: 16,
+    // 대시 (피드백 12-4): 세 걸음 쿵쿵쿵 돌진 (2~20틱째 2.2px/틱 = 약 40px), 걸음마다 물 튐·작은 흔들림 (렌더)
+    dashTicks: 24,
     dashMoveFrom: 2,
-    dashMoveTo: 8,
-    dashSpeed: 7.5,
+    dashMoveTo: 20,
+    dashSpeed: 2.2,
     airDashTicks: 12,
     airDashMoveTo: 7,
     airDashSpeed: 7.0,
-    // 착지할 때마다 쿵 (4틱)
-    landTicks: 4,
+    // 착지할 때마다 두 발로 쿵 (무릎을 크게 굽힌다, 6틱)
+    landTicks: 6,
     airAttackLandTicks: 7,
     // 벽: 무거워 빨리 미끄러지고, 벽 점프는 낮고 짧게, 벽 달리기는 느리게 한 층쯤
     wallSlide: 1.7,
@@ -74,108 +75,117 @@ export const EDWARD: CharacterData = {
   // CPU가 스킬을 쓰는 거리: 재현:나(다음 평타 강화)는 아무 데서나, 염동력(끌어당김·밀어냄)은 상자 안 (판정 160px)
   cpu: { skill1: [0, 400], skill2: [30, 150] },
   moves: {
-    // 1타 어깨 내려찍기: 어깨에서 해머가 머리 위를 넘어와 가슴 높이 앞을 내려친다 (해머 머리 가운데 53,-27 → 53,-22)
+    // ---- 평타 (2026-11-02 피드백 12-1 '느리고 크게'): 한 동작이 라이덴의 약 1.9배, 히트스톱 9~12틱, 맞힐 때마다 바닥이 반응한다 (렌더) ----
+    // 넉백은 맞은 쪽이 미끄러지는 거리 (경직 동안 틱마다 13/16로 줄어드는 속도의 합, sim에서 재면 push × 약 4.2) → 1·2타 12px (push 2.85)
+    // 1타 가로 휘두르기: 어깨에서 내려 몸 앞 반원(지름 72px)을 가로지른다. 판정은 6~7프레임 해머 머리 (43,-55 → 50,-36)
     atk1: {
-      motion: 'edward/chop', active: [4, 5], limb: undefined, boxOnly: true, damage: 60, guardDamage: 13, hitstun: 20, blockstun: 14, hitstop: 9, push: 2.4,
-      advance: [0, -1, -1, 4, 4, 2, 0, 0, 0, 0, 0, 0],
-      box: { x: 16, y: -44, w: 46, h: 36, shape: 'fall' },
+      motion: 'edward/chop', active: [5, 6], limb: undefined, boxOnly: true, damage: 78, guardDamage: 22, hitstun: 26, blockstun: 24, hitstop: 9, push: 2.85,
+      advance: [0, 0, -1, -1, 4, 4, 2, 1, 0, 0, 0, 0, 0, 0],
+      box: { x: 26, y: -64, w: 34, h: 38, shape: 'fall' },
     },
-    // 2타 옆 휘두르기: 해머가 등 뒤에서 아래로 돌아 가슴 높이로 앞을 가로지른다 (해머 머리 56,-33)
+    // 2타 되돌려 휘두르기: 반 걸음(12px) 내딛으며 반대 방향으로 낮게 (반원 지름 72px). 해머 머리 (42,-11 → 52,-25)
     atk2: {
-      motion: 'edward/swing', active: [5, 6], limb: undefined, boxOnly: true, damage: 66, guardDamage: 15, hitstun: 21, blockstun: 15, hitstop: 10, push: 2.6,
-      advance: [0, -1, -1, 2, 5, 4, 1, 0, 0, 0, 0, 0, 0],
-      box: { x: 14, y: -46, w: 50, h: 28, shape: 'arc' },
+      motion: 'edward/swing', active: [5, 6], limb: undefined, boxOnly: true, damage: 84, guardDamage: 24, hitstun: 27, blockstun: 24, hitstop: 9, push: 2.85,
+      advance: [0, 0, 0, 0, 6, 4, 2, 0, 0, 0, 0, 0, 0, 0],
+      box: { x: 28, y: -36, w: 32, h: 34, shape: 'arc' },
     },
-    // 3타 올려치기: 뒤 아래에서 퍼 올려 해머 머리가 가슴 → 얼굴 높이로 솟는다 (54,-38 → 50,-52)
+    // 3타 머리 위로 돌려 내려찍기: 위 → 아래 원호, 끝에서 바닥 균열 40px. 넉백은 작게 (5px), 세게 맞아 무릎이 꺾인다 (경직 24 이상)
     atk3: {
-      motion: 'edward/rise', active: [4, 5], limb: undefined, boxOnly: true, damage: 78, guardDamage: 18, hitstun: 24, blockstun: 16, hitstop: 11, push: 2.8,
-      advance: [0, -1, -1, 5, 5, 2, 1, 0, 0, 0, 0, 0, 0],
-      box: { x: 16, y: -62, w: 46, h: 44, shape: 'rise' },
+      motion: 'edward/rise', active: [5, 6], limb: undefined, boxOnly: true, damage: 98, guardDamage: 28, hitstun: 30, blockstun: 26, hitstop: 11, push: 1.0,
+      advance: [0, 0, -1, -1, 4, 4, 3, 1, 0, 0, 0, 0, 0, 0],
+      box: { x: 30, y: -72, w: 32, h: 46, shape: 'fall' },
     },
-    // 4타 내려찍기: 머리 위에서 발 앞 바닥에 내리꽂는다. 충격파가 앞으로 퍼져 판정이 바닥을 타고 74px까지 (상대가 벽 쪽으로 날아간다)
+    // 4타 한 바퀴 풀스윙: 몸을 한 바퀴 돌려 가로 원호(지름 110px)로 쳐 멀리 날린다 (벽 쪽으로 날림, 주변 작은 물건 파괴, 화면 흔들림)
     atk4: {
-      motion: 'edward/smash', active: [6, 7], limb: undefined, boxOnly: true, damage: 118, guardDamage: 28, hitstun: 28, blockstun: 18, hitstop: 13, push: 4.6,
-      heavy: true, launch: { vx: 7.6, vy: -4.8 }, wall: true,
-      advance: [0, 0, -1, -1, 0, 6, 8, 4, 2, 1, 0, 0, 0, 0],
-      box: { x: 14, y: -52, w: 60, h: 52, shape: 'fall' },
+      motion: 'edward/smash', active: [5, 6], limb: undefined, boxOnly: true, damage: 133, guardDamage: 40, hitstun: 30, blockstun: 28, hitstop: 12, push: 4.6,
+      heavy: true, launch: { vx: 8.4, vy: -5.6 }, wall: true,
+      advance: [0, 0, -2, -2, 6, 6, 4, 2, 0, 0, 0, 0, 0, 0],
+      box: { x: 20, y: -40, w: 42, h: 34, shape: 'arc' },
     },
     // 띄우기 퍼 올리기: 웅크려 바닥을 긁고 해머를 수직으로 퍼 올리며 솟구친다 (해머 머리가 발 앞 아래 → 머리 위)
     launcher: {
-      motion: 'edward/scoop', active: [4, 5, 6], limb: undefined, boxOnly: true, damage: 78, guardDamage: 18, hitstun: 30, blockstun: 15, hitstop: 10, push: 1.5,
-      launch: { vx: 0.6, vy: -11.4 }, jumpCancel: true,
+      motion: 'edward/scoop', active: [4, 5], limb: undefined, boxOnly: true, damage: 84, guardDamage: 18, hitstun: 32, blockstun: 15, hitstop: 10, push: 1.5,
+      launch: { vx: 0.6, vy: -11.6 }, jumpCancel: true,
       advance: [0, -1, -1, 8, 8, 3, 1, 0, 0, 0, 0, 0, 0],
-      box: { x: 14, y: -86, w: 34, h: 78, shape: 'rise' },
+      box: { x: 12, y: -88, w: 36, h: 80, shape: 'rise' },
     },
     // 쓸기 바닥 쓸기: 엎드리듯 낮게 해머 머리로 발목 높이를 가로지른다 (넘어뜨림)
     sweep: {
-      motion: 'edward/sweep', active: [4, 5], limb: undefined, boxOnly: true, damage: 76, guardDamage: 17, hitstun: 20, blockstun: 15, hitstop: 10, push: 2.0,
+      motion: 'edward/sweep', active: [4, 5], limb: undefined, boxOnly: true, damage: 84, guardDamage: 17, hitstun: 22, blockstun: 15, hitstop: 10, push: 2.0,
       knockdown: true,
       advance: [0, -1, -1, 8, 8, 3, 1, 0, 0, 0, 0, 0, 0],
-      box: { x: 12, y: -18, w: 48, h: 18, shape: 'ground' },
+      box: { x: 10, y: -20, w: 50, h: 20, shape: 'ground' },
     },
-    // 대시 공격 돌진 휘두르기: 돌진하던 힘을 실어 해머가 크게 가로지른다 (몸 이동 48px)
+    // 대시 공격 돌진 휘두르기: 세 걸음 돌진하던 힘을 실어 해머가 등 뒤에서 몸 아래를 지나 크게 가로지른다 (몸 이동 44px)
     dashAttack: {
-      motion: 'edward/rush', active: [5, 6], limb: undefined, boxOnly: true, damage: 90, guardDamage: 20, hitstun: 26, blockstun: 12, hitstop: 11, push: 2.8,
+      motion: 'edward/rush', active: [5, 6], limb: undefined, boxOnly: true, damage: 98, guardDamage: 20, hitstun: 28, blockstun: 12, hitstop: 11, push: 2.8,
       step: undefined,
-      advance: [6, 8, 8, 8, 6, 6, 4, 2, 0, 0, 0, 0, 0],
-      box: { x: 14, y: -46, w: 52, h: 30, shape: 'arc' },
+      advance: [6, 8, 6, 4, 6, 6, 4, 2, 0, 0, 0, 0, 0],
+      box: { x: 14, y: -42, w: 46, h: 32, shape: 'arc' },
     },
+    // 공중 평타: 해머 무게에 몸이 끌려 돈다 (원호 지름 64px). 감는 동안은 공중에 버틴다 (sim/chars/edward.ts), 맞히면 함께 떠오른다
     // 공중 1타 내려치기
     air1: {
-      motion: 'edward/air_chop', active: [4, 5], limb: undefined, boxOnly: true, damage: 50, guardDamage: 11, hitstop: 8,
-      advance: [0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0],
-      box: { x: 14, y: -34, w: 46, h: 36, shape: 'fall' },
+      motion: 'edward/air_chop', active: [5, 6], limb: undefined, boxOnly: true, damage: 64, guardDamage: 12, hitstun: 30, hitstop: 9,
+      launch: { vx: 1.0, vy: -5.4 }, airFollow: 0.4,
+      advance: [0, 0, 0, 0, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+      box: { x: 24, y: -68, w: 30, h: 44, shape: 'fall' },
     },
-    // 공중 2타 옆 휘두르기
+    // 공중 2타 퍼 올리기
     air2: {
-      motion: 'edward/air_swing', active: [4, 5], limb: undefined, boxOnly: true, damage: 58, guardDamage: 12, hitstop: 9,
-      advance: [0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0],
-      box: { x: 14, y: -58, w: 48, h: 36, shape: 'arc' },
+      motion: 'edward/air_swing', active: [5, 6], limb: undefined, boxOnly: true, damage: 70, guardDamage: 13, hitstun: 30, hitstop: 9,
+      launch: { vx: 1.0, vy: -6.0 }, airFollow: 0.4,
+      advance: [0, 0, 0, 0, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+      box: { x: 22, y: -48, w: 30, h: 48, shape: 'rise' },
     },
-    // 공중 3타 한 바퀴 돌려치기: 해머가 몸 앞을 위에서 아래로 크게 돈다 (원)
+    // 공중 3타 내려쳐 떨어뜨리기: 머리 위로 크게 돌려 아래로 내려쳐 상대를 바닥에 내리꽂는다 (튀고 다운)
     air3: {
-      motion: 'edward/air_spin', active: [4, 5, 6], limb: undefined, boxOnly: true, damage: 72, guardDamage: 15, hitstop: 10,
-      advance: [0, 0, 1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
-      box: { x: 18, y: -74, w: 42, h: 76, shape: 'circle' },
+      motion: 'edward/air_spin', active: [5, 6], limb: undefined, boxOnly: true, damage: 88, guardDamage: 16, hitstun: 30, hitstop: 11, spike: true, airFollow: undefined,
+      launch: undefined,
+      advance: [0, 0, 0, 0, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+      box: { x: 26, y: -54, w: 30, h: 50, shape: 'fall' },
     },
-    // 내려찍기: 해머를 발 앞 아래로 수직으로 내리꽂는다 (공중에서 맞히면 바닥에 내리꽂혀 튄다)
+    // 내려찍기: 머리 위로 들고 공중에 멈췄다가 수직으로 떨어진다 (떨어지는 몸에 닿으면 내리꽂음). 착지 지점에서 반원 충격파 (반지름 48px:
+    // sim/chars/edward.ts가 착지한 틱에 판정), 바닥 패임·먼지·화면 흔들림
     slam: {
-      motion: 'edward/air_slam', active: [4, 5, 6], limb: undefined, boxOnly: true, damage: 96, guardDamage: 20, hitstop: 12,
-      advance: [0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
-      box: { x: 16, y: -34, w: 32, h: 42, shape: 'fall' },
+      motion: 'edward/air_slam', active: [4, 5], limb: undefined, boxOnly: true, damage: 105, guardDamage: 22, hitstun: 30, hitstop: 12, heavy: true,
+      advance: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      box: { x: -8, y: -40, w: 44, h: 46, shape: 'fall' },
     },
     // 스킬 1 재현:나: 해머를 바닥에 세우고 푸른 장막을 두른다 (판정 없음). 기력 1칸 + 껍데기 70 → 다음 평타 한 번 피해 ×1.7, 막혀도 방어가 깨진다
     skill1: {
       motion: 'edward/reenact', active: [], limb: undefined, damage: 0, guardDamage: 0, hitstun: 0, blockstun: 0, hitstop: 0, push: 0,
       launch: undefined, step: undefined, heavy: false, meterCost: 1, alsoAir: false,
     },
-    // 스킬 2 불완전한 염동력: 뒷손을 뻗어 앞쪽 멀리(16~160px)까지 움켜쥔다. 앞+스킬 2는 끌어당김, 뒤(방향 없이도)+스킬 2는 밀어냄 (sim/chars/edward.ts).
-    // 방어 막힘 중에도 쓸 수 있다. 근처 물건을 으스러뜨려 상대에게 날린다 (물건 하나에 +35)
+    // 스킬 2 불완전한 염동력 (2026-11-02 피드백 12-3): 뒷손을 뻗어 앞쪽 멀리(16~176px)까지 푸른 장막으로 움켜쥔다 (10~14틱 판정).
+    // 앞+스킬 2 끌어당김: 14~34틱 상대 발이 5px 뜬 채 에드워드 앞 32px까지 끌려와 떨어진다. 뒤(방향 없이도)+스킬 2 밀어냄(alt 그림): 장막 벽에 붙은 채
+    // 80px 밀려나 장막이 터진다 (뒤에 건물 정면이 있으면 벽꽝). 막혀도 끌려오고 밀려난다 (sim/chars/edward.ts). 방어 막힘 중에도 쓸 수 있다.
+    // 근처 물건을 으스러뜨려 상대에게 날린다 (물건 하나에 +35)
     skill2: {
-      motion: 'edward/telekinesis', active: [4, 5, 6], limb: undefined, boxOnly: true, damage: 40, guardDamage: 22, hitstun: 32, blockstun: 18, hitstop: 10, push: 0,
-      launch: undefined, wall: false, heavy: true, meterCost: 1, fromGuard: true,
-      box: { x: 16, y: -62, w: 144, h: 62, shape: 'line' },
+      motion: 'edward/telekinesis', alt: 'edward/tk_push', active: [3, 4], limb: undefined, boxOnly: true, damage: 42, guardDamage: 22, hitstun: 32, blockstun: 18,
+      hitstop: 10, push: 0, launch: undefined, wall: false, heavy: true, meterCost: 1, fromGuard: true,
+      box: { x: 16, y: -70, w: 160, h: 70, shape: 'line' },
     },
-    // 차지 워 해머 내려치기: 해머를 뒤로 끌어 모았다가(되풀이) 머리 위로 넘겨 땅을 내리친다. 해머 머리 판정 + 충격파가 바닥을 타고 앞으로
-    // (단계별 70·100·140px, sim/chars/edward.ts). 모든 단계가 띄운다 (점프로 쫓아간다). 3단계는 막혀도 방어를 깬다
+    // 차지 워 해머 올려치기 (2026-11-02 피드백 12-2): 평타에서 이어 해머를 몸 뒤 바닥에 끌어 놓고 모았다가(되풀이), 떼면 아래 → 앞 → 위로 큰 반원.
+    // 해머 판정은 10~11프레임 몸 앞, 떼고 6~20틱에는 앞쪽 바닥이 차례로 솟구친다 (단계별 64·80·96px = 판정, sim/chars/edward.ts). 맞으면 높이 뜬다
     charge: {
-      motion: 'edward/charge', active: [10], limb: undefined, boxOnly: true, damage: 80, guardDamage: 30, hitstun: 30, blockstun: 12, hitstop: 13,
-      push: 2.0, heavy: true, step: undefined, advance: [0, 0, -1, -1, 0, 0, 0, 0, 2, 4, 4, 2, 0, 0],
-      box: { x: 30, y: -40, w: 34, h: 40, shape: 'fall' },
+      motion: 'edward/charge', active: [9, 10], limb: undefined, boxOnly: true, damage: 56, guardDamage: 30, hitstun: 34, blockstun: 12, hitstop: 12,
+      push: 2.0, heavy: true, step: undefined, advance: [1, 1, 0, -1, 0, 0, 0, 0, 2, 3, 2, 0, 0, 0],
+      box: { x: 8, y: -52, w: 50, h: 52, shape: 'rise' },
       charge: {
         windup: 4, loopTo: 7, from: 8, auto: 50,
         levels: [
-          { at: 0, damage: 80, guardDamage: 30, launch: { vx: 1.2, vy: -10.6 }, jumpCancel: true },
-          { at: 24, damage: 105, guardDamage: 50, launch: { vx: 1.6, vy: -11.4 }, jumpCancel: true },
-          { at: 48, damage: 135, guardDamage: 110, launch: { vx: 2.2, vy: -12.2 }, jumpCancel: true },
+          { at: 0, damage: 77, guardDamage: 30, launch: { vx: 1.0, vy: -12.2 }, jumpCancel: true },
+          { at: 24, damage: 98, guardDamage: 50, launch: { vx: 1.2, vy: -13.0 }, jumpCancel: true },
+          { at: 48, damage: 126, guardDamage: 110, launch: { vx: 1.4, vy: -13.8 }, jumpCancel: true },
         ],
       },
     },
     // 필살기 껍데기 뒤집어쓰기: 잡기 (사거리가 아주 짧다: 3~5프레임에 10px 내디디며 몸 앞 8~36px, 처음 자리에서 46px까지).
     // 막을 수 없다 (sim/chars/edward.ts). 맞으면 연출 세 장면 → 끝에 큰 피해 + 상대가 앞으로 무너진다, 에드워드 껍데기 +200. 빗나가면 40틱 굳음
     super: {
-      motion: 'edward/super', active: [5, 6], limb: undefined, boxOnly: true, damage: 300, guardDamage: 0, hitstun: 40, blockstun: 0, hitstop: 12, push: 0,
-      step: undefined, advance: [0, 0, 0, 3, 4, 3, 0, 0, 0, 0, 0, 0, 0, 0], launch: { vx: 1.2, vy: -2.4 }, wall: false, cutin: 'THE SHELL',
+      motion: 'edward/super', active: [5, 6], limb: undefined, boxOnly: true, damage: 210, guardDamage: 0, hitstun: 40, blockstun: 0, hitstop: 12, push: 0,
+      step: undefined, advance: [0, 0, 0, 3, 4, 3, 0, 0, 0, 0, 0, 0, 0, 0], launch: { vx: 1.2, vy: -2.4 }, wall: false, cutin: { id: 'THE SHELL', name: '껍데기 뒤집어쓰기', band: ['crimsonDeep', 'crimsonDark', 'crimsonLight'], ink: ['white', 'crimsonDeep'], accent: { motif: 'veil', color: 'veilDark', light: 'veilLight' } },
       box: { x: 8, y: -56, w: 28, h: 42, shape: 'line' },
       cinematic: {
         whiff: 40,
@@ -200,7 +210,7 @@ export const EDWARD: CharacterData = {
     wallKick: {
       motion: 'edward/wall_kick', active: [3, 4, 5, 6, 7, 8], limb: undefined, boxOnly: true,
       box: { x: 10, y: -30, w: 30, h: 34, shape: 'fall' },
-      damage: 75, guardDamage: 20, hitstop: 11, heavy: true,
+      damage: 52, guardDamage: 20, hitstop: 11, heavy: true,
       dive: { from: 2, to: 8, vx: 5.0, vy: 4.4 }, rebound: { vx: 1.4, vy: -4.2 }, landLag: 16,
     },
   },

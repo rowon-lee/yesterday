@@ -1,0 +1,72 @@
+/**
+ * 화면 단위 연출 (렌더 전용): 캐릭터 연출이 3D 화면 전체에 거는 효과를 여기에 적고, 3D 화면(gl/post·gl/world·gl/rain)이 읽는다.
+ * - 선 따라 어긋남 (shear): 베기 선 양옆의 화면(무대·캐릭터·이펙트 모두)이 선 방향으로 몇 px 미끄러졌다가 다시 붙는다.
+ *   오스카 베기의 문법 (캐릭터 기획서 13-0). 마지막 팔레트 화면을 칸 단위로 옮겨 찍으므로 새 색이 생기지 않는다.
+ * - 물들이기 (tint): 화면 색 보정·환경광을 한 색으로 끌어당긴다 (오스카 월령수류: 핏빛 달빛).
+ * - 비 멈춤 (rainHold): 빗줄기가 공중에 멈춘다.
+ * 좌표는 월드 px (이펙트와 같다: x는 맵, y는 화면 아래로 +, 땅 = GROUND). sim은 이것을 모른다.
+ */
+
+/** 한 번에 어긋날 수 있는 선 수 (셰이더 배열 크기) */
+export const SHEAR_MAX = 64;
+
+export interface ShearSpec {
+  /** 선 두 끝 (월드 px) */
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  /** 시작 틱 (sim 틱) */
+  at: number;
+  /** 지속 틱 */
+  life: number;
+  /**
+   * 지난 틱 → [선의 + 쪽(선 방향 기준 오른쪽, 화면에서 아래쪽)이 미끄러지는 px, − 쪽이 미끄러지는 px]. 선 방향(x0→x1)으로 +
+   */
+  shift: (age: number) => readonly [number, number];
+  /** 선에서 이만큼(px) 떨어진 곳까지만 어긋나고 그 두 배에서 0이 된다 (0이면 화면 끝까지) */
+  reach: number;
+  /** true면 선이 끝없이 이어진 것으로 (화면 끝에서 끝까지 베인 선) */
+  endless?: boolean;
+}
+
+const shears: ShearSpec[] = [];
+
+/** 어긋남 하나를 건다 */
+export function addShear(s: ShearSpec): void {
+  shears.push(s);
+  if (shears.length > SHEAR_MAX * 2) shears.splice(0, shears.length - SHEAR_MAX * 2);
+}
+
+/** 이 틱에 화면에 걸린 어긋남 (화면 px로: 카메라 왼쪽 위 ix·iy를 뺀다). 끝난 것은 지운다 */
+export function shearFrame(tick: number, ix: number, iy: number): Array<{ ax: number; ay: number; dx: number; dy: number; len: number; reach: number; pos: number; neg: number }> {
+  for (let i = shears.length - 1; i >= 0; i--) if (tick - shears[i]!.at >= shears[i]!.life || tick < shears[i]!.at - 600) shears.splice(i, 1);
+  const out: Array<{ ax: number; ay: number; dx: number; dy: number; len: number; reach: number; pos: number; neg: number }> = [];
+  for (const s of shears) {
+    const age = tick - s.at;
+    if (age < 0) continue;
+    const [pos, neg] = s.shift(age);
+    if (!pos && !neg) continue;
+    const len = Math.hypot(s.x1 - s.x0, s.y1 - s.y0) || 1;
+    out.push({ ax: s.x0 - ix, ay: s.y0 - iy, dx: (s.x1 - s.x0) / len, dy: (s.y1 - s.y0) / len, len: s.endless ? 0 : len, reach: s.reach, pos, neg });
+    if (out.length >= SHEAR_MAX) break;
+  }
+  return out;
+}
+
+/** 새 경기·장면: 걸린 효과를 모두 지운다 */
+export function clearScreenFx(): void {
+  shears.length = 0;
+  tint.k = 0;
+  tint.halo = 1;
+  rainHold.on = false;
+}
+
+/**
+ * 화면 물들이기: k(0~1)만큼 화면 색 보정의 어두운 쪽·밝은 쪽 색과 환경광을 이 색으로 끌어당긴다 ('#rrggbb').
+ * halo: 안개 속 빛 무리 세기 배율 (무대를 덮는 연출 동안 0: 덮인 광원의 무리가 위에 뜨지 않게). 부르는 쪽이 틱마다 정한다
+ */
+export const tint = { k: 0, shadow: '#000000', high: '#ffffff', ambient: '#000000', sat: 1, halo: 1 };
+
+/** 비 멈춤: on이면 빗줄기가 그 자리에 멈추고 물방울이 튀지 않는다 */
+export const rainHold = { on: false };

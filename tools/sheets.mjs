@@ -38,8 +38,9 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 const pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(e.message));
-await page.goto(`${vite.resolvedUrls.local[0]}tools/pages/sheets.html?${query}`);
-await page.waitForFunction(() => window.__sheets !== undefined, null, { timeout: 15000 }).catch(() => {});
+// 모든 동작(200개 넘게)·캐릭터 겉모습을 그리는 데 시간이 걸린다 (새 컨테이너의 첫 변환까지)
+await page.goto(`${vite.resolvedUrls.local[0]}tools/pages/sheets.html?${query}`, { timeout: 600000 });
+await page.waitForFunction(() => window.__sheets !== undefined, null, { timeout: 600000 }).catch(() => {});
 const sheets = (await page.evaluate(() => window.__sheets)) ?? [];
 await browser.close();
 await vite.close();

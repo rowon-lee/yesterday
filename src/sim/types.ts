@@ -120,6 +120,8 @@ export interface Fighter {
   zanHit: boolean;
   /** 잔상에 닿아 느려진 남은 틱 (0 보통). 스스로 움직이는 상태는 반 속도 */
   slowT: number;
+  /** 이 경기에서 이 사람의 필살기 연출이 재생된 횟수 (라운드가 넘어가도 유지. 두 번째부터 짧은 판) */
+  cines: number;
   /**
    * 캐릭터 고유 상태 (sim/chars/*: 껍데기·낙인·검영…). 길이 EXT_LEN의 숫자 배열, 라운드마다 0으로.
    * 칸 번호와 뜻은 그 캐릭터 파일이 정한다 (렌더·HUD도 그 파일의 칸 번호로 읽는다)
@@ -263,5 +265,5 @@ export interface SimState {
    * 필살기 연출 중 (아니면 null): 발동자, 기술, 장면 번호, 장면 안 틱, 맞힌 순간 발동자 자리(1/256px)와 바라보는 쪽.
    * 연출 동안 두 사람은 고정되고 시간·도시 시계도 멈춘다. 피해·날리기·파괴는 끝에 한 번에
    */
-  cine: { who: number; move: MoveId; scene: number; t: number; ox: number; oy: number; dir: 1 | -1 } | null;
+  cine: { who: number; move: MoveId; scene: number; t: number; ox: number; oy: number; dir: 1 | -1; short: boolean } | null;
 }

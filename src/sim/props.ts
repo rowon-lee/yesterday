@@ -31,7 +31,7 @@ export const SMASH_COLLAPSE = 3;
 export const SMASH_KEEP = 4;
 
 /** 물건의 판정 상자 (월드, 1/256px). 지금 없는 물건(다니지 않는 노면전차)이면 null */
-function boxOf(s: SimState, i: number): WBox | null {
+export function boxOf(s: SimState, i: number): WBox | null {
   const b = BREAKABLES[i];
   let x = b.x;
   if (b.kind === 'tram') {

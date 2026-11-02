@@ -13,8 +13,11 @@ import type { Fighter, SimState } from '../types';
 /** f.ext 칸: 전격 저주 남은 틱, 전류 방벽 남은 틱·자리(1/256px)·방향(밀어낸 쪽 +1/−1)·켜짐(상대가 방벽 너머로 나간 적 있음) */
 export const RAIDEN_EXT = { curseT: 0, barrierT: 1, barrierX: 2, barrierDir: 3, barrierArmed: 4 } as const;
 
-/** 화과산 (캐릭터 기획서 스킬 2) 수치: 전격 저주 길이·피해 감소(%), 전류 방벽 길이·자리(라이덴에게서 px)·높이(px) */
-export const HWAGWASAN = { curseTicks: 180, curseCut: 30, barrierTicks: 90, barrierDist: 72, barrierH: 110 } as const;
+/**
+ * 화과산 (캐릭터 기획서 스킬 2) 수치: 전격 저주 길이·피해 감소(%), 전류 방벽 길이·자리(라이덴에게서 px)·높이(px).
+ * 사용자 피드백 2026-11-02 9-3: 방벽은 라이덴 앞 40px(두 사람 사이)에 높이 약 80px
+ */
+export const HWAGWASAN = { curseTicks: 180, curseCut: 30, barrierTicks: 90, barrierDist: 40, barrierH: 80 } as const;
 /** 파천: 맞은 상대 등 뒤로 일직선 잿더미가 되는 거리 (px)와 그 사이 건물을 깎는 간격·높이 */
 export const PACHEON_ASH = { length: 360, step: 40, heights: [8, 40, 80], radius: 18, amount: 60 } as const;
 
@@ -52,8 +55,9 @@ export const RAIDEN_HOOKS: CharHooks = {
     if (def.ext[E.curseT] > 0) return Math.max(1, Math.trunc((damage * (100 - HWAGWASAN.curseCut)) / 100));
     return damage;
   },
-  cineEnd(s, att, def, id) {
-    if (id === 'super') ashLine(s, att, def);
+  cineScene(s, att, def, id, scene) {
+    // 파천 넷째 장면 (사용자 피드백 2026-11-02 9-4, 96틱째): 상대 등 뒤 일직선이 잿더미가 된다 (파괴 상태는 sim에 남는다)
+    if (id === 'super' && scene === 3) ashLine(s, att, def);
   },
 };
 
@@ -82,7 +86,7 @@ function barrier(s: SimState, f: Fighter): void {
   s.events.push({ type: 'char', who: s.fighters.indexOf(f), x: e[E.barrierX], y: o.y, text: 'deflect' });
 }
 
-/** 파천 끝: 맞은 상대 등 뒤로 일직선 위의 건물 덩어리와 물건이 무너져 잿더미가 된다 (연출 끝 타격과 같은 틱) */
+/** 파천 넷째 장면: 맞은 상대 등 뒤로 일직선 위의 건물 덩어리와 물건이 무너져 잿더미가 된다 */
 function ashLine(s: SimState, att: Fighter, def: Fighter): void {
   const dir = att.facing;
   const x0 = Math.round(def.x / 256);

@@ -2,6 +2,7 @@ import type { Joints } from '../anim/pose';
 import { HIT_AIR_LOOP_FROM, HIT_STRETCH } from '../data/poses/common';
 import { WALL_CLING_LOOP_FROM, WALL_RUN_TOP_FROM } from '../data/poses/wall';
 import { frameAtTick, frameFitted, frameStretched, motionFrames, motionOf, movesOf, statsOf } from './frames';
+import { hooksOf } from './chars';
 import type { Fighter } from './types';
 
 /**
@@ -80,8 +81,12 @@ function pick(f: Fighter): [string, number] {
       return stretch(motionOf(f.char, 'dash'), f.t, statsOf(f.char).dashTicks);
     case 'airdash':
       return stretch(motionOf(f.char, 'air_dash'), f.t, statsOf(f.char).airDashTicks);
-    case 'attack':
-      return once(movesOf(f.char)[f.move!].frames.name, f.t);
+    case 'attack': {
+      const mv = movesOf(f.char)[f.move!];
+      // 캐릭터 규칙이 고른 다른 그림 (표시 틱이 같아 프레임은 그대로)
+      if (mv.data.alt && hooksOf(f.char).altMotion?.(f, f.move!)) return once(mv.data.alt, f.t);
+      return once(mv.frames.name, f.t);
+    }
     case 'hitstun':
       // 약하게 맞음·세게 맞음 (공통 동작): 경직이 길면 늘어나는 프레임(5번·6번)이 늘고, 짧으면 줄인다
       return fitted(f.heavyHit ? 'common/hit_heavy' : 'common/hit_light', f.t, f.len);

@@ -1,14 +1,16 @@
 import { HAMMER } from '../../anim/decor/edward';
 import type { MoveId } from '../../data/moves/base';
+import { arcAt, EDWARD_ARCS, type HammerArc } from '../../data/poses/edward/attack';
 import { EDWARD_INTRO_T } from '../../data/poses/edward/show';
-import { BREAKABLES, movesOf, type Fighter } from '../../sim';
-import { EX, SHELL_MAX } from '../../sim/chars/edward';
+import { CHARGE_ARC } from '../../data/poses/edward/skill';
+import { BREAKABLES, fighterPose, movesOf, type Fighter } from '../../sim';
+import { EX, SHELL_MAX, SHELL_QUIET } from '../../sim/chars/edward';
 import { GROUND as GROUND_Y } from '../../stage/citadel';
 import explosion from '../../vfx/explosion';
 import glint from '../../vfx/glint';
 import impact from '../../vfx/impact';
 import powerUp from '../../vfx/power-up';
-import { darkness, ghost, hammerArc, memories, shockwave, tether, veilRing, veilShell } from '../../vfx/edward-fx';
+import { cracks, darkness, dome, ghost, hammerArc, memories, scrape, shockwave, slabs, veilAura, veilBands, veilBox, veilHand, veilRing, veilShell, veilWall } from '../../vfx/edward-fx';
 import { lights } from '../light';
 import { COLORS, type ColorName } from '../palette';
 import { fxColor, fxHex, fxRamp, FX_PX } from '../vfx';
@@ -29,13 +31,23 @@ import type { CharFx, CharRender } from '.';
 export const VEIL: ColorName[] = ['fxWhite', 'veilLight', 'veil', 'veilDark', 'fxNavy'];
 /** 바닥 파편 (돌·흙) */
 const RUBBLE: ColorName[] = ['stone', 'stoneDark', 'sidewalk', 'curb'];
+/** 해머 원호: 청동빛 (2026-11-02 피드백 12-1 '청동빛 원호 + 푸른 잔상(껍데기 색)') */
+const BRONZE: ColorName[] = ['bronzeLight', 'bronzeLight', 'bronze', 'bronzeDark'];
+/** 젖은 바닥에 튀는 물 */
+const WATER: ColorName[] = ['fxWhite', 'skyLight', 'sky'];
 
-/** 해머 원호 굵기 (px) */
+/** 해머 원호 굵기 (px, 8~12) */
 const ARC_W: Partial<Record<MoveId, number>> = {
-  atk1: 9, atk2: 10, atk3: 11, atk4: 14, launcher: 12, sweep: 11, dashAttack: 13, air1: 9, air2: 10, air3: 12, slam: 13, charge: 16,
+  atk1: 9, atk2: 9, atk3: 11, atk4: 12, launcher: 11, sweep: 10, dashAttack: 11, air1: 8, air2: 8, air3: 10, slam: 12, charge: 12,
 };
 /** 센 타격 (흔들림·파편) */
 const HEAVY: ReadonlySet<MoveId> = new Set(['atk4', 'launcher', 'dashAttack', 'slam', 'charge']);
+/** 해머 평타 (맞힐 때마다 바닥이 반응한다: 물 튐) */
+const HAMMER_HITS: ReadonlySet<MoveId> = new Set(['atk1', 'atk2', 'atk3', 'atk4', 'launcher', 'sweep', 'dashAttack', 'air1', 'air2', 'air3', 'slam', 'wallKick']);
+/** 해머 머리가 바닥에 닿는 프레임 (그 프레임이 시작하는 틱에 물 튐·균열·먼지): 기술 → [프레임, 해머 머리 앞 거리 px, 크기 0~1] */
+const GROUND_TOUCH: Partial<Record<MoveId, [number, number, number]>> = {
+  atk1: [8, 34, 0.35], atk3: [7, 48, 0.8], sweep: [4, 50, 0.4],
+};
 
 /** 사람마다 지난 틱의 상태 (상태가 바뀌는 순간을 잡는다), 강화된 평타 중인가, 염동력 방향 */
 const prev: Array<{ mode: string; t: number; jumpKind: number }> = [
@@ -44,8 +56,10 @@ const prev: Array<{ mode: string; t: number; jumpKind: number }> = [
 ];
 const empowered = [false, false];
 
-/** 등장: 보이지 않다가 hide틱부터 화면 위 하늘(INTRO_DROP px 위)에서 land틱까지 점점 빨리 떨어진다 */
-const INTRO_DROP = 220;
+/** 등장 (피드백 12-5): 화면 위(INTRO_DROP px 위)에서 꼿꼿이 선 채 land틱까지 점점 빨리 떨어진다 */
+const INTRO_DROP = 260;
+
+const px256 = (v: number): number => v * 256;
 
 const world = (f: Fighter, x: number, y: number): [number, number] => [(f.x / 256 + f.facing * x) * FX_PX, (GROUND_Y + f.y / 256 + y) * FX_PX];
 
@@ -71,37 +85,48 @@ function headPath(f: Fighter, id: MoveId): Array<[number, number]> {
   return out;
 }
 
+/** 해머 머리가 지나는 원호 (data/poses/edward/attack EDWARD_ARCS)를 이펙트 좌표로 */
+function arcPath(f: Fighter, a: HammerArc): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  const n = 14;
+  for (let k = 0; k <= n; k++) {
+    const [x, y] = arcAt(a, a.a0 + ((a.a1 - a.a0) * k) / n);
+    out.push(world(f, x, y));
+  }
+  return out;
+}
+
+/** 젖은 바닥에 해머가 닿거나 맞은 자리: 물방울이 튀고 물결 고리가 퍼진다 (size 0~1) */
+function splash(c: CharFx, x: number, ground: number, dir: number, size: number): void {
+  c.debris.burst('water', x / FX_PX, ground / FX_PX - 1, dir, 4 + Math.round(size * 8));
+  c.debris.burst('water', x / FX_PX, ground / FX_PX - 1, -dir, 2 + Math.round(size * 4));
+  c.layer.add(veilRing({ x, y: ground, radius: 8 + size * 14, flat: 0.25, ticks: 14 + Math.round(size * 8), ramp: fxRamp(WATER) }));
+}
+
+/** 등장 착지 (피드백 12-5): 두 발로 선 채 쿵 — 바닥에 방사형 균열, 먼지, 충격파 고리, 물, 화면 흔들림 */
 function introImpact(c: CharFx, f: Fighter): void {
   const [fx, fy] = c.feet(f);
   const wx = fx / FX_PX;
   const wy = fy / FX_PX;
-  const head = f.facing * 24;
-  c.layer.add(impact({ kind: 'hit', x: fx + head * FX_PX, y: fy - 2 * FX_PX, angle: -Math.PI / 2, size: 0.95, ramp: fxRamp(['fxWhite', 'veilLight', 'stone', 'stoneDark', 'fxSoot']), seed: c.seed() }));
+  c.layer.add(cracks({ x: fx, y: fy, count: 9, len: 26, color: fxColor('fxSoot'), ticks: 150, seed: c.seed() }));
   for (const dir of [-1, 1]) {
-    c.layer.add(shockwave({ x: fx + head * FX_PX, y: fy, dir, len: 70, speed: 380, height: 8, ramp: fxRamp(VEIL), crack: fxColor('fxSoot'), rubble: fxRamp(RUBBLE), seed: c.seed() }));
-    c.debris.burst('brick', wx + head, wy - 2, dir, 6);
+    c.layer.add(shockwave({ x: fx, y: fy, dir, len: 60, speed: 380, height: 6, ramp: fxRamp(VEIL), crack: fxColor('fxSoot'), rubble: fxRamp(RUBBLE), seed: c.seed() }));
+    c.debris.burst('brick', wx, wy - 2, dir, 5);
   }
-  c.layer.add(veilRing({ x: fx + head * FX_PX, y: fy, radius: 42, ticks: 18, ramp: fxRamp(VEIL) }));
-  c.debris.dustCloud(wx - 34, wx + 34, 0.9, wy);
-  c.glow(wx + head, wy - 8, 130, COLORS.veilLight, 1, 18);
+  c.layer.add(veilRing({ x: fx, y: fy, radius: 46, flat: 0.28, ticks: 20, ramp: fxRamp(['fxWhite', 'veilLight', 'stone', 'stoneDark']) }));
+  splash(c, fx, fy, f.facing, 1);
+  c.debris.dustCloud(wx - 40, wx + 40, 1, wy);
+  c.glow(wx, wy - 8, 120, COLORS.veilLight, 0.9, 16);
   c.fx.shake(0.7);
   c.fx.flashFor(1);
-}
-
-/** 센 해머가 바닥을 칠 때: 바닥 충격파·파편·먼지·흔들림 */
-function groundSlam(c: CharFx, x: number, y: number, dir: number, len: number, size: number): void {
-  c.layer.add(impact({ kind: 'hit', x, y: y - 2 * FX_PX, angle: -Math.PI / 2, size, ramp: fxRamp(['fxWhite', 'veilLight', 'stone', 'stoneDark', 'fxSoot']), seed: c.seed() }));
-  c.layer.add(shockwave({ x, y, dir, len, speed: 440, height: 6 + size * 6, ramp: fxRamp(VEIL), crack: fxColor('fxSoot'), rubble: fxRamp(RUBBLE), seed: c.seed() }));
-  c.debris.burst('brick', x / FX_PX, y / FX_PX - 2, dir, 4 + Math.round(size * 4));
-  c.debris.burst('brick', x / FX_PX, y / FX_PX - 2, -dir, 2 + Math.round(size * 2));
-  c.debris.dustCloud(x / FX_PX - 10, x / FX_PX + 10, 0.4 + size * 0.4, y / FX_PX);
-  c.fx.shake(0.2 + 0.25 * size);
 }
 
 export const EDWARD_RENDER: CharRender = {
   ramp: VEIL,
   light: COLORS.veil,
   ownIntro: true,
+  ownChargeAura: true,
+  ownDash: true,
   introHidden: (f) => f.t < EDWARD_INTRO_T.hide,
   introLift(f) {
     const I = EDWARD_INTRO_T;
@@ -110,40 +135,33 @@ export const EDWARD_RENDER: CharRender = {
     return Math.round(INTRO_DROP * (1 - u * u));
   },
 
-  strike(c, s, f, i, id) {
+  strike(c, _s, f, _i, id) {
     const w = ARC_W[id];
     if (w) {
-      // 해머 머리가 지난 길을 따라 굵고 짧은 원호 (히트스톱 동안 멈춘다)
-      const path = headPath(f, id);
+      // 해머 머리가 지난 길을 따라 청동빛 원호 + 푸른 해머 머리 잔상 (히트스톱 동안 멈춘다). 원호가 정해진 평타는 그 원호를 그린다
+      const mv = movesOf(f.char)[id];
+      const arc = EDWARD_ARCS[mv.data.motion] ?? (id === 'charge' ? CHARGE_ARC : undefined);
+      const path = arc ? arcPath(f, arc) : headPath(f, id);
       const fighter = f;
-      c.layer.add(hammerArc({ path, width: w, ticks: HEAVY.has(id) ? 13 : 10, ramp: fxRamp(VEIL), held: () => fighter.hitstop > 0 }));
-      const [ex, ey] = path[path.length - 1]!;
-      c.glow(ex / FX_PX, ey / FX_PX, HEAVY.has(id) ? 80 : 50, COLORS.veilLight, HEAVY.has(id) ? 0.9 : 0.6, 10);
-      const ground = (GROUND_Y + f.floor / 256) * FX_PX;
-      // 바닥을 치는 해머: 4타 내려찍기는 충격파가 판정 끝(74px)까지 달린다, 쓸기는 바닥을 긁는다, 공중 내려찍기는 바닥 가까우면
-      if (id === 'atk4') groundSlam(c, ex, ground, f.facing, 34, 0.75);
-      else if (id === 'sweep') {
-        c.debris.dustCloud(ex / FX_PX - 14, ex / FX_PX + 6, 0.45, ground / FX_PX);
-        c.debris.burst('brick', ex / FX_PX, ground / FX_PX - 1, f.facing, 4);
-      } else if (id === 'slam' && ground - ey < 30 * FX_PX) groundSlam(c, ex, ground, f.facing, 20, 0.5);
-      else if (id === 'launcher') c.debris.burst('brick', ex / FX_PX, ground / FX_PX - 2, f.facing, 4);
-      if (HEAVY.has(id)) c.fx.shake(0.12);
-    } else if (id === 'skill2') {
-      // 염동력: 뻗은 뒷손과 상대 가슴을 잇는 푸른 궤적
-      const op = s.fighters[1 - i]!;
-      const fighter = f;
-      const pull = f.ext[EX.TK_DIR] === 1;
-      c.layer.add(tether({
-        from: () => {
-          const j = movesOf(fighter.char).skill2.frames.joints[6]!;
-          return world(fighter, j.hB[0], j.hB[1]);
-        },
-        to: () => [(op.x / 256) * FX_PX, (GROUND_Y + op.y / 256 - 28) * FX_PX],
-        ticks: 22,
-        flow: pull ? 1 : -1,
-        ramp: fxRamp(VEIL),
+      c.layer.add(hammerArc({
+        path, width: w, ticks: HEAVY.has(id) ? 16 : 12, ramp: fxRamp(BRONZE), ghost: fxRamp(VEIL.slice(1)), heads: HEAVY.has(id) ? 5 : 3,
+        head: { half: HAMMER.half, thick: HAMMER.thick }, held: () => fighter.hitstop > 0,
       }));
-      c.glow(f.x / 256 + f.facing * 20, GROUND_Y + f.y / 256 - 26, 70, COLORS.veil, 0.8, 18);
+      const [ex, ey] = path[path.length - 1]!;
+      c.glow(ex / FX_PX, ey / FX_PX, HEAVY.has(id) ? 80 : 50, COLORS.bronzeLight, HEAVY.has(id) ? 0.8 : 0.5, 10);
+      const ground = (GROUND_Y + f.floor / 256) * FX_PX;
+      if (id === 'launcher') c.debris.burst('brick', ex / FX_PX, ground / FX_PX - 2, f.facing, 4);
+      // 4타 풀스윙: 화면이 흔들리고 발밑 먼지가 휘말린다
+      if (id === 'atk4') {
+        c.fx.shake(0.45);
+        c.debris.dustCloud(f.x / 256 - 30, f.x / 256 + 40, 0.6, ground / FX_PX);
+      } else if (HEAVY.has(id)) c.fx.shake(0.12);
+    } else if (id === 'skill2') {
+      // 염동력: 장막을 뻗는 순간 손바닥이 푸르게 번쩍 (띠·손·벽은 붙잡았을 때: event tkGrab·tkWall)
+      const j = fighterPose(f).joints;
+      const [hx, hy] = world(f, j.hB[0], j.hB[1]);
+      c.layer.add(glint({ x: hx, y: hy, size: 0.6, ramp: fxRamp(VEIL) }));
+      c.glow(hx / FX_PX, hy / FX_PX, 60, COLORS.veilLight, 0.8, 10);
     } else if (id === 'super') {
       // 잡는 손에 푸른 빛이 번쩍
       const j = movesOf(f.char).super.frames.joints[5]!;
@@ -158,6 +176,12 @@ export const EDWARD_RENDER: CharRender = {
     const [fx, fy] = c.feet(f);
     const wx = fx / FX_PX;
     const wy = fy / FX_PX;
+    if (e.type === 'hit' && e.move && HAMMER_HITS.has(e.move)) {
+      // 맞을 때마다 바닥 반응: 맞은 자리 아래 젖은 바닥에 물이 튄다 (공중이면 바닥 가까울 때만)
+      const op = s.fighters[1 - i]!;
+      const ground = (GROUND_Y + op.floor / 256) * FX_PX;
+      if (op.floor - op.y < px256(40)) splash(c, (op.x / 256) * FX_PX, ground, f.facing, HEAVY.has(e.move) ? 0.8 : 0.4);
+    }
     if (e.type === 'hit' && e.move && (HEAVY.has(e.move) || empowered[i])) {
       // 센 해머·강화된 평타: 맞은 자리에서 파편과 푸른 고리
       const x = (e.x / 256) * FX_PX;
@@ -168,6 +192,31 @@ export const EDWARD_RENDER: CharRender = {
         c.layer.add(explosion({ x, ground: (GROUND_Y + f.floor / 256) * FX_PX, size: 0.35, surface: fxColor('street'), seed: c.seed(), fire: 0 }));
         c.fx.shake(0.4);
         c.fx.flashFor(2);
+      }
+      return;
+    }
+    if (e.type === 'charge' && (e.text === 'start' || e.text === 'level')) {
+      // 단계가 오를 때만: 발밑 젖은 바닥이 한 번 크게 울린다 (물결 고리 + 물방울)
+      const lv = e.combo ?? 1;
+      c.layer.add(veilRing({ x: fx, y: fy, radius: 14 + 8 * lv, flat: 0.22, ticks: 18, ramp: fxRamp(WATER) }));
+      c.debris.burst('water', wx, wy - 1, 1, 2 + 2 * lv);
+      c.debris.burst('water', wx, wy - 1, -1, 2 + 2 * lv);
+      if (e.text === 'start') {
+        // 모으기 시작: 해머 머리가 바닥을 긁는다 (홈·청동빛 불꽃), 팔·등에 푸른 장막 윤곽이 단계마다 짙어진다
+        const fighter = f;
+        const windup = movesOf(f.char).charge.frames.cum[movesOf(f.char).charge.data.charge!.windup - 1]!;
+        c.layer.add(scrape({
+          head: () => {
+            if (fighter.mode !== 'charge' || fighter.t >= windup) return null;
+            const j = fighterPose(fighter).joints;
+            return world(fighter, j.hF[0] + Math.cos(j.wa) * HAMMER.reach, j.hF[1] + Math.sin(j.wa) * HAMMER.reach);
+          },
+          ground: (GROUND_Y + f.floor / 256) * FX_PX, groove: fxColor('fxSoot'), sparks: fxRamp(['fxWhite', 'bronzeLight', 'bronze']), seed: c.seed(),
+        }));
+        c.layer.add(veilAura({
+          silhouette: () => c.silhouette(fighter), level: () => (fighter.mode === 'charge' ? Math.max(1, fighter.chargeLv) : 0),
+          feet: () => c.feet(fighter), facing: () => fighter.facing, ramp: fxRamp(VEIL),
+        }));
       }
       return;
     }
@@ -206,10 +255,57 @@ export const EDWARD_RENDER: CharRender = {
       case 'empowered':
         empowered[i] = true;
         break;
+      case 'tkGrab': {
+        // 끌어당김: 손에서 꼬인 장막 띠 세 가닥이 뻗고, 상대보다 한 둘레 큰 장막 손이 움켜쥔다 (흰 번쩍 1틱). 끌려가는 발밑에 물 자국
+        const op = s.fighters[1 - i]!;
+        const hand = () => {
+          const j = fighterPose(fighter).joints;
+          return world(fighter, j.hB[0], j.hB[1]);
+        };
+        const chest = (): [number, number] => [(op.x / 256) * FX_PX, (GROUND_Y + op.y / 256 - 26) * FX_PX];
+        const alive = () => fighter.ext[EX.TK_GRAB] === 1 && fighter.mode === 'attack';
+        c.layer.add(veilBands({ from: hand, to: chest, alive, ramp: fxRamp(VEIL) }));
+        c.layer.add(veilHand({ at: chest, from: -f.facing, size: 30, alive, ramp: fxRamp(VEIL), seed: c.seed() }));
+        c.layer.add(scrape({
+          head: () => (alive() ? [(op.x / 256) * FX_PX, (GROUND_Y + op.floor / 256) * FX_PX] : null),
+          ground: (GROUND_Y + op.floor / 256) * FX_PX, groove: fxColor('fxSoot'), sparks: fxRamp(WATER), seed: c.seed(),
+        }));
+        c.glow(op.x / 256, GROUND_Y + op.y / 256 - 26, 80, COLORS.veilLight, 0.9, 12);
+        c.fx.flashFor(1);
+        break;
+      }
+      case 'tkWall': {
+        // 밀어냄: 높이 70px 장막 벽이 상대를 붙인 채 밀려 나가고, 벽 밑 젖은 바닥이 갈라진다
+        const op = s.fighters[1 - i]!;
+        const alive = () => fighter.ext[EX.TK_GRAB] === 2 && fighter.mode === 'attack';
+        c.layer.add(veilWall({
+          at: () => [((op.x / 256) - fighter.facing * 12) * FX_PX, (GROUND_Y + op.floor / 256) * FX_PX],
+          dir: f.facing, height: 70, alive, ramp: fxRamp(VEIL), seed: c.seed(),
+        }));
+        c.glow(op.x / 256, GROUND_Y + op.y / 256 - 30, 90, COLORS.veilLight, 0.9, 14);
+        c.fx.shake(0.15);
+        break;
+      }
+      case 'tkDrop': {
+        // 끌려온 상대가 떨어진다: 발밑 물이 튀고 장막 손이 깨져 흩어진다 (veilHand)
+        const op = s.fighters[1 - i]!;
+        splash(c, (op.x / 256) * FX_PX, (GROUND_Y + op.floor / 256) * FX_PX, -f.facing, 0.5);
+        c.fx.shake(0.12);
+        break;
+      }
+      case 'tkBurst': {
+        // 장막 벽이 터진다 (veilWall 조각), 화면이 흔들린다
+        const op = s.fighters[1 - i]!;
+        c.glow(op.x / 256, GROUND_Y + op.y / 256 - 30, 110, COLORS.veilLight, 1, 12);
+        splash(c, (op.x / 256) * FX_PX, (GROUND_Y + op.floor / 256) * FX_PX, f.facing, 0.7);
+        c.fx.shake(0.35);
+        break;
+      }
       case 'crush': {
-        // 염동력이 으스러뜨린 물건: 조각이 상대 쪽으로 날아간다
+        // 염동력이 으스러뜨린 물건: 같은 장막이 감싸 조였다가 조각이 상대 쪽으로 날아간다
         const b = BREAKABLES[e.combo ?? 0];
         if (!b) break;
+        c.layer.add(veilBox({ x: b.x * FX_PX, y: (GROUND_Y - b.bottom - b.h) * FX_PX, w: b.w * FX_PX, h: b.h * FX_PX, ticks: 8, ramp: fxRamp(VEIL), seed: c.seed() }));
         const op = s.fighters[1 - i]!;
         const bx = b.x + b.w / 2;
         const by = GROUND_Y - b.bottom - b.h / 2;
@@ -220,18 +316,40 @@ export const EDWARD_RENDER: CharRender = {
         c.fx.shake(0.2);
         break;
       }
-      case 'wave': {
-        // 차지: 땅을 내리친 자리에서 충격파가 바닥을 타고 앞으로 달린다 (sim 충격파와 같은 거리·빠르기)
+      case 'slamLand': {
+        // 내려찍기 착지: 반원 충격파(반지름 48px)가 퍼지고 바닥이 패인다, 먼지·물·흙이 튀고 화면이 흔들린다
+        const g = (GROUND_Y + f.y / 256) * FX_PX;
+        const x = fx + f.facing * 20 * FX_PX;
+        c.layer.add(dome({ x, y: g, radius: e.combo ?? 48, ticks: 16, ramp: fxRamp(['fxWhite', 'bronzeLight', 'veilLight', 'veil']), crack: fxColor('fxSoot'), seed: c.seed() }));
+        c.layer.add(impact({ kind: 'hit', x, y: g - 2 * FX_PX, angle: -Math.PI / 2, size: 0.8, ramp: fxRamp(['fxWhite', 'bronzeLight', 'stone', 'stoneDark', 'fxSoot']), seed: c.seed() }));
+        splash(c, x, g, f.facing, 1);
+        c.debris.burst('brick', x / FX_PX, g / FX_PX - 2, f.facing, 6);
+        c.debris.burst('brick', x / FX_PX, g / FX_PX - 2, -f.facing, 4);
+        c.debris.dustCloud(x / FX_PX - 40, x / FX_PX + 40, 0.9, g / FX_PX);
+        c.glow(x / FX_PX, g / FX_PX - 10, 120, COLORS.bronzeLight, 0.9, 16);
+        c.fx.shake(0.6);
+        c.fx.flashFor(1);
+        break;
+      }
+      case 'slabs': {
+        // 차지 올려치기: 앞쪽 바닥 판이 일직선으로 차례로 솟구쳐 (sim 판정과 같은 길이·빠르기) 기울어진 채 잔해로 남는다
         const x = (e.x / 256) * FX_PX;
         const g = (GROUND_Y + e.y / 256) * FX_PX;
-        c.layer.add(shockwave({ x, y: g, dir: f.facing, len: e.combo ?? 70, speed: 480, height: 14, ramp: fxRamp(VEIL), crack: fxColor('fxSoot'), rubble: fxRamp(RUBBLE), seed: c.seed() }));
-        c.layer.add(explosion({ x, ground: g, size: 0.45, surface: fxColor('street'), seed: c.seed(), fire: 0 }));
-        c.debris.burst('brick', e.x / 256, g / FX_PX - 2, f.facing, 8);
-        c.debris.burst('brick', e.x / 256, g / FX_PX - 2, -f.facing, 4);
-        c.debris.dustCloud(e.x / 256 - 20, e.x / 256 + 20, 1, g / FX_PX);
-        c.glow(e.x / 256, g / FX_PX - 10, 140, COLORS.veilLight, 1, 18);
-        c.fx.shake(0.6);
-        c.fx.flashFor(2);
+        const len = e.combo ?? 64;
+        const serial = f.ext[EX.RUBBLE_N]!;
+        const fighter = f;
+        c.layer.add(slabs({
+          x, y: g, dir: f.facing, len, ticks: 14, ramp: fxRamp(['paleGrey', 'sidewalk', 'stone', 'stoneDark']),
+          keep: () => fighter.ext[EX.RUBBLE_N] === serial, glow: fxColor('veilLight'), seed: c.seed(),
+        }));
+        for (let k = 0; k <= len; k += 16) {
+          const wx = e.x / 256 + f.facing * k;
+          c.debris.burst('brick', wx, g / FX_PX - 3, f.facing, 2);
+        }
+        c.debris.dustCloud(Math.min(e.x / 256, e.x / 256 + f.facing * len), Math.max(e.x / 256, e.x / 256 + f.facing * len), 0.7, g / FX_PX);
+        splash(c, x, g, f.facing, 0.8);
+        c.glow(e.x / 256 + (f.facing * len) / 2, g / FX_PX - 10, 70, COLORS.veilLight, 0.55, 16);
+        c.fx.shake(0.4);
         break;
       }
     }
@@ -250,25 +368,57 @@ export const EDWARD_RENDER: CharRender = {
         c.layer.add(veilShell({ silhouette: () => c.silhouette(fighter), ticks: 16, ramp: fxRamp(VEIL), seed: c.seed() }));
       }
     }
-    // 착지할 때마다 바닥이 울린다
+    // 염동력 밀어냄: 장막 벽 밑 젖은 바닥이 갈라진다 (밀려 나가는 동안 물이 양옆으로 튄다)
+    if (f.ext[EX.TK_GRAB] === 2 && f.mode === 'attack' && s.tick % 3 === 0) {
+      const op = s.fighters[1 - i]!;
+      c.debris.burst('water', op.x / 256 - f.facing * 12, GROUND_Y + op.floor / 256 - 1, f.facing, 2);
+    }
+    // 차지를 모으는 동안 발밑 물이 떨린다 (작은 물결 고리가 이어진다)
+    if (f.mode === 'charge' && s.tick % 12 === 0) c.layer.add(veilRing({ x: fx, y: fy, radius: 9, flat: 0.22, ticks: 12, ramp: fxRamp(['skyLight', 'sky', 'skyDark']) }));
+    // 해머 머리가 바닥에 닿는 프레임: 물이 튀고, 3타는 바닥에 균열 40px (양쪽 20px씩)·먼지·흔들림
+    if (f.mode === 'attack' && f.move) {
+      const touch = GROUND_TOUCH[f.move];
+      const mv = movesOf(f.char)[f.move];
+      if (touch && f.t === mv.frames.cum[touch[0] - 1]) {
+        const g = (GROUND_Y + f.floor / 256) * FX_PX;
+        const x = fx + f.facing * touch[1] * FX_PX;
+        splash(c, x, g, f.facing, touch[2]);
+        if (f.move === 'atk3') {
+          for (const dir of [-1, 1]) c.layer.add(shockwave({ x, y: g, dir, len: 20, speed: 300, height: 4, ramp: fxRamp(['stone', 'stoneDark', 'fxSoot']), crack: fxColor('fxSoot'), rubble: fxRamp(RUBBLE), seed: c.seed() }));
+          c.debris.burst('brick', x / FX_PX, g / FX_PX - 2, f.facing, 5);
+          c.debris.dustCloud(x / FX_PX - 16, x / FX_PX + 16, 0.5, g / FX_PX);
+          c.fx.shake(0.25);
+        } else c.debris.dustCloud(x / FX_PX - 6, x / FX_PX + 6, 0.25 + touch[2] * 0.3, g / FX_PX);
+      }
+    }
+    // 착지할 때마다 두 발로 쿵: 먼지 고리가 퍼지고 물이 튀고 화면이 1px쯤 흔들린다 (피드백 12-4)
     if (f.mode === 'land' && was.mode !== 'land') {
       c.fx.shake(0.16);
-      c.debris.dustCloud(wx - 12, wx + 12, 0.45, wy);
-      c.layer.add(veilRing({ x: fx, y: fy, radius: 16, ticks: 10, ramp: fxRamp(['stone', 'stoneDark', 'sidewalk', 'fxSoot']) }));
+      c.debris.dustCloud(wx - 14, wx + 14, 0.5, wy);
+      c.layer.add(veilRing({ x: fx, y: fy, radius: 20, flat: 0.25, ticks: 14, ramp: fxRamp(['stone', 'stoneDark', 'sidewalk', 'fxSoot']) }));
+      splash(c, fx, fy, f.facing, 0.35);
     }
     // 2단 점프: 발밑 허공에 푸른 장막 디딤판
     if (f.mode === 'air' && f.jumpKind === 2 && (was.jumpKind !== 2 || was.mode !== 'air')) {
       c.layer.add(veilRing({ x: fx, y: fy + 2 * FX_PX, radius: 18, ticks: 14, ramp: fxRamp(VEIL) }));
       c.glow(wx, wy, 50, COLORS.veil, 0.8, 10);
     }
-    // 대시: 앞발로 쿵 멈추는 순간 바닥이 울린다
-    if (f.mode === 'dash' && f.t === 11) {
-      c.fx.shake(0.12);
-      c.debris.dustCloud(wx + f.facing * 8, wx + f.facing * 16, 0.35, wy);
+    // 대시 (피드백 12-4): 세 걸음 쿵쿵쿵 — 디딜 때마다 (6·12·18틱, 3·6·9프레임) 젖은 바닥에 물이 튀고 화면이 조금 흔들린다
+    if (f.mode === 'dash' && (f.t === 6 || f.t === 12 || f.t === 18)) {
+      splash(c, fx + f.facing * 10 * FX_PX, fy, f.facing, 0.45);
+      c.debris.dustCloud(wx + f.facing * 4, wx + f.facing * 14, 0.25, wy);
+      c.fx.shake(0.1);
     }
-    // 벽: 묵직하게 붙고(쿵), 달려 오를 때 걸음마다 울린다
-    if (f.mode === 'wallcling' && was.mode !== 'wallcling') c.fx.shake(0.14);
-    if (f.mode === 'wallrun' && f.t % 6 === 1) c.fx.shake(0.06);
+    // 벽 (피드백 12-4 '발바닥 전체로 찍듯, 벽에 금'): 붙는 순간 쿵 하고 발 자리에 금이 가고, 달려 오를 때 걸음마다 금이 간다
+    if (f.mode === 'wallcling' && was.mode !== 'wallcling') {
+      c.fx.shake(0.14);
+      c.layer.add(cracks({ x: f.wallX * FX_PX, y: fy - 6 * FX_PX, count: 6, len: 10, color: fxColor('fxSoot'), seed: c.seed() }));
+      c.debris.burst('brick', f.wallX, wy - 6, -f.wallSide || -f.facing, 3);
+    }
+    if (f.mode === 'wallrun' && f.t % 6 === 1) {
+      c.fx.shake(0.06);
+      c.layer.add(cracks({ x: f.wallX * FX_PX, y: fy - 4 * FX_PX, count: 4, len: 7, color: fxColor('fxSoot'), ticks: 60, seed: c.seed() }));
+    }
     // 강화된 평타: 푸른 잔상을 남긴다
     if (f.mode !== 'attack') empowered[i] = false;
     if (empowered[i] && s.tick % 3 === 0) {
@@ -323,8 +473,8 @@ export const EDWARD_RENDER: CharRender = {
     const w = Math.round(slot.w * Math.max(0, Math.min(1, r)));
     if (w > 0) {
       const x0 = slot.left ? slot.x + slot.w - w : slot.x;
-      // 차는 중(맞지 않은 지 3초가 지남)이면 끝이 반짝인다
-      const filling = f.ext[EX.QUIET]! >= 180 && r < 1;
+      // 차는 중(맞지 않은 지 SHELL_QUIET틱이 지남)이면 끝이 반짝인다
+      const filling = f.ext[EX.QUIET]! >= SHELL_QUIET && r < 1;
       ctx.fillStyle = COLORS.veil;
       ctx.fillRect(x0, y, w, 2);
       ctx.fillStyle = COLORS.veilLight;
