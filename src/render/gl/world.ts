@@ -159,7 +159,7 @@ export class World {
     this.edges.update(tick);
     this.life.update(tick, p.ix, focusX, clock, props, citadel !== null && citadel.stage === 4);
     // 이펙트 빛 (타격 번쩍임·기력·필살기·부서질 때 불꽃): 싸우는 면 바로 앞
-    for (const pt of lights2d.points) lightPool.add(pt.x, GROUND - pt.y, 12, pt.r * 1.3, pt.color, pt.a * 1.6);
+    for (const pt of lights2d.points) lightPool.add(pt.x, GROUND - pt.y, 12, pt.r * 1.3, pt.color, pt.a * 1.6, false, true);
   }
 
   /**
@@ -216,13 +216,14 @@ export class World {
       shared.uAmbient.value.b += 0.16 * bolt.flash;
     }
     for (const [mat, k] of this.hazes) mat.uniforms.strength.value = k * m.haze;
+    // 후처리: 색 보정은 구간 데이터로 칸마다 섞는다 (post.ts). 여기서는 카메라 자리의 공기만:
+    // 안개 속 빛 무리는 안개가 짙을수록 크고 세게 (빛은 공기가 있어야 보인다), 젖은 바닥에 길게 비친 빛
     const L = view.post.look;
-    L.shadow.copy(m.shadow);
-    L.high.copy(m.high);
-    L.sat = m.sat;
-    L.contrast = m.contrast;
-    L.halo = m.halo;
+    const air = Math.min(1, 0.5 * m.mist + 0.25 * m.haze);
+    L.halo = m.halo * (0.45 + air);
+    L.haloSize = 0.7 + 0.6 * air;
     L.streak = m.streak;
+    L.wetStreak = 1;
   }
 }
 

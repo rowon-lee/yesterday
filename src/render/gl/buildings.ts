@@ -10,10 +10,10 @@ import { canvas, hash, line, rect, solidTex } from '../dither';
 import { scaleAt } from './core';
 import { Flame } from './fx';
 import { paintInterior } from './interior';
-import { Details, Geo, plane, type UvFn } from './kit';
+import { attachAt, Details, Geo, plane, type UvFn } from './kit';
 import { lightPool, shared } from './lights';
 import { litMaterial, pixelTexture } from './shaders';
-import { entranceX, paintAwning, paintCornice, paintFacade, paintRoof, paintSide } from './tex';
+import { blockEnds as endsOf, entranceX, paintAwning, paintCorniceFor, paintEndWall, paintFacade, paintRoof, paintSide } from './tex';
 
 /**
  * 길가의 부서지는 건물 (극장·다이너 거리, 비상계단 아파트)의 2.5D 무대 (렌더 전용).
@@ -111,6 +111,8 @@ export class Buildings {
   readonly group = new THREE.Group();
   readonly fixed: FixedLight[] = [];
   private readonly tvs: Tv[] = [];
+  /** 지붕 안테나 꼭대기의 깜빡이는 빨간 불 (항공 경고등) */
+  private readonly beacons: Array<{ mat: THREE.ShaderMaterial; x: number; y: number; z: number; phase: number; chunk: number }> = [];
   private readonly faces: Face[] = [];
   /** 덩어리마다 마지막으로 그린 모습 (단계·이웃) */
   private readonly drawn = new Int16Array(CHUNKS.length);
@@ -167,13 +169,19 @@ export class Buildings {
     registry.push(face);
 
     // 몸통: 칸마다 잘라 둔 지붕 (무너진 칸은 사라진다).
-    // 바깥 옆면은 그리지 않는다: 거의 정면만 보는 카메라에서 옆면은 늘 1칸짜리 어두운 세로줄로만 보여 외곽선이 된다 (지침서 무테).
-    // 그 자리는 골목 안쪽 벽과 뒤 겹이 채운다
+    // 골목 쪽 옆면은 그리지 않는다: 거의 정면만 보는 카메라에서 옆면은 늘 1칸짜리 어두운 세로줄로만 보여 외곽선이 된다 (지침서 무테).
+    // 그 자리는 골목 안쪽 벽이 채운다. 구간 끝(블록 끝)에 드러난 옆벽은 둔다: 옆에서 오는 빛을 받는 한 단계 밝은 벽이라
+    // 카메라가 블록 끝을 지나면 자로 자른 듯한 단면 대신 건물의 부피가 보인다
     const roof = litMaterial(pixelTexture(paintRoof(b.w, DEPTH, b.seed)), { attached: true });
     const uv: UvFn = (fc, x, y, z) => (fc === 'py' ? [(x - b.x) / b.w, (z - BACK_Z) / DEPTH] : [(z - BACK_Z) / DEPTH, y / b.h]);
     const body = new Geo();
     body.attachedBox(bi, { py: 'r' }, b.x, b.x + b.w, 0, b.h, BACK_Z, FRONT_Z, uv, ['py']);
-    group.add(body.build({ r: roof }));
+    const ends = endsOf(b);
+    const endUv: UvFn = (_fc, _x, y, z) => [(z - BACK_Z) / DEPTH, y / b.h];
+    if (ends[0]) body.box({ nx: 'e' }, b.x, b.x + 1, 0, b.h - 9, BACK_Z, FRONT_Z, endUv, attachAt(bi, b.x), ['nx']);
+    if (ends[1]) body.box({ px: 'e' }, b.x + b.w - 1, b.x + b.w, 0, b.h - 9, BACK_Z, FRONT_Z, endUv, attachAt(bi, b.x + b.w - 1), ['px']);
+    const endMat = ends[0] || ends[1] ? litMaterial(pixelTexture(paintEndWall(b, DEPTH, b.h)), { attached: true }) : null;
+    group.add(body.build(endMat ? { r: roof, e: endMat } : { r: roof }));
     // 층 바닥판 (구멍으로 보이는 단면)
     for (let fl = 1; fl < b.floors; fl++) {
       const y = SHOP_H + (fl - 1) * FLOOR_H;
@@ -185,8 +193,9 @@ export class Buildings {
     const cw = b.w + 4;
     cor.attachedBox(bi, 'c', b.x - 2, b.x + b.w + 2, b.h - 9, b.h, FRONT_Z, 2, (fc, x, y, z) =>
       fc === 'py' ? [(x - b.x + 2) / cw, (z - FRONT_Z) / 42] : fc === 'pz' ? [(x - b.x + 2) / cw, (y - b.h + 9) / 9] : [0.5, (y - b.h + 9) / 9],
-    ['px', 'nx', 'py', 'pz', 'ny']);
-    group.add(cor.build({ c: litMaterial(pixelTexture(paintCornice(cw, 9, b.seed)), { attached: true }) }));
+    // 아랫면은 두지 않는다: 위층 카메라에서 처마 밑면이 1칸짜리 어두운 줄(외곽선)로 보인다. 그 자리는 정면의 처마 밑 그을음 띠가 받는다
+    ['px', 'nx', 'py', 'pz']);
+    group.add(cor.build({ c: litMaterial(pixelTexture(paintCorniceFor(b, cw, 9)), { attached: true }) }));
 
     // 가게 차양 (윗면이 발판)
     const a = awningOf(b);
@@ -244,14 +253,19 @@ export class Buildings {
     // 젖은 쇠 배관: 벽돌과 비슷한 밝기 (어두우면 1px 외곽선, 밝으면 화면을 가르는 흰 줄이 된다)
     det.addAttached(bi, px, px + 3, 0, b.h - 6, FRONT_Z, FRONT_Z + 3, '#4b4750');
     for (let y = 20; y < b.h - 10; y += 50) det.addAttached(bi, px - 1, px + 4, y, y + 2, FRONT_Z, FRONT_Z + 4, C.iron);
-    for (let k = 0; k < 2; k++) {
-      if (hash(b.seed + k * 13) < 0.4 || b.floors < 3) continue;
-      const fl = 1 + Math.floor(hash(b.seed + k * 29) * (b.floors - 1));
-      const span = esc ? esc.x0 - b.x - 30 : b.w - 34;
-      const ax = b.x + 10 + Math.floor(hash(b.seed + k * 41) * Math.max(1, span));
-      const ay = SHOP_H + (fl - 1) * FLOOR_H + 8;
-      det.addAttached(bi, ax, ax + 16, ay, ay + 11, FRONT_Z, FRONT_Z + 10, C.chromeDark);
-      det.addAttached(bi, ax + 1, ax + 15, ay + 9, ay + 11, FRONT_Z, FRONT_Z + 10, C.ironLight);
+    // 창에 끼운 냉방기 (정면 그림이 정한 창): 튀어나온 상자. 윗면은 하늘빛을 받는 칠 (한 단계 밝게), 앞면 철망 살 둘은 어둡게,
+    // 아래 받침쇠, 벽에 드리운 그늘 면 (어두운 판). 밝은 하늘색 스티커처럼 뜨지 않게 앞면은 벽보다 조금만 밝은 회색
+    for (const ac of f.acs) {
+      const ax = b.x + ac.x / S;
+      const ay = b.h - ac.y / S;
+      const aw = Math.max(12, ac.w / S);
+      const a = attachAt(bi, ax);
+      det.add(ax - aw / 2, ax + aw / 2, ay, ay + 9, FRONT_Z - 1, FRONT_Z + 9, '#3a3e49', a);
+      det.add(ax - aw / 2, ax + aw / 2, ay + 8, ay + 9, FRONT_Z - 1, FRONT_Z + 9, '#4f5460', a);
+      for (const gy of [ay + 2, ay + 5]) det.add(ax - aw / 2 + 2, ax + aw / 2 - 2, gy, gy + 1, FRONT_Z + 9, FRONT_Z + 9.3, '#1d1f26', a);
+      det.add(ax - aw / 2 + 1, ax - aw / 2 + 2, ay - 4, ay, FRONT_Z, FRONT_Z + 8, C.iron, a);
+      det.add(ax + aw / 2 - 2, ax + aw / 2 - 1, ay - 4, ay, FRONT_Z, FRONT_Z + 8, C.iron, a);
+      det.add(ax - aw / 2 + 2, ax + aw / 2 + 3, ay - 7, ay, FRONT_Z + 0.2, FRONT_Z + 0.4, '#0c0b10', a);
     }
     // 큰 급수탑이 선 지붕(식료품점)에는 작은 물탱크를 두지 않는다 (급수탑은 bigprops.ts)
     const tank = b.sign === 'HOTEL' || (b.kind === 'apartment' && hash(b.seed * 5) < 0.6 && b.sign !== 'RADIO' && bi !== BREAKABLES[BIG.watertower].b);
@@ -271,11 +285,76 @@ export class Buildings {
       det.add(b.x + 14, b.x + 26, b.h, b.h + 22, FRONT_Z - 50, FRONT_Z - 38, C.brickDark, at);
       det.add(b.x + 13, b.x + 27, b.h + 22, b.h + 24, FRONT_Z - 51, FRONT_Z - 37, C.stoneDark, at);
     }
+    this.roof(b, bi, det);
     // 쓰레기봉투 (가게 앞 보도)
     if (b.kind !== 'theater' && hash(b.seed * 11) < 0.7) {
       const bx = esc ? esc.x0 - 22 : b.x + b.w - 26;
       det.add(bx, bx + 9, 0, 8, FRONT_Z + 2, FRONT_Z + 10, '#16141a');
       det.add(bx + 7, bx + 15, 0, 6, FRONT_Z + 4, FRONT_Z + 11, C.smog1);
+    }
+  }
+
+  /**
+   * 지붕 위 사는 흔적 (위층 화면이 비지 않게, 지침서 8장): 텔레비전 안테나(가로살), 높은 건물 안테나 꼭대기 빨간 불,
+   * 세탁소 지붕의 빨랫줄, 계단실 문틈 불빛. 지붕 칸이 무너지면 같이 사라진다
+   */
+  private roof(b: FrontBuildingPlace, bi: number, det: Details): void {
+    const at = (x: number) => attachAt(bi, x);
+    const z = FRONT_Z - 24;
+    // 텔레비전 안테나 한두 대 (높이·가로살 수가 제각각)
+    const n = b.kind === 'theater' ? 0 : 1 + (hash(b.seed * 19) < 0.5 ? 1 : 0);
+    for (let k = 0; k < n; k++) {
+      const ax = b.x + 30 + Math.floor(hash(b.seed * 23 + k * 7) * (b.w - 60));
+      const ah = 22 + Math.floor(hash(b.seed * 29 + k) * 18);
+      det.add(ax, ax + 1, b.h, b.h + ah, z - 0.5, z + 0.5, C.ironLight, at(ax));
+      for (let j = 0; j < 3; j++) {
+        const y = b.h + ah - 3 - j * 5;
+        const half = 7 - j * 2 + (k % 2);
+        det.bar(ax - half, y + (j % 2), ax + half + 1, y, 0.9, z - 0.3, z + 0.3, C.ironLight, at(ax));
+      }
+    }
+    // 가장 높은 건물 (호텔·현관 아파트): 안테나 꼭대기 빨간 경고등
+    if (b.sign === 'HOTEL' || (b.kind === 'apartment' && !b.sign)) {
+      const ax = b.x + b.w - 24;
+      const ah = 46;
+      det.add(ax, ax + 2, b.h, b.h + ah, z - 1, z + 1, C.iron, at(ax));
+      det.bar(ax + 1, b.h + 30, ax + 12, b.h, 0.8, z - 0.3, z + 0.3, C.iron, at(ax));
+      det.bar(ax + 1, b.h + 30, ax - 10, b.h, 0.8, z - 0.3, z + 0.3, C.iron, at(ax));
+      const red = litMaterial(pixelTexture(solidTex(C.neonRedDark)), { emissive: pixelTexture(solidTex(C.neonRed)), emissiveStrength: 0, attached: true });
+      const g = new Geo();
+      g.box('r', ax - 1, ax + 3, b.h + ah, b.h + ah + 3, z - 2, z + 2, null, at(ax));
+      this.group.add(g.build({ r: red }));
+      this.beacons.push({ mat: red, x: ax + 1, y: b.h + ah + 2, z: z + 8, phase: Math.floor(hash(b.seed) * 120), chunk: chunkAt(bi, ax, b.h - 4) });
+    }
+    // 세탁소 지붕: 빨랫줄 두 줄 (빨래가 비에 젖어 늘어졌다)
+    if (b.sign === 'LAUNDRY') {
+      const cloths = [C.paintCream, C.paintTeal, '#686d7a', C.posterRed, C.paintOchre];
+      for (const [ly, lz] of [[b.h + 20, z + 6], [b.h + 16, z - 10]] as const) {
+        det.add(b.x + 10, b.x + 11, b.h, ly + 1, lz - 0.5, lz + 0.5, C.iron, at(b.x + 10));
+        det.add(b.x + b.w - 30, b.x + b.w - 29, b.h, ly + 1, lz - 0.5, lz + 0.5, C.iron, at(b.x + b.w - 30));
+        det.add(b.x + 10, b.x + b.w - 29, ly, ly + 0.7, lz - 0.3, lz + 0.3, C.iron, at(b.x + 40));
+        for (let cx = b.x + 14, j = 0; cx < b.x + b.w - 36; j++) {
+          const cw = 4 + Math.floor(hash(b.seed + j * 11 + ly) * 6);
+          const ch = 6 + Math.floor(hash(b.seed + j * 7 + ly) * 7);
+          // 빨래가 줄을 덮는다 (줄 위 칸까지): 줄은 빨래 사이에서만 보여 하늘 앞 가는 선이 된다 (빨래 위 어두운 1px 테두리가 아니라)
+          det.add(cx, cx + cw, ly - ch, ly + 1, lz - 0.2, lz + 0.4, cloths[Math.floor(hash(b.seed + j * 3 + ly) * cloths.length)], at(cx));
+          cx += cw + 2 + Math.floor(hash(b.seed + j * 5) * 4);
+        }
+      }
+    }
+    // 계단실 (지붕 위 작은 상자)과 문틈 불빛: 현관 아파트·라디오 가게
+    if (b.kind === 'apartment' && (b.sign === '' || b.sign === 'RADIO')) {
+      const sx = b.x + (b.sign === 'RADIO' ? 12 : b.w - 70);
+      det.add(sx, sx + 22, b.h, b.h + 24, z - 20, z, C.brickDark, at(sx + 11));
+      det.add(sx - 1, sx + 23, b.h + 24, b.h + 26, z - 21, z + 1, C.stone, at(sx + 11));
+      const door = litMaterial(pixelTexture(solidTex('#c27c44')), { emissive: pixelTexture(solidTex('#ab683a')), emissiveStrength: 0.9, attached: true });
+      const g = new Geo();
+      g.box({ pz: 'd' }, sx + 7, sx + 15, b.h, b.h + 18, z, z + 0.3, null, at(sx + 11), ['pz']);
+      // 문이 반쯤 열려 틈으로만 빛이 샌다: 문짝 (어두운 판)
+      g.box({ pz: 'd' }, sx + 7, sx + 8, b.h, b.h + 18, z + 0.4, z + 0.5, null, at(sx + 11), ['pz']);
+      this.group.add(g.build({ d: door }));
+      det.add(sx + 9, sx + 15, b.h, b.h + 18, z + 0.6, z + 0.7, '#2e1a10', at(sx + 11));
+      this.fixed.push({ x: sx + 11, y: b.h + 10, z: z + 12, range: 40, color: C.windowLight, power: 0.35, chunk: chunkAt(bi, sx + 11, b.h - 4) });
     }
   }
 
@@ -286,7 +365,8 @@ export class Buildings {
   private alley(x: number, w: number, det: Details): void {
     const seed = Math.round(x);
     // 안쪽 벽은 양옆 건물 뒤로 넉넉히 (원근 때문에 벽 판 가장자리 열이 건물 모서리 옆으로 1칸 드러나 어두운 세로줄이 되지 않게)
-    this.group.add(plane(x - 10, x + w + 10, 0, 330, BACK_Z + 2, litMaterial(pixelTexture(paintSide(w + 20, 330, seed, 2)), { tint: 0.6 })));
+    // (안쪽 벽은 골목 전구·창 불빛을 받아 길가 벽보다 조금 밝게: 블록 가운데에 검은 기둥이 서지 않게, 지침서 10장)
+    this.group.add(plane(x - 10, x + w + 10, 0, 330, BACK_Z + 2, litMaterial(pixelTexture(paintSide(w + 20, 330, seed, 2)), { tint: 0.9 })));
     det.add(x + 3, x + w - 3, 0, 18, FRONT_Z - 70, FRONT_Z - 40, C.paintTeal);
     det.add(x + 2, x + w - 2, 18, 20, FRONT_Z - 72, FRONT_Z - 38, C.iron);
     det.add(x + 2, x + 9, 0, 7, FRONT_Z - 30, FRONT_Z - 22, C.smog1);
@@ -295,7 +375,7 @@ export class Buildings {
     det.add(x + 3, x + w - 3, 0, 40, BACK_Z + 2, BACK_Z + 3, C.iron);
     det.add(x + w / 2 - 3, x + w / 2 + 3, 63, 65, BACK_Z + 3, BACK_Z + 9, C.iron);
     this.group.add(box3(x + w / 2 - 1.5, x + w / 2 + 1.5, 60, 63, BACK_Z + 4, BACK_Z + 7, BULB));
-    this.fixed.push({ x: x + w / 2, y: 58, z: BACK_Z + 16, range: 70, color: C.lampWarm, power: 0.9, chunk: -1 });
+    this.fixed.push({ x: x + w / 2, y: 58, z: BACK_Z + 16, range: 96, color: C.lampWarm, power: 1.15, chunk: -1 });
     // 안쪽 벽의 불 켜진 창 (높이는 골목마다 다르다)
     const wy = 132 + Math.floor(hash(seed * 3 + 1) * 4) * 22;
     const [wc, wg] = canvas(12, 18);
@@ -312,7 +392,7 @@ export class Buildings {
     }
     rect(wg, 0, 16, 12, 2, '#3a3e49');
     this.group.add(plane(x + w / 2 - 6, x + w / 2 + 6, wy, wy + 18, BACK_Z + 3, litMaterial(pixelTexture(wc), { emissive: pixelTexture(ec), emissiveStrength: 1.1 })));
-    this.fixed.push({ x: x + w / 2, y: wy + 8, z: BACK_Z + 26, range: 56, color: C.windowLight, power: 0.5, chunk: -1 });
+    this.fixed.push({ x: x + w / 2, y: wy + 8, z: BACK_Z + 26, range: 74, color: C.windowLight, power: 0.65, chunk: -1 });
     // 빨랫줄 둘 (창 아래, 깊이 제각각)과 맨 위를 가로지르는 처진 전선
     const cloths = [C.paintCream, C.paintTeal, C.posterRed, '#686d7a', C.paintOchre];
     for (const [k, ly, lz] of [[0, wy - 14, BACK_Z + 48], [1, wy - 50 - Math.floor(hash(seed) * 20), BACK_Z + 92]] as const) {
@@ -378,6 +458,11 @@ export class Buildings {
     const hp = city?.hp ?? null;
     const solid = (chunk: number) => chunk < 0 || !hp || hp[chunk] > 0;
     for (const f of this.fixed) if (solid(f.chunk)) lightPool.add(f.x, f.y, f.z, f.range, f.color, f.power);
+    for (const bc of this.beacons) {
+      const on = solid(bc.chunk) && (tick + bc.phase) % 120 < 60;
+      bc.mat.uniforms.emissiveStrength.value = on ? 2.2 : 0.15;
+      if (on) lightPool.add(bc.x, bc.y, bc.z, 36, C.neonRed, 0.7);
+    }
     for (const tv of this.tvs) {
       const on = solid(tv.chunk);
       tv.mesh.visible = on;
@@ -405,19 +490,23 @@ function sidewalkTex(): HTMLCanvasElement {
  * 철제 비상계단: 층마다 발판(윗면이 발판 높이, 정면에서 싸우는 면까지), 앞 난간, 발판 사이를 잇는 비스듬한 계단,
  * 맨 아래 접힌 사다리, 발판 밑 받침쇠. 발판 높이는 stage/citadel.ts의 escapeOf와 같다 (판정과 그림이 같은 숫자).
  */
+/** 비에 젖은 쇠 (윗면·윗대): 하늘빛을 받아 벽돌보다 한 단계 밝다 */
+const WET_IRON = '#4f5460';
+
 function fireEscape(det: Details, bi: number, e: { x0: number; x1: number; landings: number[] }): void {
   const at = (x: number) => [bi + 1, Math.max(0, Math.min(GRIDS[bi].cols - 1, Math.floor((x - GRIDS[bi].x) / 16)))] as const;
   e.landings.forEach((h, n) => {
     // 발판: 쇠살 두께 4 (윗면 밝게, 앞면 짙게). 그 밑 벽에는 발판이 드리운 그림자 면 (선이 아니라 면: 10칸, 빛 반대쪽으로 조금 밀림)
+    // 젖은 쇠: 디딤판 윗면과 난간 윗대는 하늘빛을 받아 벽돌보다 밝고 (어두운 벽에 묻히지 않게), 앞면·받침은 짙다
     det.addAttached(bi, e.x0, e.x1, h - 4, h - 1, FRONT_Z, 2, C.iron);
-    det.addAttached(bi, e.x0, e.x1, h - 1, h, FRONT_Z, 2, C.ironLight);
+    det.addAttached(bi, e.x0, e.x1, h - 1, h, FRONT_Z, 2, WET_IRON);
     det.addAttached(bi, e.x0 + 2, e.x1 + 3, h - 14, h - 4, FRONT_Z, FRONT_Z + 0.5, '#08070c');
     // 앞 난간: 위 가로대(빛 받음)와 세로살 (싸우는 면 바로 앞). 가운데 가로대는 창을 가로지르는 어두운 1px 선이 되어 뺐다
-    det.addAttached(bi, e.x0, e.x1, h + 11, h + 12, 1, 2, C.ironLight);
+    det.addAttached(bi, e.x0, e.x1, h + 11, h + 12, 1, 2, WET_IRON);
     for (let x = e.x0; x <= e.x1 - 1; x += 6) det.add(x, x + 1, h, h + 11, 1, 2, C.iron, at(x));
     // 옆 난간 (정면에서 앞으로)
     for (const x of [e.x0, e.x1 - 1]) {
-      det.add(x, x + 1, h + 11, h + 12, FRONT_Z, 1, C.ironLight, at(x));
+      det.add(x, x + 1, h + 11, h + 12, FRONT_Z, 1, WET_IRON, at(x));
       det.add(x, x + 1, h, h + 11, FRONT_Z + 20, FRONT_Z + 21, C.iron, at(x));
     }
     // 받침쇠
@@ -433,7 +522,7 @@ function fireEscape(det: Details, bi: number, e: { x0: number; x1: number; landi
         const t = i / 9;
         const sx = ax + (bx - ax) * t;
         const sy = h - 1 + (below - (h - 1)) * t;
-        det.add(sx - 2, sx + 2, sy - 1, sy, -26, -10, C.ironLight, at(sx));
+        det.add(sx - 2, sx + 2, sy - 1, sy, -26, -10, i % 3 ? C.ironLight : WET_IRON, at(sx));
       }
     }
   });

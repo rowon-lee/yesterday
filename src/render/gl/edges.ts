@@ -3,12 +3,13 @@ import { CITADEL as D } from '../../data/stages/citadel';
 import { PARK_GATE_W } from '../../stage/citadel';
 import { drawText, textWidth } from '../font';
 import { COLORS as C } from '../palette';
-import { canvas, disc, ditherRect, hash, paint, rect } from '../dither';
+import { canvas, disc, ditherRect, hash, paint, rect, solidTex } from '../dither';
 import { box, Details, facedBox, plane } from './kit';
 import { Sparks } from './fx';
 import { lightPool } from './lights';
 import { paintPuddle } from './proptex';
 import { figure, sil } from './rooms';
+import { scaleAt } from './core';
 import { decalMaterial, hazeMaterial, litMaterial, pixelTexture } from './shaders';
 import { paintNoise } from './tex';
 
@@ -25,6 +26,9 @@ export class Edges {
   readonly group = new THREE.Group();
   /** 분수 물방울: 위 그릇 가장자리에서 수반으로 떨어지는 물방울과 수반에 튀는 물보라 */
   private readonly drops = new Sparks(48);
+  /** 항만 조명탑의 켜진 투광등과 꼭대기 빨간 불 */
+  private readonly flood = litMaterial(pixelTexture(solidTex('#ffe2a8')), { emissive: pixelTexture(solidTex('#fff4d8')), emissiveStrength: 1.6 });
+  private readonly beacon = litMaterial(pixelTexture(solidTex(C.neonRedDark)), { emissive: pixelTexture(solidTex(C.neonRed)), emissiveStrength: 0 });
 
   constructor() {
     const det = new Details();
@@ -38,11 +42,20 @@ export class Edges {
     this.park(det);
     this.fountain(det);
     this.fence(det);
+    this.wires(det);
     this.group.add(det.build(), this.drops.mesh);
+    // 조명탑 가운데 투광등 유리 (아래를 본다)와 꼭대기 경고등
+    this.group.add(box(1871, 1877, 337.5, 338.5, -59.5, -58.5, this.flood));
+    this.group.add(box(1872, 1876, 388, 391, -66, -62, this.beacon));
   }
 
   /** 이번 틱의 빛과 물방울: 공원 분수 등불 (낡은 등이라 아주 조금 일렁인다), 그릇 가장자리에서 떨어지는 물방울 */
   update(tick: number): void {
+    // 항만 조명탑: 투광등 하나가 부두를 내려 비추고, 꼭대기 빨간 불이 천천히 깜빡인다 (위층 화면의 빛)
+    lightPool.add(1874, 330, -50, 390, '#ffe2a8', 0.55, true);
+    const blink = tick % 100 < 50;
+    this.beacon.uniforms.emissiveStrength.value = blink ? 2.4 : 0.1;
+    if (blink) lightPool.add(1874, 392, -56, 40, C.neonRed, 0.8);
     const x = D.park.fountain.x;
     const flicker = 0.93 + 0.07 * Math.sin(tick * 0.21) * Math.sin(tick * 0.057 + 1);
     // 등불 빛 (주황, 나뭇가지·그릇 윗면·벤치까지)과 수반 정면에 고이는 낮은 빛 (돌 정면이 어둠에 묻히지 않게)
@@ -61,18 +74,98 @@ export class Edges {
     this.drops.end();
   }
 
+  /**
+   * 위층에 보이는 것 (공중 콤보 때 빈 하늘만 보이지 않게, 지침서 8장): 부두의 나무 전신주 둘과 극장 블록 지붕까지 처진 전선,
+   * 전선과 가로대에 앉은 비둘기, 전신주 꼭대기 변압기. 공원 쪽은 라디오 가게 지붕에서 철책 너머 전신주까지 처진 전선.
+   * 서 있을 수 없는 것 (발판이 아니다): 싸우는 면보다 뒤에 둔다
+   */
+  private wires(det: Details): void {
+    const pole = (x: number, h: number, z: number) => {
+      det.add(x - 2, x + 2, 0, h, z - 2, z + 2, '#2e1a10');
+      det.add(x + 1, x + 2, 40, h, z + 2, z + 2.2, '#46281a');
+      for (const [ay, half] of [[h - 8, 16], [h - 22, 12]] as const) {
+        det.add(x - half, x + half, ay, ay + 3, z - 1.5, z + 1.5, '#2e1a10');
+        // 애자 (사기 절연체: 하늘빛을 받는 작은 흰 점)
+        for (const ix of [x - half + 2, x - 4, x + 3, x + half - 3]) det.add(ix, ix + 1, ay + 3, ay + 5, z - 1, z + 1, '#868b98');
+      }
+      // 변압기 통 (윗면이 젖어 반짝인다)
+      det.add(x + 3, x + 11, h - 52, h - 36, z - 4, z + 4, '#3a3e49');
+      det.add(x + 3, x + 11, h - 37, h - 36, z - 4, z + 4, '#686d7a');
+    };
+    /** 항만 조명탑: 두 다리가 위로 모이는 쇠 격자, 전선 가로대, 조명 받침 (투광등 셋, 하나만 켜짐), 꼭대기 빨간 불 */
+    const mast = (x: number, z: number) => {
+      const top = 382;
+      const leg = (s: number) => (h: number) => x + s * (9 - (h / top) * 6);
+      for (const s of [-1, 1] as const) {
+        const L = leg(s);
+        for (let h = 0; h < top; h += 24) det.bar(L(h), h, L(h + 24), h + 24, 2, z - 1, z + 1, '#232026');
+      }
+      // 격자: 마디마다 엇갈린 사선과 가로대
+      for (let h = 12, k = 0; h < top - 10; h += 24, k++) {
+        const a = leg(-1)(h);
+        const b = leg(1)(h + 24);
+        det.bar(k % 2 ? a : leg(1)(h), h, k % 2 ? b : leg(-1)(h + 24), h + 24, 1, z - 0.5, z + 0.5, '#232026');
+        det.bar(leg(-1)(h), h, leg(1)(h), h, 1, z - 0.5, z + 0.5, '#2a2d36');
+      }
+      // 전선 가로대 (애자)
+      for (const [ay, half] of [[310, 18], [296, 14]] as const) {
+        det.add(x - half, x + half, ay, ay + 2, z - 1.5, z + 1.5, '#232026');
+        for (const ix of [x - half + 2, x + half - 3]) det.add(ix, ix + 1, ay + 2, ay + 4, z - 1, z + 1, '#868b98');
+      }
+      // 조명 받침과 투광등 셋 (가운데 하나만 켜져 부두 바닥을 비춘다: Edges.update)
+      det.add(x - 14, x + 14, 344, 347, z - 4, z + 4, '#232026');
+      det.add(x - 14, x + 14, 346.5, 347, z - 4, z + 4, '#4f5460');
+      for (const fx of [-10, 0, 10]) det.add(x + fx - 3, x + fx + 3, 338, 344, z + 1, z + 5, '#3a3e49');
+      det.add(x - 1, x + 1, top, top + 6, z - 1, z + 1, '#232026');
+    };
+    /** 처진 전선 (x0,y0)→(x1,y1), 처짐 sag, 깊이 z. 위에 앉은 새 n마리 */
+    const span = (x0: number, y0: number, x1: number, y1: number, sag: number, z: number, birds: number, seed: number) => {
+      const segs = Math.max(6, Math.round(Math.abs(x1 - x0) / 10));
+      const at = (t: number) => [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t - Math.sin(Math.PI * t) * sag] as const;
+      for (let k = 0; k < segs; k++) {
+        const [ax, ay] = at(k / segs);
+        const [bx, by] = at((k + 1) / segs);
+        det.bar(ax, ay, bx, by, 0.8, z - 0.3, z + 0.3, '#14151a');
+      }
+      for (let b = 0; b < birds; b++) {
+        const t = 0.15 + hash(seed + b * 7) * 0.7;
+        const [bx, by] = at(t);
+        const left = hash(seed + b * 13) < 0.5;
+        det.add(bx - 2, bx + 2, by + 0.5, by + 3.5, z - 1, z + 1, '#0b0c10');
+        det.add(left ? bx - 3 : bx + 1, left ? bx - 1 : bx + 3, by + 3, by + 5, z - 1, z + 1, '#0b0c10');
+      }
+    };
+    // 부두: 컨테이너 더미 뒤 전신주와 방파제의 항만 조명탑(쇠 격자, 꼭대기 빨간 경고등), 극장 블록 빵집 지붕 모서리까지
+    pole(1652, 300, -126);
+    mast(1874, -64);
+    for (const [dy, sag, birds] of [[-8, 18, 4], [-22, 14, 1]] as const) {
+      span(1652, 300 + dy + 3, 1874, 318 + dy + 3, sag, -95, birds, 1700 + dy);
+      span(1874, 318 + dy + 3, 2003, 286 + dy * 0.5, sag * 0.6, -52, dy === -8 ? 3 : 0, 1900 + dy);
+    }
+    // 서쪽으로 화면 밖 창고까지 이어지는 전선 한 줄
+    span(1520, 286, 1652, 295, 12, -126, 1, 1500);
+    // 공원: 라디오 가게 지붕에서 철책 너머 전신주까지 (나무 사이로 처진다)
+    pole(4796, 330, -110);
+    span(4402, 372, 4796, 325, 34, -60, 4, 4400);
+    span(4402, 360, 4796, 311, 30, -62, 0, 4410);
+  }
+
   /** 컨테이너 더미 (구조물: 윗면이 발판, 양옆이 벽. 전차 선로 서쪽 끝을 가린다) */
   private containers(): void {
     const CT = D.pier.containers;
-    const colors = [C.rust, C.paintTeal, C.paintOchre, C.brickRed];
+    // 칠 색은 부두 팔레트에 있는 색 쪽으로 (녹슨 갈색·청록·호박·남보라): 어둠 속에서도 색이 회청색 하나로 지워지지 않게,
+    // 칠 색 그대로 아주 옅게 스스로 빛나게 둔다 (빛이 닿지 않아도 컨테이너마다 색이 남는다)
+    const colors = ['#78452a', '#17616a', '#844018', '#372860'];
     for (let r = 0; r < CT.rows; r++) {
       const col = colors[r % colors.length];
       // 단마다 조금씩 엇갈려 쌓였지만, 발판·벽이 있는 자리(x0~x1)를 넘지 않는다
       const x0 = CT.x0 + (r % 2 ? 3 : 0);
       const x1 = CT.x1 - (r % 2 ? 0 : 3);
       const y = r * CT.rowH;
-      const tex = litMaterial(pixelTexture(paintContainer(x1 - x0, CT.rowH, col, r)));
-      const end = litMaterial(pixelTexture(paintContainer(60, CT.rowH, col, r + 7)));
+      const front = paintContainer(x1 - x0, CT.rowH, col, r);
+      const tex = litMaterial(pixelTexture(front), { emissive: pixelTexture(front), emissiveStrength: 0.1 });
+      const endC = paintContainer(60, CT.rowH, col, r + 7);
+      const end = litMaterial(pixelTexture(endC), { emissive: pixelTexture(endC), emissiveStrength: 0.06 });
       this.group.add(facedBox(x0, x1, y, y + CT.rowH, -110, -0.6, { nx: end, px: end, py: end, pz: tex }));
     }
   }
@@ -122,14 +215,22 @@ export class Edges {
       const [wf, hf] = kind === 'poplar' ? [0.5, 1.5] : kind === 'oak' ? [1.2, 0.72] : [0.9, 0.9];
       const w = Math.ceil(t.r * 2.4 * wf);
       const h = Math.ceil(t.r * 2.4 * hf);
+      const cy = t.h + h * 0.28;
+      // 가까운 등 쪽에서 오는 빛 (잎 덩어리의 그 쪽 가장자리가 따뜻하게 밝다)
+      const lamp = nearestParkLight(t.x);
       for (const [dz, back] of [[-6, true], [6, false]] as const) {
-        const [map, sky] = paintCanopy(w, h, t.r, t.x * 7 + (back ? 3 : 0), back, kind);
-        // 앞 겹 잎 윗면은 구름에 비친 도시 불빛을 받아 은은하게 밝다 (빛이 닿지 않아도 실루엣 윗선이 보이게)
-        const leaf = litMaterial(pixelTexture(map), { side: THREE.DoubleSide, emissive: pixelTexture(sky), emissiveStrength: back ? 0 : 0.85 });
-        const cy = t.h + h * 0.28;
-        this.group.add(plane(t.x - w / 2, t.x + w / 2, cy - h / 2, cy + h / 2, z + dz, leaf));
+        this.group.add(canopyPlane(t.x, cy, w, h, z + dz, kind, t.x * 7 + (back ? 3 : 0), back, lamp));
       }
     });
+    // 뒤쪽 큰 플라타너스 둘: 위층(공중 콤보 때 보이는 곳)까지 솟아 공원 하늘이 비지 않게 (빛이 닿지 않는 어두운 덩어리, 윗면만 하늘빛)
+    for (const [bx, th, r, bz] of [[4506, 196, 74, -150], [4706, 176, 62, -166]] as const) {
+      det.add(bx - 5, bx + 5, 0, th, bz - 4, bz + 4, '#231812');
+      det.bar(bx, th * 0.62, bx - 34, th * 0.95, 4, bz - 2, bz + 2, '#231812');
+      det.bar(bx + 1, th * 0.7, bx + 30, th + 6, 4, bz - 2, bz + 2, '#231812');
+      const w = Math.ceil(r * 2.5);
+      const h = Math.ceil(r * 1.9);
+      this.group.add(canopyPlane(bx, th + h * 0.22, w, h, bz, 'plane', bx * 13, true, null));
+    }
     // 공원 바닥에 깔린 안개 (가로등 빛을 받아 밝아진다)
     const mistTex = pixelTexture(paintNoise(64, 31, 3, 3));
     mistTex.wrapS = THREE.RepeatWrapping;
@@ -284,50 +385,135 @@ function paintHedge(w: number, h: number): HTMLCanvasElement {
   return c;
 }
 
-type TreeKind = 'poplar' | 'oak' | 'bare' | 'young';
+type TreeKind = 'poplar' | 'oak' | 'bare' | 'young' | 'plane';
+
+/** 나무에 가장 가까운 공원 빛 (등롱·분수 등불): 월드 x와 높이 */
+function nearestParkLight(x: number): { x: number; y: number } {
+  const lights = [{ x: 4480, y: 92 }, { x: 4680, y: 92 }, { x: D.park.fountain.x, y: 70 }];
+  return lights.reduce((m, l) => (Math.abs(l.x - x) < Math.abs(m.x - x) ? l : m), lights[0]);
+}
+
+/** 잎 판 하나: 깊이 z의 배율로 그려 (텍스처 한 칸 = 화면 1px) 월드 크기 w×h, 가운데 (x, cy)에 세운다. lamp: 잎을 비추는 등 (월드) */
+function canopyPlane(x: number, cy: number, w: number, h: number, z: number, kind: TreeKind, seed: number, back: boolean, lamp: { x: number; y: number } | null): THREE.Mesh {
+  const s = scaleAt(z);
+  const tw = Math.round(w * s);
+  const th = Math.round(h * s);
+  const lt = lamp ? { x: (lamp.x - (x - w / 2)) * s, y: (cy + h / 2 - lamp.y) * s } : null;
+  const [map, sky] = paintCanopy(tw, th, seed, back, kind, lt);
+  // 잎 윗면은 구름에 비친 도시 불빛을 받아 은은하게 밝다 (빛이 닿지 않아도 실루엣 윗선이 보이게)
+  const leaf = litMaterial(pixelTexture(map), { side: THREE.DoubleSide, emissive: pixelTexture(sky), emissiveStrength: back ? 0.5 : 0.85 });
+  return plane(x - w / 2, x + w / 2, cy - h / 2, cy + h / 2, z, leaf);
+}
 
 /**
- * 나무 잎 (w × h): 잎 뭉치(원)를 나무 모양대로 흩어 놓고, 뭉치마다 위가 밝고 아래가 어둡게 (하늘빛을 받는 잎 윗면).
- * 포플러는 세로로 길게, 참나무는 옆으로 넓고 위가 울퉁불퉁하게, 어린 나무는 작은 뭉치 몇 개. 가장자리는 칸 단위로 깔끔하게 (외톨이 점 없이)
+ * 나무 잎 (w × h 텍스처 칸): 가장자리가 들쭉날쭉한 잎 뭉치 여럿을 겹친 덩어리 (뭉치 둘레로 2칸 잎 다발이 삐져나오고,
+ * 안쪽 몇 곳은 하늘이 비친다). 명암은 덩어리 전체로: 하늘을 보는 윗가장자리만 차가운 하늘빛, 등을 보는 가장자리는 따뜻한 등불빛,
+ * 뭉치 아래쪽은 위 뭉치가 드리운 그늘, 깊은 안쪽은 어둠 (뭉치마다 밝은 모자를 씌우지 않는다: 동그란 덩어리 반복처럼 보인다).
+ * 넓은 면에 점무늬를 쓰지 않는다. lamp: 등 자리 (텍스처 칸, 덩어리 밖 아래쪽일 수 있다)
  */
-function paintCanopy(w: number, h: number, r: number, seed: number, back: boolean, kind: TreeKind): [HTMLCanvasElement, HTMLCanvasElement] {
+function paintCanopy(w: number, h: number, seed: number, back: boolean, kind: TreeKind, lamp: { x: number; y: number } | null): [HTMLCanvasElement, HTMLCanvasElement] {
   const [c, g] = canvas(w, h);
   const [e, ge] = canvas(w, h);
   const cx = w / 2;
   const cy = h / 2;
-  const n = kind === 'young' ? (back ? 6 : 10) : kind === 'poplar' ? (back ? 10 : 18) : back ? 14 : 34;
-  const clumps: Array<[number, number, number]> = [];
+  const R = Math.min(w, h) / 2;
+  const n = kind === 'young' ? 6 : kind === 'poplar' ? 8 : kind === 'plane' ? 12 : 10;
+  const clumps: Array<{ x: number; y: number; r: number; ph: number; d: number }> = [];
   for (let i = 0; i < n; i++) {
     const a = hash(seed + i * 7) * Math.PI * 2;
-    const d = Math.sqrt(hash(seed + i * 13)) * (kind === 'oak' ? 0.72 : 0.62);
-    // 참나무: 위쪽 뭉치를 더 크게 (넓게 퍼진 머리), 포플러: 아래로 갈수록 조금 넓게
-    const top = Math.sin(a) < 0 ? 1 : 0;
-    const rad = r * (kind === 'oak' ? 0.17 + 0.09 * top : kind === 'poplar' ? 0.24 : 0.28) * (0.8 + hash(seed + i * 3) * 0.45);
-    clumps.push([cx + Math.cos(a) * d * (w / 2), cy + Math.sin(a) * d * (h / 2) - h * 0.04, rad]);
+    const rr = Math.sqrt(hash(seed + i * 13));
+    let x = cx + Math.cos(a) * rr * (w / 2 - R * 0.38);
+    let y = cy + Math.sin(a) * rr * (h / 2 - R * 0.38);
+    if (kind === 'poplar') x = cx + (x - cx) * 0.65;
+    if ((kind === 'oak' || kind === 'plane') && y > cy) y = cy + (y - cy) * 0.65;
+    const r = R * (kind === 'poplar' ? 0.48 : kind === 'young' ? 0.55 : 0.42) * (0.75 + hash(seed + i * 3) * 0.5);
+    clumps.push({ x, y, r, ph: hash(seed + i * 5) * 6.28, d: hash(seed + i * 11) });
   }
-  clumps.sort((p, q) => q[1] - p[1]);
-  const tones = back ? [C.night, '#0c1418', '#121c20', '#16222a'] : ['#0e1614', '#16241f', '#22362c', '#2f4a3a', '#4a6a50'];
-  paint(g, 0, 0, w, h, (x, y) => {
-    // 위에 그린 (y가 작은) 뭉치가 앞: 마지막으로 덮는 뭉치의 명암을 쓴다
-    let tone = -1;
-    for (const [px, py, rad] of clumps) {
-      const d = Math.hypot(x + 0.5 - px, y + 0.5 - py) / rad;
-      if (d > 1) continue;
-      const ly = (y + 0.5 - py) / rad;
-      const lx = (x + 0.5 - px) / rad;
-      // 뭉치 윗면이 밝고(하늘빛), 나무 전체로도 위가 밝다
-      const light = -ly * 0.8 - lx * 0.2 + (1 - d) * 0.2 - (y / h) * 0.6;
-      tone = Math.max(0, Math.min(tones.length - 1, Math.floor((light + 0.75) * (tones.length / 1.6))));
+  clumps.sort((p, q) => p.d - q.d);
+  // 1) 덩어리 칸 그림과 칸마다 앞 뭉치
+  const own = new Int16Array(w * h).fill(-1);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      for (let k = clumps.length - 1; k >= 0; k--) {
+        const q = clumps[k];
+        const dx = x + 0.5 - q.x;
+        const dy = y + 0.5 - q.y;
+        const ang = Math.atan2(dy, dx);
+        const edge = q.r * (0.82 + 0.1 * Math.sin(ang * 5 + q.ph) + 0.08 * Math.sin(ang * 11 + q.ph * 2));
+        const d = Math.hypot(dx, dy);
+        const tuft = d < edge + 2.5 && hash(seed + ((x >> 1) * 31 + (y >> 1) * 17) * 7 + k) < 0.42;
+        if (d > edge && !tuft) continue;
+        own[y * w + x] = k;
+        break;
+      }
     }
-    return tone < 0 ? null : tones[tone];
+  }
+  // 하늘이 비치는 구멍 (2~3칸)
+  for (let k = 0; k < (kind === 'young' ? 2 : 6); k++) {
+    const hx = Math.floor(hash(seed + 900 + k) * w);
+    const hy = Math.floor(hash(seed + 950 + k) * h * 0.8);
+    const hw = 2 + Math.floor(hash(seed + 990 + k) * 2);
+    let inside = true;
+    for (let y = hy - 1; y <= hy + 2; y++) for (let x = hx - 1; x <= hx + hw; x++) if (x < 0 || y < 0 || x >= w || y >= h || own[y * w + x] < 0) inside = false;
+    if (!inside) continue;
+    for (let y = hy; y < hy + 2; y++) for (let x = hx; x < hx + hw; x++) own[y * w + x] = -1;
+  }
+  const at = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? -1 : own[y * w + x]);
+  const tones = back
+    ? ['#070c0b', '#0b1210', '#0f1814', '#14201a', '#1a2a22', '#22362c']
+    : ['#0b1210', '#111c18', '#18281f', '#22362a', '#2f4a40', '#3a5a4a'];
+  const warm = back ? ['#1a2010', '#26301a'] : ['#3e4a2a', '#565024'];
+  const tone = new Int8Array(w * h).fill(-1);
+  const warmth = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const k = own[y * w + x];
+      if (k < 0) continue;
+      // 바깥 쪽 방향 (둘레 3칸 안의 빈 칸 쪽)과 가장자리까지 거리
+      let ox = 0;
+      let oy = 0;
+      let near = 9;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        if (at(x + dx, y + dy) >= 0) continue;
+        ox += dx;
+        oy += dy;
+        near = Math.min(near, Math.max(Math.abs(dx), Math.abs(dy)));
+      }
+      const ol = Math.hypot(ox, oy) || 1;
+      const nx = ox / ol;
+      const ny = oy / ol;
+      const q = clumps[k];
+      let t = 2 + (q.d > 0.6 ? 0 : -1 * (q.d < 0.25 ? 1 : 0));
+      // 뭉치 아래쪽: 위 뭉치·자기 자신이 드리운 그늘
+      if ((y + 0.5 - q.y) / q.r > 0.35) t -= 1;
+      // 깊은 안쪽은 어둠, 나무 아래쪽일수록 어둡게
+      if (near > 4) t -= 1;
+      if (y > h * 0.75) t -= 1;
+      // 하늘을 보는 윗가장자리 (덩어리 전체 실루엣의 위쪽만)
+      if (near <= 2 && ny < -0.55) t = near <= 1 ? 5 : 4;
+      tone[y * w + x] = Math.max(0, Math.min(tones.length - 1, t));
+      // 등을 보는 가장자리: 등 쪽을 향한 면이 따뜻하게 (등에 가까울수록 더)
+      if (lamp && !back && near <= 4) {
+        const lx = lamp.x - (x + 0.5);
+        const ly = lamp.y - (y + 0.5);
+        const ld = Math.hypot(lx, ly) || 1;
+        const f = (nx * lx + ny * ly) / ld;
+        if (f > 0.25 && ld < 90) warmth[y * w + x] = f > 0.55 && ld < 55 && near <= 2 ? 2 : 1;
+      }
+    }
+  }
+  paint(g, 0, 0, w, h, (x, y) => {
+    const t = tone[y * w + x];
+    if (t < 0) return null;
+    const wm = warmth[y * w + x];
+    return wm ? warm[wm - 1] : tones[t];
   });
-  // 잎 윗면 (가장 밝은 두 단계)만 하늘빛: 발광 그림 (나머지는 검정)
-  const px = g.getImageData(0, 0, w, h).data;
+  // 하늘빛을 받는 윗가장자리만 발광 (나머지는 검정)
   paint(ge, 0, 0, w, h, (x, y) => {
-    const i = (y * w + x) * 4;
-    if (px[i + 3] === 0) return null;
-    const hex = '#' + [px[i], px[i + 1], px[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('');
-    return hex === tones[tones.length - 1] ? '#1f4a48' : hex === tones[tones.length - 2] ? '#0e2626' : '#000000';
+    const t = tone[y * w + x];
+    if (t < 0) return null;
+    if (warmth[y * w + x]) return '#000000';
+    return t === 5 ? '#1f4a48' : t === 4 ? '#0e2626' : '#000000';
   });
   return [c, e];
 }

@@ -4,6 +4,7 @@ import { COLORS as C } from '../palette';
 import { canvas, ditherRect, hash, line, rect } from '../dither';
 import { FLUO, figure, glowRect, roomWall, sil, WARM } from './rooms';
 import { neonText } from './tex';
+import { neonMask, paintMask, paintWord, wordMask, wordWidth, type Mask, type Tube } from './signs';
 
 /**
  * 부서지는 물건의 도트 텍스처 (렌더 전용): 단계마다(멀쩡·망가짐·파괴) 미리 그려 두고 바꿔 낀다.
@@ -15,8 +16,6 @@ export interface Pair {
 }
 
 const rnd = (i: number, k: number) => hash(i * 7919 + k * 104729);
-/** 버리는 발광 캔버스 (꺼진 관도 바탕에는 꺼진 관 색으로 그리게) */
-const SCRATCH = canvas(1, 1)[1];
 
 function pair(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D, HTMLCanvasElement, CanvasRenderingContext2D] {
   const [map, g] = canvas(w, h);
@@ -221,12 +220,14 @@ export function paintPuddle(w: number, d: number): HTMLCanvasElement {
 /**
  * 네온 간판 한 장: 바탕과 발광 (전구 차례 phase 0~2마다 하나), 망가진 발광(글자 몇 개가 죽음), 깨진 바탕.
  * 모양: shop 가게 이름 판, blade 세로 간판(테두리 관과 차례로 도는 전구), board 다이너 전구 테두리 판.
+ * text: 실제로 글자를 그린 자리 (텍스처 칸, 위가 0) — 글자 검사에 판 대신 이 자리를 적는다
  */
 export interface SignTex {
   map: HTMLCanvasElement;
   broken: HTMLCanvasElement;
   glows: HTMLCanvasElement[];
   damaged: HTMLCanvasElement;
+  text?: { x0: number; x1: number; y0: number; y1: number };
 }
 
 /** 주인공 간판 관의 심 (하얗게 날아간 빛: 흑백 200 이상)과 관 둘레 번짐 (그 색의 진한 빛) */
@@ -238,25 +239,104 @@ const NEON_HERO: Record<string, [string, string]> = {
   red: ['#ffd0c8', '#a82c2a'],
 };
 
+/** 지면 화면 경계 (CAM 0부터 460 간격, 폭 480): 간판 글씨가 이 경계를 걸치면 판 안에서 글자를 옮긴다 */
+const CAM_EDGES: readonly number[] = (() => {
+  const out: number[] = [];
+  for (let k = 0; k < 14; k++) {
+    const cam = Math.min(k * 460, 5920);
+    out.push(cam, cam + 480);
+  }
+  return out;
+})();
+
+/** 판(월드 x0~x0+w) 안에서 폭 tw 글자를 둘 자리 (판 왼쪽에서): 가운데가 좋지만 화면 경계를 걸치면 비켜 둔다. 못 비키면 null */
+function placeText(x0: number, w: number, tw: number, pad: number): number | null {
+  const center = Math.floor((w - tw) / 2);
+  // 원근 때문에 판 깊이에서 화면 끝이 몇 px 넓으므로 경계 둘레 4px도 피한다
+  const crosses = (tx: number) => CAM_EDGES.some((e) => x0 + tx < e + 4 && x0 + tx + tw > e - 4);
+  if (!crosses(center)) return center;
+  for (let d = 1; d <= w; d++) {
+    for (const tx of [center - d, center + d]) if (tx >= pad && tx + tw <= w - pad && !crosses(tx)) return tx;
+  }
+  return null;
+}
+
 /**
- * 네온 간판 그림. hero(구간의 주인공 간판)면 네온 네 겹의 앞 두 겹을 세게: 관은 하얗게 날아간 심, 관 둘레는 그 색의 진한 번짐
- * (분홍·빨강은 색만으로는 흑백 밝기가 낮아 주인공인데도 청록 간판보다 어두워 보인다)
+ * 네온 간판 그림. hero(구간의 주인공 간판)면 네온 네 겹의 앞 두 겹을 세게: 관은 하얗게 날아간 심, 관 둘레는 그 색의 진한 번짐.
+ * 글자는 획 글꼴을 그 크기로 다시 긋는다 (3×5 글꼴을 키운 큰 네모 픽셀이 아니라 가는 유리관)
  */
 export function paintSign(b: Breakable, i: number, hero = false): SignTex {
-  const [bright, dark] = hero ? NEON_HERO[b.color ?? 'pink'] : NEON_HEX[b.color ?? 'pink'];
+  const col = b.color ?? 'pink';
+  const [bright, dark] = hero ? NEON_HERO[col] : NEON_HEX[col];
   const w = Math.round(b.w);
   const h = Math.round(b.h);
   const text = b.text ?? '';
+  const tube: Tube = { core: bright, halo: dark, glass: C.smog3, mount: NEON_HEX[col][1] };
+  const off: Tube = { ...tube, glass: C.iron, mount: C.iron };
+  // 글자 배치 (모양마다): 글자 하나씩 [칸 그림, x, y]
+  type Glyph = { m: Mask; x: number; y: number };
+  const glyphs: Glyph[] = [];
+  let textBox = { x0: 0, x1: w, y0: 0, y1: h };
+  if (b.style === 'blade') {
+    // 세로 간판: 위에서 아래로 쌓은 키 큰 글자 (주인공은 2칸 관)
+    const n = Math.max(1, text.length);
+    const step = Math.floor((h - 8) / n);
+    const W = w >= 20 ? 13 : 9;
+    const H = Math.min(19, step - 3);
+    const t = hero ? 2 : 1;
+    [...text].forEach((ch, k) => {
+      const m = wordMask(ch, W, H, t, 0);
+      glyphs.push({ m, x: Math.floor((w - m.w) / 2), y: 4 + k * step + Math.floor((step - H) / 2) });
+    });
+    textBox = { x0: 2, x1: w - 2, y0: 4, y1: 4 + n * step };
+  } else if (b.style === 'board') {
+    const W = 9;
+    const H = 13;
+    const tw = wordWidth(text, W, 2, 3);
+    let x = Math.floor((w - tw) / 2);
+    const y = Math.floor((h - H) / 2);
+    for (const ch of text) {
+      const m = wordMask(ch, W, H, 2, 0);
+      glyphs.push({ m, x, y });
+      x += m.w + 3;
+    }
+    textBox = { x0: Math.floor((w - tw) / 2), x1: Math.floor((w - tw) / 2) + tw, y0: y, y1: y + H };
+  } else {
+    // 가게 이름 판: 5×9 관 글씨. 화면 경계를 걸치면 판 안에서 비켜 두고 남는 쪽에 작은 그림 관 (가게 표시)
+    // 판이 화면 경계에 걸려 5칸 글자로 비킬 곳이 없으면 4칸 좁은 글자로
+    let W = 5;
+    let tx = placeText(b.x, w, wordWidth(text, 5, 1, 1), 3);
+    if (tx === null) {
+      W = 4;
+      tx = placeText(b.x, w, wordWidth(text, 4, 1, 1), 2) ?? Math.floor((w - wordWidth(text, 4, 1, 1)) / 2);
+    }
+    const H = 9;
+    const tw = wordWidth(text, W, 1, 1);
+    const y = Math.floor((h - H) / 2);
+    let x = tx;
+    for (const ch of text) {
+      const m = wordMask(ch, W, H, 1, 0);
+      glyphs.push({ m, x, y });
+      x += m.w + 1;
+    }
+    textBox = { x0: tx, x1: tx + tw, y0: y, y1: y + H };
+    // 남는 자리 (글자를 비켜 둔 쪽): 가게 표시 관 (사과·별 모양 작은 고리)
+    const room = tx > w - (tx + tw) ? [3, tx - 3] : [tx + tw + 3, w - 3];
+    if (room[1] - room[0] >= 9) {
+      const cx = Math.floor((room[0] + room[1]) / 2);
+      const icon: Mask = { w: 9, h: 9, m: new Uint8Array(81) };
+      for (let yy = 0; yy < 9; yy++) for (let xx = 0; xx < 9; xx++) {
+        const d = Math.hypot(xx - 4, yy - 4.5);
+        if (d > 2.6 && d < 3.7) icon.m[yy * 9 + xx] = 1;
+      }
+      icon.m[0 * 9 + 4] = 1;
+      icon.m[1 * 9 + 4] = 1;
+      icon.m[0 * 9 + 5] = 1;
+      glyphs.push({ m: icon, x: cx - 4, y: Math.floor((h - 9) / 2) });
+    }
+  }
   const draw = (phase: number, dead: (k: number) => boolean, broken: boolean): Pair => {
     const [map, g, glow, e] = pair(w, h);
-    const tube = (gg: CanvasRenderingContext2D, ee: CanvasRenderingContext2D | null, ch: string, x: number, y: number, s: number, k: number) => {
-      if (broken && rnd(i, k + 40) < 0.5) {
-        // 깨진 관: 반쯤 떨어져 나가고 쇠 받침만
-        neonText(gg, null, ch, x, y, s, C.iron, C.iron);
-        return;
-      }
-      neonText(gg, dead(k) || broken ? SCRATCH : ee, ch, x, y, s, bright, dark);
-    };
     // 간판 바깥 테두리는 어두운 선이 아니라 네온 빛을 받은 쇠 모서리 (무테: 형태는 빛으로 세운다)
     if (b.style === 'blade') {
       rect(g, 0, 0, w, h, C.chrome);
@@ -265,9 +345,6 @@ export function paintSign(b: Breakable, i: number, hero = false): SignTex {
         rect(g, x, y, ww, hh, dark);
         if (!broken) rect(e, x, y, ww, hh, bright);
       }
-      const step = Math.floor((h - 8) / Math.max(1, text.length));
-      const s = Math.max(2, Math.min(Math.floor((w - 6) / 3), Math.floor((step - 3) / 5)));
-      [...text].forEach((ch, k) => tube(g, e, ch, Math.floor((w - 3 * s) / 2), 4 + k * step + Math.floor((step - 5 * s) / 2), s, k));
       // 테두리 위를 차례로 도는 전구
       if (!broken) for (let y = 3; y < h - 3; y += 5) if ((Math.floor(y / 5) + phase) % 3 === 0) {
         rect(g, 1, y, 1, 1, C.lampCore);
@@ -286,15 +363,21 @@ export function paintSign(b: Breakable, i: number, hero = false): SignTex {
           if (on) rect(e, x, y, 2, 2, C.lampWarm);
         }
       }
-      const tw = text.length * 12 - 3;
-      [...text].forEach((ch, k) => tube(g, e, ch, Math.floor((w - tw) / 2) + k * 12, Math.floor((h - 15) / 2), 3, k));
-      // 다이너는 N 한 글자가 죽어 있다 ("DI ER")
-      if (text === 'DINER') rect(e, Math.floor((w - tw) / 2) + 2 * 12, 0, 11, h, '#000000');
     } else {
       rect(g, 0, 0, w, h, C.chromeDark);
       rect(g, 1, 1, w - 2, h - 2, C.smog0);
-      [...text].forEach((ch, k) => tube(g, e, ch, 4 + k * 8, Math.floor((h - 10) / 2), 2, k));
+      rect(g, 1, h - 2, w - 2, 1, C.iron);
     }
+    glyphs.forEach((gl, k) => {
+      // 다이너는 N 한 글자가 죽어 있다 ("DI ER")
+      const deadTube = dead(k) || (b.style === 'board' && text === 'DINER' && k === 2);
+      if (broken && rnd(i, k + 40) < 0.5) {
+        // 깨진 관: 반쯤 떨어져 나가고 쇠 받침만
+        neonMask(g, null, gl.m, gl.x, gl.y, off);
+        return;
+      }
+      neonMask(g, deadTube || broken ? null : e, gl.m, gl.x, gl.y, tube);
+    });
     if (broken) {
       // 깨진 유리 조각 자국
       for (let k = 0; k < 5; k++) rect(g, Math.floor(rnd(i, k) * w), Math.floor(rnd(i, k + 5) * h), 2, 1, C.iron);
@@ -305,12 +388,14 @@ export function paintSign(b: Breakable, i: number, hero = false): SignTex {
   const base = draw(0, () => false, false).map;
   const damaged = draw(1, (k) => rnd(i, k + 90) < 0.4, false).glow;
   const broken = draw(0, () => true, true).map;
-  return { map: base, broken, glows, damaged };
+  return { map: base, broken, glows, damaged, text: textBox };
 }
 
-/** 극장 전구 차양 앞면 (폭 w, 높이 22): 위아래 줄 전구가 차례로 돌고, 크림색 판에 검은 글자 TONIGHT */
+/** 극장 전구 차양 앞면 (폭 w, 높이 22): 위아래 줄 전구가 차례로 돌고, 크림색 판에 굵은 검은 글자 TONIGHT (7×9, 2칸 획) */
 export function paintMarquee(w: number, text: string, i: number): SignTex {
   const h = 22;
+  const tw = wordWidth(text, 7, 2, 2);
+  const tx = Math.floor((w - tw) / 2);
   const draw = (phase: number, alive: (k: number) => boolean, broken: boolean): Pair => {
     const [map, g, glow, e] = pair(w, h);
     rect(g, 0, 0, w, h, C.iron);
@@ -326,8 +411,8 @@ export function paintMarquee(w: number, text: string, i: number): SignTex {
         if (on) rect(e, x, y, 2, 2, C.lampGlow);
       }
     }
-    const tw = text.length * 8 - 2;
-    neonText(g, null, text, Math.floor((w - tw) / 2), 6, 2, C.iron, C.iron);
+    const m = paintWord(g, text, tx, 6, 7, 9, C.iron, 2, 2);
+    paintMask(e, m, tx, 6, '#000000');
     if (broken) {
       for (let k = 0; k < 9; k++) rect(g, Math.floor(rnd(i, k) * w), 5 + Math.floor(rnd(i, k + 3) * 12), 3, 1, C.iron);
     }
@@ -340,6 +425,7 @@ export function paintMarquee(w: number, text: string, i: number): SignTex {
     glows: [0, 1, 2].map((ph) => draw(ph, alive, false).glow),
     damaged: draw(1, (k) => alive(k) && hash(k * 13 + i) < 0.5, false).glow,
     broken: draw(0, () => false, true).map,
+    text: { x0: tx, x1: tx + tw, y0: 6, y1: 15 },
   };
 }
 

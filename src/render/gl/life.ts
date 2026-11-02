@@ -7,11 +7,12 @@ import { COLORS as C } from '../palette';
 import { SCREEN_H, SCREEN_W } from '../screen';
 import { canvas, disc, hash, line, rect } from '../dither';
 import { farChimneys, farLight, keepBeacons, keepLights, midGround, midSeaX } from './backdrops';
-import { depthOfSpeed } from './core';
+import { depthOfSpeed, DIST } from './core';
 import { Beam, Sparks, upload } from './fx';
 import { plane } from './kit';
 import { lightPool, shared } from './lights';
-import { keepAlpha, litMaterial, pixelTexture } from './shaders';
+import { keepAlpha, litMaterial, NOISE_GLSL, pixelTexture, PUFF_GLSL } from './shaders';
+import { setSkyView } from './sky';
 
 /**
  * 움직이는 도시 (모두 렌더 전용, sim과 무관): 노면전차, 멀리 도망치는 행인, 분수 물줄기, 먼 공장 매연, 바다 위 먼 등대 불빛,
@@ -35,42 +36,64 @@ class FarSprites {
   private readonly m4 = new THREE.Matrix4();
 
   /**
-   * soft: 연기·매연 덩어리. 그림을 키워 쓰지 않고(픽셀 크기 하나) 칸마다 둥근 짙기를 계산해 가장자리가 부드럽게 사라진다
-   * (바이어 무늬로 성기게 버리는 대신 반투명으로: 넓은 바둑판이 되지 않게). 색은 그림의 가운데 색을 쓴다
+   * soft: 연기·매연 덩어리. 그림을 키워 쓰지 않고(픽셀 크기 하나) 칸마다 뭉게 덩어리 짙기를 계산해 가장자리가 부드럽게 사라진다
+   * (바이어 무늬로 성기게 버리는 대신 반투명으로: 넓은 바둑판이 되지 않게). 색은 그림의 가운데 색을 쓰고,
+   * 짙은 가운데는 조금 어둡게, 옅은 가장자리는 지평선 도시 불빛에 물든 안개 색 쪽으로
    */
   constructor(private readonly max: number, atlas: HTMLCanvasElement, cells: number, tint: number, fog: number, emissive = 0, soft = false) {
     const mat = new THREE.ShaderMaterial({
       defines: soft ? { SOFT: '' } : {},
-      uniforms: { map: { value: pixelTexture(atlas) }, cells: { value: cells }, tint: { value: tint }, fogAmount: { value: fog }, uFogColor: shared.uFogColor, emissive: { value: emissive } },
+      uniforms: {
+        map: { value: pixelTexture(atlas) }, cells: { value: cells }, tint: { value: tint }, fogAmount: { value: fog }, uFogColor: shared.uFogColor,
+        uFogGlow: shared.uFogGlow, uTime: shared.uTime, emissive: { value: emissive },
+      },
       vertexShader: /* glsl */ `
         attribute float fade;
         attribute float cell;
         uniform float cells;
         varying vec2 vUv;
         varying float vFade;
+        varying vec2 vQ;
+        varying float vPx;
+        varying float vSeed;
         void main() {
           vUv = vec2((uv.x + cell) / cells, uv.y);
           vFade = fade;
-          gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
+          vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
+          // 덩어리 안 좌표 (-1~1)와 화면에서의 지름 (px), 덩어리마다 다른 무늬
+          vQ = vec2(position.x * 2.0, position.y * 2.0 - 1.0);
+          vec4 c0 = modelMatrix * instanceMatrix * vec4(0.0, 0.5, 0.0, 1.0);
+          vPx = length((modelMatrix * instanceMatrix * vec4(1.0, 0.5, 0.0, 1.0)).xyz - c0.xyz) * ${DIST.toFixed(1)} / max(cameraPosition.z - c0.z, 1.0);
+          vSeed = float(gl_InstanceID) * 0.618;
+          gl_Position = projectionMatrix * viewMatrix * wp;
         }
       `,
       fragmentShader: /* glsl */ `
         uniform sampler2D map;
+        uniform float cells;
         uniform float tint;
         uniform float fogAmount;
         uniform vec3 uFogColor;
+        uniform vec3 uFogGlow;
+        uniform float uTime;
         uniform float emissive;
         varying vec2 vUv;
         varying float vFade;
+        varying vec2 vQ;
+        varying float vPx;
+        varying float vSeed;
         float m2(vec2 v) { return mod(2.0 * v.x + 3.0 * v.y, 4.0); }
         float bayer(vec2 p) { vec2 q = mod(floor(p), 4.0); return 4.0 * m2(mod(q, 2.0)) + m2(floor(q * 0.5)); }
+        ${NOISE_GLSL}
+        ${PUFF_GLSL}
         void main() {
         #ifdef SOFT
           vec4 t = texture2D(map, vec2((0.5 + floor(vUv.x * cells)) / cells, 0.5));
-          vec2 d = vec2(fract(vUv.x * cells), vUv.y) - 0.5;
-          float a = smoothstep(0.5, 0.12, length(d)) * vFade * 0.75;
+          float dens = puffDensity(vQ, vPx, vSeed, uTime * 0.004);
+          float a = dens * vFade * 0.8;
           if (a < 0.02) discard;
-          gl_FragColor = vec4(mix(t.rgb * tint, uFogColor, fogAmount), a);
+          vec3 c = mix(t.rgb * tint, uFogColor + uFogGlow * 0.5, fogAmount + (1.0 - dens) * 0.25);
+          gl_FragColor = vec4(c * (0.85 + 0.3 * (1.0 - dens)), a);
         #else
           vec4 t = texture2D(map, vUv);
           if (t.a < 0.5 || bayer(gl_FragCoord.xy) >= vFade * 16.0) discard;
@@ -113,6 +136,90 @@ class FarSprites {
     upload(this.mesh.instanceMatrix, this.n * 16);
     upload(this.fade, this.n);
     upload(this.cell, this.n);
+  }
+}
+
+/**
+ * 먼 공장 굴뚝 매연 (먼 겹): 굴뚝마다 끊기지 않는 연기 한 줄기가 솟아 바람에 오른쪽으로 휘며 넓게 퍼지다 흩어진다.
+ * 그림을 키워 쓰지 않고 화면 칸마다 계산한다 (픽셀 크기 하나, 둥근 공이 줄지어 뜨지 않게): 연기 무늬가 위로 흘러가고,
+ * 가장자리는 무늬가 갉아 먹어 부드럽게 사라진다. 색은 먼 겹처럼 어둡게 누르고 위로 갈수록 안개(도시 불빛)에 묻힌다.
+ * 판 자리는 처음 한 번만 정한다 (시간은 공용 uTime).
+ */
+const PLUME_W0 = -26;
+const PLUME_W1 = 150;
+const PLUME_H = 150;
+class FarPlumes {
+  readonly mesh: THREE.InstancedMesh;
+
+  constructor(color: string, tint: number, fog: number) {
+    const mat = keepAlpha(new THREE.ShaderMaterial({
+      uniforms: {
+        smoke: { value: new THREE.Color(color).convertSRGBToLinear() }, tint: { value: tint }, fogAmount: { value: fog },
+        uFogColor: shared.uFogColor, uFogGlow: shared.uFogGlow, uTime: shared.uTime,
+      },
+      vertexShader: /* glsl */ `
+        attribute float seed;
+        varying vec2 vLocal;
+        varying float vSeed;
+        void main() {
+          vLocal = position.xy;
+          vSeed = seed;
+          gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform vec3 smoke;
+        uniform float tint;
+        uniform float fogAmount;
+        uniform vec3 uFogColor;
+        uniform vec3 uFogGlow;
+        uniform float uTime;
+        varying vec2 vLocal;
+        varying float vSeed;
+        ${NOISE_GLSL}
+        void main() {
+          float y = vLocal.y;
+          float h = y / ${PLUME_H.toFixed(1)};
+          // 바람에 오른쪽으로 휘는 줄기 (위로 갈수록 더 눕는다), 천천히 너울거린다
+          float drift = y * 0.55 + y * y * 0.0016 + sin(uTime * 0.008 + vSeed * 5.0 + y * 0.035) * (1.0 + y * 0.05);
+          float half_ = 2.5 + y * 0.2;
+          float x = (vLocal.x - drift) / half_;
+          // 위로 흘러가는 연기 무늬 (화면 7~9px 알갱이 두 겹)
+          vec2 q = vec2((vLocal.x - drift) / 8.0, (y - uTime * 0.11) / 9.0) + vSeed * 11.0;
+          float n = vnoise(q) * 0.6 + vnoise(q * vec2(2.1, 1.8) + vec2(4.3, -uTime * 0.004)) * 0.4;
+          float body = 1.0 - smoothstep(0.2 + 0.6 * n, 1.1, abs(x));
+          float life = smoothstep(0.0, 0.03, h) * (1.0 - smoothstep(0.3, 1.0, h));
+          float a = 0.6 * body * life * smoothstep(0.25, 0.7, n + 0.3 * (1.0 - h));
+          if (a < 0.02) discard;
+          // 짙은 줄기는 어둡고, 옅게 퍼진 위쪽은 도시 불빛에 물든 안개 색으로
+          vec3 c = mix(smoke * tint, uFogColor + uFogGlow * 0.5, clamp(fogAmount + h * 0.35 + (1.0 - n) * 0.15, 0.0, 1.0));
+          gl_FragColor = vec4(c, a);
+        }
+      `,
+    }), false);
+    mat.transparent = false;
+    const geo = new THREE.PlaneGeometry(PLUME_W1 - PLUME_W0, PLUME_H);
+    geo.translate((PLUME_W0 + PLUME_W1) / 2, PLUME_H / 2, 0);
+    const chims = farChimneys();
+    const seeds = new Float32Array(Math.max(1, chims.length));
+    chims.forEach((_, i) => {
+      seeds[i] = (i * 0.618 + 0.2) % 1;
+    });
+    geo.setAttribute('seed', new THREE.InstancedBufferAttribute(seeds, 1));
+    this.mesh = new THREE.InstancedMesh(geo, mat, Math.max(1, chims.length));
+    this.mesh.frustumCulled = false;
+    // 먼 겹 깊이에, 겹 배율만큼 크게 (판 1칸 = 화면 1px)
+    const s = D.far.speed;
+    const z = depthOfSpeed(s) + 40;
+    const m4 = new THREE.Matrix4();
+    chims.forEach((ch, i) => {
+      const [x, y] = layerToWorld(s, ch.x + ch.w / 2, ch.top - 2);
+      m4.makeScale(1 / s, 1 / s, 1);
+      m4.setPosition(x, y, z + i * 0.5);
+      this.mesh.setMatrixAt(i, m4);
+    });
+    this.mesh.count = chims.length;
+    this.mesh.instanceMatrix.needsUpdate = true;
   }
 }
 
@@ -275,7 +382,7 @@ export class Life {
   private readonly sparks = new Sparks(160);
   private readonly walkers = new Walkers();
   private readonly walkerSprites: FarSprites;
-  private readonly smoke: FarSprites;
+  private readonly smoke: FarPlumes;
   private readonly crown: Beam[] = [];
   private readonly beacons: FarSprites;
   /** 분수 물줄기 (1px 선): 양옆으로 휘어 떨어지는 두 줄기와 가운데 물기둥. 밝은 마디가 물을 따라 흐른다 */
@@ -295,10 +402,8 @@ export class Life {
     this.group.add(this.tram, this.headBeam.pivot, this.sparks.mesh);
     // 행인 (가운데 겹)
     this.walkerSprites = new FarSprites(24, walkerAtlas(), SWINGS * 3, 0.32, 0.3);
-    // 공장 매연 (먼 겹): 가장자리가 부드럽게 사라지는 반투명 덩어리 (그림은 가운데 색만 쓴다: 키운 디더 원이 넓은 바둑판이 되지 않게)
-    const [sc, sg] = canvas(32, 32);
-    disc(sg, 16, 16, 15, C.smoke);
-    this.smoke = new FarSprites(48, sc, 1, 0.4, 0.45, 0, true);
+    // 공장 매연 (먼 겹): 굴뚝마다 끊기지 않는 연기 줄기 (칸마다 계산: 키운 그림·둥근 덩어리 없이)
+    this.smoke = new FarPlumes(C.smoke, 0.4, 0.45);
     // 시타델 탑 경고등과 먼 등대 불빛 (빛나는 점)
     const [bc, bg] = canvas(16, 8);
     rect(bg, 2, 2, 4, 4, C.neonRed);
@@ -376,6 +481,8 @@ export class Life {
    * clock: 도시 시계 (노면전차가 이 시계로 다닌다). props: 부서지는 물건 상태 (무너진 전차는 더 다니지 않고, 간판이 떨어지면 분수가 부서진다)
    */
   update(tick: number, camX: number, focusX: number | null, clock = tick, props: readonly PropState[] | null = null, keepGone = false): void {
+    // 하늘: 구름은 달보다 가까워 카메라를 따라 조금 더 흐른다 (다음 하늘 그림에 쓴다)
+    setSkyView(camX + SCREEN_W / 2);
     this.sparks.begin();
     const tram = props?.[BIG.tram];
     this.updateTram(tick, tram && tram.stage === 2 ? null : tramAt(clock), tram?.stage === 1);
@@ -390,7 +497,6 @@ export class Life {
     this.walkerSprites.begin();
     this.walkers.draw(this.walkerSprites);
     this.walkerSprites.end();
-    this.farSmoke(tick);
     // 왕관 서치라이트: 먼 하늘을 천천히 쓴다. 경고등: 천천히 깜빡인다. 먼 등대: 몇 초마다 두 번 깜빡인다
     // (시타델이 무너지면 탑과 함께 사라진다)
     this.crown.forEach((b, i) => {
@@ -500,25 +606,5 @@ export class Life {
       const x = F.x - F.w / 2 + Math.round(r * F.w);
       if (((x + tick) & 3) < 2) this.sparks.add(x, Math.round(hash(i + tick) * 4), -12, C.skyLight, 0.55);
     }
-  }
-
-  /** 공장 굴뚝 매연 (먼 겹): 뭉게뭉게 솟아 바람에 흘러간다 */
-  private farSmoke(tick: number): void {
-    const s = D.far.speed;
-    const z = depthOfSpeed(s) + 40;
-    this.smoke.begin();
-    farChimneys().forEach((ch, ci) => {
-      const life = 260;
-      for (let p = 0; p < 9; p++) {
-        const age = (tick * 0.5 + p * (life / 9) + ci * 37) % life;
-        const k = age / life;
-        const lx = ch.x + ch.w / 2 + age * 0.35 + Math.sin((age + ci * 20) * 0.05) * 4;
-        const ly = ch.top - 3 - age * 0.45;
-        const r = 6 + k * 20;
-        const [x, y] = layerToWorld(s, lx, ly + r);
-        this.smoke.add(x, y, z + p * 0.5, (r * 2) / s, (r * 2) / s, 0, Math.max(0.15, 0.65 * (1 - k)));
-      }
-    });
-    this.smoke.end();
   }
 }

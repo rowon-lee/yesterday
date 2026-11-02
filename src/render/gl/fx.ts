@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 import { COLORS as C } from '../palette';
-import { canvas, disc } from '../dither';
-import { LIGHT_GLSL } from './shaders';
+import { DIST } from './core';
 import { LIGHTS_DECL, shared, withLights } from './lights';
-import { keepAlpha, pixelTexture, shaftMaterial } from './shaders';
+import { keepAlpha, LIGHT_GLSL, NOISE_GLSL, PUFF_GLSL, shaftMaterial } from './shaders';
 
 /**
  * 부서지는 물건의 움직이는 연출 (렌더 전용): 불길, 연기, 불꽃 튐, 소화전 물기둥.
@@ -104,31 +103,37 @@ export class Flame {
 }
 
 /**
- * 뭉게뭉게 피어오르는 연기 뭉치 (디더링 원 그림을 여러 개): 둘레 빛을 받아 밝아진다 (불길 빛을 받은 연기).
- * 프레임마다 begin → add … → end.
+ * 뭉게뭉게 피어오르는 연기 뭉치: 그림을 키워 쓰지 않고 칸마다 덩어리 짙기를 계산한다 (픽셀 크기 하나, 넓은 바둑판 없이).
+ * 둥근 공이 아니라 가장자리를 무늬가 갉아 먹은 덩어리이고, 짙은 가운데는 어두운 색·옅은 가장자리는 밝은 색.
+ * 둘레 빛을 받아 밝아진다 (불길 빛을 받은 연기는 그 빛 색으로). 프레임마다 begin → add … → end.
  */
 export class Puffs {
   readonly mesh: THREE.InstancedMesh;
   private readonly fade: THREE.InstancedBufferAttribute;
+  private readonly seed: THREE.InstancedBufferAttribute;
   private n = 0;
   private readonly m4 = new THREE.Matrix4();
 
   constructor(private readonly max: number, light: string, dark: string, order: number, alpha = 0.6) {
-    const [c, g] = canvas(32, 32);
-    for (let r = 15; r >= 3; r -= 4) disc(g, 16, 16, r, r > 11 ? dark : r > 7 ? light : light, r > 11 ? 6 : r > 7 ? 10 : 14);
     const mat = keepAlpha(withLights(new THREE.ShaderMaterial({
-      uniforms: { ...shared, map: { value: pixelTexture(c) }, alpha: { value: alpha } },
+      uniforms: { ...shared, cLight: { value: lin(light) }, cDark: { value: lin(dark) }, alpha: { value: alpha } },
       vertexShader: /* glsl */ `
         ${LIGHTS_DECL}
         uniform vec3 uAmbient;
         attribute float fade;
-        varying vec2 vUv;
+        attribute float seed;
+        varying vec2 vQ;
         varying vec3 vLight;
         varying float vFade;
+        varying float vPx;
+        varying float vSeed;
         void main() {
-          vUv = uv;
+          vQ = position.xy * 2.0;
           vFade = fade;
+          vSeed = seed;
           vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
+          vec4 c0 = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          vPx = length((modelMatrix * instanceMatrix * vec4(1.0, 0.0, 0.0, 1.0)).xyz - c0.xyz) * ${DIST.toFixed(1)} / max(cameraPosition.z - c0.z, 1.0);
           vec3 lit = uAmbient * 3.0;
           for (int i = 0; i < LIGHT_N; i++) {
             if (float(i) >= uLightCount) break;
@@ -141,22 +146,32 @@ export class Puffs {
         }
       `,
       fragmentShader: /* glsl */ `
-        uniform sampler2D map;
+        uniform vec3 cLight;
+        uniform vec3 cDark;
         uniform float alpha;
-        varying vec2 vUv;
+        uniform float uTime;
+        varying vec2 vQ;
         varying vec3 vLight;
         varying float vFade;
+        varying float vPx;
+        varying float vSeed;
+        ${NOISE_GLSL}
+        ${PUFF_GLSL}
         void main() {
-          vec4 t = texture2D(map, vUv);
-          if (t.a < 0.5) discard;
-          gl_FragColor = vec4(t.rgb * (0.3 + vLight), alpha * vFade);
+          float d = puffDensity(vQ, vPx, vSeed, uTime * 0.01);
+          float a = alpha * vFade * smoothstep(0.0, 0.55, d);
+          if (a < 0.02) discard;
+          vec3 c = mix(cLight, cDark, smoothstep(0.45, 0.95, d));
+          gl_FragColor = vec4(c * (0.3 + vLight), a);
         }
       `,
     })), false);
     mat.transparent = false;
     const geo = new THREE.PlaneGeometry(1, 1);
     this.fade = new THREE.InstancedBufferAttribute(new Float32Array(max), 1);
+    this.seed = new THREE.InstancedBufferAttribute(new Float32Array(max), 1);
     geo.setAttribute('fade', this.fade);
+    geo.setAttribute('seed', this.seed);
     this.mesh = new THREE.InstancedMesh(geo, mat, max);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = order;
@@ -167,12 +182,14 @@ export class Puffs {
     this.n = 0;
   }
 
-  add(x: number, y: number, z: number, size: number, fade: number): void {
+  /** 덩어리 하나: 가운데 (월드), 깊이, 지름 (px), 짙기 0~1. seed: 덩어리마다 다른 무늬 (없으면 차례 번호) */
+  add(x: number, y: number, z: number, size: number, fade: number, seed = this.n * 0.618): void {
     if (this.n >= this.max || fade <= 0.02) return;
     this.m4.makeScale(size, size, 1);
     this.m4.setPosition(Math.round(x), Math.round(y), z);
     this.mesh.setMatrixAt(this.n, this.m4);
     this.fade.setX(this.n, fade);
+    this.seed.setX(this.n, seed);
     this.n++;
   }
 
@@ -182,6 +199,7 @@ export class Puffs {
     if (!this.n) return;
     upload(this.mesh.instanceMatrix, this.n * 16);
     upload(this.fade, this.n);
+    upload(this.seed, this.n);
   }
 }
 
@@ -243,8 +261,8 @@ export class Sparks {
 }
 
 /**
- * 소화전 물기둥 (판 하나): 위로 갈수록 퍼지고 12틱 주기로 출렁인다. 가운데 줄기는 밝고 끝은 디더링으로 옅게.
- * 둘레 빛을 받아 그 빛 색으로 반짝인다.
+ * 소화전 물기둥 (판 하나): 위로 갈수록 퍼지고 12틱 주기로 출렁인다. 가운데 줄기는 밝고 짙으며, 바깥 물보라는 반투명으로 옅어진다
+ * (넓은 바둑판 점무늬 없이). 둘레 빛을 받아 그 빛 색으로 반짝인다.
  */
 export class WaterColumn {
   readonly mesh: THREE.Mesh;
@@ -252,7 +270,7 @@ export class WaterColumn {
   static readonly MAX = 84;
 
   constructor() {
-    this.mat = withLights(new THREE.ShaderMaterial({
+    this.mat = keepAlpha(withLights(new THREE.ShaderMaterial({
       uniforms: {
         ...shared,
         height: { value: 40 },
@@ -283,17 +301,21 @@ export class WaterColumn {
           float y = floor(vLocal.y);
           if (y >= height) discard;
           float ph = mod(uTime, 12.0);
-          float spread = floor(2.0 + (y / height) * 3.0 + sin((ph + y) * 3.14159 / 6.0) + 0.5);
-          if (dx < -spread || dx > spread + 1.0) discard;
+          float spread = 2.0 + (y / height) * 3.0 + sin((ph + y) * 3.14159 / 6.0);
           float k = y / height;
-          float level = k > 0.8 ? 6.0 : 12.0;
-          if (bayer(vec2(dx, -y + ph)) >= level) discard;
+          // 가운데 줄기에서 바깥으로 옅어지는 물: 바깥 칸은 출렁이는 물방울만 드문드문 (1px 외톨이가 아니라 세로 2칸 물줄기)
+          float r = abs(dx + 0.5) / max(spread + 0.5, 1.0);
+          if (r > 1.0) discard;
+          float drop = step(0.45, hash11(dx * 7.0 + floor((y - ph * 2.0) / 2.0) * 13.0));
+          float a = mix(0.9, 0.55 * drop, smoothstep(0.35, 0.95, r)) * (1.0 - smoothstep(0.82, 1.0, k) * 0.7);
+          if (a < 0.05) discard;
           vec3 c = (abs(dx) <= 1.0 && k < 0.7) ? cLight : cWater;
           vec3 lit = lightAt(vWorld, vec3(0.0, 0.0, 1.0));
-          gl_FragColor = vec4(c * (0.4 + lit * 0.7), 0.0);
+          gl_FragColor = vec4(c * (0.4 + lit * 0.7), a);
         }
       `,
-    }));
+    })), false);
+    this.mat.transparent = false;
     const geo = new THREE.PlaneGeometry(20, WaterColumn.MAX);
     geo.translate(0, WaterColumn.MAX / 2, 0);
     this.mesh = new THREE.Mesh(geo, this.mat);

@@ -5,34 +5,49 @@ import { GONE_N, LIGHTS_DECL, shared, withLights } from './lights';
  * 셰이더 조각과 재질 (렌더 전용). 색은 선형으로 계산하고(텍스처는 sRGB로 읽어 선형으로 바꾼다),
  * 마지막 후처리에서 화면 색으로 바꿔 팔레트로 줄인다.
  */
+
+/**
+ * 하늘과 공기가 함께 쓰는 값 (렌더 전용, sky.ts의 lightningAt이 매 프레임 채운다).
+ * uFlash: 먼 번개 번쩍임 세기 0~1 (구름·안개·비가 이 빛을 받는다)
+ */
+export const atmos = {
+  uFlash: { value: 0 },
+};
+
 export const LIGHT_GLSL = /* glsl */ `
 ${LIGHTS_DECL}
 uniform vec3 uAmbient;
 uniform vec3 uAmbientGround;
 uniform float uAlbedo;
+/** 환경광은 반구: 위(하늘)에서 오는 차가운 남색과 아래(젖은 길)에서 올라오는 더 어두운 빛 */
+vec3 ambientAt(vec3 n) {
+  return mix(uAmbientGround, uAmbient, n.y * 0.5 + 0.5);
+}
 /**
- * 환경광은 반구: 위(하늘)에서 오는 차가운 남색과 아래(젖은 길)에서 올라오는 더 어두운 빛.
- * 점 광원: 거리에 따라 부드럽게 줄고 (닿는 거리에서 0), 면이 빛을 등지면 어둡다 (조금 감싸 돌게).
+ * 점 광원만 (환경광 없이): 거리에 따라 부드럽게 줄고 (닿는 거리에서 0), 면이 빛을 등지면 어둡다 (조금 감싸 돌게).
+ * 아래로만 비추는 등은 광원 바로 아래가 가장 밝고, 광원 높이 근처의 벽은 비추지 않는다
  */
-vec3 lightAt(vec3 p, vec3 n) {
-  vec3 sum = mix(uAmbientGround, uAmbient, n.y * 0.5 + 0.5);
+vec3 directAt(vec3 p, vec3 n) {
+  vec3 sum = vec3(0.0);
   for (int i = 0; i < LIGHT_N; i++) {
     if (float(i) >= uLightCount) break;
     vec3 L = uLightPos[i].xyz - p;
     float d = length(L);
     float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
-    float ndl = clamp(dot(n, L / max(d, 0.001)) * 0.75 + 0.25, 0.0, 1.0);
-    // 아래로만 비추는 등: 광원 바로 아래가 가장 밝고, 광원 높이 근처의 벽은 비추지 않는다
-    float spot = uLightCol[i].w > 1.5 ? smoothstep(0.25, 0.75, L.y / max(d, 0.001)) : 1.0;
+    if (k <= 0.0) continue;
+    vec3 l = L / max(d, 0.001);
+    float ndl = clamp(dot(n, l) * 0.75 + 0.25, 0.0, 1.0);
+    float spot = uLightCol[i].w > 1.5 ? smoothstep(0.25, 0.75, l.y) : 1.0;
     sum += uLightCol[i].rgb * (k * k) * ndl * spot;
   }
   return sum;
 }
 /**
- * lightAt과 같고, 젖은 면의 반짝임(빛 쪽으로 기운 결에 맺히는 하이라이트)을 spec에 더한다. v: 카메라 쪽 방향
+ * directAt과 같고, 젖은 면의 반짝임(빛 쪽으로 기운 결에 맺히는 하이라이트)을 spec에 더한다. v: 카메라 쪽 방향.
+ * 반짝임은 센 빛 안에서만 (약한 빛이 닿는 어두운 벽에는 맺히지 않는다)
  */
-vec3 lightAtSpec(vec3 p, vec3 n, vec3 v, float wet, inout vec3 spec) {
-  vec3 sum = mix(uAmbientGround, uAmbient, n.y * 0.5 + 0.5);
+vec3 directAtSpec(vec3 p, vec3 n, vec3 v, float wet, inout vec3 spec) {
+  vec3 sum = vec3(0.0);
   for (int i = 0; i < LIGHT_N; i++) {
     if (float(i) >= uLightCount) break;
     vec3 L = uLightPos[i].xyz - p;
@@ -44,13 +59,22 @@ vec3 lightAtSpec(vec3 p, vec3 n, vec3 v, float wet, inout vec3 spec) {
     float spot = uLightCol[i].w > 1.5 ? smoothstep(0.25, 0.75, l.y) : 1.0;
     vec3 c = uLightCol[i].rgb * (k * k) * spot;
     sum += c * ndl;
-    // 반짝임은 센 빛 4개까지만 (광원 배열은 센 순서로 실린다)
-    if (i < 4) {
+    // 반짝임은 센 빛 6개까지만 (광원 배열은 센 순서로 실린다)
+    if (i < 6) {
       vec3 h = normalize(l + v);
-      spec += c * pow(clamp(dot(n, h), 0.0, 1.0), 26.0) * wet;
+      float strong = smoothstep(0.06, 0.45, dot(c, vec3(0.3, 0.59, 0.11)));
+      spec += c * pow(clamp(dot(n, h), 0.0, 1.0), 26.0) * wet * strong;
     }
   }
   return sum;
+}
+/** 환경광 + 점 광원 (예전 그대로: 다른 재질이 쓴다) */
+vec3 lightAt(vec3 p, vec3 n) {
+  return ambientAt(n) + directAt(p, n);
+}
+/** lightAt + 젖은 반짝임 */
+vec3 lightAtSpec(vec3 p, vec3 n, vec3 v, float wet, inout vec3 spec) {
+  return ambientAt(n) + directAtSpec(p, n, v, wet, spec);
 }
 `;
 
@@ -105,6 +129,7 @@ uniform float emissiveStrength;
 uniform vec3 tint;
 uniform float bump;
 uniform float wet;
+uniform float flatten;
 ${LIGHT_GLSL}
 ${FOG_GLSL}
 varying vec2 vUv;
@@ -114,6 +139,7 @@ varying float vDepth;
 #ifdef CLIPX
 uniform vec2 clipX;
 #endif
+const vec3 LW = vec3(0.3, 0.59, 0.11);
 void main() {
 #ifdef CLIPX
   // 이 x 구간 밖은 그리지 않는다 (선로 끝에서 사라지는 전차)
@@ -121,32 +147,49 @@ void main() {
 #endif
   vec4 tex = texture2D(map, vUv);
   if (tex.a < 0.5) discard;
-  // 바탕색은 채도를 낮춰 두고 (아트 규칙: 배경은 채도를 낮춘다) 색은 빛이 입힌다
-  vec3 alb = mix(vec3(dot(tex.rgb, vec3(0.3, 0.59, 0.11))), tex.rgb, 0.55) * uAlbedo;
-  vec3 n = normalize(vNormal);
+  vec2 ts = 1.0 / vec2(textureSize(map, 0));
+  // 둘레 평균색 (벽돌 한 장·줄눈·얼룩 같은 작은 무늬를 지운 색, 창·문 같은 큰 형태는 남는다).
+  // 빛이 닿지 않은 면은 이 색으로 어둠에 묻는다 (아트 규칙: 디테일은 빛이 닿은 면에만)
+  vec4 a1 = texture2D(map, vUv + vec2(2.0, 1.0) * ts);
+  vec4 a2 = texture2D(map, vUv + vec2(-1.0, 2.0) * ts);
+#ifdef DETAIL
+  vec4 a3 = texture2D(map, vUv + vec2(-2.0, -1.0) * ts);
+  vec4 a4 = texture2D(map, vUv + vec2(1.0, -2.0) * ts);
+  vec3 mean = (tex.rgb + a1.rgb * a1.a + a2.rgb * a2.a + a3.rgb * a3.a + a4.rgb * a4.a) / (1.0 + a1.a + a2.a + a3.a + a4.a);
+#else
+  vec3 mean = (tex.rgb + a1.rgb * a1.a + a2.rgb * a2.a) / (1.0 + a1.a + a2.a);
+#endif
+  vec3 n0 = normalize(vNormal);
+  vec3 n = n0;
+  vec3 spec = vec3(0.0);
 #ifdef DETAIL
   // 벽 결: 도트 그림의 밝기를 높이로 보고(줄눈·창틀 홈은 낮고 벽돌 면은 높다) 칸마다 면을 기울인다.
-  // 빛이 움직이면 벽돌 결과 창틀 모서리를 따라 밝고 어두운 면이 생긴다 (품질 높음에서만: setDetail)
+  // 빛이 움직이면 벽돌 결과 창틀 모서리를 따라 밝고 어두운 면이 생긴다 (품질 높음에서만: setDetail).
+  // 결은 점 광원에만 쓴다: 환경광은 기울지 않은 면으로 받아, 빛이 닿지 않은 곳에는 결이 서지 않는다
   if (bump > 0.0) {
-    vec2 ts = 1.0 / vec2(textureSize(map, 0));
-    vec3 W = vec3(0.3, 0.59, 0.11);
-    float h0 = dot(tex.rgb, W);
-    float hr = dot(texture2D(map, vUv + vec2(ts.x, 0.0)).rgb, W);
-    float hu = dot(texture2D(map, vUv + vec2(0.0, ts.y)).rgb, W);
+    float h0 = dot(tex.rgb, LW);
+    float hr = dot(texture2D(map, vUv + vec2(ts.x, 0.0)).rgb, LW);
+    float hu = dot(texture2D(map, vUv + vec2(0.0, ts.y)).rgb, LW);
     vec3 nt = normalize(vec3((h0 - hr) * bump * 8.0, (h0 - hu) * bump * 8.0, 1.0));
     // 면의 결 방향: 무대는 거의 상자와 판이라 면 방향만 보고 정한다 (상자 그림의 u·v 방향, 화면 미분 없이)
-    vec3 an = abs(n);
-    vec3 T = an.z >= max(an.x, an.y) ? vec3(sign(n.z), 0.0, 0.0) : an.x >= an.y ? vec3(0.0, 0.0, -sign(n.x)) : vec3(1.0, 0.0, 0.0);
-    vec3 B = an.y > max(an.x, an.z) ? vec3(0.0, 0.0, -sign(n.y)) : vec3(0.0, 1.0, 0.0);
-    n = normalize(mat3(T, B, n) * nt);
+    vec3 an = abs(n0);
+    vec3 T = an.z >= max(an.x, an.y) ? vec3(sign(n0.z), 0.0, 0.0) : an.x >= an.y ? vec3(0.0, 0.0, -sign(n0.x)) : vec3(1.0, 0.0, 0.0);
+    vec3 B = an.y > max(an.x, an.z) ? vec3(0.0, 0.0, -sign(n0.y)) : vec3(0.0, 1.0, 0.0);
+    n = normalize(mat3(T, B, n0) * nt);
   }
-  // 비에 젖은 면은 빛 쪽으로 기운 결마다 반짝인다
-  vec3 spec = vec3(0.0);
-  vec3 col = alb * tint * lightAtSpec(vWorld, n, normalize(cameraPosition - vWorld), wet, spec);
-  col += spec;
+  // 비에 젖은 면은 센 빛 쪽으로 기운 결마다 반짝인다
+  vec3 direct = directAtSpec(vWorld, n, normalize(cameraPosition - vWorld), wet, spec);
 #else
-  vec3 col = alb * tint * lightAt(vWorld, n);
+  vec3 direct = directAt(vWorld, n);
 #endif
+  vec3 amb = ambientAt(n0);
+  // 이 면이 받은 빛 (환경광 말고 광원에서 온 빛): 어둠 0 ~ 빛 웅덩이 1
+  float litK = smoothstep(0.03, 0.3, dot(direct, LW));
+  // 작은 무늬는 빛이 닿은 만큼만 드러난다
+  vec3 albTex = mix(mean, tex.rgb, mix(1.0 - flatten * 0.92, 1.0, litK));
+  // 색: 어둠은 채도를 낮춰 차갑게 묻고 (환경광이 남색), 빛이 닿은 곳은 칠한 색(녹·페인트·포스터)이 살아난다
+  vec3 alb = mix(vec3(dot(albTex, LW)), albTex, mix(0.48, 1.0, litK)) * uAlbedo;
+  vec3 col = alb * tint * (amb + direct) + spec;
   // 스스로 빛나는 것(창·네온·로비)은 안개를 덜 먹는다: 빛이 안개를 뚫고 나와 색이 살아 있다
   float fk = fogK(vDepth, vWorld.y);
   vec3 em = texture2D(emissiveMap, vUv).rgb * emissiveStrength;
@@ -183,7 +226,9 @@ const BLACK = (() => {
 
 /**
  * 도트 텍스처를 광원으로 비추는 재질. emissive: 스스로 빛나는 부분(창·네온).
- * attached: 건물에 붙은 기하 (무너진 칸을 지운다, kit.ts의 Geo), clip: 이 x 구간 밖은 그리지 않는다
+ * attached: 건물에 붙은 기하 (무너진 칸을 지운다, kit.ts의 Geo), clip: 이 x 구간 밖은 그리지 않는다.
+ * 빛이 닿지 않은 면은 작은 무늬(벽돌 결·얼룩·포스터 글자)가 어둠에 묻히고 색이 차갑게 빠진다.
+ * 빛이 닿은 만큼 무늬와 칠한 색이 드러난다.
  */
 export function litMaterial(
   map: THREE.Texture,
@@ -191,6 +236,8 @@ export function litMaterial(
     emissive?: THREE.Texture; emissiveStrength?: number; tint?: number; side?: THREE.Side; attached?: boolean; clip?: [number, number];
     /** 벽 결 세기 (0이면 끔), 젖은 반짝임 세기 */
     bump?: number; wet?: number;
+    /** 빛이 닿지 않은 곳에서 작은 무늬를 묻는 정도 (0: 늘 그대로 보임, 기본 1). 어둠에서도 읽혀야 하는 그림(글자 판 등)은 낮춘다 */
+    flatten?: number;
   } = {},
 ): THREE.ShaderMaterial {
   const defines: Record<string, string> = {};
@@ -208,6 +255,7 @@ export function litMaterial(
       clipX: { value: new THREE.Vector2(...(opts.clip ?? [-1e9, 1e9])) },
       bump: { value: opts.bump ?? 1 },
       wet: { value: opts.wet ?? 0.35 },
+      flatten: { value: opts.flatten ?? 1 },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,
@@ -244,7 +292,7 @@ function keepAlpha(m: THREE.ShaderMaterial, additive: boolean): THREE.ShaderMate
   return m;
 }
 
-/** 먼 겹 안개 덩어리 무늬 (64×64 값 잡음, 부드럽게 늘여 쓴다: 안개는 흐림을 허용한다). 모든 먼 겹이 함께 쓴다 */
+/** 먼 겹 안개 덩어리 무늬 (64×64 값 잡음, 부드럽게 늘여 쓴다: 안개는 흐림을 허용한다). 빛줄기 속 안개가 함께 쓴다 */
 let bankTex: THREE.DataTexture | null = null;
 function fogBankNoise(): THREE.DataTexture {
   if (bankTex) return bankTex;
@@ -301,20 +349,45 @@ float vnoise(vec2 p) {
 `;
 
 /**
+ * 연기·증기 덩어리의 짙기 (0~1, NOISE_GLSL 뒤에 넣는다). 그림을 키워 쓰지 않고 칸마다 계산한다 (픽셀 크기 하나).
+ * q: 덩어리 안 좌표 (-1~1), px: 덩어리 지름 (화면 px), seed: 덩어리마다 다른 무늬, t: 무늬가 피어오르는 시간.
+ * 둥근 공이 아니라 가장자리를 무늬가 갉아 먹은 뭉게 덩어리: 가운데가 짙고 가장자리로 부드럽게 사라진다.
+ * 무늬 한 알갱이는 화면 6px 안팎이라 1px 점이 흩어지지 않는다
+ */
+export const PUFF_GLSL = /* glsl */ `
+float puffDensity(vec2 q, float px, float seed, float t) {
+  float r = length(q);
+  if (r >= 1.0) return 0.0;
+  vec2 s = q * (px / 12.0) + vec2(seed * 17.31, seed * 7.13);
+  float n = vnoise(s + vec2(0.0, t)) * 0.62 + vnoise(s * 2.13 + vec2(3.7, -t * 1.3)) * 0.38;
+  float edge = 1.0 - smoothstep(0.25 + 0.4 * n, 1.0, r + (0.5 - n) * 0.25);
+  return clamp(edge * (0.55 + 0.6 * n), 0.0, 1.0);
+}
+`;
+
+/**
  * 먼 겹 판 (빛을 받지 않는 그림): 어둡게 누르고 안개에 묻는다. fog: 0~1, glowMix: 안개가 지평선 도시 불빛 색을 얼마나 띠는지.
- * 안개는 그림에 칠하지 않고 여기서 덮는다 (점무늬 없이 이어지게): 겹 아래쪽(바닥 안개)이 짙고, 안개 덩어리가 천천히 흐른다.
- * 불 켜진 창처럼 밝은 칸은 안개를 뚫고 빛난다.
+ * 안개는 그림에 칠하지 않고 여기서 덮는다 (점무늬 없이 이어지게): 겹 아래쪽(바닥 안개)이 짙고 위로 갈수록 옅다.
+ * 안개 속에는 가로로 길게 늘어진 안개 자락이 천천히 흐른다 (한 화면 안에서도 짙고 옅은 곳이 갈마든다: 평평한 판이 되지 않게).
+ * 안개는 그림을 다 덮지 않는다 (가장 짙어도 그림이 비쳐, 실루엣이 한 색 덩어리가 되지 않는다).
+ * 불 켜진 창처럼 밝은 칸은 안개를 뚫고 빛난다. 먼 번개가 쳐도 먼 겹은 밝아지지 않는다 (번쩍이는 하늘을 등진 실루엣).
  */
 export function backdropMaterial(map: THREE.Texture, tint: number, fog: number, glowMix = 0.5): THREE.ShaderMaterial {
   const img = map.image as HTMLCanvasElement;
   return new THREE.ShaderMaterial({
     uniforms: {
       ...shared, map: { value: map }, tint: { value: tint }, fogAmount: { value: fog }, glowMix: { value: glowMix },
-      texSize: { value: new THREE.Vector2(img.width, img.height) }, bankNoise: { value: fogBankNoise() },
+      texSize: { value: new THREE.Vector2(img.width, img.height) },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
-      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+      varying float vTop;
+      void main() {
+        vUv = uv;
+        // 위쪽 안개 남김: 먼 겹(마천루)은 윗부분이 거의 맑아 어두운 실루엣, 가까운 겹(중간 건물)은 위까지 옅은 안개가 남아 먼 겹보다 밝다
+        vTop = mix(0.2, 0.6, smoothstep(-18000.0, -3000.0, modelMatrix[3].z));
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
     `,
     fragmentShader: /* glsl */ `
       uniform sampler2D map;
@@ -326,8 +399,9 @@ export function backdropMaterial(map: THREE.Texture, tint: number, fog: number, 
       uniform vec3 uFogGlow;
       uniform float uMist;
       uniform float uTime;
-      uniform sampler2D bankNoise;
       varying vec2 vUv;
+      varying float vTop;
+      ${NOISE_GLSL}
       void main() {
         vec4 t = texture2D(map, vUv);
         if (t.a < 0.5) discard;
@@ -335,13 +409,20 @@ export function backdropMaterial(map: THREE.Texture, tint: number, fog: number, 
         float l = dot(t.rgb, vec3(0.3, 0.59, 0.11));
         float resist = smoothstep(0.12, 0.4, l);
         float mist = uMist * (1.0 - smoothstep(0.0, 0.42, vUv.y));
-        float bank = 0.72 + 0.56 * texture2D(bankNoise, vec2(p.x / 4480.0 + uTime * 0.00001, p.y / 1408.0)).r;
+        // 안개 자락: 가로로 길게 (겹 px로 140×40, 그 반 크기 한 겹 더), 천천히 옆으로 흐른다.
+        // 짙기를 조금만 흔들어 안개 띠의 경계가 물결치게 한다 (줄무늬가 갈마들거나 한 덩어리 언덕이 되지 않게)
+        vec2 q = p / vec2(140.0, 40.0) + vec2(uTime * 0.0011, 0.0);
+        float wisp = vnoise(q) * 0.62 + vnoise(q * vec2(2.3, 2.7) + vec2(5.2, 1.3) - vec2(uTime * 0.0017, 0.0)) * 0.38;
+        float bank = 0.72 + 0.56 * wisp;
         // 안개는 땅 가까이가 짙고 위로 갈수록 옅다 (도시 불빛에 물든 안개가 바닥에 깔린다):
-        // 높은 마천루의 윗부분은 어두운 하늘을 등진 실루엣과 켜진 창으로 보이고, 아랫부분만 밝은 안개에 묻힌다
-        float high = smoothstep(0.28, 0.8, vUv.y);
-        float f = clamp((fogAmount * (1.0 - 0.6 * high) + mist * 0.55) * bank, 0.0, 0.96) * (1.0 - resist * 0.7);
+        // 마천루는 아래쪽이 안개에 묻히고, 윗부분은 어두운 하늘을 등진 실루엣과 켜진 창으로 보인다
+        float high = smoothstep(0.04, 0.65, vUv.y);
+        float f = (fogAmount * mix(1.0, vTop, high) + mist * 0.45) * bank;
+        f = min(f, 0.72);
         vec3 fogCol = mix(uFogColor, uFogGlow, glowMix * (1.0 - vUv.y * 0.6));
-        vec3 c = t.rgb * tint * (1.0 + resist * 2.0);
+        // 불 켜진 창은 안개를 뚫고 빛나되, 짙은 안개 속에서는 흐려진다 (안개 위에 점이 떠 보이지 않게)
+        f *= 1.0 - resist * 0.6 * (1.0 - f);
+        vec3 c = t.rgb * tint * (1.0 + resist * 2.0 * (1.0 - f));
         gl_FragColor = vec4(mix(c, fogCol, f), 0.0);
       }
     `,
@@ -365,6 +446,7 @@ vec3 floorLight(vec3 p) {
     vec3 L = uLightPos[i].xyz - q;
     float d = length(L);
     float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
+    if (k <= 0.0) continue;
     float spot = uLightCol[i].w > 1.5 ? 1.25 : 1.0;
     vec3 c = uLightCol[i].rgb * (k * k) * spot;
     sum += c * clamp(L.y / max(d, 0.001) * 0.8 + 0.2, 0.0, 1.0);
@@ -378,6 +460,7 @@ vec3 floorLight(vec3 p) {
 /**
  * 젖은 바닥: 아스팔트 그림을 빛으로 비추고, 화면 알파에 젖은 정도(반사 세기)를 쓴다.
  * 반사 자체는 후처리(화면 반사)가 이 알파를 보고 더한다. wet: 웅덩이 무늬(빨강 채널), 가로 x·세로 z로 반복.
+ * 무늬(돌판 줄눈·자갈)는 빛 웅덩이 안에서만 또렷하다 (빛이 닿지 않은 길은 어둡고 고르게: 캐릭터가 서는 바닥 띠가 벽보다 어둡게 갈라진다).
  */
 export function floorMaterial(
   map: THREE.Texture, mapScale: THREE.Vector2, wet: THREE.Texture, wetScale: THREE.Vector2, wetK = 1, lightGain = 3,
@@ -403,13 +486,21 @@ export function floorMaterial(
       varying float vDepth;
       ${FLOOR_LIGHT_GLSL}
       void main() {
-        vec3 tex = texture2D(map, vWorld.xz * mapScale).rgb;
+        vec2 uv = vWorld.xz * mapScale;
+        vec3 tex = texture2D(map, uv).rgb;
         float w = texture2D(wet, vWorld.xz * wetScale).r * wetK;
+        vec3 lit = floorLight(vWorld);
+        // 빛이 닿지 않은 길은 무늬를 둘레 평균으로 묻는다
+        vec2 ts = 1.0 / vec2(textureSize(map, 0));
+        vec3 mean = (tex + texture2D(map, uv + vec2(2.0, 1.0) * ts).rgb + texture2D(map, uv + vec2(-2.0, -1.0) * ts).rgb) / 3.0;
+        float litK = smoothstep(0.03, 0.35, dot(lit - uAmbientGround, vec3(0.3, 0.59, 0.11)));
+        tex = mix(mean, tex, 0.25 + 0.75 * litK);
         // 젖은 곳은 바탕이 더 어둡고(물이 덮음) 반사가 세다
-        vec3 col = tex * uAlbedo * mix(1.0, 0.55, w) * floorLight(vWorld);
+        vec3 col = tex * uAlbedo * mix(1.0, 0.55, w) * lit;
         // 물기에 번진 빛: 웅덩이일수록 세다
-        col += floorSheen * (0.3 + 0.7 * w) * 0.12 * min(1.0, wetK * 1.5);
-        gl_FragColor = vec4(applyFog(col, vDepth, 0.0), (0.35 + 0.6 * w) * min(1.0, wetK * 1.5));
+        float wk = min(1.0, wetK * 1.5);
+        col += floorSheen * (0.3 + 0.7 * w) * 0.12 * wk;
+        gl_FragColor = vec4(applyFog(col, vDepth, 0.0), (0.35 + 0.6 * w) * wk);
       }
     `,
   }));
@@ -485,16 +576,20 @@ export function scrollMaterial(strip: THREE.Texture, cols: number): THREE.Shader
 /**
  * 빛줄기 (가로등·전조등 아래로 쏟아지는 빛, 서치라이트): 원뿔 표면을 가산으로. 빛은 물체가 아니다 —
  * 광원 쪽이 밝고 끝으로 길게 옅어지며, 원뿔 가장자리(시선과 비스듬한 곳)는 넓게 부드럽게 사라진다.
+ * 가운데 심만 조금 밝고(평평한 판이 아니라 빛 기둥), 바닥 가까이에서는 바닥에 닿기 전에 옅어진다 (바닥에 잘린 단면이 서지 않게).
+ * 등마다 세기와 안개 무늬가 조금씩 다르다 (같은 빛줄기가 줄지어 서지 않게: 판 자리로 정한다).
  * 광원 바로 옆은 빛 무리(후처리)가 맡으므로 눌러 둔다 (하얀 심이 박힌 물방울 모양이 되지 않게). 화면 알파는 건드리지 않는다.
+ * 먼 번개가 치면 빛줄기 속 안개도 잠깐 밝아진다.
  */
 export function shaftMaterial(color: string, strength: number): THREE.ShaderMaterial {
   const c = new THREE.Color(color).convertSRGBToLinear();
   const m = new THREE.ShaderMaterial({
-    uniforms: { ...shared, color: { value: c }, strength: { value: strength }, bankNoise: { value: fogBankNoise() } },
+    uniforms: { ...shared, color: { value: c }, strength: { value: strength }, bankNoise: { value: fogBankNoise() }, uFlash: atmos.uFlash },
     vertexShader: /* glsl */ `
       varying float vAlong;
       varying float vFacing;
       varying vec3 vWorld;
+      varying float vSeed;
       void main() {
         vAlong = uv.y;
         vec4 wp = modelMatrix * vec4(position, 1.0);
@@ -502,6 +597,9 @@ export function shaftMaterial(color: string, strength: number): THREE.ShaderMate
         vec3 n = normalize(mat3(modelMatrix) * normal);
         vec3 v = normalize(cameraPosition - wp.xyz);
         vFacing = abs(dot(n, v));
+        // 이 빛줄기 하나의 값 (판 자리로 정한다)
+        vec3 o = modelMatrix[3].xyz;
+        vSeed = fract(sin(dot(floor(o.xy), vec2(12.9898, 78.233))) * 43758.5453);
         gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
@@ -509,20 +607,26 @@ export function shaftMaterial(color: string, strength: number): THREE.ShaderMate
       uniform vec3 color;
       uniform float strength;
       uniform float uTime;
+      uniform float uFlash;
       uniform sampler2D bankNoise;
       varying float vAlong;
       varying float vFacing;
       varying vec3 vWorld;
+      varying float vSeed;
       void main() {
         // 광원에서 3할쯤 내려온 곳이 가장 밝고, 광원 바로 옆은 눌러 두고, 끝은 길게 옅어진다
-        float along = smoothstep(0.0, 0.75, vAlong) * (1.0 - 0.55 * smoothstep(0.7, 1.0, vAlong));
-        // 원뿔 가장자리는 넓게 부드럽게 (가운데가 조금 더 밝을 뿐)
+        float along = smoothstep(0.0, 0.8, vAlong) * (1.0 - 0.55 * smoothstep(0.72, 1.0, vAlong));
+        along *= along * 0.3 + 0.7;
+        // 원뿔 가장자리는 넓게 부드럽게, 가운데 심이 조금 더 밝다
         float edge = smoothstep(0.0, 1.0, vFacing);
-        edge *= edge;
-        // 빛 속 안개가 천천히 흐르고 뭉친다 (칸 단위 잡음)
+        edge = edge * edge * (0.55 + 0.45 * edge);
+        // 바닥 가까이는 옅게 (빛줄기가 바닥에 닿아 잘린 단면이 서지 않게)
+        float floorFade = 0.4 + 0.6 * smoothstep(-6.0, 40.0, vWorld.y);
+        // 빛 속 안개가 천천히 흐르고 뭉친다 (칸 단위 잡음, 빛줄기마다 무늬 자리가 다르다)
         vec2 p = floor(vWorld.xy);
-        float mist = 0.45 + 0.55 * texture2D(bankNoise, vec2(p.x / 200.0 + uTime * 0.0009, p.y / 140.0 - uTime * 0.0004)).r;
-        gl_FragColor = vec4(color * strength * along * edge * mist, 1.0);
+        float mist = 0.4 + 0.6 * texture2D(bankNoise, vec2(p.x / 180.0 + uTime * 0.0009 + vSeed * 3.1, p.y / 120.0 - uTime * 0.0004 + vSeed * 1.7)).r;
+        float k = strength * (0.85 + 0.35 * vSeed) * (1.0 + uFlash * 0.6);
+        gl_FragColor = vec4(color * k * along * edge * mist * floorFade, 1.0);
       }
     `,
     side: THREE.DoubleSide,
@@ -530,14 +634,19 @@ export function shaftMaterial(color: string, strength: number): THREE.ShaderMate
   return keepAlpha(m, true);
 }
 
-/** 반투명 판 (안개 카드·증기): 색·세기, 무늬 텍스처의 빨강 채널을 농도로 */
+/**
+ * 반투명 판 (안개 카드·증기): 색·세기, 무늬 텍스처의 빨강 채널을 농도로.
+ * 안개는 공기다: 가로로 길게 늘어진 자락이 두 겹으로 천천히 흐르고 (짙은 곳과 트인 곳이 갈마든다),
+ * 아래(땅 가까이)가 짙고 위로 갈수록 옅어져 위 끝에서 사라진다 (윗변이 선으로 서지 않게).
+ * 가까운 안개는 둘레 빛을 받아 그 빛 색으로 밝아지고, 먼 번개가 치면 잠깐 밝아진다.
+ */
 export function hazeMaterial(noise: THREE.Texture, color: string, strength: number, scale: number, lit = true): THREE.ShaderMaterial {
   const c = new THREE.Color(color).convertSRGBToLinear();
   const m = new THREE.ShaderMaterial({
     defines: lit ? { LIT: '' } : {},
     uniforms: {
       ...shared, noise: { value: noise }, color: { value: c }, strength: { value: strength }, drift: { value: new THREE.Vector2(0.0006, 0.00015) },
-      noiseScale: { value: new THREE.Vector2(1 / (300 * scale), 1 / (110 * scale)) },
+      noiseScale: { value: new THREE.Vector2(1 / (300 * scale), 1 / (110 * scale)) }, uFlash: atmos.uFlash,
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -551,23 +660,30 @@ export function hazeMaterial(noise: THREE.Texture, color: string, strength: numb
       uniform vec2 drift;
       uniform vec2 noiseScale;
       uniform float uTime;
+      uniform float uFlash;
+      uniform vec3 uFogColor;
       ${LIGHT_GLSL}
       varying vec2 vUv;
       varying vec3 vWorld;
       void main() {
-        // 안개 덩어리: 크기가 다른 두 무늬를 섞어 같은 덩어리가 같은 간격으로 줄짓지 않게, 짙기 차이는 작게
-        // (차이가 크면 팔레트 단계로 나뉘어 고리 무늬·얼룩처럼 보인다)
-        float n1 = texture2D(noise, vWorld.xy * noiseScale + drift * uTime).r;
-        float n2 = texture2D(noise, vWorld.xy * noiseScale * vec2(0.37, 0.53) + vec2(0.31, 0.17) - drift * uTime * 0.6).r;
-        float n = 0.35 + 0.15 * (n1 + n2);
-        // 아래쪽이 짙고 위로 갈수록 옅게
-        float a = strength * n * smoothstep(1.0, 0.15, vUv.y) * smoothstep(0.0, 0.08, vUv.y);
+        // 안개 자락: 크기가 다른 두 무늬가 서로 다른 빠르기로 흐른다 (같은 덩어리가 같은 간격으로 줄짓지 않게).
+        // 짙기 차이는 너무 크지 않게 (차이가 크면 팔레트 단계로 나뉘어 얼룩처럼 보인다)
+        vec2 w = vWorld.xy * noiseScale;
+        float n1 = texture2D(noise, w * vec2(1.7, 2.2) + drift * uTime).r;
+        float n2 = texture2D(noise, w * vec2(0.55, 0.8) + vec2(0.31, 0.17) - drift * uTime * 0.6).r;
+        float n = smoothstep(0.15, 0.85, n1 * 0.45 + n2 * 0.55);
+        // 아래쪽이 짙고 위로 갈수록 옅게, 위 끝은 0으로 (윗변이 보이지 않게)
+        float up = 1.0 - smoothstep(0.0, 0.92, vUv.y);
+        float a = strength * (0.22 + 0.56 * n) * up * smoothstep(0.0, 0.08, vUv.y);
         // 안개는 둘레 빛을 받아 밝아진다 (빛 받은 안개). 광원이 닿지 않는 먼 안개 판은 계산하지 않는다
+        // 안개 색은 그 구간 안개 색 쪽으로 (구간마다 공기 색이 다르다)
+        vec3 base = mix(color, uFogColor, 0.45);
         #ifdef LIT
-        vec3 lit = color + lightAt(vWorld, vec3(0.0, 0.0, 1.0)) * 0.6;
+        vec3 lit = base + directAt(vWorld, vec3(0.0, 0.0, 1.0)) * 0.6;
         #else
-        vec3 lit = color;
+        vec3 lit = base;
         #endif
+        lit += vec3(0.035, 0.038, 0.05) * uFlash;
         gl_FragColor = vec4(lit, a);
       }
     `,
@@ -602,12 +718,16 @@ export function flatMaterial(map: THREE.Texture, color?: string): THREE.ShaderMa
 }
 
 /**
- * 캐릭터 판: 시트에서 한 프레임을 잘라 그리고, 가까운 광원 쪽 테두리를 그 빛 색으로 물들인다
- * (이 칸은 차 있고 빛 쪽 한 칸 옆이 비어 있으면 1px 테두리, 두 칸 옆까지 비면 한 줄 더 옅게).
- * 깊이는 쓰지 않는다 (깊이 외곽선이 캐릭터에 덧그어지지 않게, 시트에 이미 외곽선이 있다).
+ * 캐릭터 판: 시트에서 한 프레임을 잘라 그리고, 무대의 빛을 받는다.
+ * - 어두운 곳(빛이 닿지 않는 공원)에서는 한 단계 어둡고 그 구간 환경광 쪽으로 조금 차갑게,
+ *   가로등·간판·이펙트 빛 가까이에서는 밝아지며 그 빛 색을 조금 띤다 (색은 알아볼 수 있게 살짝만).
+ *   시트의 1px 어두운 외곽선은 그대로 어둡다.
+ * - 가까운 광원 쪽 테두리를 그 빛 색으로 물들인다
+ *   (이 칸은 차 있고 빛 쪽 한 칸 옆이 비어 있으면 1px 테두리, 두 칸 옆까지 비면 한 줄 더 옅게).
+ * lit 0이면 시트 색 그대로 (맞아서 하얗게 번쩍일 때). 깊이는 쓰지 않는다 (시트에 이미 외곽선이 있다).
  */
 export function spriteMaterial(): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+  return withLights(new THREE.ShaderMaterial({
     uniforms: {
       map: { value: null },
       frame: { value: new THREE.Vector4(0, 0, 1, 1) },
@@ -615,19 +735,34 @@ export function spriteMaterial(): THREE.ShaderMaterial {
       rimDir: { value: new THREE.Vector2(0, 0) },
       rimColor: { value: new THREE.Color(0, 0, 0) },
       bright: { value: 1 },
+      lit: { value: 1 },
+      uAmbient: shared.uAmbient,
+      uAmbientGround: shared.uAmbientGround,
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
-      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+      varying vec3 vWorld;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorld = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
     `,
     fragmentShader: /* glsl */ `
+      ${LIGHTS_DECL}
       uniform sampler2D map;
       uniform vec4 frame;
       uniform vec2 texel;
       uniform vec2 rimDir;
       uniform vec3 rimColor;
       uniform float bright;
+      uniform float lit;
+      uniform vec3 uAmbient;
+      uniform vec3 uAmbientGround;
       varying vec2 vUv;
+      varying vec3 vWorld;
+      const vec3 LW = vec3(0.2126, 0.7152, 0.0722);
       void main() {
         vec2 uv = frame.xy + vUv * frame.zw;
         vec4 t = texture2D(map, uv);
@@ -636,11 +771,72 @@ export function spriteMaterial(): THREE.ShaderMaterial {
         float n2 = texture2D(map, uv + rimDir * texel * 2.0).a;
         float rim = (1.0 - step(0.5, n1)) + (1.0 - step(0.5, n2)) * step(0.5, n1) * 0.45;
         rim *= step(0.001, abs(rimDir.x) + abs(rimDir.y));
-        gl_FragColor = vec4(t.rgb * bright + rimColor * rim, 0.0);
+        vec3 c = t.rgb * bright;
+        if (lit > 0.0) {
+          // 몸에 닿는 빛: 몸은 둥글어 옆·뒤에서 온 빛도 조금 받는다 (나머지는 테두리 빛이 맡는다)
+          vec3 L = vec3(0.0);
+          for (int i = 0; i < LIGHT_N; i++) {
+            if (float(i) >= uLightCount) break;
+            vec3 d3 = uLightPos[i].xyz - vWorld;
+            float d = length(d3);
+            float k = clamp(1.0 - d / uLightPos[i].w, 0.0, 1.0);
+            if (k <= 0.0) continue;
+            vec3 l = d3 / max(d, 0.001);
+            float spot = uLightCol[i].w > 1.5 ? smoothstep(0.05, 0.55, l.y) : 1.0;
+            L += uLightCol[i].rgb * (k * k) * spot * (0.6 + 0.4 * max(l.z, 0.0));
+          }
+          vec3 amb = mix(uAmbientGround, uAmbient, 0.65);
+          float al = max(dot(amb, LW), 1e-4);
+          float ll = dot(L, LW);
+          // 밝기: 빛이 없으면 0.66 (구간 환경광이 밝으면 조금 더), 빛 속에서 1.18까지
+          float lev = min(0.66 * clamp(al / 0.1, 0.9, 1.2) + 1.0 * ll, 1.18);
+          // 색: 어둠은 환경광 색 쪽으로 아주 조금, 빛 속은 그 빛 색 쪽으로 조금. 밝은 색(흰 머리·흰 옷)은 거의 물들이지 않는다
+          // (팔레트가 다른 캐릭터의 색으로 바꿔 버리지 않게: 시트 색을 알아볼 수 있게)
+          float keep = 1.0 - smoothstep(0.35, 0.8, dot(t.rgb, LW));
+          vec3 cool = mix(vec3(1.0), amb / al, 0.08 * keep);
+          vec3 warm = mix(vec3(1.0), L / max(ll, 1e-4), 0.14 * keep);
+          vec3 tintC = mix(cool, warm, smoothstep(0.0, 0.2, ll));
+          tintC /= max(dot(tintC, LW), 1e-4);
+          c *= mix(vec3(1.0), lev * tintC, lit);
+        }
+        gl_FragColor = vec4(c + rimColor * rim, 0.0);
       }
     `,
     depthWrite: false,
+  }));
+}
+
+/**
+ * 발밑 그림자: 바닥(또는 발판 윗면)에 눕힌 어두운 타원. 가운데가 짙고 가장자리로 부드럽게 사라진다 (그림자는 선이 아니라 면).
+ * 카메라가 거의 수평이라 바닥에 눕힌 판은 납작하게 보이므로, 깊이 폭을 카메라 높이에 맞춰 늘여 화면에서 늘 4~5px 높이가 되게 한다.
+ * at = (발밑 x, 바닥 높이, 반폭 px), strength: 짙기 (뜰수록 옅게). 위에서 보는 면만 그린다 (발판 밑에서는 보이지 않는다)
+ */
+export function contactShadowMaterial(): THREE.ShaderMaterial {
+  const m = new THREE.ShaderMaterial({
+    uniforms: { at: { value: new THREE.Vector3() }, strength: { value: 0.7 } },
+    vertexShader: /* glsl */ `
+      uniform vec3 at;
+      varying vec2 vQ;
+      void main() {
+        vQ = position.xz;
+        float h = max(cameraPosition.y - at.y, 24.0);
+        float zext = 2.4 * cameraPosition.z / h;
+        vec3 wp = vec3(at.x + position.x * at.z, at.y + 0.08, position.z * zext);
+        gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float strength;
+      varying vec2 vQ;
+      void main() {
+        float r = length(vQ);
+        float a = strength * (1.0 - smoothstep(0.3, 1.0, r));
+        if (a < 0.02) discard;
+        gl_FragColor = vec4(0.0, 0.0, 0.0, a);
+      }
+    `,
   });
+  return keepAlpha(m, false);
 }
 
 /**

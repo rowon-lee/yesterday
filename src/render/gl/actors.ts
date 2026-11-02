@@ -7,12 +7,13 @@ import { GROUND } from '../../stage/citadel';
 import { SCREEN_H, SCREEN_W } from '../screen';
 import { canvas } from '../dither';
 import { lightPool } from './lights';
-import { flatMaterial, pixelTexture, spriteMaterial } from './shaders';
+import { contactShadowMaterial, flatMaterial, pixelTexture, spriteMaterial } from './shaders';
 
 /**
  * 2.5D 화면의 캐릭터와 이펙트 (렌더 전용).
- * - 캐릭터: 미리 그린 스틱맨 시트를 싸우는 면(z = 0)의 판으로 세운다. 가까운 광원 색으로 테두리 빛.
- * - 그림자: 발밑의 어두운 납작한 판.
+ * - 캐릭터: 미리 그린 스틱맨 시트를 싸우는 면(z = 0)의 판으로 세운다. 무대의 빛을 받고 (어두운 곳은 어둡고 차갑게,
+ *   가로등·간판·이펙트 빛 가까이는 밝고 그 빛 색으로), 가까운 광원 색으로 테두리 빛.
+ * - 그림자: 발밑 바닥(발판)에 눕힌 부드러운 어두운 타원. 뜰수록 작고 옅다.
  * - 평면 층(뒤·앞): 기존 2D 그림(먼지·잔상·잔해·Sprite Fusion 이펙트)을 화면 크기 캔버스에 그려 싸우는 면 바로 뒤·앞의 판으로 얹는다.
  * 그리는 차례(renderOrder): 무대(0) → 뒤 평면 층(8) → 그림자(9) → 캐릭터(10) → 앞 평면 층(11). 캐릭터와 평면 층은 깊이를 쓰지 않는다.
  */
@@ -153,16 +154,16 @@ export class Actors {
 
   constructor() {
     this.group.add(this.back.mesh, this.front.mesh);
-    const [sc, sg] = canvas(2, 2);
-    sg.fillStyle = '#0a0712';
-    sg.fillRect(0, 0, 2, 2);
-    const shadowMat = flatMaterial(pixelTexture(sc));
+    // 발밑 그림자 판: 바닥에 눕힌 -1~1 네모 (셰이더가 자리·크기를 정한다)
+    const sgeo = new THREE.BufferGeometry();
+    sgeo.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, -1, -1, 0, 1, 1, 0, 1, 1, 0, -1], 3));
+    sgeo.setIndex([0, 1, 2, 0, 2, 3]);
     for (let i = 0; i < 2; i++) {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), spriteMaterial());
       m.renderOrder = 10;
       m.frustumCulled = false;
       this.chars.push(m);
-      const s = new THREE.Mesh(new THREE.PlaneGeometry(1, 2), shadowMat);
+      const s = new THREE.Mesh(sgeo, contactShadowMaterial());
       s.renderOrder = 9;
       s.frustumCulled = false;
       this.shadows.push(s);
@@ -193,11 +194,12 @@ export class Actors {
       const m = this.chars[i];
       const s = this.shadows[i];
       m.visible = d.visible;
-      // 그림자: 발밑 바닥에, 높이 뜰수록 작게
-      const w = Math.max(4, 14 + Math.round((d.floor - d.h) / 10));
-      s.visible = true;
-      s.scale.set(w, 1, 1);
-      s.position.set(Math.round(d.x), d.floor - 1, -0.4);
+      // 그림자: 발밑 바닥에, 높이 뜰수록 작고 옅게 (뜬 높이 140px쯤에서 사라진다)
+      const air = Math.max(0, d.h - d.floor);
+      const su = (s.material as THREE.ShaderMaterial).uniforms;
+      su.at.value.set(Math.round(d.x), d.floor, Math.max(5, 13 - air * 0.05));
+      su.strength.value = 0.72 * Math.max(0, 1 - air / 140);
+      s.visible = d.visible && su.strength.value > 0.03;
       if (!d.visible) return;
       const sheet = d.motion.sheet!(d.look, d.flip, d.skin);
       const mat = m.material as THREE.ShaderMaterial;
@@ -212,6 +214,8 @@ export class Actors {
       // 판 가운데는 발에서 위로 (발밑 줄 − 칸 높이의 반)px
       m.position.set(Math.round(d.x) - cell.fx + cell.w / 2, Math.round(d.h) + cell.fy - cell.h / 2, 0);
       m.renderOrder = 10 + d.order;
+      // 무대의 빛: 맞아서 하얗게 번쩍일 때는 시트 색 그대로, 기 모으기 빛(glow)은 반만 (스스로 빛나는 색이라)
+      u.lit.value = !d.rim || d.look === 'flash' ? 0 : d.look.startsWith('glow') ? 0.4 : 1;
       // 테두리 빛: 몸 가운데 둘레에서 가장 센 빛 쪽으로
       const l = d.rim ? lightPool.strongest(d.x, d.h + 26, 0) : null;
       if (l && l.k > 0.04) {
