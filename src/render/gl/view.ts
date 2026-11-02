@@ -2,8 +2,12 @@ import * as THREE from 'three';
 import { startSoftware } from '../light';
 import { SCREEN_H, SCREEN_W, onFit } from '../screen';
 import { makeCamera, MARGIN, placeCamera, RT_H, RT_W, type Placed, type View } from './core';
-import { lightPool, shared } from './lights';
+import { lightPool, loadedLights, shared } from './lights';
 import { Post } from './post';
+
+/** 표시 그림 형식: 반정밀 부동소수에 그릴 수 있으면 그것으로 (가장 어두운 외곽선 색도 0이 되지 않게) */
+const r0 = (r: THREE.WebGLRenderer): THREE.TextureDataType =>
+  r.extensions.has('EXT_color_buffer_float') || r.extensions.has('EXT_color_buffer_half_float') ? THREE.HalfFloatType : THREE.UnsignedByteType;
 
 /**
  * three.js 2.5D 화면 (렌더 전용). 3D 장면을 482×272 HDR 화면에 그리고 후처리를 거쳐
@@ -22,6 +26,13 @@ export class GlView {
   private shift = '';
   placed: Placed = { ix: 0, iy: 0, fx: 0, fy: 0 };
   bloom = true;
+  /**
+   * 캐릭터·이펙트 묶음 (render/gl/actors.ts의 group). 이 묶음만 따로 표시 그림에 그려, 후처리 팔레트가 캐릭터·이펙트 칸은
+   * 늘 쓰는 색(COMMON)으로, 무대 칸은 구간 계단으로만 줄이게 한다. 없으면 장면에서 캐릭터 판(테두리 빛 재질)을 가진 묶음을 찾는다
+   */
+  maskRoot: THREE.Object3D | null = null;
+  private maskRT: THREE.WebGLRenderTarget | null = null;
+  private maskSearched = 0;
   /** 확대 (필살기 연출, 렌더 전용): 정수 배율과 보이는 칸의 왼쪽 위 (게임 화면 px) */
   private zoomZ = 1;
   private zoomX = 0;
@@ -88,14 +99,68 @@ export class GlView {
     const p = this.placed;
     const top = this.camera.position.y + SCREEN_H / 2 + 40;
     const bottom = this.camera.position.y - SCREEN_H / 2 - 40;
-    lightPool.commit(p.ix - 40, p.ix + SCREEN_W + 40, bottom, top);
+    lightPool.commit(p.ix - 40, p.ix + SCREEN_W + 40, bottom, top, shared.uTime.value as number);
   }
+
+  /** 캐릭터·이펙트 묶음 찾기: 테두리 빛(rimColor)을 쓰는 캐릭터 판이 든 장면 바로 아래 묶음 */
+  private findMaskRoot(): THREE.Object3D | null {
+    for (const child of this.scene.children) {
+      let hit = false;
+      child.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.ShaderMaterial | undefined;
+        if (!hit && m && (m as THREE.ShaderMaterial).uniforms?.rimColor) hit = true;
+      });
+      if (hit) return child;
+    }
+    return null;
+  }
+
+  /** 캐릭터·이펙트 표시 그림: 그 묶음만 검은 바탕에 그린다 (그린 칸은 색이 0이 아니다). 보이는 것이 없으면 표시를 끈다 */
+  private drawMask(): void {
+    if (!this.maskRoot && this.maskSearched < 3) {
+      this.maskSearched++;
+      this.maskRoot = this.findMaskRoot();
+    }
+    const root = this.maskRoot;
+    let any = false;
+    if (root && root.visible) {
+      root.traverse((o) => {
+        if (any || !(o as THREE.Mesh).isMesh || !o.visible) return;
+        const u = ((o as THREE.Mesh).material as THREE.ShaderMaterial).uniforms;
+        if (u?.map?.value) any = true;
+      });
+    }
+    if (!any || !root) {
+      this.post.setMask(null);
+      return;
+    }
+    if (!this.maskRT) {
+      this.maskRT = new THREE.WebGLRenderTarget(RT_W, RT_H, {
+        type: r0(this.renderer),
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+        generateMipmaps: false,
+        depthBuffer: false,
+      });
+    }
+    const r = this.renderer;
+    const clear = r.getClearColor(this.clearColor);
+    const alpha = r.getClearAlpha();
+    r.setClearColor(0x000000, 0);
+    r.setRenderTarget(this.maskRT);
+    r.clear();
+    r.render(root, this.camera);
+    r.setClearColor(clear, alpha);
+    this.post.setMask(this.maskRT.texture);
+  }
+  private readonly clearColor = new THREE.Color();
 
   render(): void {
     const p = this.placed;
     this.renderer.setRenderTarget(this.post.hdr);
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
+    this.drawMask();
     // 바닥선: 싸우는 면의 바닥(높이 0)이 렌더 타깃 위에서부터 몇째 줄인지
     this.post.horizon = RT_H / 2 + this.camera.position.y;
     this.post.run(this.renderer, p, { bloom: this.bloom }, shared.uTime.value, this.camera);
@@ -135,6 +200,17 @@ export class GlView {
   /** 확인 도구용: 마지막 프레임의 칸마다 카메라에서의 거리 (화면 480×270, 하늘은 FAR) */
   readDepth(): Float32Array {
     return this.post.readDepth(this.renderer, SCREEN_W, SCREEN_H);
+  }
+
+  /** 확인 도구용: 지금 실린 광원 (자리, 선형 색 × 세기 × 밝기, 이펙트 빛인지) */
+  lights(): Array<{ x: number; y: number; z: number; r: number; g: number; b: number; fx: boolean }> {
+    const out = [];
+    for (let i = 0; i < loadedLights.count(); i++) {
+      const p = loadedLights.pos[i];
+      const c = loadedLights.col[i];
+      out.push({ x: p.x, y: p.y, z: p.z, r: c.x, g: c.y, b: c.z, fx: loadedLights.fx[i] });
+    }
+    return out;
   }
 
   /** 확인 도구용: 그리기 호출 수와 삼각형 수 (마지막 프레임 전체) */

@@ -59,8 +59,8 @@ async function shoot(url) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(url);
-  await page.waitForFunction(() => window.__debug?.tick >= 300, null, { timeout: 60000 });
+  await page.goto(url, { timeout: 600000 });
+  await page.waitForFunction(() => window.__debug?.tick >= 300, null, { timeout: 600000 });
   await page.waitForTimeout(300);
   // 화면 그대로 (2배로 키운 캔버스 자리, 3D면 HUD까지 겹친 모습)
   const png = await page.locator('#screen').screenshot();

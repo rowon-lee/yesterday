@@ -67,11 +67,19 @@ const BAYER4 = [
   [15, 7, 13, 5],
 ].map((r) => r.map((v) => (v + 0.5) / 16));
 
-/** 빛 웅덩이를 내는 등 (텍스처 칸): 자리, 가로·세로 반지름, 세기 */
-export type RoomLamp = readonly [x: number, y: number, rx: number, ry: number, k: number];
+/**
+ * 빛 웅덩이를 내는 등 (텍스처 칸): 자리, 가로·세로 반지름, 세기, 모양.
+ * 모양 0 둥근 등(맨 전구·유리 구): 작은 하얀 심과 길게 옅어지는 둘레. 1 갓 씌운 등(아래로): 갓 밑으로 퍼지는 원뿔 빛,
+ * 갓 위 천장은 어둡다 (rx는 ry만큼 내려간 곳의 원뿔 반폭). 2 위로 비추는 등(바닥 스탠드·투광등): 1을 뒤집은 것
+ */
+export type RoomLamp = readonly [x: number, y: number, rx: number, ry: number, k: number, shape?: number];
+/** 빛을 가리는 것 (사람·가구·기둥): 사각형과 등에서 벽까지 중 어디쯤 섰는지 (0 등 바로 앞 ~ 1 벽에 붙음) */
+export type RoomBlock = readonly [x0: number, y0: number, x1: number, y1: number, f: number];
 
-/** 밝기 단계 문턱 (여섯 단계) */
-const STEPS = [0.12, 0.28, 0.46, 0.66, 0.9];
+/**
+ * 밝기 단계 문턱 (여섯 단계). 맨 위 단계(하얀 심)는 좁게, 아래 단계들은 넓게 (과녁 무늬처럼 같은 폭의 고리가 겹겹이 서지 않게)
+ */
+const STEPS = [0.13, 0.3, 0.52, 0.8, 1.08];
 const stepOf = (v: number): number => (v < STEPS[0] ? 0 : v < STEPS[1] ? 1 : v < STEPS[2] ? 2 : v < STEPS[3] ? 3 : v < STEPS[4] ? 4 : 5);
 
 /**
@@ -98,12 +106,64 @@ export function stepLevels(I: Float32Array, w: number, h: number, x: number, y: 
   return level;
 }
 
+/** 칸 좌표의 부드러운 잡음 (0~1, 7칸 남짓 크기): 빛 웅덩이 가장자리를 조금 일렁이게 (완전한 타원 고리가 되지 않게) */
+function wobble(px: number, py: number): number {
+  const cell = 7;
+  const fx = px / cell;
+  const fy = py / cell;
+  const ix = Math.floor(fx);
+  const iy = Math.floor(fy);
+  const tx = fx - ix;
+  const ty = fy - iy;
+  const sx = tx * tx * (3 - 2 * tx);
+  const sy = ty * ty * (3 - 2 * ty);
+  const v = (a: number, b: number) => {
+    let n = (a * 374761393 + b * 668265263) | 0;
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  };
+  const a = v(ix, iy) * (1 - sx) + v(ix + 1, iy) * sx;
+  const b = v(ix, iy + 1) * (1 - sx) + v(ix + 1, iy + 1) * sx;
+  return a * (1 - sy) + b * sy;
+}
+
+/** 등 하나가 칸 (px, py)에 주는 밝기 (가리는 것 없이) */
+function lampAt(l: RoomLamp, px: number, py: number): number {
+  const [lx, ly, rx, ry, k] = l;
+  const shape = l[5] ?? 0;
+  if (shape === 0) {
+    const d = Math.hypot((px - lx) / rx, (py - ly) / ry);
+    if (d >= 1) return 0;
+    // 넓고 옅은 둘레 + 등 바로 옆 작은 심
+    const s = 1 - d;
+    return k * (s ** 1.3 * 0.9 + Math.max(0, 1 - d / 0.22) ** 2 * 0.5);
+  }
+  // 갓 씌운 등: 갓 밑(1) 또는 위(2)로 퍼지는 원뿔
+  const dy = shape === 1 ? py - ly : ly - py;
+  const near = Math.hypot((px - lx) / (rx * 0.45), (py - ly) / (ry * 0.18));
+  // 갓 둘레: 갓 바로 옆 작은 빛 (반대쪽 천장·바닥은 어둡다)
+  let v = near < 1 ? k * 0.35 * (1 - near) ** 2 : 0;
+  if (dy > 0) {
+    const t = dy / ry;
+    const half = rx * (0.18 + 0.82 * Math.min(1.4, t));
+    const a = Math.abs(px - lx) / Math.max(1, half);
+    if (a < 1.15 && t < 1.25) {
+      // 원뿔 가장자리는 갓이 자르는 선이라 또렷하게, 길이 방향으로는 길게 옅어진다
+      const side = a < 0.88 ? 1 : Math.max(0, 1 - (a - 0.88) / 0.27);
+      const fall = Math.max(0, 1 - t / 1.25);
+      v += k * side * (fall * fall * 0.9 + Math.max(0, 1 - t / 0.32) * 0.55);
+    }
+  }
+  return v;
+}
+
 /**
- * 실내 뒷벽: 사각형 (x, y, w, h) 안을 base 밝기 + 등마다 타원 빛 웅덩이로 칠한다. 구석(좌우 edge칸)은 조금 어둡게.
+ * 실내 뒷벽: 사각형 (x, y, w, h) 안을 base 밝기 + 등마다 빛 웅덩이로 칠한다. 구석(좌우 edge칸)은 조금 어둡게.
+ * blocks: 등과 벽 사이에 선 것 (사람·가구)은 등 반대쪽으로 늘어난 그림자를 벽에 드리운다 (빛이 '물건'에 막혀 공간이 생긴다).
  */
 export function roomWall(
   g: CanvasRenderingContext2D, e: CanvasRenderingContext2D, x: number, y: number, w: number, h: number,
-  lamps: readonly RoomLamp[], base: number, ramp: RoomRamp = WARM, edge = 30,
+  lamps: readonly RoomLamp[], base: number, ramp: RoomRamp = WARM, edge = 30, blocks: readonly RoomBlock[] = [],
 ): void {
   x = Math.round(x);
   y = Math.round(y);
@@ -116,10 +176,22 @@ export function roomWall(
       const px = x + i + 0.5;
       const py = y + j + 0.5;
       let v = base;
-      for (const [lx, ly, rx, ry, k] of lamps) {
-        const d = Math.hypot((px - lx) / rx, (py - ly) / ry);
-        if (d < 1) v += k * (1 - d) * (1 - d * 0.35);
+      for (const l of lamps) {
+        let c = lampAt(l, px, py);
+        if (c <= 0) continue;
+        // 그림자: 등에서 이 칸으로 가는 빛이 가리는 것의 깊이에서 그 사각형 안을 지나면 막힌다 (벽에 크게 드리운다)
+        for (const [bx0, by0, bx1, by1, f] of blocks) {
+          const qx = l[0] + (px - l[0]) * f;
+          const qy = l[1] + (py - l[1]) * f;
+          if (qx >= bx0 && qx < bx1 && qy >= by0 && qy < by1) {
+            c *= 0.3;
+            break;
+          }
+        }
+        v += c;
       }
+      // 빛 웅덩이 가장자리를 조금 일렁이게 (밝을수록 덜)
+      v *= 0.94 + 0.12 * wobble(px, py);
       I[j * w + i] = v * (0.72 + 0.28 * Math.min(1, Math.min(i, w - 1 - i) / edge));
     }
   }

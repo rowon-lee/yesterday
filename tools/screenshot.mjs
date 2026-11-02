@@ -56,7 +56,7 @@ const doMap = mapOnly || (!noMap && !sceneNames.length);
 if (mapOnly) sceneNames = [];
 else if (!sceneNames.length) {
   const page = await browser.newPage();
-  await page.goto(url);
+  await page.goto(url, { timeout: 600000 });
   sceneNames = await page.evaluate(() => window.__debug.scenes);
   await page.close();
 }
@@ -83,8 +83,8 @@ async function mapChecks() {
     lines.push(`## ${H.name} (y=${H.camy})`, '', ...TABLE_HEAD);
     for (const cam of MAP_CAMS) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-      await page.goto(`${url}?scene=stage&cam=${cam}&camy=${H.camy}&stopAt=300&ff=1&quality=high`);
-      await page.waitForFunction(() => window.__debug?.tick >= 300, null, { timeout: 90000 });
+      await page.goto(`${url}?scene=stage&cam=${cam}&camy=${H.camy}&stopAt=300&ff=1&quality=high`, { timeout: 600000 });
+      await page.waitForFunction(() => window.__debug?.tick >= 300, null, { timeout: 600000 });
       const raw = await page.evaluate(() => window.__debug.mapProbe());
       const probe = decodeProbe(raw);
       const a = analyze(probe);
@@ -105,8 +105,8 @@ async function mapChecks() {
   }
   // 휴대폰 화면 크기에서 대전 한 프레임 (이 환경은 그래픽 칩이 없어 소프트웨어 그래픽이라 실제 휴대폰보다 느리다)
   const phone = await browser.newPage({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
-  await phone.goto(`${url}?scene=fight&p1=cpu&seed=2&stopAt=120&ff=1`);
-  await phone.waitForFunction(() => window.__debug?.tick >= 120, null, { timeout: 90000 });
+  await phone.goto(`${url}?scene=fight&p1=cpu&seed=2&stopAt=120&ff=1`, { timeout: 600000 });
+  await phone.waitForFunction(() => window.__debug?.tick >= 120, null, { timeout: 600000 });
   const ms = await phone.evaluate(() => {
     window.__debug.unstop();
     window.__debug.bench(5);
@@ -174,13 +174,13 @@ async function shoot(scene, v) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const [name, extra] = scene.split('?');
-  await page.goto(`${url}?scene=${encodeURIComponent(name)}${extra ? `&${extra}` : ''}&stopAt=${stopAt}${fast ? '&ff=1' : ''}`);
+  await page.goto(`${url}?scene=${encodeURIComponent(name)}${extra ? `&${extra}` : ''}&stopAt=${stopAt}${fast ? '&ff=1' : ''}`, { timeout: 600000 });
   const notes = [];
   try {
-    await page.waitForFunction(() => window.__debug?.tick >= 1, null, { timeout: 15000 });
+    await page.waitForFunction(() => window.__debug?.tick >= 1, null, { timeout: 120000 });
     // 첫 프레임(무대 미리 그리기 등)이 끝난 뒤부터 잰다: 밀린 틱을 한꺼번에 따라잡는 구간을 빼려고
     const warm = fast ? 0 : Math.min(10, stopAt - 1);
-    await page.waitForFunction((n) => window.__debug.tick >= n, warm, { timeout: 15000 });
+    await page.waitForFunction((n) => window.__debug.tick >= n, warm, { timeout: 120000 });
     const startTick = await page.evaluate(() => window.__debug.tick);
     const start = Date.now();
     // 틱이 도는 동안 키를 눌러 입력이 모이는지 본다 (멈추기 전에 시간이 있을 때만).

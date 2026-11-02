@@ -1,6 +1,6 @@
 import { FLOOR_H, GROUND, hasShopWindow, SHOP_H, type FrontBuildingPlace } from '../../stage/citadel';
 import { COLORS as C } from '../palette';
-import { canvas, disc, dither, ditherRect, hash, line, paint, rect } from '../dither';
+import { canvas, disc, ditherRect, hash, line, paint, rect } from '../dither';
 
 /**
  * 건물 실내 그림 (렌더 전용): 정면이 뚫리면 그 뒤 실내 판에 보인다. 건물 종류마다 다르다:
@@ -86,9 +86,12 @@ function room(g: CanvasRenderingContext2D, b: FrontBuildingPlace, y0: number, y1
   const papers = [C.awning, C.paintTeal, C.posterRedDark, C.stoneDark, C.brickDark, C.paintOchre];
   const paper = papers[Math.floor(hash(seed) * papers.length)];
   const striped = hash(seed + 1) < 0.5;
+  // 벽지: 가는 세로 줄무늬 또는 2×2 꽃무늬가 드문드문 (넓은 면을 바둑판 점무늬로 칠하지 않는다)
   paintW(g, b.x, y0, b.w, y1 - y0, (x, y) => {
-    const on = striped ? (x - b.x) % 8 < 4 : (x + y) % 6 === 0;
-    return dither(x, y, on ? 9 : 5) ? paper : C.windowDark;
+    if (striped) return (x - b.x) % 8 < 2 ? C.windowDark : paper;
+    const mx = (x >> 1) % 5;
+    const my = (y >> 1) % 5;
+    return (mx === 1 && my === 1) || (mx === 3 && my === 3) ? C.windowDark : paper;
   });
   rect(g, b.x, y1 - 12, b.w, 1, C.awning);
   shell(g, b, y0, y1, seed);

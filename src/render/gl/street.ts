@@ -2,16 +2,14 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CITADEL as D } from '../../data/stages/citadel';
 import { MAP_W } from '../../stage/citadel';
-import { textWidth } from '../font';
 import { COLORS as C } from '../palette';
 import { canvas, disc, ditherRect, hash, rect } from '../dither';
 import { depthOfSpeed } from './core';
-import { star } from './backdrops';
 import { KEEP_Z } from './plaza';
 import { Details, plane } from './kit';
 import { fgMaterial, floorMaterial, litMaterial, pixelTexture } from './shaders';
-import { neonText, paintPuddles, paintStreet } from './tex';
-import { registerSign } from './signs';
+import { paintPuddles, paintStreet } from './tex';
+import { paintWord, registerSign, starShape, wordWidth } from './signs';
 
 /**
  * 길 (렌더 전용): 구간마다 다른 바닥(부두 돌 포장·아스팔트·광장 돌판·공원 자갈길), 전차 가공선, 부서지지 않는 길가 소품,
@@ -114,18 +112,21 @@ function props(det: Details, g: THREE.Group): void {
       }
       case 'posterboard': {
         const text = 'text' in p ? p.text : '';
-        const pw = Math.max(32, textWidth(text, 2) + 12);
+        const tw = wordWidth(text, 5);
+        const pw = Math.max(32, tw + 12);
         det.add(x + 3, x + 6, 0, 32, -38, -35, C.iron);
         det.add(x + pw - 6, x + pw - 3, 0, 32, -38, -35, C.iron);
         const [c, cg] = canvas(pw, 48);
         rect(cg, 0, 0, pw, 48, C.iron);
         rect(cg, 2, 2, pw - 4, 44, C.posterRed);
         rect(cg, 2, 2, pw - 4, 1, C.paintCream);
-        star(cg, Math.floor(pw / 2), 14, 2, C.posterRedDark);
-        neonText(cg, null, text, Math.floor((pw - textWidth(text, 2)) / 2), 30, 2, C.paintCream, C.paintCream);
-        ditherRect(cg, 2, 2, Math.floor(pw * 0.4), 20, C.posterRedDark, 3);
+        // 별 문장과 구호 (5×7 글씨, 키우지 않는다), 빗물에 번진 얼룩 (위에서 흘러내린 줄)
+        starShape(cg, Math.floor(pw / 2), 15, 7, C.posterRedDark);
+        rect(cg, 2, 28, pw - 4, 11, C.posterRedDark);
+        paintWord(cg, text, Math.floor((pw - tw) / 2), 30, 5, 7, C.paintCream);
+        for (const sx of [5, Math.floor(pw * 0.6), pw - 7]) rect(cg, sx, 3, 1, 8 + (sx % 9), C.posterRedDark);
         g.add(plane(x, x + pw, 30, 78, -34, litMaterial(pixelTexture(c))));
-        registerSign(text, '거리 선전판', x + (pw - textWidth(text, 2)) / 2, x + (pw + textWidth(text, 2)) / 2, 38, 48, -34, textWidth(text, 2), pw - 4);
+        registerSign(text, '거리 선전판', x + (pw - tw) / 2, x + (pw + tw) / 2, 78 - 37, 78 - 30, -34, tw, pw - 4);
         break;
       }
     }
