@@ -6,6 +6,7 @@ import { stepCine } from './cine';
 import { crashProps, createProps, hitProps } from './props';
 import { createCitadel, hitCitadel } from './citadel';
 import { createCity, flyThroughCity } from './city';
+import { createWreck, flyWreck } from './wreck';
 import { wallLeft } from './platforms';
 import type { PlayerInput } from './input';
 import {
@@ -49,6 +50,8 @@ export function createState(seed: number, opts: MatchOptions = {}): SimState {
     city: createCity(),
     // 시타델 본관도 라운드가 넘어가도 남는다 (한 경기에 한 번 무너진다)
     citadel: createCitadel(),
+    // 구조물 손상 (장식)도 라운드가 넘어가도 남는다
+    wreck: createWreck(),
     slow: 0,
     practice: opts.practice === true,
     calm: [0, 0],
@@ -127,6 +130,7 @@ export function step(s: SimState, inputs: readonly [PlayerInput, PlayerInput]): 
   hitProps(s);
   hitCitadel(s);
   flyThroughCity(s);
+  flyWreck(s);
   // 이번 틱에 무너진 건물·물건 위에 서 있었으면 바로 떨어지기 시작한다 (다음 틱이 슬로모션으로 건너뛰어져도 허공에 서 있지 않게)
   settle(s, a);
   settle(s, b);

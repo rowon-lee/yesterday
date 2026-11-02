@@ -4,6 +4,8 @@ import { activeHitOf, knockOut, type WBox } from './combat';
 import { movesOf } from './frames';
 import { px } from './rules';
 import type { Fighter, PropState, SimState } from './types';
+import { smashWreck, wreckArea } from './wreck';
+import { WRECK_RULES } from '../stage/citadel';
 
 /**
  * 부서지는 물건. 부서진 물건은 판정에 영향을 주지 않는 장식이다 (막지 않는다). 큰 물건은 예외로 무너진 뒤 발판·벽이 된다
@@ -59,7 +61,11 @@ function damage(s: SimState, i: number, box: WBox, amount: number, dir: number, 
   if (p.hp === 0) {
     breakProp(s, i, x, y, crash, big ? smash : 0);
     // 자동차는 폭발하며 둘레 건물 정면을 크게 깎는다
-    if (b.kind === 'car') damageCity(s, b.x + b.w / 2, b.h / 2, CITY_RULES.explosion.radius, CITY_RULES.explosion.amount, 'explosion');
+    if (b.kind === 'car') {
+      damageCity(s, b.x + b.w / 2, b.h / 2, CITY_RULES.explosion.radius, CITY_RULES.explosion.amount, 'explosion');
+      // 둘레 구조물·소품도 (장식 손상)
+      wreckArea(s, b.x + b.w / 2, b.h / 2, WRECK_RULES.explosion.radius, WRECK_RULES.explosion.amount, 2, dir, 'explosion');
+    }
   } else if (p.stage === 0 && p.hp * 100 < b.hp * BREAK_RULES.damagedAt) {
     p.stage = 1;
     p.damagedAt = s.tick;
@@ -85,13 +91,15 @@ export function hitProps(s: SimState): void {
     const hb = activeHitOf(f);
     if (!hb) continue;
     const d = movesOf(f.char)[f.move!].data;
-    smashProps(s, f, hb, d.damage, 'cutin' in d && !!d.cutin);
+    smashProps(s, f, hb, d.damage, 'cutin' in d && !!d.cutin, !!d.heavy);
   }
 }
 
 /** 상자에 닿은 물건을 깎는다 (super: 필살기라 큰 물건도 한 번에). 필살기 연출 끝 타격도 이걸 쓴다 */
-export function smashProps(s: SimState, f: Fighter, hb: WBox, amount: number, isSuper: boolean): void {
+export function smashProps(s: SimState, f: Fighter, hb: WBox, amount: number, isSuper: boolean, heavy = false): void {
   const smash = isSuper ? SMASH_SUPER : 0;
+  // 구조물 손상 (장식): 같은 상자로 같은 때 깎는다
+  smashWreck(s, f, hb, amount, isSuper, heavy || amount >= 300);
   for (let i = 0; i < s.props.length; i++) {
     if (s.props[i].stage === 2 || f.propHits.includes(i)) continue;
     const box = boxOf(s, i);

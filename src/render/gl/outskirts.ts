@@ -930,10 +930,12 @@ export class Outskirts {
   }
 
   /** 이번 틱의 빛 후보와 깜빡임 (렌더 전용, 틱만 보고 정한다) */
-  update(tick: number, view0: number, view1: number): void {
+  /** dim: 그 자리 등이 구조물 손상으로 꺼진 정도 (1 그대로, 0 꺼짐. render/gl/wreck.ts) */
+  update(tick: number, view0: number, view1: number, dim: (x: number, y: number) => number = () => 1): void {
     for (const [i, l] of this.lamps.entries()) {
       if (l.x < view0 - l.range || l.x > view1 + l.range) continue;
-      let p = l.power;
+      let p = l.power * dim(l.x, l.y);
+      if (p <= 0) continue;
       // 용광로(7): 숨 쉬듯 천천히 밝아졌다 어두워지고 그 위에 잔 일렁임. 나머지는 몇 틱씩 끊기는 깜빡임
       if (l.flicker === 7) p *= 0.8 + 0.12 * Math.sin(tick * 0.045 + i * 1.7) + 0.08 * hash((tick >> 2) * 13 + i * 7);
       else if (l.flicker > 0) p *= 0.75 + 0.25 * hash((tick >> 2) * 13 + i * l.flicker);

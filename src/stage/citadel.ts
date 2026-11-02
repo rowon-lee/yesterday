@@ -273,6 +273,81 @@ export const BIG = {
 
 export const BREAK_RULES = { damagedAt: B.damagedAt, crashSpeed: B.crashSpeed, crashDamage: B.crashDamage, settle: B.settle };
 
+// ---------------------------------------------------------------- 구조물 손상 (2026-11-02 파괴 범위 확대)
+/** 구조물 재질: 파편·먼지·금 모양이 재질마다 다르다 (렌더) */
+export type WreckMat = 'brick' | 'concrete' | 'steel' | 'sheet' | 'glass' | 'wood' | 'sand' | 'stone';
+/** 크기: 어느 세기의 공격까지 몇 단계로 부서지는가 (WRECK_CAPS) */
+export type WreckSize = 'small' | 'mid' | 'big';
+
+/**
+ * 손상만 입는 구조물 하나 (판정 상자: x0 ~ x1, 바닥에서 y0 ~ y1). 판정에 영향을 주지 않는다: 발판·벽은 부서져도 그대로다.
+ * group: 같은 구조물을 나눈 조각들의 번호 (나누지 않았으면 자기 번호), part: 그 안에서 몇째 조각
+ */
+export interface Wreckable {
+  kind: string;
+  mat: WreckMat;
+  size: WreckSize;
+  hp: number;
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+  /** 거리 소품이면 street.props의 번호 (아니면 -1) */
+  street: number;
+  group: number;
+  part: number;
+}
+
+export const WRECK_RULES = D.wreck;
+/** 공격 세기(0 평타·기술, 1 센 타격·날아온 몸, 2 필살기·폭발·벽 쪽으로 날린 상대)별로 크기마다 갈 수 있는 가장 높은 단계 */
+export const WRECK_CAPS: Record<WreckSize, readonly [number, number, number]> = { small: [3, 3, 3], mid: [2, 3, 3], big: [1, 2, 3] };
+
+export const WRECKS: readonly Wreckable[] = (() => {
+  const out: Wreckable[] = [];
+  const W = D.wreck;
+  const push = (kind: string, mat: WreckMat, size: WreckSize, hp: number, x0: number, x1: number, y0: number, y1: number, street = -1): void => {
+    // 긴 구조물은 segment px 안팎으로 고르게 나눈다 (맞은 자리만 부서진다)
+    const n = Math.max(1, Math.round((x1 - x0) / W.segment));
+    const group = out.length;
+    for (let k = 0; k < n; k++) {
+      const a = Math.round(x0 + ((x1 - x0) * k) / n);
+      const b = Math.round(x0 + ((x1 - x0) * (k + 1)) / n);
+      out.push({ kind, mat, size, hp, x0: a, x1: b, y0, y1, street, group, part: k });
+    }
+  };
+  const OS = D.outskirts;
+  const spec = W.outskirts as Record<string, { mat: WreckMat; size: WreckSize; hp: number; depth?: number }>;
+  for (const b of OS.blocks) {
+    const w = spec[b.kind];
+    // 저탄 탑은 다리 위 몸통만 (40px 아래는 깔때기와 다리)
+    push(b.kind, w.mat, w.size, w.hp, b.x0, b.x1, b.kind === 'hopper' ? 14 : 0, b.h);
+  }
+  for (const d of OS.decks) {
+    const w = spec[d.kind];
+    push(d.kind, w.mat, w.size, w.hp, d.x0, d.x1, Math.max(0, d.h - (w.depth ?? 10)), d.h + 4);
+  }
+  for (const p of OS.posts) {
+    const w = spec[p.kind];
+    push(p.kind, w.mat, w.size, w.hp, p.x, p.x + p.w, p.h0, p.h);
+  }
+  for (const o of W.others) push(o.kind, o.mat, o.size, o.hp, o.x0, o.x1, o.y0, o.y1);
+  const ST = W.street as Record<string, { mat: WreckMat; w: number; h: number; hp: number }>;
+  D.street.props.forEach((p, i) => {
+    const w = ST[p.kind];
+    if (w) push(p.kind, w.mat, 'small', w.hp, p.x, p.x + w.w, 0, w.h, i);
+  });
+  return out;
+})();
+
+/** 내구도 → 단계 (0 멀쩡, 1 금, 2 부분 파괴, 3 무너짐) */
+export function wreckStageOf(w: Wreckable, hp: number): 0 | 1 | 2 | 3 {
+  if (hp <= 0) return 3;
+  const pct = (hp * 100) / w.hp;
+  if (pct <= D.wreck.stages[1]) return 2;
+  if (pct <= D.wreck.stages[0]) return 1;
+  return 0;
+}
+
 // ---------------------------------------------------------------- 시타델 붕괴
 /** 시타델 붕괴 규칙 (기획서 '시타델 붕괴') */
 export const KEEP_RULES = D.keepCollapse;

@@ -151,6 +151,22 @@ export interface CitadelState {
   hill: Array<{ x0: number; x1: number; h: number }>;
 }
 
+/**
+ * 구조물 손상 (stage/citadel.ts의 WRECKS[번호]). 라운드가 넘어가도 남고, 새 경기에만 새로. 판정에 영향을 주지 않는다.
+ * hp: 내구도, stage: 0 멀쩡 · 1 금 · 2 부분 파괴 · 3 무너짐, at: 단계가 오른 틱 [1단계, 2단계, 3단계] (-1 아직),
+ * hx·hy: 마지막으로 맞은 자리 (구조물 왼쪽 아래 기준 px. 렌더가 금·구멍을 그 둘레에 낸다), dir: 맞은 방향 (잔해가 날아가는 쪽).
+ * fly: 사람마다 이번에 날아가는 동안 이미 부딪힌 구조물 번호들
+ */
+export interface WreckState {
+  hp: number[];
+  stage: number[];
+  at: number[][];
+  hx: number[];
+  hy: number[];
+  dir: number[];
+  fly: [number[], number[]];
+}
+
 /** 부서지는 물건 하나의 상태. 위치·크기는 stage/citadel.ts의 BREAKABLES[번호] */
 export interface PropState {
   hp: number;
@@ -213,7 +229,12 @@ export interface SimEvent {
      * 시타델 본관: text = 'damage' (combo = 깎인 양) | 'stage' (combo = 새 단계 1~3) | 'collapse' (무너짐).
      * who = 깎은 사람, x = 그 자리
      */
-    | 'citadel';
+    | 'citadel'
+    /**
+     * 구조물 손상 (sim/wreck.ts): who = 구조물 번호, combo = 새 단계 (0이면 단계는 그대로, 깎이기만), text = 원인
+     * ('hit' 공격 판정 | 'heavy' 센 타격 둘레 | 'fly' 날아온 몸 | 'explosion' 자동차 폭발 | 'super' 필살기), heavy = 센 원인 (1 이상)
+     */
+    | 'wreck';
   /** 한 사람 (때린 쪽, 기술 쓴 쪽, 이긴 쪽) */
   who: number;
   x: number;
@@ -252,6 +273,8 @@ export interface SimState {
   city: CityState;
   /** 시타델 본관 내구도·단계·잔해 언덕. 라운드가 넘어가도 유지 */
   citadel: CitadelState;
+  /** 구조물 손상 (그동안 부서지지 않던 구조물과 거리 소품). 라운드가 넘어가도 유지 */
+  wreck: WreckState;
   /** 무너질 때 게임 시간이 반 속도로 가는 남은 틱 */
   slow: number;
   /**
