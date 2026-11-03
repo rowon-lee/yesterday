@@ -485,6 +485,24 @@ export const CITADEL = {
       watchLeg: { mat: 'steel', size: 'mid', hp: 200 },
       watchCabin: { mat: 'glass', size: 'mid', hp: 220 },
     },
+    /**
+     * 무너진 뒤 남는 지형 (2026-11-03 2차 비주얼 폴리시, 기획서 '부서지는 물건' 예외: 구조물이 무너지면 그 발판과 벽이 사라지고 잔해가 새 발판이 된다).
+     * 상자(굴뚝·저탄 탑·컨테이너·하역장·초소·모래주머니·부두 컨테이너 더미·공원 문기둥): 무너진 조각의 윗면과 옆벽이 top 높이로 낮아진다
+     *   (부러진 밑동의 깨진 윗면이 새 발판).
+     * 판(작업대·통로·크레인 들보·차양·선로·계단참·감시탑): 무너진 조각은 양 끝 stub px만 남고 가운데가 꺾여 처진다.
+     *   rest가 있으면 settle 틱 뒤 그 밑에 쌓인 잔해 위로 떨어진 판이 rest 높이 발판이 된다 (조각 폭의 가운데 restW 비율).
+     * 기둥(다리)은 속 뼈대가 드러나 휘어도 서 있어 벽이 그대로다.
+     */
+    collapse: {
+      settle: 40,
+      restW: 0.44,
+      top: { stack: 188, hopper: 136, crate2: 28, crate3: 56, dock: 24, booth: 28, sandbags: 16, containers: 56, parkGate: 72 } as Record<string, number>,
+      deck: {
+        ring: { stub: 0, rest: -1 }, catwalk: { stub: 14, rest: 28 }, crane: { stub: 18, rest: 34 }, craneLow: { stub: 16, rest: 22 },
+        dockAwning: { stub: 14, rest: 50 }, rail: { stub: 16, rest: 30 }, stairs: { stub: 8, rest: 22 }, watch: { stub: 12, rest: 26 },
+        watchRoof: { stub: 12, rest: -1 },
+      } as Record<string, { stub: number; rest: number }>,
+    },
     /** 그 밖의 구조물 (x0 ~ x1, 바닥에서 y0 ~ y1) */
     others: [
       { kind: 'containers', mat: 'steel', size: 'big', hp: 600, x0: 1600, x1: 1666, y0: 0, y1: 112 },

@@ -348,6 +348,30 @@ export function wreckStageOf(w: Wreckable, hp: number): 0 | 1 | 2 | 3 {
   return 0;
 }
 
+/** 무너진 뒤 남는 지형 규칙 (data wreck.collapse) */
+export const WRECK_FALL = D.wreck.collapse;
+
+/** kind 구조물 가운데 왼쪽 끝이 x0인 것의 묶음 번호 (없으면 undefined) */
+export function wreckGroupAt(kind: string, x0: number): number | undefined {
+  const w = WRECKS.find((v) => v.kind === kind && v.part === 0 && v.x0 === x0);
+  return w ? w.group : undefined;
+}
+
+/** 묶음 g에서 x(px)를 덮는 조각 번호 (없으면 -1) */
+export function wreckSegAt(g: number, x: number): number {
+  for (let i = g; i < WRECKS.length && WRECKS[i].group === g; i++) if (x >= WRECKS[i].x0 && x < WRECKS[i].x1) return i;
+  return -1;
+}
+
+/** 무너지면 지형이 바뀌는 조각들 (상자: 낮아진 윗면, 판: 끊긴 자리 밑 잔해 위 판). sim이 프레임마다 훑는다 */
+export const WRECK_TERRAIN: ReadonlyArray<{ i: number; top: number; rest: number }> = WRECKS.flatMap((w, i) => {
+  const top = WRECK_FALL.top[w.kind];
+  const deck = WRECK_FALL.deck[w.kind];
+  if (top !== undefined) return [{ i, top, rest: -1 }];
+  if (deck) return [{ i, top: -1, rest: deck.rest }];
+  return [];
+});
+
 // ---------------------------------------------------------------- 시타델 붕괴
 /** 시타델 붕괴 규칙 (기획서 '시타델 붕괴') */
 export const KEEP_RULES = D.keepCollapse;
@@ -458,6 +482,8 @@ export interface Holder {
   prop: number;
   when: Presence;
   keep?: boolean;
+  /** 손상 구조물 묶음 번호 (WRECKS의 group). 그 조각이 무너지면 상자는 낮아지고 판은 끊긴다 (WRECK_FALL) */
+  wreck?: number;
 }
 
 /**
@@ -513,7 +539,7 @@ export const SURFACES: readonly Surface[] = (() => {
   });
   // 해안 부두 컨테이너 더미 윗면 (아래가 꽉 차 있다)
   const CT = D.pier.containers;
-  out.push({ x0: CT.x0, x1: CT.x1, h: CONTAINER_TOP.h, tier: 'mid', kind: 'containers', ...ALWAYS, solid: true });
+  out.push({ x0: CT.x0, x1: CT.x1, h: CONTAINER_TOP.h, tier: 'mid', kind: 'containers', ...ALWAYS, solid: true, wreck: wreckGroupAt('containers', CT.x0) });
   const P = D.plaza;
   out.push({ x0: P.landing.x0, x1: P.landing.x1, h: P.landing.h, tier: 'mid', kind: 'landing', ...WITH_KEEP });
   for (const t of P.towers) {
@@ -533,8 +559,8 @@ export const SURFACES: readonly Surface[] = (() => {
   out.push({ x0: SG.x + 4, x1: SG.x + SG.w - 4, h: SG.lyingH, tier: 'mid', kind: 'sign', b: -1, prop: BIG.bigsign, when: 'settled', keep: true });
   // 새 구간: 상자 윗면 (아래가 꽉 차 있다), 판 (한 방향 발판). 높이 140 넘으면 옥상 층
   const tierOf = (h: number): SurfaceTier => (h > 140 ? 'roof' : 'mid');
-  for (const b of D.outskirts.blocks) out.push({ x0: b.x0, x1: b.x1, h: b.h, tier: tierOf(b.h), kind: 'block', ...ALWAYS, solid: true });
-  for (const d of D.outskirts.decks) out.push({ x0: d.x0, x1: d.x1, h: d.h, tier: tierOf(d.h), kind: 'deck', ...ALWAYS });
+  for (const b of D.outskirts.blocks) out.push({ x0: b.x0, x1: b.x1, h: b.h, tier: tierOf(b.h), kind: 'block', ...ALWAYS, solid: true, wreck: wreckGroupAt(b.kind, b.x0) });
+  for (const d of D.outskirts.decks) out.push({ x0: d.x0, x1: d.x1, h: d.h, tier: tierOf(d.h), kind: 'deck', ...ALWAYS, wreck: wreckGroupAt(d.kind, d.x0) });
   return out;
 })();
 
@@ -549,10 +575,10 @@ export const WALLS: readonly Wall[] = (() => {
   out.push({ x: D.walls.left, side: 1, h0: 0, h1: D.walls.leftH, id: id++, ...ALWAYS, end: true });
   out.push({ x: D.walls.right, side: -1, h0: 0, h1: D.walls.rightH, id: id++, ...ALWAYS, end: true });
   // 해안 부두 컨테이너 더미 양옆, 공원 동쪽 철책 문기둥 (맵이 넓어져 맵 끝 벽에서 구조물이 됐다)
-  faces(D.pier.containers.x0, D.pier.containers.x1, 0, CONTAINER_TOP.h, ALWAYS);
-  faces(D.park.fence.x0, D.park.fence.x0 + PARK_GATE_W, 0, D.park.fence.h, ALWAYS);
-  // 새 구간: 상자 양옆, 기둥 양옆
-  for (const b of D.outskirts.blocks) faces(b.x0, b.x1, 0, b.h, ALWAYS);
+  faces(D.pier.containers.x0, D.pier.containers.x1, 0, CONTAINER_TOP.h, { ...ALWAYS, wreck: wreckGroupAt('containers', D.pier.containers.x0) });
+  faces(D.park.fence.x0, D.park.fence.x0 + PARK_GATE_W, 0, D.park.fence.h, { ...ALWAYS, wreck: wreckGroupAt('parkGate', D.park.fence.x0) });
+  // 새 구간: 상자 양옆 (무너지면 낮아진다), 기둥 양옆
+  for (const b of D.outskirts.blocks) faces(b.x0, b.x1, 0, b.h, { ...ALWAYS, wreck: wreckGroupAt(b.kind, b.x0) });
   for (const p of D.outskirts.posts) faces(p.x, p.x + p.w, p.h0, p.h, ALWAYS);
   // 등대 몸통: 꺾이는 높이 아래는 늘, 위는 서 있는 동안 (같은 벽)
   const lid = id;

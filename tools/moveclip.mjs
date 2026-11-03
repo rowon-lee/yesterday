@@ -8,6 +8,7 @@ import { dirname } from 'node:path';
 import { preview } from 'vite';
 import { chromium } from 'playwright';
 import { encodeGif } from './gif.mjs';
+import { encodePng } from './png.mjs';
 
 /**
  * steps: [키 묶음, 틱 수]. 키 묶음은 그동안 누르고 있는 키 (KeyboardEvent.code). 빈 배열이면 모두 뗀다.
@@ -221,7 +222,18 @@ for (const file of readdirSync(new URL('./scenes/', import.meta.url)).filter((n)
 }
 
 const argv = process.argv.slice(2);
-const opt = { every: 1, scale: 2, crop: '', to: '' };
+// 네 캐릭터 공통 장면 (2026-11-03 2차 비주얼 폴리시): <캐릭터>_combo (평타 연타) · _s1 (스킬 1) · _s2 (스킬 2) · _charge (차지) · _super (필살기)
+const MASH = Array.from({ length: 18 }, () => [[['KeyJ'], 1], [[], 3]]).flat();
+for (const c of ['raiden', 'eunwoo', 'edward', 'oscar']) {
+  const q = `scene=fight&p2=idle&p1char=${c}&p2char=raiden`;
+  SCENES[`${c}_combo`] ??= { q, p1: 3150, p2: 3192, settle: c === 'eunwoo' ? 200 : 30, steps: [[[], 6], ...MASH, [[], 40]] };
+  SCENES[`${c}_s1`] ??= { q, p1: 3060, p2: 3170, settle: 30, prep: 's.fighters[0].meter = 100;', steps: [[[], 8], [['KeyU'], 1], [[], 80]] };
+  SCENES[`${c}_s2`] ??= { q, p1: 3110, p2: 3180, settle: 30, prep: 's.fighters[0].meter = 100;', steps: [[[], 8], [['KeyI'], 1], [[], 80]] };
+  SCENES[`${c}_charge`] ??= { q, p1: 3120, p2: 3180, settle: 30, steps: [[[], 6], [['KeyJ'], 110], [[], 60]] };
+  SCENES[`${c}_super`] ??= { q, p1: 3150, p2: 3196, settle: 70, meter: true, steps: [[[], 8], [['KeyO'], 1], [[], 300]] };
+}
+
+const opt = { every: 1, scale: 2, crop: '', to: '', sheet: 18 };
 let name = '';
 for (let i = 0; i < argv.length; i++) {
   const k = argv[i].replace(/^--/, '');
@@ -317,6 +329,30 @@ const file = `out/clips/${name}.gif`;
 writeFileSync(file, gif);
 console.log(`OK  ${file}  ${frames.length}장, ${tick}틱, 색 ${palette.length}개, ${(gif.length / 1024).toFixed(0)}KB`);
 log.forEach((l, i) => console.log(`    ${String(i + 1).padStart(3)} ${l}`));
+// 연속 캡처 시트 (PNG): 고르게 고른 장면 최대 opt.sheet장을 6칸씩 줄지어 (번호는 GIF 프레임 순서)
+{
+  const n = Math.min(opt.sheet, gifFrames.length);
+  const pick = Array.from({ length: n }, (_, k) => Math.round((k * (gifFrames.length - 1)) / Math.max(1, n - 1)));
+  const cols = Math.min(6, n);
+  const rows = Math.ceil(n / cols);
+  const SW = cols * (W + 2);
+  const SH = rows * (H + 2);
+  const rgb = new Uint8Array(SW * SH * 3).fill(128);
+  pick.forEach((fi, k) => {
+    const ox = (k % cols) * (W + 2);
+    const oy = Math.floor(k / cols) * (H + 2);
+    const f = gifFrames[fi];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = palette[f[y * W + x]] ?? 0;
+      const o = ((oy + y) * SW + ox + x) * 3;
+      rgb[o] = (c >> 16) & 255;
+      rgb[o + 1] = (c >> 8) & 255;
+      rgb[o + 2] = c & 255;
+    }
+  });
+  writeFileSync(`out/clips/${name}-sheet.png`, encodePng(SW, SH, rgb));
+  console.log(`    시트 out/clips/${name}-sheet.png (${n}장: ${pick.map((p) => p + 1).join(',')})`);
+}
 if (opt.to) {
   mkdirSync(dirname(opt.to), { recursive: true });
   copyFileSync(file, opt.to);

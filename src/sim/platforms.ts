@@ -1,6 +1,6 @@
 import {
   BIG, BREAK_RULES, CHUNK, chunkIndex, CITY_RULES, DYNAMIC_WALL_ID, GRIDS, hillWalls, rubbleOf, SURFACES, tramLying, tramRestX,
-  WALLS, type Holder, type Surface, type Wall,
+  WALLS, WRECK_FALL, WRECK_TERRAIN, WRECKS, wreckSegAt, type Holder, type Surface, type Wall,
 } from '../stage/citadel';
 import { settledHill } from './citadel';
 import { px, WALL_L, WALL_REACH } from './rules';
@@ -34,10 +34,25 @@ function chunkStanding(s: SimState, b: number, x: number, hgt: number): boolean 
   return s.city.hp[chunkIndex(g, c, r)] >= 0;
 }
 
+/**
+ * 무너진 구조물 조각 위인가 (2026-11-03): 상자는 그 조각 윗면이 사라지고 (낮아진 윗면은 surfacesOf가 새로 낸다),
+ * 판은 양 끝 stub px만 남는다
+ */
+function wreckGone(s: SimState, h: Holder, xpx: number): boolean {
+  if (h.wreck === undefined) return false;
+  const i = wreckSegAt(h.wreck, xpx);
+  if (i < 0 || s.wreck.stage[i] < 3) return false;
+  const w = WRECKS[i];
+  const deck = WRECK_FALL.deck[w.kind];
+  if (!deck) return true;
+  return xpx >= w.x0 + deck.stub && xpx < w.x1 - deck.stub;
+}
+
 /** 이 발판이 x(1/256px)에서 받쳐 주는가 */
 export function surfaceSolid(s: SimState, sf: Surface, x: number): boolean {
   if (x < px(sf.x0) || x >= px(sf.x1)) return false;
   if (!present(s, sf)) return false;
+  if (wreckGone(s, sf, Math.floor(x / 256))) return false;
   return sf.b < 0 || chunkStanding(s, sf.b, Math.floor(x / 256), sf.h - 1);
 }
 
@@ -60,8 +75,23 @@ const NOTHING: Holder = { b: -1, prop: -1, when: 'always' };
 export function surfacesOf(s: SimState): readonly Surface[] {
   const t = lyingTram(s);
   const hill = settledHill(s);
-  if (!t && !s.city.collapses.length && !hill.length) return SURFACES;
+  let fell = false;
+  for (const c of WRECK_TERRAIN) if (s.wreck.stage[c.i] >= 3) fell = true;
+  if (!t && !s.city.collapses.length && !hill.length && !fell) return SURFACES;
   const out = [...SURFACES];
+  // 무너진 구조물: 상자는 부러진 밑동의 깨진 윗면, 판은 다 떨어져 쌓인 뒤 잔해 위에 걸린 판
+  if (fell) {
+    for (const c of WRECK_TERRAIN) {
+      if (s.wreck.stage[c.i] < 3) continue;
+      const w = WRECKS[c.i];
+      if (c.top > 0) out.push({ x0: w.x0, x1: w.x1, h: c.top, tier: 'mid', kind: 'block', ...NOTHING, solid: true });
+      else if (c.rest > 0 && s.tick - s.wreck.at[c.i][2] >= WRECK_FALL.settle) {
+        const half = Math.round(((w.x1 - w.x0) * WRECK_FALL.restW) / 2);
+        const mid = Math.round((w.x0 + w.x1) / 2);
+        out.push({ x0: mid - half, x1: mid + half, h: c.rest, tier: 'mid', kind: 'rubble', ...NOTHING });
+      }
+    }
+  }
   if (t) out.push({ x0: t.x0 + 4, x1: t.x1 - 4, h: t.h, tier: 'mid', kind: 'tram', ...NOTHING });
   forEachRubble(s, (r) => out.push({ x0: r.tx0, x1: r.tx1, h: r.h, tier: 'mid', kind: 'rubble', ...NOTHING }));
   // 시타델 잔해 언덕 윗면 (다 쌓인 뒤)
@@ -71,7 +101,20 @@ export function surfacesOf(s: SimState): readonly Surface[] {
 
 /** 지금 서 있는 벽 전부 (벽 기동용). 건물에 붙은 벽은 높이마다 wallSolid로 다시 본다 */
 export function wallsOf(s: SimState): Wall[] {
-  const out = WALLS.filter((w) => present(s, w));
+  const out: Wall[] = [];
+  for (const w of WALLS) {
+    if (!present(s, w)) continue;
+    // 무너진 상자 구조물의 옆벽은 낮아진 윗면까지만
+    if (w.wreck !== undefined) {
+      const i = wreckSegAt(w.wreck, w.side < 0 ? w.x : w.x - 1);
+      const top = i >= 0 && s.wreck.stage[i] >= 3 ? WRECK_FALL.top[WRECKS[i].kind] : undefined;
+      if (top !== undefined) {
+        if (top - w.h0 >= 12) out.push({ ...w, h1: Math.min(w.h1, top) });
+        continue;
+      }
+    }
+    out.push(w);
+  }
   const t = lyingTram(s);
   if (t) {
     out.push(

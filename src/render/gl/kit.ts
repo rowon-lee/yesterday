@@ -198,8 +198,9 @@ export class Details {
     return this.geo.empty;
   }
 
-  build(): THREE.Mesh {
-    return this.geo.build({ d: litMaterial(pixelTexture(paintSwatches(this.colors)), { attached: true }) });
+  /** nocut: 무너진 자리(uCut)에 상관없이 그린다 (그 자리에 새로 놓는 잔해·뼈대) */
+  build(nocut = false): THREE.Mesh {
+    return this.geo.build({ d: litMaterial(pixelTexture(paintSwatches(this.colors)), { attached: !nocut, nocut }) });
   }
 }
 

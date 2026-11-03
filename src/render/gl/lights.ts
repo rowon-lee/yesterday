@@ -17,6 +17,12 @@ import { FRONT } from '../../stage/citadel';
 export const LIGHT_N = 12;
 /** 부서지는 길가 건물 수 (건물마다 무너진 칸 묶음 하나: uGone) */
 export const GONE_N = FRONT.length;
+/**
+ * 구조물 붕괴로 실제로 떨어져 나간 자리 (render/gl/wreck.ts가 프레임마다 화면 둘레 것만 채운다). 무대 재질은 이 자리를 그리지 않는다:
+ * 금 그림을 덧대는 것이 아니라 구조물 몸이 정말 사라져 실루엣이 바뀐다. 잘린 가장자리 2~3px은 깨진 단면(빛 받는 윗변·그늘)으로 칠한다.
+ * A: x0, x1, 아랫변 높이(x0에서), 윗변 높이. B: 깊이 z0, z1, 아랫변 기울기, 들쭉날쭉한 정도 (0이면 꺼짐)
+ */
+export const CUT_N = 16;
 /** 이펙트 빛에 떼어 두는 자리 (품질 높음 / 낮음) */
 const FX_SLOTS_HIGH = 4;
 const FX_SLOTS_LOW = 2;
@@ -108,6 +114,8 @@ export const shared = {
   uTime: { value: 0 },
   /** 건물마다 무너져 사라진 칸 (비트: 칸 번호). 붙은 기하는 그 칸 부분을 그리지 않는다 */
   uGone: { value: new Array<number>(GONE_N).fill(0) },
+  uCutA: { value: Array.from({ length: CUT_N }, () => new THREE.Vector4()) },
+  uCutB: { value: Array.from({ length: CUT_N }, () => new THREE.Vector4()) },
 };
 
 /** 후보 (프레임마다 다시 쓰는 객체 풀: 프레임마다 새 객체를 만들지 않게) */

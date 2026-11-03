@@ -159,6 +159,7 @@ export class World {
     this.big.update(props, tick, p.ix, p.ix + SCREEN_W);
     this.plaza.update(tick, props, citadel);
     this.wreck.update(wreck, tick, p.ix, p.ix + SCREEN_W);
+    this.outskirts.railCut = this.wreck.railCut;
     this.outskirts.update(tick, p.ix, p.ix + SCREEN_W, (x, y) => this.wreck.lightK(x, y, tick));
     this.edges.update(tick);
     this.life.update(tick, p.ix, focusX, clock, props, citadel !== null && citadel.stage === 4);
