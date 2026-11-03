@@ -440,4 +440,68 @@ export const CITADEL = {
     /** 무너진 큰 물건(뒤집힌 전차·쓰러진 간판)이 자리를 잡아 새 발판과 벽이 되기까지 틱 */
     settle: 36,
   },
+
+  /**
+   * 구조물 손상 (2026-11-02 파괴 범위 확대). 그동안 부서지지 않던 구조물(바깥 네 구간의 굴뚝·저탄 탑·크레인·컨테이너·하역장·
+   * 고가 철도·감시탑·초소·모래주머니, 해안 부두 컨테이너 더미, 광장 문기둥·검문소·동상, 공원 철책 문기둥)과 거리 소품.
+   * sim에는 단계(0 멀쩡 · 1 금 · 2 부분 파괴 · 3 무너짐/부서짐)와 부서진 틱·자리만 둔다. 판정에 영향을 주지 않는 장식이다:
+   * 캐릭터를 막거나 느리게 하거나 피해를 주지 않고, 딛는 벽과 발판은 부서져도 그대로 남는다 (윗면·옆면은 뼈대가 받친다).
+   * 내구도 hp, 단계 문턱 stages(내구도 % 이하: 1단계, 2단계, 0이면 3단계).
+   * 크기 size: small 소품(평타로도 부서짐), mid 중간 구조물(평타는 2단계까지), big 큰 구조물(평타는 금까지, 센 타격은 부분 파괴까지,
+   * 필살기·자동차 폭발·벽 쪽으로 날린 상대만 무너뜨림). 긴 구조물은 segment px마다 나눠 맞은 자리만 부서진다.
+   * 깎는 양: 공격 판정이 닿으면 그 기술 피해 (기술 하나에 한 번), 센 타격이 맞은 자리 둘레 heavy, 세게 날아온 몸 fly,
+   * 자동차 폭발 explosion, 필살기는 피해 × superMul.
+   */
+  wreck: {
+    stages: [70, 35],
+    segment: 180,
+    heavy: { radius: 18, amount: 45 },
+    fly: { minSpeed: 4, amount: 45, wallMul: 3 },
+    explosion: { radius: 48, amount: 90 },
+    superMul: 4,
+    /** 필살기 연출 끝 타격의 충격파: 끝 자리 둘레 radius 안 구조물을 amount만큼 (가장자리는 절반) */
+    superWave: { radius: 96, amount: 320 },
+    /** 바깥 네 구간 구조물: 재질, 크기, 내구도, 판정 높이 (outskirts의 kind 이름별. 판은 윗면 아래 depth px까지) */
+    outskirts: {
+      stack: { mat: 'brick', size: 'big', hp: 900 },
+      hopper: { mat: 'steel', size: 'big', hp: 700 },
+      crate2: { mat: 'steel', size: 'mid', hp: 320 },
+      crate3: { mat: 'steel', size: 'mid', hp: 400 },
+      dock: { mat: 'concrete', size: 'mid', hp: 360 },
+      booth: { mat: 'glass', size: 'mid', hp: 200 },
+      sandbags: { mat: 'sand', size: 'mid', hp: 160 },
+      ring: { mat: 'steel', size: 'mid', hp: 200, depth: 12 },
+      catwalk: { mat: 'steel', size: 'mid', hp: 240, depth: 14 },
+      crane: { mat: 'steel', size: 'big', hp: 700, depth: 16 },
+      craneLow: { mat: 'steel', size: 'mid', hp: 300, depth: 9 },
+      dockAwning: { mat: 'sheet', size: 'mid', hp: 120, depth: 8 },
+      rail: { mat: 'concrete', size: 'big', hp: 700, depth: 18 },
+      stairs: { mat: 'steel', size: 'mid', hp: 260, depth: 92 },
+      watch: { mat: 'wood', size: 'mid', hp: 280, depth: 4 },
+      watchRoof: { mat: 'wood', size: 'mid', hp: 180, depth: 6 },
+      catwalkLeg: { mat: 'steel', size: 'mid', hp: 200 },
+      craneLeg: { mat: 'steel', size: 'big', hp: 700 },
+      railLeg: { mat: 'concrete', size: 'big', hp: 600 },
+      watchLeg: { mat: 'steel', size: 'mid', hp: 200 },
+      watchCabin: { mat: 'glass', size: 'mid', hp: 220 },
+    },
+    /** 그 밖의 구조물 (x0 ~ x1, 바닥에서 y0 ~ y1) */
+    others: [
+      { kind: 'containers', mat: 'steel', size: 'big', hp: 600, x0: 1600, x1: 1666, y0: 0, y1: 112 },
+      { kind: 'gatePier', mat: 'stone', size: 'big', hp: 520, x0: 2584, x1: 2616, y0: 0, y1: 140 },
+      { kind: 'statue', mat: 'stone', size: 'big', hp: 650, x0: 2710, x1: 2758, y0: 0, y1: 116 },
+      { kind: 'checkpoint', mat: 'glass', size: 'mid', hp: 190, x0: 3738, x1: 3776, y0: 0, y1: 46 },
+      { kind: 'gatePier', mat: 'stone', size: 'big', hp: 520, x0: 3784, x1: 3816, y0: 0, y1: 140 },
+      { kind: 'parkGate', mat: 'stone', size: 'big', hp: 450, x0: 4756, x1: 4770, y0: 0, y1: 160 },
+    ],
+    /** 거리 소품 (street.props의 kind별 판정 상자 폭·높이와 재질, 내구도). 맨홀은 바닥이라 빠진다 */
+    street: {
+      crates: { mat: 'wood', w: 34, h: 34, hp: 50 },
+      mailbox: { mat: 'steel', w: 14, h: 26, hp: 70 },
+      barrel: { mat: 'steel', w: 14, h: 20, hp: 45 },
+      bench: { mat: 'wood', w: 36, h: 22, hp: 60 },
+      planter: { mat: 'concrete', w: 30, h: 34, hp: 80 },
+      posterboard: { mat: 'wood', w: 36, h: 78, hp: 50 },
+    },
+  },
 } as const;

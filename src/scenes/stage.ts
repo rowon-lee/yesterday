@@ -1,6 +1,6 @@
 import {
-  BIG, BREAKABLES, cpuInput, createCity, createCpu, createState, damageCity, KEEP_RULES, RULES, step, type CitadelState, type CityState,
-  type PropState, type SimState,
+  BIG, BREAKABLES, cpuInput, createCity, createCpu, createState, createWreck, damageCity, damageWreck, KEEP_RULES, RULES, step, WRECKS,
+  type CitadelState, type CityState, type PropState, type SimState, type WreckState,
 } from '../sim';
 import { MAP_H } from '../stage/citadel';
 import { drawText } from '../render/font';
@@ -21,6 +21,8 @@ import type { Scene } from './scene';
  *   ?tram=x 로 노면전차가 탈선한 자리를 정한다 (기본 560). ?dir=-1 이면 왼쪽으로 맞아 쓰러진다.
  * ?ruin=1 로 건물 정면을 미리 부숴 본다 (금·구멍·뚫림·무너짐을 sim 규칙 그대로 몇 군데에 낸다).
  * ?fg=0 으로 앞겹(카메라 앞을 스치는 기둥·전선·깃대)을 끈다. ?plat=1 로 발판을 보인다 (중층 노랑, 옥상 하늘색).
+ * ?wreck=1~3 으로 구조물 손상(바깥 구간 구조물·문기둥·동상·거리 소품)을 모두 그 단계로 보여 준다 (금·부분 파괴·무너짐).
+ *   ?wreckT=틱 은 그 단계가 된 뒤 지난 틱 (기본 600: 연기가 피어오르는 중)
  * ?match=시드 로 CPU끼리 한 경기를 끝까지 돌린 뒤의 거리(건물·물건)를 보여 준다. 라운드가 넘어가도 파괴가 남는지 보는 용도.
  */
 export function stageScene(): Scene {
@@ -69,12 +71,14 @@ export function stageScene(): Scene {
     out[BIG.bigsign] = { ...out[BIG.bigsign], hp: 0, stage: 2, damagedAt: -9999, brokenAt: -9999 };
     return out;
   };
+  let wreck = params.has('wreck') ? wreckedAll(Math.max(0, Math.min(3, Number(params.get('wreck')) | 0)), Number(params.get('wreckT') ?? 600) | 0) : null;
   // 경기 뒤 거리: 잔해 더미가 다 쌓인 모습이 되게 시각을 경기 끝 뒤로 둔다
   let base = 0;
   if (params.has('match')) {
     const after = playMatch(Number(params.get('match')) | 0);
     city = after.city;
     props = after.props;
+    wreck = after.wreck;
     base = after.tick + 600;
   }
   return {
@@ -99,7 +103,7 @@ export function stageScene(): Scene {
       lights2d.clear();
       g.world.foreground.visible = params.get('fg') !== '0';
       const placed = g.view.begin({ x: cam, y: camY }, base + tick);
-      g.world.update(g.view, base + tick, withKeep(props), city, null, base + tick, citadelAt(base + tick));
+      g.world.update(g.view, base + tick, withKeep(props), city, null, base + tick, citadelAt(base + tick), wreck);
       g.view.commitLights();
       g.view.render();
       ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
@@ -119,16 +123,32 @@ function playMatch(seed: number): SimState {
   return s;
 }
 
+/** 미리보기용 구조물 손상: 모두 stage 단계로, 맞은 자리는 구조물 가운데쯤 (sim 규칙 그대로 깎는다). ago: 그 단계가 된 뒤 지난 틱 */
+function wreckedAll(stage: number, ago: number): WreckState {
+  const fake = { wreck: createWreck(), events: [], tick: -ago } as unknown as SimState;
+  if (stage === 0) return fake.wreck;
+  WRECKS.forEach((w, i) => {
+    const x = w.x0 + Math.round((w.x1 - w.x0) * (0.35 + 0.3 * ((i * 37) % 10) / 10));
+    const h = w.y0 + Math.round((w.y1 - w.y0) * 0.55);
+    // 그 단계 문턱까지만 깎는다 (세기 2로, 3단계는 끝까지)
+    const pct = stage === 1 ? 0.5 : stage === 2 ? 0.2 : 1;
+    const hpNow = fake.wreck.hp[i];
+    const need = stage === 3 ? hpNow : Math.ceil(hpNow - w.hp * pct);
+    damageWreck(fake, i, need, 2, x, h, i % 2 ? -1 : 1, 'super');
+  });
+  return fake.wreck;
+}
+
 /** 미리보기용으로 부순 건물: 금(약한 타격), 구멍, 뚫림(벽꽝), 무너짐(1층을 크게 뚫음) */
 function ruinedCity(): CityState {
   const fake = { city: createCity(), events: [], tick: 0, slow: 0 } as unknown as SimState;
-  // 극장·다이너 거리: 단계별로 하나씩
-  damageCity(fake, 880, 170, 14, 35, 'preview'); // 금 (호텔 위층)
-  damageCity(fake, 880, 120, 12, 70, 'preview'); // 구멍
-  damageCity(fake, 460, 150, 20, 100, 'preview'); // 뚫림 (벽꽝 크기, 빵집)
-  damageCity(fake, 600, 230, 30, 100, 'preview'); // 극장 위층이 넓게 뚫려 실내가 보임
+  // 극장·다이너 거리: 단계별로 하나씩 (2026-11-02: 맵을 6400으로 넓히기 전 좌표였던 것을 지금 자리로 옮김)
+  damageCity(fake, 2480, 170, 14, 35, 'preview'); // 금 (호텔 위층)
+  damageCity(fake, 2480, 120, 12, 70, 'preview'); // 구멍
+  damageCity(fake, 2060, 150, 20, 100, 'preview'); // 뚫림 (벽꽝 크기, 빵집)
+  damageCity(fake, 2200, 230, 30, 100, 'preview'); // 극장 위층이 넓게 뚫려 실내가 보임
   // 무너짐: 다이너 1층을 넓게 뚫는다
-  for (let x = 712; x <= 820; x += 12) {
+  for (let x = 2312; x <= 2420; x += 12) {
     damageCity(fake, x, 16, 14, 100, 'preview');
     damageCity(fake, x, 46, 14, 100, 'preview');
   }

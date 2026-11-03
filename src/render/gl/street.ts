@@ -69,9 +69,17 @@ function tramWire(det: Details): void {
   for (let x = T.x0; x < T.x1; x += 120) det.add(x, x + 1, T.wire, T.wire + 10, -3.5, -2.5, C.iron);
 }
 
-/** 부서지지 않는 길가 소품: 나무 상자, 포스터 판, 우체통, 드럼통, 벤치, 화분 */
+/**
+ * 길가 소품 (나무 상자, 포스터 판, 우체통, 드럼통, 벤치, 화분). 2026-11-02부터 부서진다: 소품마다 따로 지어
+ * 구조물 손상 렌더(render/gl/wreck.ts)가 단계에 맞춰 기울이고, 부서지면 부서진 모습으로 바꿔 낀다. 여기서는 부서지지 않는 것만 (맨홀은 바닥 무늬)
+ */
 function props(det: Details, g: THREE.Group): void {
-  for (const p of D.street.props) {
+  for (const p of D.street.props) if (!(p.kind in D.wreck.street)) buildStreetProp(p, det, g);
+}
+
+/** 길가 소품 하나를 det(작은 상자들)과 g(그림 판)에 짓는다 */
+export function buildStreetProp(p: (typeof D.street.props)[number], det: Details, g: THREE.Group, sign = true): void {
+  {
     const x = p.x;
     switch (p.kind) {
       case 'crates':
@@ -126,7 +134,7 @@ function props(det: Details, g: THREE.Group): void {
         paintWord(cg, text, Math.floor((pw - tw) / 2), 30, 5, 7, C.paintCream);
         for (const sx of [5, Math.floor(pw * 0.6), pw - 7]) rect(cg, sx, 3, 1, 8 + (sx % 9), C.posterRedDark);
         g.add(plane(x, x + pw, 30, 78, -34, litMaterial(pixelTexture(c))));
-        registerSign(text, '거리 선전판', x + (pw - tw) / 2, x + (pw + tw) / 2, 78 - 37, 78 - 30, -34, tw, pw - 4);
+        if (sign) registerSign(text, '거리 선전판', x + (pw - tw) / 2, x + (pw + tw) / 2, 78 - 37, 78 - 30, -34, tw, pw - 4);
         break;
       }
     }

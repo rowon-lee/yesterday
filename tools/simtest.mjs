@@ -29,7 +29,7 @@ const sim = await vite.ssrLoadModule('/src/sim/index.ts');
 const R = sim.RULES;
 const HP = sim.createState(0).fighters[0].hp;
 
-const total = { chargeGo: 0, chargeLv: [0, 0, 0], chargeHit: 0, chargeCut: 0, dashAtk: 0, dashAtkHit: 0, keepStage: [0, 0, 0, 0, 0], keepFall: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wins: [0, 0, 0], rounds: 0, ticks: 0 };
+const total = { chargeGo: 0, chargeLv: [0, 0, 0], chargeHit: 0, chargeCut: 0, dashAtk: 0, dashAtkHit: 0, keepStage: [0, 0, 0, 0, 0], keepFall: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wreckHit: 0, wreckStage: [0, 0, 0], wins: [0, 0, 0], rounds: 0, ticks: 0 };
 const t0 = Date.now();
 for (let m = 0; m < args.matches; m++) {
   const seed = args.seed + m;
@@ -44,6 +44,7 @@ for (let m = 0; m < args.matches; m++) {
     for (const p of a.problems.slice(0, 5)) console.log(`      ${p}`);
     for (const k of Object.keys(a.stats)) {
       if (k === 'chargeLv') a.stats.chargeLv.forEach((v, i) => (total.chargeLv[i] += v));
+      else if (k === 'wreckStage') a.stats.wreckStage.forEach((v, i) => (total.wreckStage[i] += v));
       else if (k !== 'maxCombo' && k !== 'maxPerch') total[k] += a.stats[k];
     }
     total.maxCombo = Math.max(total.maxCombo, a.stats.maxCombo);
@@ -72,6 +73,11 @@ for (const [name, ok, note] of attackChecks()) {
 for (const [name, ok, note] of wallChecks()) {
   if (!ok) failed++;
   console.log(`${ok ? 'OK ' : 'NG '} 벽 시험: ${name}${note ? ` (${note})` : ''}`);
+}
+// 4-1) 구조물 손상 (장식): 세기별 단계 상한, 필살기로 무너짐, 발판·벽은 그대로, 사람 값은 그대로
+for (const [name, ok, note] of wreckChecks()) {
+  if (!ok) failed++;
+  console.log(`${ok ? 'OK ' : 'NG '} 구조물 손상 시험: ${name}${note ? ` (${note})` : ''}`);
 }
 // 4) 구조물과 큰 물건 (정해진 입력으로)
 for (const [name, ok, note] of structureChecks()) {
@@ -178,6 +184,7 @@ console.log(`\n합계 ${args.matches}판 ${total.rounds}라운드 (${(total.tick
 console.log(`  1P 승 ${total.wins[0]}, 2P 승 ${total.wins[1]}, 무승부 ${total.wins[2]}`);
 console.log(`  히트 ${total.hit}, 방어 ${total.block}, 가드 크러시 ${total.crush}, 띄우기 ${total.launch}, 낙법 ${total.tech}, 다운 ${total.knockdown}, KO ${total.ko}, 시간 초과 ${total.timeup}, 필살 ${total.cutin}, 최대 콤보 ${total.maxCombo}`);
 console.log(`  건물: 깎인 덩어리 ${total.cityChunks}, 붕괴 ${total.collapse}, 벽꽝 ${total.wallsplat}`);
+console.log(`  구조물 손상 (장식): 깎임 ${total.wreckHit}, 금 ${total.wreckStage[0]}, 부분 파괴 ${total.wreckStage[1]}, 무너짐 ${total.wreckStage[2]}`);
 console.log(`  부서지는 물건: 망가짐 ${total.propDamaged}, 파괴 ${total.propBroken} (그중 날아온 캐릭터에 부딪혀서 ${total.propCrash}, 네온 간판 꺼짐 ${total.neon})`);
 console.log(`  발판: 올라선 횟수 ${total.perch}, 발판 위 ${(total.perchTicks / 60).toFixed(0)}초 (그중 새 구조물 위 ${(total.structTicks / 60).toFixed(0)}초), ↓+점프로 내려옴 ${total.drop}, 가장 높이 선 곳 ${total.maxPerch}px`);
 console.log(`  큰 물건: 망가짐 ${total.bigDamaged}, 크게 무너짐 ${total.bigBroken}`);
@@ -425,7 +432,7 @@ function runCpuMatch(seed, ticks, setup = null, opts = {}) {
   const cpus = [sim.createCpu(seed * 2 + 1), sim.createCpu(seed * 2 + 2)];
   const log = [];
   const problems = [];
-  const stats = { chargeGo: 0, chargeLv: [0, 0, 0], chargeHit: 0, chargeCut: 0, dashAtk: 0, dashAtkHit: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0 };
+  const stats = { chargeGo: 0, chargeLv: [0, 0, 0], chargeHit: 0, chargeCut: 0, dashAtk: 0, dashAtkHit: 0, wallcling: 0, walljump: 0, wallrun: 0, wallkick: 0, walltech: 0, bigDamaged: 0, bigBroken: 0, structTicks: 0, cityChunks: 0, collapse: 0, wallsplat: 0, propDamaged: 0, propBroken: 0, propCrash: 0, hit: 0, block: 0, crush: 0, launch: 0, tech: 0, knockdown: 0, ko: 0, cutin: 0, timeup: 0, maxCombo: 0, perch: 0, perchTicks: 0, drop: 0, maxPerch: 0, neon: 0, wreckHit: 0, wreckStage: [0, 0, 0] };
   const was = [0, 0];
   while (log.length < ticks && state.phase !== 'matchEnd') {
     const inputs = [sim.cpuInput(cpus[0], state, 0), sim.cpuInput(cpus[1], state, 1)];
@@ -447,6 +454,10 @@ function runCpuMatch(seed, ticks, setup = null, opts = {}) {
         stats.chargeLv[e.combo - 1]++;
       }
       if (e.type === 'city') stats.cityChunks += e.combo;
+      if (e.type === 'wreck') {
+        stats.wreckHit++;
+        if (e.combo > 0) stats.wreckStage[e.combo - 1]++;
+      }
       if (e.type === 'prop') {
         if (sim.BREAKABLES[e.who].big) stats[e.text === 'damaged' ? 'bigDamaged' : 'bigBroken']++;
         if (e.text === 'damaged') stats.propDamaged++;
@@ -1748,4 +1759,52 @@ function wallChecks() {
   run(s, hold(I.IN_LEFT, 3));
   results.push(['붙은 건물 칸이 무너지면 떨어진다', clung && f.mode === 'air', `붙음 ${clung}, 무너진 뒤 ${f.mode}`]);
   return results;
+}
+
+/** 구조물 손상 (sim/wreck.ts): 판정에 영향 없는 장식 */
+function wreckChecks() {
+  const out = [];
+  const W = sim.WRECKS;
+  const bigI = W.findIndex((w) => w.kind === 'stack');
+  const smallI = W.findIndex((w) => w.kind === 'barrel');
+  const fresh = () => {
+    const s = sim.createState(1);
+    while (s.phase !== 'fight') sim.step(s, [0, 0]);
+    return s;
+  };
+  {
+    const s = fresh();
+    for (let k = 0; k < 20; k++) sim.damageWreck(s, bigI, 999, 0, W[bigI].x0 + 10, 40, 1, 'hit');
+    const st0 = s.wreck.stage[bigI];
+    for (let k = 0; k < 20; k++) sim.damageWreck(s, bigI, 999, 1, W[bigI].x0 + 10, 40, 1, 'heavy');
+    const st1 = s.wreck.stage[bigI];
+    sim.damageWreck(s, bigI, 999, 2, W[bigI].x0 + 10, 40, 1, 'super');
+    const st2 = s.wreck.stage[bigI];
+    out.push(['큰 구조물(용광로 굴뚝): 평타는 금까지, 센 타격은 부분 파괴까지, 필살기로 무너짐', st0 === 1 && st1 === 2 && st2 === 3, `${st0} → ${st1} → ${st2}`]);
+    sim.damageWreck(s, smallI, 999, 0, W[smallI].x0, 5, -1, 'hit');
+    out.push(['거리 소품(드럼통)은 평타로 부서짐', s.wreck.stage[smallI] === 3, `단계 ${s.wreck.stage[smallI]}, 부서진 틱 ${s.wreck.at[smallI][2]}`]);
+    // 발판·벽은 그대로 (굴뚝 윗면 발판)
+    const top = sim.surfacesOf(s).filter((sf) => sf.kind === 'block' && sf.x0 === W[bigI].x0);
+    out.push(['무너진 굴뚝의 윗면 발판과 옆 벽은 그대로', top.length === 1 && sim.surfaceSolid(s, top[0], (W[bigI].x0 + 20) * 256), `발판 ${top.length}`]);
+    // 라운드가 넘어가도 남는다
+    s.fighters[1].hp = 0;
+    const r = s.round;
+    while (s.round === r && s.tick < 4000) sim.step(s, [0, 0]);
+    out.push(['라운드가 넘어가도 손상이 남는다', s.round === r + 1 && s.wreck.stage[bigI] === 3 && s.wreck.stage[smallI] === 3, `라운드 ${s.round}`]);
+  }
+  {
+    // 사람 값은 그대로: 같은 입력으로 구조물 옆(공장 굴뚝)에서 때린 경기와, 구조물이 이미 무너진 경기의 사람 상태가 같다
+    const run = (pre) => {
+      const s = fresh();
+      if (pre) for (let i = 0; i < W.length; i++) sim.damageWreck(s, i, 99999, 2, W[i].x0, W[i].y0, 1, 'super');
+      const [a, b] = s.fighters;
+      a.x = 236 * 256; b.x = 276 * 256; a.facing = 1; b.facing = -1;
+      for (let k = 0; k < 240; k++) sim.step(s, [k % 9 === 0 ? sim.IN_ATTACK : 0, 0]);
+      return { f: JSON.stringify(s.fighters.map((f) => ({ ...f, propHits: [] }))), hits: s.wreck.stage.filter((v) => v > 0).length };
+    };
+    const a = run(false);
+    const b = run(true);
+    out.push(['구조물 손상은 사람(위치·체력·상태)에 영향이 없다', a.f === b.f, `손상된 구조물 ${a.hits}`]);
+  }
+  return out;
 }

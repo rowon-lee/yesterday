@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CitadelState, CityState, PropState } from '../../sim';
+import type { CitadelState, CityState, PropState, WreckState } from '../../sim';
 import { GROUND, MAP_W } from '../../stage/citadel';
 import { lights as lights2d, quality } from '../light';
 import { SCREEN_W } from '../screen';
@@ -19,6 +19,7 @@ import { Props } from './props';
 import { Rain } from './rain';
 import { backdropMaterial, hazeMaterial, pixelTexture, setDetail } from './shaders';
 import { Steam } from './steam';
+import { Wreck } from './wreck';
 import { buildStreet, foreground } from './street';
 import { paintNoise } from './tex';
 import type { GlView } from './view';
@@ -42,6 +43,8 @@ export class World {
   private readonly life = new Life();
   private readonly rain = new Rain();
   private readonly steam = new Steam();
+  /** 구조물 손상 (그동안 부서지지 않던 구조물과 거리 소품, 2026-11-02) */
+  private readonly wreck = new Wreck();
   /** 앞겹 (카메라 앞을 스치는 기둥·전선·깃발). 확인용으로 끌 수 있다 */
   readonly foreground = foreground();
   /** 움직이지 않는 무대 (먼 겹 판·안개 판·길·건물·앞겹) */
@@ -115,7 +118,7 @@ export class World {
     const tower = backdrop(buildKeepTower(), 0.5, 0.45, 0.55);
     tower.position.z += 1;
     this.plaza.attachTower(tower);
-    this.group.add(...this.statics, tower, this.plaza.group, this.edges.group, this.outskirts.group, this.props.group, this.big.group, this.life.group, this.rain.group, this.steam.group);
+    this.group.add(...this.statics, tower, this.plaza.group, this.edges.group, this.outskirts.group, this.props.group, this.big.group, this.life.group, this.rain.group, this.steam.group, this.wreck.group);
     // 움직이지 않는 무대는 자리 행렬을 한 번만 계산한다 (매 프레임 수백 개를 다시 계산하지 않게)
     for (const o of this.statics) {
       o.updateMatrixWorld(true);
@@ -138,7 +141,7 @@ export class World {
    */
   update(
     view: GlView, tick: number, props: readonly PropState[] | null, city: CityState | null, focusX: number | null = null, clock = tick,
-    citadel: CitadelState | null = null,
+    citadel: CitadelState | null = null, wreck: WreckState | null = null,
   ): void {
     const p = view.placed;
     this.applyMood(view, tick);
@@ -155,7 +158,8 @@ export class World {
     this.props.update(props, city, tick, p.ix, p.ix + SCREEN_W);
     this.big.update(props, tick, p.ix, p.ix + SCREEN_W);
     this.plaza.update(tick, props, citadel);
-    this.outskirts.update(tick, p.ix, p.ix + SCREEN_W);
+    this.wreck.update(wreck, tick, p.ix, p.ix + SCREEN_W);
+    this.outskirts.update(tick, p.ix, p.ix + SCREEN_W, (x, y) => this.wreck.lightK(x, y, tick));
     this.edges.update(tick);
     this.life.update(tick, p.ix, focusX, clock, props, citadel !== null && citadel.stage === 4);
     // 이펙트 빛 (타격 번쩍임·기력·필살기·부서질 때 불꽃): 싸우는 면 바로 앞

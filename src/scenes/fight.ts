@@ -311,7 +311,7 @@ export function fightScene(app?: App): Scene {
       }
       g.world.freezeRain(still, red);
     }
-    g.world.update(g.view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256, s.clock, s.citadel);
+    g.world.update(g.view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256, s.clock, s.citadel, s.wreck);
     g.view.commitLights();
     const v = { x: placed.ix, y: placed.iy };
     const toScreen = (x: number, y: number): [number, number] => [Math.round(x - v.x), Math.round(GROUND_Y + y - v.y)];

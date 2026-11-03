@@ -2,7 +2,8 @@ import { hurtBox, type Box } from '../anim/boxes';
 import type { MoveId } from '../data/moves/base';
 import { movesOf, moveHitBox, moveHitLine } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
-import { CITY_RULES as CITY, KEEP_RULES } from '../stage/citadel';
+import { CITY_RULES as CITY, KEEP_RULES, WRECK_RULES } from '../stage/citadel';
+import { wreckArea } from './wreck';
 import { damageCitadel, superCitadel, towerBehind } from './citadel';
 import { startCine } from './cine';
 import { smashProps } from './props';
@@ -175,6 +176,7 @@ function applyHitInner(s: SimState, att: Fighter, def: Fighter, hb: WBox, id: Mo
   // 센 타격은 맞은 자리 뒤 건물 정면을 깎는다 (막혀도). 시타델 구역이면 본관도 (필살기는 hitCitadel이 따로)
   if (d.heavy) {
     damageCity(s, Math.round(ex / 256), Math.round(-ey / 256), CITY.hit.radius, CITY.hit.amount, 'hit');
+    wreckArea(s, Math.round(ex / 256), Math.round(-ey / 256), WRECK_RULES.heavy.radius, WRECK_RULES.heavy.amount, 1, dir, 'heavy');
     if (!d.cutin) damageCitadel(s, Math.round(ex / 256), blocked ? KEEP_RULES.damage.blocked : KEEP_RULES.damage.heavy, who);
   }
 
@@ -348,6 +350,8 @@ export function cinematicFinish(s: SimState, att: Fighter, def: Fighter, id: Mov
   const wide: WBox = { x0: def.x - px(44), x1: def.x + px(44), y0: def.y - px(80), y1: def.y + px(6) };
   smashProps(s, att, wide, movesOf(att.char)[id].data.damage, true);
   superCitadel(s, s.fighters.indexOf(att), wide);
+  // 필살기 충격파: 끝 자리 둘레 구조물·소품이 크게 부서진다 (장식, 2026-11-02)
+  wreckArea(s, Math.round(def.x / 256), Math.round(-def.y / 256) + 30, WRECK_RULES.superWave.radius, WRECK_RULES.superWave.amount, 2, att.facing, 'super');
 }
 
 /** 체력이 0이 된 쪽을 날려 쓰러뜨린다 */

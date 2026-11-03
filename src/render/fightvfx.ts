@@ -1,7 +1,8 @@
 import { reachTip } from '../anim/boxes';
 import { cellOf } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
-import { BREAKABLES, cineScenes, GRIDS, fighterPose, movesOf, RULES, statsOf, tramRestX, type Fighter, type SimState } from '../sim';
+import { BREAKABLES, cineScenes, GRIDS, fighterPose, movesOf, RULES, statsOf, tramRestX, WRECKS, type Fighter, type SimState, type WreckMat } from '../sim';
+import type { DebrisKind } from './debris';
 import { CITADEL as D } from '../data/stages/citadel';
 import { KNOCKDOWN_RELAND } from '../data/poses/common';
 import type { TrailBox } from '../data/moves/base';
@@ -73,6 +74,18 @@ export function raidenIntroLift(f: Fighter): number {
   return Math.round(RAIDEN_INTRO.drop * (1 - u * u));
 }
 /** 타격 불꽃 (뜨거운 색) */
+/** 구조물 재질 → 튀는 조각 종류, 떨어지는 덩어리 색 (첫 색은 쓰지 않는 자리: 몸 색은 1번부터) */
+const DEBRIS_OF: Record<WreckMat, DebrisKind> = { brick: 'brick', concrete: 'concrete', stone: 'concrete', steel: 'metal', sheet: 'metal', glass: 'glass', wood: 'wood', sand: 'sand' };
+const DEBRIS_FALL: Record<WreckMat, readonly string[]> = {
+  brick: ['', '#4a3634', '#3a2c2c', '#5e4440'],
+  concrete: ['', '#44423e', '#34343a', '#5e5a54'],
+  stone: ['', '#4a4844', '#3a3a3e', '#6a6660'],
+  steel: ['', '#34343a', '#26262c', '#55555c'],
+  sheet: ['', '#3e3c38', '#2c2c2e', '#5e5a50'],
+  glass: ['', '#3a5864', '#2a3c46', '#7aa8b8'],
+  wood: ['', '#4e3626', '#3a2a20', '#6a4a32'],
+  sand: ['', '#5a5040', '#4a4234', '#7a6c52'],
+};
 const WARM: ColorName[] = ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed'];
 /** 차지를 모으는 동안 몸 둘레 오라와 빛 (기본 스틱맨은 흰 주황. 캐릭터를 얹으면 대표 색) */
 const CHARGE_RAMP: ColorName[] = ['fxWhite', 'goldLight', 'fxYellow', 'fxOrange', 'fxFlame', 'goldDark', 'fxRed'];
@@ -593,6 +606,12 @@ export class FightVfx {
         }
         this.since[1 - e.who] = 0;
         this.heavy[1 - e.who] = !!e.heavy;
+        // 센 타격 환경 반응 (2026-11-02): 땅에 선 채 맞으면 발밑 젖은 바닥에서 물보라가 튀고, 흙먼지가 밀려나는 쪽으로 바닥을 따라 깔린다
+        if (e.heavy && def && att && def.y > -4 * 256) {
+          const fxw = def.x / 256;
+          this.debris.burst('water', fxw, GROUND_Y - 2, att.facing, 10);
+          this.debris.dustSweep(fxw, att.facing, e.move === 'super' ? 1.2 : 0.5);
+        }
         // 화과산에 맞으면 밀려나는 두 발이 바닥을 끈다: 물 튐(raidenLasting)과 긁힌 자국 두 줄
         if (e.move === 'skill2' && att?.char === 'raiden' && def) {
           this.dragT[1 - e.who] = 22;
@@ -636,15 +655,29 @@ export class FightVfx {
       } else if (e.type === 'prop') {
         if (BREAKABLES[e.who].big) this.bigProp(e.who, e.text === 'broken', wx, wy, s.props[e.who].dir, s.props[e.who].at);
         else this.prop(e.who, e.text === 'broken', !!e.heavy, s.props[e.who].dir);
+      } else if (e.type === 'wreck') {
+        this.wreck(s, e.who, e.combo ?? 0, e.text ?? '', wx, wy);
       } else if (e.type === 'city') {
         // 깎인 벽에서 벽돌 조각이 튄다
         const n = Math.min(12, 3 + (e.combo ?? 1) * 2);
-        this.debris.burst('brick', e.x / 256, GROUND_Y + e.y / 256, e.x > (att?.x ?? 0) ? 1 : -1, n);
+        const cdir = e.x > (att?.x ?? 0) ? 1 : -1;
+        this.debris.burst('brick', e.x / 256, GROUND_Y + e.y / 256, cdir, n);
+        // 여러 덩어리가 한꺼번에 깎이면 큰 벽돌 덩어리도 떨어진다 (작은 부스러기와 구분되게)
+        if ((e.combo ?? 1) >= 3) this.debris.chunks('brick', e.x / 256, GROUND_Y + e.y / 256, cdir, Math.min(4, (e.combo ?? 1) - 1), 0.8);
       } else if (e.type === 'collapse') {
         // 건물이 무너짐: 위 덩어리가 잔해로 떨어지고 큰 먼지 구름, 화면 흔들림
         const g = GRIDS[e.who];
         const [c0, c1] = (e.text ?? '0,0').split(',').map(Number);
-        this.debris.collapse(g.x + c0 * 16, Math.min(g.x + g.w, g.x + (c1 + 1) * 16), g.h, facadeAtlas());
+        const fx0 = g.x + c0 * 16;
+        const fx1 = Math.min(g.x + g.w, g.x + (c1 + 1) * 16);
+        this.debris.collapse(fx0, fx1, g.h, facadeAtlas());
+        // 무너진 폭만큼 큰 덩어리가 길 쪽으로 굴러 나오고, 먼지가 바닥을 따라 양옆으로 깔린다 (2026-11-02)
+        this.debris.chunks('brick', (fx0 + fx1) / 2, GROUND_Y - 20, 1, Math.min(10, 3 + (e.combo ?? 16) / 16), 1.2);
+        this.debris.chunks('concrete', (fx0 + fx1) / 2, GROUND_Y - 20, -1, Math.min(8, 2 + (e.combo ?? 16) / 24), 1);
+        this.after(10, () => {
+          this.debris.dustSweep(fx1, 1, Math.min(1.6, 0.6 + (e.combo ?? 16) / 64));
+          this.debris.dustSweep(fx0, -1, Math.min(1.6, 0.6 + (e.combo ?? 16) / 64));
+        });
         // 넓게 무너질수록 크게 흔들린다 (기둥 한 줄 0.45 ~ 여섯 줄 이상 0.85)
         this.fx.shake(Math.min(0.85, 0.35 + (e.combo ?? 16) / 16 * 0.08));
         if ((e.combo ?? 0) >= 48) this.fx.flashFor(1);
@@ -653,6 +686,8 @@ export class FightVfx {
         this.layer.add(impact({ kind: 'hit', x, y, angle: -Math.PI / 2, size: 0.9, ramp: fxRamp(WARM), seed: this.seed++ }));
         this.debris.burst('brick', e.x / 256, GROUND_Y + e.y / 256, 1, 10);
         this.debris.burst('brick', e.x / 256, GROUND_Y + e.y / 256, -1, 10);
+        this.debris.chunks('brick', e.x / 256, GROUND_Y + e.y / 256, 1, 3, 0.9);
+        this.debris.chunks('brick', e.x / 256, GROUND_Y + e.y / 256, -1, 3, 0.9);
         this.debris.dustCloud(e.x / 256 - 16, e.x / 256 + 16, 0.6);
         this.fx.shake(0.5);
       } else if (e.type === 'ko') {
@@ -1250,6 +1285,84 @@ export class FightVfx {
         sparks: 3,
       }));
     }
+  }
+
+  /**
+   * 구조물 손상 (sim 'wreck' 이벤트, 2026-11-02): 깎일 때는 재질 부스러기, 단계가 오를 때 크기·재질에 맞는 연출.
+   * 1단계 금: 작은 충격과 부스러기. 2단계 부분 파괴: 큰 덩어리가 맞은 쪽으로 튀고 바닥을 따라 먼지가 깔리며, 강철은 불꽃, 유리는 산산조각.
+   * 3단계 무너짐: 큰 구조물은 위에서 덩어리가 떨어져 바닥 먼지에 묻히고 큰 흔들림·번쩍임, 소품은 부서지는 소리 대신 파편과 먼지.
+   * 먼지는 바닥 쪽(캐릭터 뒤)에 짙게, 앞에는 갓 피어난 것만 옅게 (debris.drawDust) — 캐릭터를 가리지 않게
+   */
+  private wreck(s: SimState, i: number, stage: number, cause: string, wx: number, wy: number): void {
+    const w = WRECKS[i];
+    if (!w) return;
+    const dir = s.wreck.dir[i] || 1;
+    const kind = DEBRIS_OF[w.mat];
+    const area = (w.x1 - w.x0) * (w.y1 - w.y0);
+    const big = w.size === 'big';
+    const small = w.size === 'small';
+    const angle = dir > 0 ? 0 : Math.PI;
+    const ramp = w.mat === 'glass' ? COOL : WARM;
+    if (stage === 0) {
+      // 깎이기만: 재질 부스러기 몇 개 (강철은 튕기는 불꽃)
+      this.debris.burst(kind, wx, wy, dir, small ? 3 : 4);
+      if (w.mat === 'steel' || w.mat === 'sheet') {
+        this.layer.add(impact({ kind: 'ricochet', x: wx * FX_PX, y: wy * FX_PX, angle, normal: angle + Math.PI, surface: fxColor('iron'), ground: GROUND_Y * FX_PX, size: 0.3, ramp: fxRamp(WARM), seed: this.seed++ }));
+      }
+      return;
+    }
+    const heavyCause = cause === 'super' || cause === 'explosion';
+    if (stage === 1) {
+      this.layer.add(impact({ kind: 'hit', x: wx * FX_PX, y: wy * FX_PX, angle, size: small ? 0.3 : 0.42, ramp: fxRamp(ramp), seed: this.seed++ }));
+      this.debris.burst(kind, wx, wy, dir, small ? 6 : 10);
+      if (!small) this.debris.chunks(kind, wx, wy, dir, 2, 0.7);
+      this.fx.shake(big ? 0.22 : 0.12);
+      return;
+    }
+    if (stage === 2) {
+      this.layer.add(impact({ kind: 'hit', x: wx * FX_PX, y: wy * FX_PX, angle, size: small ? 0.4 : 0.62, ramp: fxRamp(ramp), seed: this.seed++ }));
+      this.debris.burst(kind, wx, wy, dir, w.mat === 'glass' ? 28 : 14);
+      this.debris.chunks(kind, wx, wy, dir, small ? 2 : 5, small ? 0.6 : 1);
+      this.debris.dustSweep(wx, dir, small ? 0.4 : 0.8);
+      if (w.mat === 'steel' || w.mat === 'sheet') {
+        this.layer.add(impact({ kind: 'ricochet', x: wx * FX_PX, y: wy * FX_PX, angle, normal: -Math.PI / 2, surface: fxColor('iron'), ground: GROUND_Y * FX_PX, size: 0.6, ramp: fxRamp(WARM), seed: this.seed++ }));
+        this.glow(wx, wy, 70, COLORS.fxOrange, 0.8, 12);
+      }
+      this.fx.shake(big ? 0.4 : 0.25);
+      return;
+    }
+    // 3단계: 무너짐
+    if (small) {
+      this.layer.add(impact({ kind: 'hit', x: wx * FX_PX, y: wy * FX_PX, angle, size: 0.5, ramp: fxRamp(ramp), seed: this.seed++ }));
+      this.debris.burst(kind, wx, wy, dir, 14);
+      this.debris.chunks(kind, wx, wy, dir, 4, 0.7);
+      if (w.kind === 'mailbox' || w.kind === 'posterboard') this.debris.burst('paper', wx, wy - 6, dir, 12);
+      if (w.kind === 'planter') this.debris.burst('sand', wx, wy, dir, 10);
+      this.debris.dustCloud(w.x0 - 6, w.x1 + 6, 0.35);
+      this.fx.shake(0.18);
+      return;
+    }
+    const cx = (w.x0 + w.x1) / 2;
+    const top = Math.min(w.y1, w.y0 + 200);
+    this.layer.add(impact({ kind: 'hit', x: wx * FX_PX, y: wy * FX_PX, angle, size: big ? 0.9 : 0.7, ramp: fxRamp(ramp), seed: this.seed++ }));
+    this.debris.fallBlocks(w.x0, w.x1, Math.max(w.y0, top - Math.min(80, (w.y1 - w.y0) * 0.6)), top, DEBRIS_FALL[w.mat], dir);
+    this.debris.burst(kind, wx, wy, dir, w.mat === 'glass' ? 40 : 22);
+    this.debris.chunks(kind, wx, wy, dir, big ? 10 : 6, big ? 1.3 : 1);
+    // 먼지: 무너진 자리 바닥에 구름, 맞은 쪽으로 깔리는 먼지 (높은 판·들보면 그 아래 땅에서)
+    const dustSize = Math.min(1.6, 0.5 + area / 6000);
+    this.debris.dustCloud(w.x0 - 12, w.x1 + 12, dustSize);
+    this.debris.dustSweep(cx, dir, dustSize);
+    this.debris.dustSweep(cx, -dir, dustSize * 0.5);
+    if (w.y0 > 40) this.after(16, () => this.debris.dustCloud(w.x0 - 6, w.x1 + 6, dustSize * 0.7));
+    if (w.mat === 'steel' || w.mat === 'sheet') {
+      for (const k of [0, 6, 12]) this.after(k, () => this.layer.add(impact({ kind: 'ricochet', x: (w.x0 + (w.x1 - w.x0) * (0.2 + 0.3 * (k / 6))) * FX_PX, y: (GROUND_Y - top + 6) * FX_PX, angle, normal: Math.PI / 2, surface: fxColor('iron'), ground: GROUND_Y * FX_PX, size: 0.6, ramp: fxRamp(WARM), seed: this.seed++ })));
+      this.glow(cx, GROUND_Y - (w.y0 + w.y1) / 2, 120, COLORS.fxOrange, 0.9, 20);
+    }
+    if (big || heavyCause) {
+      this.fx.flashFor(1);
+      this.fx.shake(0.7);
+      this.after(18, () => this.fx.shake(0.4));
+    } else this.fx.shake(0.45);
   }
 
   /** 부서지는 물건: 망가질 때 작은 충격, 부서질 때 물건마다 다른 연출 */

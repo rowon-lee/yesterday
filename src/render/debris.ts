@@ -12,9 +12,19 @@ interface Bit {
   life: number;
   /** 종이처럼 팔랑이며 천천히 떨어지는가 */
   flutter: boolean;
+  /** 덩어리 크기 (px, 1이면 점). 2 이상이면 윗변 1px이 빛을 받는다 */
+  w: number;
+  h: number;
+  /** 윗변 색 (덩어리만) */
+  top: string;
+  /** 바닥에 닿으면 몇 번 더 튀는가, 다 튀고 나면 바닥에 남아 있는 틱 (잔해) */
+  bounce: number;
+  rest: number;
+  /** 바닥에 내려앉아 쉬는 중 */
+  resting?: boolean;
 }
 
-export type DebrisKind = 'glass' | 'paper' | 'water' | 'metal' | 'brick';
+export type DebrisKind = 'glass' | 'paper' | 'water' | 'metal' | 'brick' | 'concrete' | 'wood' | 'sand';
 
 /** 렌더 전용 고정 난수 */
 function rand(n: number): number {
@@ -36,6 +46,8 @@ interface Block {
   vy: number;
   /** 조각마다 조금씩 다른 무게: 같이 내려앉다가 점점 흩어진다 */
   g: number;
+  /** 그림이 없을 때 칠하는 색 (재질 색) */
+  color?: string;
   delay: number;
   /** 바닥에 묻히며 먼지를 낸 마지막 높이 */
   dustAt: number;
@@ -51,6 +63,23 @@ interface Puff {
   t: number;
   life: number;
 }
+
+/** 재질별 조각 색: 첫 색이 빛 받는 윗변, 나머지가 몸 (어두운 밤 무대에 맞게 차갑고 낮게) */
+const DEBRIS_COLORS: Record<DebrisKind, string[]> = {
+  glass: [COLORS.white, COLORS.skyLight, COLORS.skyDark],
+  paper: [COLORS.white, COLORS.paintCream, COLORS.stone],
+  water: [COLORS.skyLight, COLORS.skyLight, COLORS.sky],
+  metal: [COLORS.ironLight, COLORS.stone, COLORS.iron, COLORS.iron],
+  brick: [COLORS.stone, COLORS.brick, COLORS.brickRed, COLORS.brickDark],
+  concrete: ['#8a867e', '#5e5a54', '#44423e', '#2e2e32'],
+  wood: ['#a07a52', '#6a4a32', '#4e3626', '#2e2018'],
+  sand: ['#9a8a66', '#7a6c52', '#5a5040'],
+};
+
+/** 한꺼번에 들고 있는 조각·먼지 뭉치·떨어지는 덩어리 상한 */
+const MAX_BITS = 1200;
+const MAX_PUFFS = 700;
+const MAX_BLOCKS = 900;
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
@@ -149,25 +178,98 @@ export class Debris {
     }
   }
 
+  /**
+   * 튀는 조각 count개. 단단한 것(벽돌·콘크리트·철·나무)은 넷에 하나꼴로 2~3px 덩어리가 섞이고, 바닥에 닿으면 한 번 튀었다가
+   * 잠깐 바닥에 남는다 (유리는 반짝이며 튀고, 물·종이·모래는 그대로 사라진다)
+   */
   burst(kind: DebrisKind, x: number, y: number, dir: number, count: number): void {
-    const colors: Record<DebrisKind, string[]> = {
-      glass: [COLORS.skyLight, COLORS.white, COLORS.skyDark],
-      paper: [COLORS.paintCream, COLORS.stone, COLORS.white],
-      water: [COLORS.skyLight, COLORS.sky],
-      metal: [COLORS.ironLight, COLORS.stone, COLORS.iron],
-      brick: [COLORS.brick, COLORS.brickRed, COLORS.brickDark, COLORS.stone],
-    };
+    const hard = kind === 'brick' || kind === 'concrete' || kind === 'metal' || kind === 'wood';
     for (let i = 0; i < count; i++) {
       const r = () => rand(this.seed++ * 7919);
-      const spread = kind === 'water' ? 0.6 : 1.6;
+      const spread = kind === 'water' || kind === 'sand' ? 0.6 : 1.6;
+      const big = hard && r() < 0.25;
+      const cols = DEBRIS_COLORS[kind];
       this.bits.push({
         x,
         y,
         vx: dir * (0.3 + r() * 2.2) + (r() - 0.5) * spread,
         vy: -(0.6 + r() * (kind === 'paper' ? 1.6 : 2.6)),
-        color: colors[kind][Math.floor(r() * colors[kind].length)],
+        color: cols[Math.floor(r() * cols.length)],
         life: 40 + Math.floor(r() * 60),
         flutter: kind === 'paper',
+        w: big ? (kind === 'wood' ? 4 : 2 + Math.floor(r() * 2)) : 1,
+        h: big ? 2 : 1,
+        top: cols[0],
+        bounce: hard || kind === 'glass' ? 1 : 0,
+        rest: hard ? 30 + Math.floor(r() * 50) : kind === 'glass' ? 16 : 0,
+      });
+    }
+  }
+
+  /**
+   * 큰 덩어리 (구조물이 부서질 때): 3~7px 덩어리 count개가 맞은 쪽으로 무겁게 날아 떨어지고, 바닥에서 한 번 튄 뒤
+   * 2~4초 남아 있다가 사라진다. 먼지(dustCloud)와 따로 보인다
+   */
+  chunks(kind: DebrisKind, x: number, y: number, dir: number, count: number, size = 1): void {
+    const cols = DEBRIS_COLORS[kind];
+    for (let i = 0; i < count; i++) {
+      const r = () => rand(this.seed++ * 7919);
+      const w = Math.max(2, Math.round((3 + r() * 4) * size));
+      const h = Math.max(2, Math.round(w * (kind === 'wood' || kind === 'metal' ? 0.4 : 0.6 + r() * 0.3)));
+      this.bits.push({
+        x: x + (r() - 0.5) * 10 * size,
+        y: y + (r() - 0.5) * 8 * size,
+        vx: dir * (0.2 + r() * 1.6) + (r() - 0.5) * 1.2,
+        vy: -(0.3 + r() * 1.8),
+        color: cols[1 + Math.floor(r() * (cols.length - 1))],
+        life: 400,
+        flutter: false,
+        w,
+        h,
+        top: cols[0],
+        bounce: 1,
+        rest: 120 + Math.floor(r() * 120),
+      });
+    }
+  }
+
+  /**
+   * 구조물이 무너질 때 위에서 떨어지는 덩어리 (그림 없이 재질 색): x0~x1, 바닥에서 y0~y1 높이의 정면이 조각나 떨어진다.
+   * 건물 붕괴(collapse)와 같은 무게로 내려앉다가 바닥 먼지 속에 묻힌다
+   */
+  fallBlocks(x0: number, x1: number, y0: number, y1: number, colors: readonly string[], dir: number): void {
+    const cell = 8;
+    for (let y = y0; y < y1; y += cell) {
+      for (let x = x0; x < x1; x += cell) {
+        if (rand(this.seed++ * 31) < 0.45) continue;
+        const w = Math.min(cell, x1 - x) - Math.floor(this.r() * 3);
+        const h = Math.min(cell, y1 - y) - Math.floor(this.r() * 3);
+        if (w < 2 || h < 2) continue;
+        this.blocks.push({
+          sx: 0, sy: 0, x, y: GROUND_Y - y - h, w, h,
+          vx: dir * this.r() * 0.6 + (x - (x0 + x1) / 2) * 0.004,
+          vy: -this.r() * 0.6,
+          g: 0.2 + this.r() * 0.12,
+          delay: Math.floor(this.r() * 4),
+          dustAt: GROUND_Y,
+          color: colors[1 + Math.floor(this.r() * (colors.length - 1))],
+        });
+      }
+    }
+  }
+
+  /** 먼지가 한쪽(dir)으로 바닥을 따라 깔리며 퍼진다 (센 충격·붕괴 방향). ground: 화면 y */
+  dustSweep(x: number, dir: number, size: number, ground = GROUND_Y): void {
+    const n = Math.round(14 * size);
+    for (let i = 0; i < n; i++) {
+      this.puffs.push({
+        x: x + dir * this.r() * 10,
+        y: ground - this.r() * 4,
+        r: 3 + this.r() * 4 * size,
+        vx: dir * (0.6 + this.r() * 1.6 * size),
+        vy: -0.05 - this.r() * 0.15,
+        t: -Math.floor(this.r() * 6),
+        life: 60 + Math.floor(this.r() * 60),
       });
     }
   }
@@ -212,8 +314,33 @@ export class Debris {
       }
       b.x += b.vx * dt;
       b.y += b.vy * dt;
+      // 바닥: 단단한 조각은 한 번 튀고, 다 튀면 바닥에 남아 있다가 사라진다
+      if (!b.flutter && b.y + b.h >= GROUND_Y && b.vy > 0 && (b.bounce > 0 || b.rest > 0)) {
+        b.y = GROUND_Y - b.h;
+        if (b.bounce > 0) {
+          b.bounce--;
+          b.vy = -b.vy * 0.3;
+          b.vx *= 0.45;
+          b.life = Math.max(b.life, 20);
+        } else {
+          b.vx = 0;
+          b.vy = 0;
+          b.life = b.rest;
+          b.rest = 0;
+          b.flutter = false;
+          b.resting = true;
+        }
+      }
+      if (b.resting) {
+        b.vy = 0;
+        b.y = GROUND_Y - b.h;
+      }
     }
     this.bits = this.bits.filter((b) => b.life > 0 && b.y < GROUND_Y + 4);
+    // 누적 상한 (여러 건물이 연달아 무너져도 쌓이지 않게): 오래된 것부터 버린다
+    if (this.bits.length > MAX_BITS) this.bits.splice(0, this.bits.length - MAX_BITS);
+    if (this.puffs.length > MAX_PUFFS) this.puffs.splice(0, this.puffs.length - MAX_PUFFS);
+    if (this.blocks.length > MAX_BLOCKS) this.blocks.splice(0, this.blocks.length - MAX_BLOCKS);
   }
 
   clear(): void {
@@ -273,7 +400,10 @@ export class Debris {
       const y = Math.round(b.y - cam.y);
       const h = Math.min(b.h, Math.round(GROUND_Y - b.y));
       if (h <= 0) continue;
-      if (this.src) ctx.drawImage(this.src, b.sx, b.sy, b.w, h, x, y, b.w, h);
+      if (b.color) {
+        ctx.fillStyle = b.color;
+        ctx.fillRect(x, y, b.w, h);
+      } else if (this.src) ctx.drawImage(this.src, b.sx, b.sy, b.w, h, x, y, b.w, h);
       else {
         ctx.fillStyle = COLORS.brick;
         ctx.fillRect(x, y, b.w, h);
@@ -283,8 +413,15 @@ export class Debris {
       if (h === b.h) ctx.fillRect(x, y + h - 1, b.w, 1);
     }
     for (const b of this.bits) {
+      const x = Math.round(b.x - cam.x);
+      const y = Math.round(b.y - cam.y);
       ctx.fillStyle = b.color;
-      ctx.fillRect(Math.round(b.x - cam.x), Math.round(b.y - cam.y), b.flutter ? 2 : 1, 1);
+      ctx.fillRect(x, y, b.flutter ? 2 : b.w, b.h);
+      // 덩어리: 윗변이 빛을 받는다 (명도로 형태를 나눈다, 외곽선 없음)
+      if (b.w >= 2 && b.h >= 2) {
+        ctx.fillStyle = b.top;
+        ctx.fillRect(x, y, b.w, 1);
+      }
     }
   }
 }

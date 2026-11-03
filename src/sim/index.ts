@@ -14,7 +14,9 @@ export {
 } from '../stage/citadel';
 export { canDropThrough, floorBelow, onPlatform, surfaceSolid, surfacesOf, wallLeft, wallsOf, wallSolid } from './platforms';
 export { isAirborne } from './fighter';
-export type { CitadelState, CityState, PropState } from './types';
+export type { CitadelState, CityState, PropState, WreckState } from './types';
+export { createWreck, damageWreck } from './wreck';
+export { WRECKS, WRECK_RULES, wreckStageOf, type Wreckable, type WreckMat } from '../stage/citadel';
 export { createCity, damageCity } from './city';
 export { createCitadel, damageCitadel, keepStanding, settledHill } from './citadel';
 export { HILL_WALL_ID, hillWalls, KEEP_RULES, KEEP_ZONE, type HillBlock } from '../stage/citadel';
