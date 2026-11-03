@@ -4,7 +4,10 @@ import { COLORS, COMMON, POST_FAMILIES, POST_LADDER, type PostRampName } from '.
 import { SCREEN_W } from '../screen';
 import { DIST, FAR, MARGIN, NEAR, RT_H, RT_W, type Placed } from './core';
 import { LIGHT_N, loadedLights } from './lights';
-import { SHEAR_MAX, shearFrame, tint } from '../screenfx';
+import { press, pressAt, SHEAR_MAX, shearFrame, tint } from '../screenfx';
+
+/** 이펙트 빛 번짐 세기 (애니 이펙트 둘레 무대에 더하는 빛) */
+const FX_GLOW = 2.6;
 
 /**
  * 구간 팔레트 (맵 아트 지침서 '팔레트', CLAUDE.md '구간 분위기').
@@ -516,6 +519,12 @@ uniform float vignette;
 uniform vec4 wash;
 /** 하얀 심: 가장 센 성분이 이 사이에서 하얗게 날아간다 */
 uniform vec2 hot;
+/** 이펙트 빛 번짐 (애니 이펙트 칸만 그려 번지게 한 것, 1/4 크기)과 세기: 무대 칸에만 더한다 (14-5) */
+uniform sampler2D fxGlow;
+uniform float fxGlowK;
+/** 배경 누르기 (render/screenfx press, 14-1 ⑥): rgb = 물들일 색 (선형), a = 세기. 방식 0 어둡게·물들이기, 1 반전, 2 흰 화면 */
+uniform vec4 press;
+uniform float pressMode;
 varying vec2 vUv;
 ${VIEW_DEPTH_GLSL}
 ${BAYER_GLSL}
@@ -536,6 +545,14 @@ float lutFor(float wx) {
 }
 void main() {
   vec3 c = texture2D(hdr, vUv).rgb;
+  vec4 mt = hasMask > 0.5 ? texture2D(maskTex, vUv) : vec4(0.0);
+  float mk = step(1e-6, dot(mt.rgb, vec3(1.0)));
+  // 애니 이펙트 칸 (vfx/anime, 표시 그림 알파 1): 색 보정·빛 번짐·가장자리 어둡게 없이 그린 색 그대로 (고채도 4색 띠를 지킨다)
+  if (mk * mt.a > 0.5) {
+    vec3 e = clamp(c * 2.0, 0.0, 1.0);
+    gl_FragColor = vec4(mix(e * 12.92, 1.055 * pow(e, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, e)), 32.0 / 255.0);
+    return;
+  }
   if (bloomStrength > 0.0) {
     vec3 b = texture2D(bloomQ, vUv).rgb * 0.5 + texture2D(bloomE, vUv).rgb * 0.45 + texture2D(bloomS, vUv).rgb * 0.45;
     c += b * bloomStrength;
@@ -580,11 +597,27 @@ void main() {
   s = mix(s, s * s * (3.0 - 2.0 * s), lk.y);
   vec2 v = (vUv - 0.5) * vec2(1.0, 0.72);
   s *= 1.0 - vignette * smoothstep(0.28, 0.62, length(v)) * (1.0 - 0.6 * dot(s, vec3(0.299, 0.587, 0.114)));
+  float pressed = 0.0;
+  if (mk < 0.5) {
+    // 배경 누르기: 무대만 (캐릭터·이펙트 칸은 그대로). 누른 무대는 캐릭터·이펙트 칸처럼 공통 색표로 줄여
+    // (디더 없이 몇 단계로 뭉친다: 애니 '임팩트 프레임'처럼 납작한 이펙트 색 실루엣)
+    if (press.a > 0.0) {
+      vec3 pc = pow(clamp(press.rgb, 0.0, 1.0), vec3(1.0 / 2.2));
+      float ls = dot(s, vec3(0.299, 0.587, 0.114));
+      vec3 dark = pc * (0.04 + 0.5 * ls);
+      vec3 to = pressMode < 0.5 ? dark : pressMode < 1.5 ? 1.0 - s : vec3(1.0);
+      s = mix(s, to, press.a);
+      pressed = 1.0;
+    }
+    // 이펙트 빛 번짐: 이펙트 둘레 무대에 그 색 빛 (가장자리 밖 6~12px)
+    if (fxGlowK > 0.0) {
+      vec3 g = texture2D(fxGlow, vUv).rgb * fxGlowK;
+      s = 1.0 - (1.0 - s) * exp(-g);
+    }
+  }
   // 팔레트 표: 구간 x를 바이어 무늬로 12칸 흔들어 바뀌는 자리가 수직선이 되지 않게
   float row = lutFor(px + bayer8(gl_FragCoord.xy + ditherOrigin) * 12.0);
-  float mk = 0.0;
-  if (hasMask > 0.5) mk = step(1e-6, dot(texture2D(maskTex, vUv).rgb, vec3(1.0)));
-  gl_FragColor = vec4(clamp(s, 0.0, 1.0), (row + 32.0 * mk) / 255.0);
+  gl_FragColor = vec4(clamp(s, 0.0, 1.0), (row + 32.0 * max(mk, pressed)) / 255.0);
 }
 `;
 
@@ -806,6 +839,11 @@ export class Post {
   private readonly st: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
   /** 젖은 바닥에 길게 비칠 빛 (1/4 크기, 문턱 낮게: 네온까지) */
   private readonly glow: THREE.WebGLRenderTarget;
+  /** 이펙트 빛 번짐 (14-5): 애니 이펙트 칸만 그린 원본 (화면 크기, gl/view가 그린다) → 1/2 → 1/4 (A·B) */
+  readonly fxSrc: THREE.WebGLRenderTarget;
+  private readonly fxH: THREE.WebGLRenderTarget;
+  private readonly fxQ: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
+  private fxGlowOn = false;
   /** 색 보정까지 마친 화면 (팔레트로 줄이기 전, 알파 = 팔레트 표 번호 + 캐릭터 표시) */
   private readonly graded: THREE.WebGLRenderTarget;
   readonly final: THREE.WebGLRenderTarget;
@@ -842,6 +880,9 @@ export class Post {
     this.s = pair(16);
     this.st = pair(8);
     this.glow = target(Math.ceil(RT_W / 4), Math.ceil(RT_H / 4), hdrType, false, true);
+    this.fxSrc = target(RT_W, RT_H, THREE.UnsignedByteType);
+    this.fxH = target(Math.ceil(RT_W / 2), Math.ceil(RT_H / 2), hdrType, false, true);
+    this.fxQ = pair(4);
     this.graded = target(RT_W, RT_H, THREE.UnsignedByteType);
     this.final = target(RT_W, RT_H, THREE.UnsignedByteType);
     const geo = new THREE.BufferGeometry();
@@ -889,6 +930,10 @@ export class Post {
       vignette: { value: 0.2 },
       wash: { value: new THREE.Vector4(1, 1, 1, 0) },
       hot: { value: new THREE.Vector2(0.6, 1.25) },
+      fxGlow: { value: this.fxQ[0].texture },
+      fxGlowK: { value: 0 },
+      press: { value: new THREE.Vector4(0, 0, 0, 0) },
+      pressMode: { value: 0 },
     });
     this.palette = mat(PALETTE_FRAG, {
       graded: { value: this.graded.texture },
@@ -931,6 +976,11 @@ export class Post {
     this.quad = new THREE.Mesh(geo, this.bright);
     this.quad.frustumCulled = false;
     this.scene.add(this.quad);
+  }
+
+  /** 이펙트 빛 번짐 원본(fxSrc)을 이번 프레임에 그렸는가 (view.ts가 정한다) */
+  setFxGlow(on: boolean): void {
+    this.fxGlowOn = on;
   }
 
   /** 캐릭터·이펙트 표시 그림 (view.ts가 그린다). null이면 표시 없음 */
@@ -1022,6 +1072,20 @@ export class Post {
       u.bloomStrength.value = 0;
       u.streakStrength.value = 0;
     }
+    // 이펙트 빛 번짐 (14-5 '이펙트에는 강하게, 피크 프레임에 가장자리 밖 4~8px' → 이 화면 6~12px): 애니 이펙트 칸만 1/4로 줄여 가로·세로로 흐린다
+    if (this.fxGlowOn) {
+      this.half(renderer, this.fxSrc, this.fxH);
+      this.half(renderer, this.fxH, this.fxQ[0]);
+      this.blur2(renderer, this.fxQ, 1);
+      u.fxGlowK.value = FX_GLOW;
+    } else u.fxGlowK.value = 0;
+    // 배경 누르기 (render/screenfx press)
+    const pk = pressAt(time);
+    if (pk > 0) {
+      const pc = this.tintColor.set(press.color);
+      u.press.value.set(pc.r, pc.g, pc.b, pk);
+      u.pressMode.value = press.mode === 'invert' ? 1 : press.mode === 'white' ? 2 : 0;
+    } else u.press.value.w = 0;
     // 4. 안개 속 빛 무리 (빛 번짐 뒤: 두 번 번지지 않게)
     this.drawHalos(renderer, camera, 0.1 * L.halo * tint.halo, L.haloSize);
     // 5. 합치기·색 보정 (칸마다 구간 분위기, 알파에 팔레트 표 번호·캐릭터 표시)

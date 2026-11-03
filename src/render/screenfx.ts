@@ -60,6 +60,21 @@ export function clearScreenFx(): void {
   tint.k = 0;
   tint.halo = 1;
   rainHold.on = false;
+  press.at = -1e9;
+  press.life = 0;
+}
+
+/**
+ * 배경 누르기 (동작연출지침서 14-1 ⑥): 강타 순간 1~3틱 동안 무대(배경) 명도를 확 낮추고 이펙트 색으로 물들인다.
+ * 캐릭터와 이펙트 칸(후처리의 캐릭터·이펙트 표시 칸)은 그대로 둔다. 필살기 타격은 반전(invert)이나 흰 화면(white)도 쓴다.
+ * at: 시작 틱 (sim 틱), life: 틱 수, k: 세기 (0~1), color: 물들일 색 ('#rrggbb')
+ */
+export const press = { at: -1e9, life: 0, k: 0, color: '#000000', mode: 'dark' as 'dark' | 'invert' | 'white' };
+
+/** 이 틱의 배경 누르기 세기 (0이면 없음) */
+export function pressAt(tick: number): number {
+  const age = tick - press.at;
+  return age >= 0 && age < press.life ? press.k : 0;
 }
 
 /**
@@ -70,3 +85,9 @@ export const tint = { k: 0, shadow: '#000000', high: '#ffffff', ambient: '#00000
 
 /** 비 멈춤: on이면 빗줄기가 그 자리에 멈추고 물방울이 튀지 않는다 */
 export const rainHold = { on: false };
+
+/**
+ * 이번 프레임에 애니 이펙트(vfx/anime)가 칠한 칸 수: render/vfx가 더하고, 3D 화면(gl/view)이 읽고 0으로 되돌린다.
+ * 0이 아니면 이펙트 빛 번짐(이펙트 칸만 따로 그려 번지게 하는 단계)을 돌린다 (14-5 '빛 번짐: 이펙트에는 강하게')
+ */
+export const fxMarked = { n: 0 };

@@ -112,6 +112,11 @@ export const shared = {
   uMist: { value: 0.4 },
   uFogGlow: { value: new THREE.Color().setRGB(0.02, 0.02, 0.03) },
   uTime: { value: 0 },
+  /**
+   * 평면 층(이펙트) 그리기 단계: 0 = 화면, 1 = 캐릭터·이펙트 표시 그림 (애니 이펙트 칸은 알파 1),
+   * 2 = 이펙트 빛 번짐 원본 (애니 이펙트 칸만). gl/view가 단계마다 바꾼다
+   */
+  uFlatPass: { value: 0 },
   /** 건물마다 무너져 사라진 칸 (비트: 칸 번호). 붙은 기하는 그 칸 부분을 그리지 않는다 */
   uGone: { value: new Array<number>(GONE_N).fill(0) },
   uCutA: { value: Array.from({ length: CUT_N }, () => new THREE.Vector4()) },

@@ -12,7 +12,8 @@ import { Debris } from './debris';
 import arc from '../vfx/arc';
 import raidenAura, { type AuraJoints } from '../vfx/raiden-aura';
 import raidenTrail from '../vfx/raiden-trail';
-import raidenStrike from '../vfx/raiden-strike';
+import { animeImpact, animeSwing } from '../vfx/anime';
+import { RAIDEN_ANIME_MOVES, RAIDEN_LOOK } from './chars/raiden-anime';
 import { raidenChargeArmor, raidenChargeCone, raidenCurse, raidenSteam, type Body as ChargeBody } from '../vfx/raiden-charge';
 import { hwagwasanBarrier, hwagwasanDome, hwagwasanDrag } from '../vfx/raiden-hwagwasan';
 import { pacheonAshFall, pacheonContact, pacheonCrack, pacheonEmbers, pacheonSurge } from '../vfx/raiden-pacheon';
@@ -274,14 +275,14 @@ function trailPath(mv: MoveOf, id: string, b: TrailBox): Array<[number, number]>
 /** 번개 휩쓸기 굵기: 센 기술(니킥·어퍼컷·대시 공격·내려찍기·차지)은 굵게 */
 const HEAVY_SWEEP: ReadonlySet<string> = new Set(['atk4', 'launcher', 'dashAttack', 'slam', 'charge', 'skill1', 'wallKick']);
 /**
- * 라이덴 지상 1~4타 번개 (사용자 피드백 2026-11-02 '공격 하나에 방향 하나'): 한 방향으로 뻗는 줄기 하나 (vfx/raiden-strike).
- * 심 굵기·가지·끝 갈래·꺾임, 맞힘 빛 (반지름 px, 틱), 맞힘 불꽃 크기. 1 → 4타로 굵고 길어진다
+ * 라이덴 지상 1~4타 (그림은 애니 이펙트 띠: chars/raiden-anime · vfx/anime): 맞힌 자리의 작은 빛 (반지름 px, 틱), 불꽃 크기.
+ * 띠가 제 빛을 따로 낸다 (머리·몸통). 맞힌 자리에 방향 없는 흰 덩어리를 뭉치지 않는다 (9-2)
  */
-const RAIDEN_STRIKE: Partial<Record<string, { width: number; branches: number; forks: number; jag: number; hitR: number; hitT: number; spark: number }>> = {
-  atk1: { width: 1, branches: 1, forks: 0, jag: 1.4, hitR: 12, hitT: 2, spark: 0.18 },
-  atk2: { width: 1, branches: 3, forks: 0, jag: 1.6, hitR: 14, hitT: 2, spark: 0.2 },
-  atk3: { width: 2, branches: 0, forks: 0, jag: 1.8, hitR: 16, hitT: 2, spark: 0.22 },
-  atk4: { width: 2, branches: 0, forks: 3, jag: 2, hitR: 20, hitT: 3, spark: 0.28 },
+const RAIDEN_STRIKE: Partial<Record<string, { hitR: number; hitT: number; spark: number }>> = {
+  atk1: { hitR: 12, hitT: 2, spark: 0.18 },
+  atk2: { hitR: 14, hitT: 2, spark: 0.2 },
+  atk3: { hitR: 16, hitT: 2, spark: 0.22 },
+  atk4: { hitR: 20, hitT: 3, spark: 0.28 },
 };
 /** 적뢰 범위 번개 색 (흰 심 → 밝은 붉은 테두리 → 붉은 → 검붉은 → 아주 어두운) */
 /** 화과산 전류 방벽 높이 (px, sim과 같은 값) */
@@ -426,16 +427,15 @@ export class FightVfx {
         for (const p of ph.pts) lights.point(p[0], p[1], 46 + len * 0.3, COLORS.raiden, 0.85 * ph.k * fl);
       } else lights.point(p1[0], p1[1], 40, COLORS.raidenDark, ph.k);
     }
-    // 지상 1~4타 줄기: 줄기를 따라 작은 붉은 빛 (두 사람이 빛에 묻히지 않게 작게)
-    this.strikes = this.strikes.filter((b) => !b.fx.done());
-    for (const b of this.strikes) {
-      const ph = b.fx.phase();
-      if (ph.stage === 2) {
-        lights.point(ph.pts[2][0], ph.pts[2][1], 18 + 4 * b.power, COLORS.raidenDark, ph.k);
-        continue;
-      }
-      const fl = s.tick % 3 === 0 ? 0.75 : 1;
-      for (const p of ph.pts.slice(1)) lights.point(p[0], p[1], 20 + 5 * b.power, COLORS.raiden, (0.35 + 0.1 * b.power) * ph.k * fl);
+    // 지상 1~4타 애니 이펙트 띠: 머리(판정 자리)에서 밝은 빨강 빛, 몸통에서 검붉은 빛. 피크에 가장 세고 찢어지며 줄어든다
+    this.animes = this.animes.filter((b) => !b.band.done());
+    for (const b of this.animes) {
+      const ph = b.band.phase();
+      if (ph.k <= 0) continue;
+      const fl = s.tick % 3 === 0 ? 0.8 : 1;
+      const [head, mid] = ph.pts;
+      lights.point(head[0], head[1], b.strong ? 120 : 64, COLORS.raidenFxRed, (b.strong ? 1 : 0.8) * ph.k * fl);
+      lights.point(mid[0], mid[1], b.strong ? 90 : 46, COLORS.raidenFxCrimson, 0.6 * ph.k * fl);
     }
     // 화과산: 날숨 반구 빛, 서 있는 전류 방벽 (튕길 때 밝게), 저주가 찌릿할 때 작은 빛
     this.domes = this.domes.filter((d) => !d.done());
@@ -497,8 +497,12 @@ export class FightVfx {
   private prevMoveId: Array<string | null> = [null, null];
   /** 지금 살아 있는 적뢰 (누가 쳤는지): 맞으면 섬광으로 되돌리고, 빛을 낸다 */
   private bolts: Array<{ who: number; fx: ReturnType<typeof raidenTrail> }> = [];
-  /** 지상 1~4타 한 줄기 번개 (빛은 작게): 세기 1~4 */
-  private strikes: Array<{ who: number; fx: ReturnType<typeof raidenStrike>; power: number }> = [];
+  /** 지상 1~4타 애니 이펙트 띠 (동작연출지침서 14장): 머리에서 띠 색 빛을 낸다 */
+  private animes: Array<{ who: number; band: ReturnType<typeof animeSwing>['band']; strong: boolean }> = [];
+  /** 마지막으로 애니 이펙트 기술에 맞았는가 (그러면 하얗게 번쩍이지 않는다) */
+  private flashOff = [false, false];
+  /** 확인 도구용: 애니 이펙트를 낸 기록 (틱, 기술, 피크 숫자, 맞힘) — 14-6 숫자 표 */
+  readonly animeLog: Array<{ tick: number; move: string; swing?: Record<string, unknown>; impact?: Record<string, unknown> }> = [];
   /** 투전승불: 모으는 동안의 전류 윤곽 (사람마다), 그 단계, 떼면서 낸 원뿔 방전 (빛을 낸다) */
   private armor: Array<ReturnType<typeof raidenChargeArmor> | null> = [null, null];
   private chargeStage = [0, 0];
@@ -532,6 +536,7 @@ export class FightVfx {
     this.round = s.round;
     this.since = [99, 99];
     this.blink = [0, 0];
+    this.flashOff = [false, false];
     this.techReady = [false, false];
     this.prevMeter = s.fighters.map((f) => f.meter);
     this.prevMode = s.fighters.map((f) => f.mode);
@@ -566,7 +571,7 @@ export class FightVfx {
       const x = wx * FX_PX;
       const y = wy * FX_PX;
       // 라이덴 지상 1~4타: 맞힘 빛은 작고 짧게 (12~20px, 2~3틱. 사용자 피드백 2026-11-02)
-      if (strikeHit) this.glow(wx, wy, strikeHit.hitR, COLORS.raidenLight, 0.9, strikeHit.hitT);
+      if (strikeHit) this.glow(wx, wy, strikeHit.hitR, e.move && RAIDEN_ANIME_MOVES[e.move] ? COLORS.raidenFxRed : COLORS.raidenLight, 0.9, strikeHit.hitT);
       else if (e.type === 'hit') this.glow(wx, wy, e.heavy ? 90 : 56, e.move === 'super' ? (s.fighters[e.who]?.char === 'raiden' ? COLORS.raidenDark : COLORS.fxWhite) : s.fighters[e.who]?.char === 'raiden' ? COLORS.raidenLight : (s.fighters[e.who] && rendersOf(s.fighters[e.who].char).light) || COLORS.fxOrange, e.heavy ? 1 : 0.8, e.heavy ? 18 : 10);
       else if (e.type === 'block') this.glow(wx, wy, 44, COLORS.fxBlue, 0.7, 10);
       else if (e.type === 'crush') this.glow(wx, wy, 90, COLORS.fxYellow, 1, 20);
@@ -585,8 +590,16 @@ export class FightVfx {
         const size = strikeHit ? strikeHit.spark : e.heavy ? 0.7 : stop >= 9 ? 0.55 : 0.42;
         // 라이덴의 타격은 붉은 전격이 튄다 (캐릭터 기획서 '평타'): 불꽃에 더해 맞힌 자리에서 사방으로 짧은 번개가 튄다
         // 맞힌 자리 불꽃을 스스로 그리는 캐릭터 (오스카: 베기 선 끝의 작은 반짝임만)는 공통 불꽃을 쓰지 않는다
-        if (!(att && rendersOf(att.char).ownSpark)) this.layer.add(impact({ kind: 'hit', x, y, angle, size, ramp: fxRamp(att?.char === 'raiden' ? RAIDEN_RAMP : (att && (rendersOf(att.char).ramp as ColorName[] | undefined)) || WARM), seed: this.seed++ }));
-        // 라이덴 지상 1~4타: 작은 불꽃만 (흰 덩어리·엉킨 번개 없이), 4타는 짧게 흔들림
+        // 라이덴 지상 1~4타: 가시 파편 (동그란 고리·불꽃 대신, 14-1 ⑤) + 4타는 배경 누르기 (14-1 ⑥)
+        const anime = att?.char === 'raiden' && e.move ? RAIDEN_ANIME_MOVES[e.move] : undefined;
+        // 애니 이펙트로 맞으면 하얗게 번쩍이지 않는다 (14-5 '캐릭터 읽기': 흰 머리 위에서 흰 몸이 묻히지 않게, 1px 외곽선과 제 색으로 읽힌다)
+        this.flashOff[1 - e.who] = !!anime;
+        if (anime && att) {
+          const imp = animeImpact((fx) => this.layer.add(fx), RAIDEN_LOOK, anime.grade, wx, wy, att.facing, s.tick, this.seed++);
+          this.animeLog.push({ tick: s.tick, move: e.move!, impact: imp });
+          if (this.animeLog.length > 64) this.animeLog.shift();
+        } else if (!(att && rendersOf(att.char).ownSpark)) this.layer.add(impact({ kind: 'hit', x, y, angle, size, ramp: fxRamp(att?.char === 'raiden' ? RAIDEN_RAMP : (att && (rendersOf(att.char).ramp as ColorName[] | undefined)) || WARM), seed: this.seed++ }));
+        // 라이덴 지상 1~4타·투전승불·화과산: 화면 흔들림·번쩍임 정리 (1~4타 맞은 자리 그림은 위의 가시 파편), 4타는 짧게 흔들림
         if (strikeHit) {
           const lv = e.move === 'charge' && att ? Math.max(1, att.chargeLv) : 0;
           if (e.move === 'atk4') this.fx.shake(0.25);
@@ -816,7 +829,7 @@ export class FightVfx {
           else if (f.move === 'charge') this.raidenCone(f, mv);
           // 파천 붕권은 번개 없이 디딤(바닥 금·물 튐)과 주먹만: 연출 장면이 전격을 맡는다 (사용자 피드백 2026-11-02 9-4)
           else if (f.move === 'super') void 0;
-          else if (RAIDEN_STRIKE[f.move]) this.raidenStrike(f, i, f.move, mv);
+          else if (RAIDEN_ANIME_MOVES[f.move]) this.raidenAnime(f, i, f.move, mv);
           else this.rangeBolt(f, i, f.move, mv);
         }
         else if (mv.data.reach && starts) this.boltSweep(f, f.move, mv);
@@ -1004,48 +1017,17 @@ export class FightVfx {
   }
 
   /**
-   * 라이덴 지상 1~4타 번개 (사용자 피드백 2026-11-02): 판정이 시작하는 틱에 주먹·발에서 한 방향으로 뻗는 줄기 하나.
-   * 잽·크로스 = 주먹에서 앞으로 곧게 상자 끝까지, 미들킥 = 상자 왼쪽 가운데를 중심으로 아래 → 앞 → 위 반원(몸 앞쪽에만),
-   * 슈퍼맨 펀치 = 주먹에서 바닥으로 꽂혀 바닥 가까이 상자 끝까지 달리고 끝에서 갈래. 궤적 상자 = 판정 = 번개 범위
+   * 라이덴 지상 1~4타 (동작연출지침서 14장 '이펙트는 화려하게'): 판정이 시작하는 틱에 (헛쳐도) 애니 이펙트 띠.
+   * 공용 부품(vfx/anime)에 라이덴 색표·모양값(chars/raiden-anime)만 넘긴다. 흰 심이 든 머리 = 판정 상자 (14-5),
+   * 몸통·꼬리는 공격자 쪽으로 이어지며 찢어진다. 공격 하나에 방향 하나 (9-2): 잽·크로스 앞으로, 미들킥 반원, 슈퍼맨 펀치 바닥을 타고
    */
-  private raidenStrike(f: Fighter, who: number, id: string, mv: MoveOf): void {
-    const cfg = RAIDEN_STRIKE[id]!;
-    const b = mv.data.box!;
-    const ox = f.x / 256;
-    const oy = GROUND_Y + f.y / 256;
-    const W = (x: number, y: number): P2 => [(ox + f.facing * x) * FX_PX, (oy + y) * FX_PX];
-    const j = mv.frames.joints[mv.data.active[0]];
-    const tip = j[(mv.data.limb?.[1] ?? 'hF') as 'hF'];
-    const end = b.x + b.w;
-    let path: P2[];
-    if (b.shape === 'arc') {
-      // 허리 높이 몸 앞쪽 반원: 가운데 (b.x, 가운데 높이), 반지름 b.h/2, 아래(90°) → 앞(0°) → 위(−90°)
-      const cy = b.y + b.h / 2;
-      const r = b.h / 2;
-      path = Array.from({ length: 10 }, (_, k) => {
-        const a = (Math.PI / 2) * (1 - (2 * k) / 9);
-        return W(b.x + Math.cos(a) * r, cy + Math.sin(a) * r);
-      });
-    } else if (b.shape === 'ground') {
-      // 바닥 가까이 (바닥 위 3px) 상자 앞끝에서 상자 끝까지 앞으로 달린다. 주먹은 상대 머리 높이에 닿아 있으므로
-      // 주먹에서 바닥으로 꽂으면 줄기가 상대 몸을 세로로 가른다: 줄기는 두 사람 사이 바닥에서 시작한다
-      const floor = f.floor / 256 - f.y / 256 - 3;
-      path = [W(b.x, floor), W((b.x + end) / 2, floor), W(end, floor)];
-    } else path = [W(tip[0], tip[1]), W(end, tip[1])];
-    const fighter = f;
-    const fx = raidenStrike({
-      path,
-      width: cfg.width,
-      branches: cfg.branches,
-      forks: cfg.forks,
-      jag: cfg.jag,
-      ramp: fxRamp(BOLT_RANGE),
-      seed: this.seed++,
-      held: () => fighter.hitstop > 0,
-    });
-    this.layer.add(fx);
-    this.strikes = this.strikes.filter((x) => x.who !== who);
-    this.strikes.push({ who, fx, power: Object.keys(RAIDEN_STRIKE).indexOf(id) + 1 });
+  private raidenAnime(f: Fighter, who: number, id: string, mv: MoveOf): void {
+    const shape = RAIDEN_ANIME_MOVES[id]!;
+    const sw = animeSwing((fx) => this.layer.add(fx), RAIDEN_LOOK, shape, mv.data.box!, { x: f.x / 256, y: GROUND_Y + f.y / 256, floor: GROUND_Y + f.floor / 256, facing: f.facing }, this.seed++);
+    this.animes = this.animes.filter((x) => x.who !== who);
+    this.animes.push({ who, band: sw.band, strong: shape.grade !== 'normal' });
+    this.animeLog.push({ tick: this.now, move: id, swing: sw.metrics() });
+    if (this.animeLog.length > 64) this.animeLog.shift();
   }
 
   /**
@@ -1792,6 +1774,7 @@ export class FightVfx {
   /** 맞은 쪽을 하얗게 그릴 틱인가 */
   white(i: number): boolean {
     if (this.blink[i] > 0) return true;
+    if (this.flashOff[i]) return false;
     const t = this.since[i];
     return this.heavy[i] ? t < FLASH_HEAVY || t === 6 : t < FLASH_LIGHT;
   }
