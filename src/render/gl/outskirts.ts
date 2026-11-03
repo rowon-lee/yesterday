@@ -439,6 +439,7 @@ export class Outskirts {
         f.pivot.position.set(x, b.h - 20, -26);
         f.aim(Math.PI + (x < (b.x0 + b.x1) / 2 ? -0.12 : 0.12));
         this.group.add(f.pivot);
+        this.floods.push({ beam: f, x, y: b.h - 20 });
         this.lamp(x, b.h - 22, -20, 230, C.sodium, 1.2, 0, true);
       }
       // 트롤리에서 늘어진 줄과 갈고리
@@ -931,7 +932,13 @@ export class Outskirts {
 
   /** 이번 틱의 빛 후보와 깜빡임 (렌더 전용, 틱만 보고 정한다) */
   /** dim: 그 자리 등이 구조물 손상으로 꺼진 정도 (1 그대로, 0 꺼짐. render/gl/wreck.ts) */
+  /** 고가 선로가 끊겼다 (구조물 손상 3단계): 열차가 더 다니지 않는다 */
+  railCut = false;
+  /** 크레인 들보 밑 투광등 빛줄기 (들보가 무너지면 꺼진다) */
+  private readonly floods: Array<{ beam: Beam; x: number; y: number }> = [];
+
   update(tick: number, view0: number, view1: number, dim: (x: number, y: number) => number = () => 1): void {
+    for (const f of this.floods) f.beam.pivot.visible = dim(f.x, f.y) > 0.5;
     for (const [i, l] of this.lamps.entries()) {
       if (l.x < view0 - l.range || l.x > view1 + l.range) continue;
       let p = l.power * dim(l.x, l.y);
@@ -1002,7 +1009,7 @@ export class Outskirts {
   /** 고가 열차: 틱만 보고 자리를 정한다 (trainAt). 창 불빛, 선로 밑으로 깜빡이며 새는 빛, 바퀴 불꽃 */
   private updateTrain(tick: number, view0: number, view1: number): void {
     this.sparks.begin();
-    const at = trainAt(tick);
+    const at = this.railCut ? null : trainAt(tick);
     const rail = kindOf(OS.decks, 'rail')[0];
     this.train.visible = !!at && at.x < view1 + 40 && at.x + TRAIN.length > view0 - 40;
     if (at && this.train.visible) {

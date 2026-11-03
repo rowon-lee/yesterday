@@ -6,7 +6,8 @@ import { canvas, hash, rect } from '../dither';
 import { COLORS as C } from '../palette';
 import { Puffs, Sparks } from './fx';
 import { Details, plane } from './kit';
-import { lightPool } from './lights';
+import { applyAnim, buildCollapse, hasCollapse, type Collapse } from './collapse';
+import { CUT_N, lightPool, shared } from './lights';
 import { litMaterial, pixelTexture } from './shaders';
 import { buildStreetProp } from './street';
 
@@ -128,11 +129,13 @@ export function paintWreck(w: Wreckable, stage: number, hx: number, hy: number, 
         cx += dx;
         cy += dy;
         if (!inFace(cx, cy)) return;
+        // 금: 어두운 틈 1px과 그 아래 빛 받는 깨진 턱 1px (검은 선 하나로 그린 거미줄이 아니라 패인 홈으로 읽히게)
         dot(cx, cy, T.crack);
+        if (left > 2) dot(cx + (dy !== 0 && dx === 0 ? 1 : 0), cy + (dx !== 0 ? 1 : 0), T.bits[2]);
       }
       const nd = (dir + (r() < 0.5 ? 1 : 7)) % 8;
       dir = nd === (d + 1) % 8 || nd === (d + 7) % 8 || nd === d ? nd : d;
-      if (depth < 2 && r() < 0.22) crack(cx, cy, Math.floor(left * 0.6), (dir + (r() < 0.5 ? 1 : 7)) % 8, depth + 1);
+      if (depth < 1 && r() < 0.15) crack(cx, cy, Math.floor(left * 0.5), (dir + (r() < 0.5 ? 1 : 7)) % 8, depth + 1);
     }
   };
   // 구멍: 들쭉날쭉하고 길쭉한 덩어리 (벽돌·돌은 줄눈 칸에 맞춰 계단처럼 떨어진다)
@@ -155,11 +158,13 @@ export function paintWreck(w: Wreckable, stage: number, hx: number, hy: number, 
     }
   };
   // 1단계: 맞은 자리에서 사방으로 금. 큰 면일수록 길게
-  const crackN = 3 + Math.min(4, Math.floor(area / 1600)) + (stage - 1) * 2;
-  const crackLen = Math.max(6, Math.min(48, Math.round(Math.sqrt(area) * 0.45)));
+  const crackN = 2 + Math.min(3, Math.floor(area / 2400)) + (stage - 1);
+  const crackLen = Math.max(5, Math.min(26, Math.round(Math.sqrt(area) * 0.3)));
   if (w.mat !== 'sand') for (let k = 0; k < crackN; k++) crack(ix, iy, Math.round(crackLen * (0.5 + r() * 0.7)), Math.floor(r() * 8), 0);
   // 1단계에도 모서리 하나가 깨져 나간다 (벽돌·돌·콘크리트)
   if ((w.mat === 'brick' || w.mat === 'stone' || w.mat === 'concrete') && minSide >= 10) blob(r() < 0.5 ? 0 : W - 1, Math.floor(r() * FH), Math.max(2, minSide * 0.1));
+  // 맞은 자리 겉이 떨어져 나간 자국 (벽돌·돌·콘크리트): 속 재질이 드러난 작은 패임
+  if ((w.mat === 'brick' || w.mat === 'stone' || w.mat === 'concrete') && minSide >= 10 && stage === 1) blob(ix, iy, Math.max(2, Math.min(5, minSide * 0.08)));
   // 얇은 판·들보: 2단계부터 맞은 자리가 끊긴다 (위아래로 지나는 들쭉날쭉한 틈)
   const snaps: number[] = [];
   if (thin && stage >= 2) {
@@ -325,6 +330,8 @@ interface Struct {
   plateMat: THREE.ShaderMaterial | null;
   rubble: THREE.Mesh | null;
   ember: boolean;
+  /** 실제로 부서진 모양 (2단계 이상): 떨어져 나간 자리, 새로 놓은 속·뼈대·잔해, 무너지는 움직임 */
+  col: Collapse | null;
 }
 
 interface StreetView {
@@ -340,14 +347,14 @@ export class Wreck {
   readonly group = new THREE.Group();
   private readonly structs: Struct[] = [];
   private readonly street: StreetView[] = [];
-  private readonly smoke = new Puffs(60, C.smoke, C.smokeDark, 6, 0.55);
+  private readonly smoke = new Puffs(140, C.smoke, C.smokeDark, 6, 0.55);
   private readonly sparks = new Sparks(80);
   private state: WreckState | null = null;
 
   constructor() {
     WRECKS.forEach((w, i) => {
       if (w.street >= 0) this.street.push(this.buildStreet(w, i));
-      else this.structs.push({ w, i, z: FACE_Z[w.kind] ?? -2, shown: 0, plate: null, plateMat: null, rubble: null, ember: false });
+      else this.structs.push({ w, i, z: FACE_Z[w.kind] ?? -2, shown: 0, plate: null, plateMat: null, rubble: null, ember: false, col: null });
     });
     this.group.add(this.smoke.mesh, this.sparks.mesh);
   }
@@ -366,6 +373,12 @@ export class Wreck {
     pivot.add(inner);
     this.group.add(pivot);
     return { w, i, pivot, shown: 0, wreck: null, plate: null };
+  }
+
+  /** 고가 선로 조각 하나라도 무너졌는가 (열차가 멈춘다) */
+  get railCut(): boolean {
+    const s = this.state;
+    return !!s && this.structs.some((st) => st.w.kind === 'rail' && s.stage[st.i] >= 3);
   }
 
   /** 등·빛이 이 구조물에 붙어 있으면 꺼진 정도 (1 그대로, 2단계 깜빡임, 3단계 0). 구조물 밖이면 1 */
@@ -390,11 +403,30 @@ export class Wreck {
     this.state = state;
     this.smoke.begin();
     this.sparks.begin();
+    // 떨어져 나간 자리: 화면 둘레 것만 셰이더에 싣는다 (CUT_N개까지)
+    const A = shared.uCutA.value;
+    const B = shared.uCutB.value;
+    let nc = 0;
     for (const st of this.structs) {
       const stage = state?.stage[st.i] ?? 0;
       if (stage !== st.shown) this.show(st, state, stage);
-      if (stage > 0 && state && st.w.x1 > view0 - 80 && st.w.x0 < view1 + 80) this.linger(st, state, tick);
+      const near = st.w.x1 > view0 - 140 && st.w.x0 < view1 + 140;
+      if (stage > 0 && state && near) this.linger(st, state, tick);
+      if (st.col && state) {
+        st.col.group.visible = near;
+        if (!near) continue;
+        const at = state.at[st.i][stage >= 3 ? 2 : 1];
+        const since = at >= 0 ? tick - at : 9999;
+        for (const a of st.col.anims) applyAnim(a, since);
+        for (const c of st.col.cuts) {
+          if (nc >= CUT_N) break;
+          A[nc].set(c.x0, c.x1, c.yb, c.yt);
+          B[nc].set(c.z0, c.z1, c.slope, Math.max(0.01, c.jag));
+          nc++;
+        }
+      }
     }
+    for (let k = nc; k < CUT_N; k++) B[k].w = 0;
     for (const sv of this.street) {
       const stage = state?.stage[sv.i] ?? 0;
       if (stage !== sv.shown) this.showStreet(sv, state, stage);
@@ -417,14 +449,27 @@ export class Wreck {
       st.rubble.geometry.dispose();
       st.rubble = null;
     }
+    if (st.col) {
+      this.group.remove(st.col.group);
+      st.col.group.traverse((o) => {
+        if (o instanceof THREE.Mesh) o.geometry.dispose();
+      });
+      st.col = null;
+    }
     if (stage === 0 || !s) return;
-    const painted = paintWreck(w, stage, s.hx[st.i], s.hy[st.i], st.i * 17 + stage);
+    // 2단계부터 실제로 부서진 모양 (collapse.ts). 손상 판은 금·그을음만 (구멍은 실제로 뚫린 자리가 대신한다)
+    const real = stage >= 2 && hasCollapse(w.kind);
+    if (real) {
+      st.col = buildCollapse(w, stage, s.hx[st.i], s.hy[st.i], s.dir[st.i] ?? 1, st.i * 31 + stage * 7);
+      if (st.col) this.group.add(st.col.group);
+    }
+    const painted = paintWreck(w, real ? 1 : stage, s.hx[st.i], s.hy[st.i], st.i * 17 + stage);
     st.ember = painted.ember;
     st.plateMat = litMaterial(pixelTexture(painted.map), { emissive: pixelTexture(painted.glow), emissiveStrength: 1.4, bump: 0.3, wet: 0.25 });
     const band = paintBand(w, stage);
     st.plate = plane(w.x0, w.x1, band.y0 - band.hang, band.y1, st.z + 0.35, st.plateMat);
     this.group.add(st.plate);
-    if (stage >= 2) {
+    if (stage >= 2 && !real) {
       // 잔해 더미: 밑(높이 있는 판·들보는 그 아래 땅)에 쌓인다. 무너지면 더 넓고 높게
       const ww = Math.min(220, w.x1 - w.x0 + (stage >= 3 ? 24 : 10));
       const hh = Math.round(Math.min(26, (stage >= 3 ? 8 : 4) + (w.y1 - w.y0) / (stage >= 3 ? 10 : 24)));
@@ -455,6 +500,21 @@ export class Wreck {
         }
       }
     }
+    // 무너지는 순간: 먼지가 잔해 자리에서 바닥을 따라 양옆으로 낮게 퍼지며 커지고 옅어진다
+    const dustAt = at3 >= 0 ? at3 : at2;
+    if (st.col && dustAt >= 0 && tick - dustAt < 120) {
+      const since = tick - dustAt;
+      const u = since / 120;
+      for (const [dx, dy, dw] of st.col.dust) {
+        for (let j = 0; j < 6; j++) {
+          const side = j % 2 ? 1 : -1;
+          const sp = 0.5 + (j >> 1) * 0.22;
+          const x = dx + side * (dw * 0.25 + since * sp * (1 - u * 0.5));
+          const y = dy + 2 + (j >> 1) * 3 + since * 0.06;
+          this.smoke.add(x, y, Math.min(-1, st.z + 3) - j * 0.1, 7 + since * 0.22 + (j >> 1) * 3, (1 - u) * (u < 0.08 ? u * 12 : 1) * 0.9);
+        }
+      }
+    }
     const recent = Math.max(at2, at3);
     if ((w.mat === 'steel' || w.mat === 'sheet') && recent >= 0 && tick - recent < 40 && hash((tick >> 1) * 5 + st.i) < 0.5) {
       for (let j = 0; j < 4; j++) {
@@ -462,6 +522,9 @@ export class Wreck {
         this.sparks.add(hx + (hash(tick * 3 + j) - 0.5) * 8, hy - fall, st.z + 1, j % 2 ? C.fxYellow : C.fxOrange, 2);
       }
       lightPool.add(hx, hy, st.z + 10, 40, C.fxOrange, 0.6);
+    }
+    if (st.col && at3 >= 0) for (const [gx, gy, gz] of st.col.glow) {
+      lightPool.add(gx, gy, gz, 70, C.fxOrange, 0.45 + 0.2 * hash((tick >> 3) * 5 + st.i));
     }
     if (st.ember && at3 >= 0 && tick - at3 < 3600) {
       lightPool.add(hx, Math.max(w.y0 + 6, hy - 6), st.z + 8, 46, C.fxOrange, 0.35 + 0.2 * hash((tick >> 3) * 7 + st.i));

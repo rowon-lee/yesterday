@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GONE_N, LIGHTS_DECL, shared, withLights } from './lights';
+import { CUT_N, GONE_N, LIGHTS_DECL, shared, withLights } from './lights';
 
 /**
  * 셰이더 조각과 재질 (렌더 전용). 색은 선형으로 계산하고(텍스처는 sRGB로 읽어 선형으로 바꾼다),
@@ -139,11 +139,48 @@ varying float vDepth;
 #ifdef CLIPX
 uniform vec2 clipX;
 #endif
+uniform vec4 uCutA[${CUT_N}];
+uniform vec4 uCutB[${CUT_N}];
+float cutHash(float n) {
+  return fract(sin(n * 12.9898) * 43758.5453);
+}
 const vec3 LW = vec3(0.3, 0.59, 0.11);
 void main() {
 #ifdef CLIPX
   // 이 x 구간 밖은 그리지 않는다 (선로 끝에서 사라지는 전차)
   if (vWorld.x < clipX.x || vWorld.x > clipX.y) discard;
+#endif
+  // 무너져 떨어져 나간 자리 (lights.ts uCutA·uCutB): 그리지 않는다. 가장자리는 깨진 단면 (1 빛 받는 윗변, 2 그늘)
+  float cutEdge = 0.0;
+#ifndef NOCUT
+  for (int i = 0; i < ${CUT_N}; i++) {
+    vec4 A = uCutA[i];
+    vec4 B = uCutB[i];
+    if (B.w <= 0.0) continue;
+    if (vWorld.z < B.x || vWorld.z > B.y) continue;
+    vec2 p = floor(vWorld.xy + 0.001);
+    if (p.x < A.x - 4.0 || p.x > A.y + 4.0) continue;
+    float fi = float(i) * 37.0 + A.x;
+    // 아랫변: 큰 굴곡(6px 칸)과 잔 톱니(2px 칸), 윗변·옆변은 3px 줄마다 들쭉날쭉
+    float bot = A.z + B.z * (p.x - A.x) + (cutHash(floor(p.x / 6.0) + fi) - 0.5) * 1.4 * B.w + (cutHash(floor(p.x / 2.0) * 1.7 + fi) - 0.5) * 0.8 * B.w;
+    float top = A.w + (cutHash(floor(p.x / 5.0) * 2.3 + fi + 5.0) - 0.5) * 1.2 * B.w;
+    float lx = A.x + cutHash(floor(p.y / 3.0) * 1.3 + fi + 11.0) * B.w;
+    float rx = A.y - cutHash(floor(p.y / 3.0) * 1.9 + fi + 23.0) * B.w;
+    bool inX = p.x >= lx && p.x < rx;
+    bool inY = p.y >= bot && p.y < top;
+    if (inX && inY) discard;
+    if (inX) {
+      float d = bot - p.y;
+      if (d > 0.0 && d <= 1.0) cutEdge = max(cutEdge, 1.0);
+      else if (d > 1.0 && d <= 3.0) cutEdge = max(cutEdge, 2.0);
+      float u = p.y - top;
+      if (u >= 0.0 && u < 2.0) cutEdge = max(cutEdge, 2.0);
+    }
+    if (inY) {
+      float d = min(lx - p.x, p.x - rx + 1.0);
+      if (d > 0.0 && d <= 2.0) cutEdge = max(cutEdge, 2.0);
+    }
+  }
 #endif
   vec4 tex = texture2D(map, vUv);
   if (tex.a < 0.5) discard;
@@ -194,6 +231,9 @@ void main() {
   float fk = fogK(vDepth, vWorld.y);
   vec3 em = texture2D(emissiveMap, vUv).rgb * emissiveStrength;
   // 알파 0: 바닥이 아니다 (화면 반사는 알파에 젖은 정도를 쓴 바닥에만 더한다)
+  // 깨진 단면: 윗변 1px은 속 재질이 드러나 밝고 (빛이 없어도 읽히게 환경광 몫을 더한다), 그 아래 2px은 부서진 그늘
+  if (cutEdge > 1.5) { col *= 0.38; em *= 0.2; }
+  else if (cutEdge > 0.5) { col = col * 1.6 + alb * 0.12 + vec3(0.012, 0.011, 0.012); em *= 0.3; }
   gl_FragColor = vec4(mix(col, uFogColor, fk) + em * (1.0 - 0.5 * fk), 0.0);
 }
 `;
@@ -238,9 +278,12 @@ export function litMaterial(
     bump?: number; wet?: number;
     /** 빛이 닿지 않은 곳에서 작은 무늬를 묻는 정도 (0: 늘 그대로 보임, 기본 1). 어둠에서도 읽혀야 하는 그림(글자 판 등)은 낮춘다 */
     flatten?: number;
+    /** 무너진 자리(uCut)에 상관없이 그린다: 그 자리에 새로 놓는 잔해·뼈대 */
+    nocut?: boolean;
   } = {},
 ): THREE.ShaderMaterial {
   const defines: Record<string, string> = {};
+  if (opts.nocut) defines.NOCUT = '';
   if (detailOn) defines.DETAIL = '';
   if (opts.attached) defines.ATTACHED = '';
   if (opts.clip) defines.CLIPX = '';

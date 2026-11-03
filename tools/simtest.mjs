@@ -1783,14 +1783,46 @@ function wreckChecks() {
     out.push(['큰 구조물(용광로 굴뚝): 평타는 금까지, 센 타격은 부분 파괴까지, 필살기로 무너짐', st0 === 1 && st1 === 2 && st2 === 3, `${st0} → ${st1} → ${st2}`]);
     sim.damageWreck(s, smallI, 999, 0, W[smallI].x0, 5, -1, 'hit');
     out.push(['거리 소품(드럼통)은 평타로 부서짐', s.wreck.stage[smallI] === 3, `단계 ${s.wreck.stage[smallI]}, 부서진 틱 ${s.wreck.at[smallI][2]}`]);
-    // 발판·벽은 그대로 (굴뚝 윗면 발판)
-    const top = sim.surfacesOf(s).filter((sf) => sf.kind === 'block' && sf.x0 === W[bigI].x0);
-    out.push(['무너진 굴뚝의 윗면 발판과 옆 벽은 그대로', top.length === 1 && sim.surfaceSolid(s, top[0], (W[bigI].x0 + 20) * 256), `발판 ${top.length}`]);
+    // 무너진 굴뚝 (2026-11-03): 원래 윗면은 사라지고 부러진 밑동 높이에 새 윗면, 옆 벽도 그 높이까지만
+    const tops = sim.surfacesOf(s).filter((sf) => sf.kind === 'block' && sf.x0 === W[bigI].x0 && sim.surfaceSolid(s, sf, (W[bigI].x0 + 20) * 256));
+    const walls = sim.wallsOf(s).filter((w) => w.x === W[bigI].x0 && w.side === -1);
+    const want = sim.WRECK_FALL.top.stack;
+    out.push(['무너진 굴뚝: 윗면이 부러진 밑동 높이로 낮아지고 옆 벽도 그 높이까지', tops.length === 1 && tops[0].h === want && walls.length === 1 && walls[0].h1 === want,
+      `윗면 ${tops.map((t) => t.h).join(',')}, 벽 ${walls.map((w) => w.h1).join(',')} (기대 ${want})`]);
     // 라운드가 넘어가도 남는다
     s.fighters[1].hp = 0;
     const r = s.round;
     while (s.round === r && s.tick < 4000) sim.step(s, [0, 0]);
     out.push(['라운드가 넘어가도 손상이 남는다', s.round === r + 1 && s.wreck.stage[bigI] === 3 && s.wreck.stage[smallI] === 3, `라운드 ${s.round}`]);
+  }
+  {
+    // 굴뚝 꼭대기에 선 사람은 굴뚝이 무너지면 떨어져 부러진 밑동 윗면에 선다
+    const s = fresh();
+    const f = s.fighters[0];
+    const sx = W[bigI].x0 + 30;
+    f.x = sx * 256; f.y = -W[bigI].y1 * 256; f.vx = 0; f.vy = 0; f.mode = 'air';
+    s.fighters[1].x = (sx + 70) * 256;
+    for (let k = 0; k < 30; k++) sim.step(s, [0, 0]);
+    const before = Math.round(-f.y / 256);
+    sim.damageWreck(s, bigI, 99999, 2, sx, 200, 1, 'super');
+    for (let k = 0; k < 90; k++) sim.step(s, [0, 0]);
+    const after = Math.round(-f.y / 256);
+    out.push(['굴뚝 위에 선 사람은 무너지면 떨어져 밑동 윗면에 선다', before === W[bigI].y1 && after === sim.WRECK_FALL.top.stack, `${before}px → ${after}px (${f.mode})`]);
+  }
+  {
+    // 끊긴 판 (철제 통로 한 조각): 가운데는 사라지고 양 끝만 남으며, 잔해가 다 쌓이면 그 밑에 낮은 판 발판이 생긴다
+    const s = fresh();
+    const ci = W.findIndex((w) => w.kind === 'catwalk');
+    const w = W[ci];
+    const deck = sim.surfacesOf(s).find((sf) => sf.kind === 'deck' && sf.x0 <= w.x0 && sf.x1 >= w.x1);
+    const mid = Math.round((w.x0 + w.x1) / 2) * 256;
+    sim.damageWreck(s, ci, 99999, 2, mid / 256, w.y1, 1, 'super');
+    const gone = !sim.surfaceSolid(s, deck, mid) && sim.surfaceSolid(s, deck, (w.x0 + 2) * 256);
+    const early = sim.surfacesOf(s).filter((sf) => sf.kind === 'rubble' && sf.x0 < mid / 256 && sf.x1 > mid / 256).length;
+    for (let k = 0; k < sim.WRECK_FALL.settle + 2; k++) sim.step(s, [0, 0]);
+    const late = sim.surfacesOf(s).filter((sf) => sf.kind === 'rubble' && sf.x0 < mid / 256 && sf.x1 > mid / 256);
+    out.push(['끊긴 통로: 가운데가 사라지고 끝은 남으며, 쌓인 뒤 잔해 위 판이 발판이 된다', gone && early === 0 && late.length === 1 && late[0].h === sim.WRECK_FALL.deck.catwalk.rest,
+      `가운데 사라짐 ${gone}, 쌓이기 전 ${early}, 쌓인 뒤 ${late.map((l) => l.h).join(',')}`]);
   }
   {
     // 사람 값은 그대로: 같은 입력으로 구조물 옆(공장 굴뚝)에서 때린 경기와, 구조물이 이미 무너진 경기의 사람 상태가 같다

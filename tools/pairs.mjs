@@ -35,6 +35,11 @@ const SHOTS = [
   { name: 'wreck-elrail-2', q: 'scene=stage&cam=5160&wreck=2' },
   { name: 'wreck-wall', q: 'scene=stage&cam=5860&wreck=3' },
   { name: 'wreck-crane-upper', q: 'scene=stage&cam=860&camy=120&wreck=3' },
+  { name: 'wreck-factory-upper', q: 'scene=stage&cam=60&camy=150&wreck=3' },
+  { name: 'wreck-wall-upper', q: 'scene=stage&cam=5860&camy=120&wreck=3' },
+  // 무너지는 중 (무너진 뒤 12틱: 처지는 판·떨어지는 토막·퍼지는 먼지)
+  { name: 'wreck-factory-falling', q: 'scene=stage&cam=60&wreck=3&wreckT=12' },
+  { name: 'wreck-docks-falling', q: 'scene=stage&cam=860&wreck=3&wreckT=14' },
   { name: 'ruin-theater', q: 'scene=stage&cam=2020&ruin=1' },
   // 싸우는 중 (CPU끼리, 같은 시드라 두 버전의 사람 움직임은 같다): 구조물이 부서지는 순간 몇 틱 뒤, 그리고 한참 뒤 잔해·연기
   { name: 'fight-factory', q: 'scene=fight&p1=cpu&seed=3&x=200&p1char=raiden&p2char=edward', tick: 566 },

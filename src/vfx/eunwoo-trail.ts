@@ -108,12 +108,32 @@ export default function eunwooTrail(o: Options) {
     draw(f: Frame, layer?: Layer) {
       if (layer !== 'back' || hist.length < 2) return;
       const R = o.ramp;
-      // 띠: 오래된 쪽부터 그 다음 리본까지 사이를 메운다 (리본 바깥쪽 절반 남짓: 가장 크게 휩쓰는 곳)
-      for (let a = hist.length - 2; a >= 0; a--) {
-        const c = R[Math.min(R.length - 1, a + (a > 0 ? 1 : 0))]!;
-        const A = hist[a]!;
-        const B = hist[a + 1]!;
-        for (let k = 5; k < A.length - 1; k++) quad(f, [A[k]!, A[k + 1]!, B[k + 1]!, B[k]!], c);
+      // 2026-11-03 2차 폴리시: 지난 리본 사이를 통째로 메우면 곧은 칼이 지나간 쐐기(흰 삼각형)로 읽혔다.
+      // 이제 지난 리본마다 물결치는 잔상 선(끝으로 갈수록 크게, 오래될수록 더 흔들림)을 긋고,
+      // 칼끝 쪽 세 마디만 바로 앞 두 리본 사이를 메운다 → 손보다 늦게, 끝에서 가장 크게 휘는 연검의 물결
+      const wave = (L: readonly P[], age: number): P[] =>
+        L.map((p, k) => {
+          if (k === 0 || k === L.length - 1 && age === 0) return p;
+          const a = L[Math.max(0, k - 1)]!;
+          const b = L[Math.min(L.length - 1, k + 1)]!;
+          const dx = b[0] - a[0];
+          const dy = b[1] - a[1];
+          const len = Math.hypot(dx, dy) || 1;
+          const amp = (k / L.length) * (0.8 + age * 0.9) * Math.sin(k * 1.15 + age * 2.1);
+          return [p[0] - (dy / len) * amp, p[1] + (dx / len) * amp] as P;
+        });
+      const W = hist.map((h, a) => wave(h, a));
+      for (let a = Math.min(1, W.length - 2); a >= 0; a--) {
+        const c = R[Math.min(R.length - 1, a + 1)]!;
+        const A = W[a]!;
+        // 앞 리본 쪽 40%만 메운다 (한 틱에 칼끝이 멀리 가도 넓은 쐐기가 되지 않게)
+        const B = W[a + 1]!.map((q, k) => [A[k]![0] + (q[0] - A[k]![0]) * 0.4, A[k]![1] + (q[1] - A[k]![1]) * 0.4] as P);
+        for (let k = A.length - 3; k < A.length - 1; k++) quad(f, [A[k]!, A[k + 1]!, B[k + 1]!, B[k]!], c);
+      }
+      for (let a = W.length - 1; a >= 1; a--) {
+        const L = W[a]!;
+        const c = R[Math.min(R.length - 1, a)]!;
+        for (let k = 3; k < L.length - 1; k++) line(f, L[k]!, L[k + 1]!, c, a === 1 ? 0.2 : 0);
       }
       // 가장 최근 띠 앞 가장자리: 흰 심 (리본 그림 바로 뒤)
       const N = hist[0]!;
