@@ -238,19 +238,19 @@ const g = (o: Partial<Pose>): Pose => ({ ...G, ...o });
 const LOOK_UP = g({ hd: -16, tl: -2, aFx: 6, aFy: -8 });
 const BRACE = g({ hy: -21, hd: -4, tl: 2, aFx: 8, aFy: -10, aBx: 6, aBy: -7 });
 
-/** 반응 1 전개 (70틱): 얼어붙은 듯 굳고, 바뀌는 하늘을 올려다본다 */
-export const REACT_OSCAR_OPEN: MotionData = {
-  name: 'react/oscar_open',
-  label: '월령수류 반응 1 (굳음)',
-  wide: true,
-  dur: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
-  keys: [
-    { at: 0, pose: g({}) },
-    { at: 3, pose: g({ hd: -6, tl: 0 }), stop: true },
-    { at: 7, pose: LOOK_UP, stop: true },
-    { at: 13, pose: LOOK_UP, stop: true },
-  ],
-};
+/**
+ * 반응 1 전개 (70틱, 2차 리워크): 서 있다 (시간이 멈춤) → 움찔 숙었다가 (1틱) → 고개를 들어 → 바뀌는 하늘을 바라보며 굳음 →
+ * 고개가 반쯤 내려왔다 (1틱) → 떠오르는 달을 홱 올려다봄 (지나쳤다 돌아옴) → 올려다본 채 굳음. 7프레임
+ */
+export const REACT_OSCAR_OPEN = seq('react/oscar_open', '월령수류 반응 1 (굳음)', [
+  [g({}), 10, true],
+  [g({ hd: 8, tl: 6 }), 1],
+  [g({ hd: -12, tl: -2 }), 2],
+  [g({ hd: -6, tl: 0 }), 12, true],
+  [g({ hd: 4, tl: 3 }), 1],
+  [g({ hd: -21, tl: -4, aFx: 6, aFy: -8 }), 2],
+  [LOOK_UP, 42, true],
+]);
 
 /**
  * 반응 2 검영 (40틱, 2차 리워크): 달을 올려다본 채 굳어 있다 → 검영이 눈앞을 지나며 고개가 움찔 (1틱) →
