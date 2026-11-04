@@ -35,6 +35,24 @@ function iai(name: string, label: string, p: { from?: Pose; ready: Pose; flick: 
   };
 }
 
+/** 한 프레임 = [자세, 표시 틱, 멈춤(stop)] */
+type Fr = readonly [pose: Pose, dur: number, stop?: boolean];
+
+/**
+ * 발도 (2차 리워크, 재수정 지침 3장 '정적과 순간'): 프레임마다 키 하나 (사이 프레임으로 채우지 않는다).
+ * 칼자루에 손 (손은 날밑으로 물러나고 몸은 멈춘다) → 칼날이 비치는 1틱 (스미어, 선이 생긴다) → '탁' 1프레임 멈춤 → 여운 → 기본자세.
+ * 길이는 dur로 정한다.
+ */
+function cut(name: string, label: string, frames: readonly Fr[]): MotionData {
+  return {
+    name,
+    label,
+    wide: true,
+    dur: frames.map((f) => f[1]),
+    keys: frames.map(([pose, , stop], at) => (stop ? { at, pose, stop } : { at, pose })),
+  };
+}
+
 /** 땅 평타 박자 (13프레임 26틱): 칼날이 비치는 3번째(0부터) 프레임 = 4틱째에 선이 생긴다. 판정 3~5번째 프레임 (늦게 맞는 틱까지) */
 const QUICK = [1, 2, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2];
 /** 띄우기·쓸기: 손을 조금 더 오래 얹는다 */
@@ -137,14 +155,20 @@ const AIR_END = OR({ hy: -25, tl: 13, hd: 12, lFx: 5, lFy: -8, lBx: -1, lBy: -6 
 /** 공중 박자 (12프레임 20틱): 칼날이 비치는 2번째 프레임 = 2틱째에 선. 판정 2~4번째 프레임 */
 const AIR_QUICK = [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2];
 
-export const OSCAR_AIR1 = iai('oscar/air1', '오스카 공중 1타', {
-  from: AIR_END,
-  ready: OD({ ...AIR, tw: -1 }, 0),
-  flick: OD({ ...AIR, hx: 1, tl: 18, hd: 12, tw: 2 }, 4),
-  click: OD({ ...AIR, hx: 1, tl: 17, hd: 13, tw: 1 }, 0),
-  still: OD({ ...AIR, hx: 0.5, tl: 16, hd: 13 }, 0),
-  end: AIR_END,
-}, AIR_QUICK, true);
+/**
+ * 공중 1타 (2차 리워크): 앞 아래로 긋는 선. 등을 살짝 젖히고 손이 날밑으로 물러나 멈춤 (1틱) → 칼날이 5px 비치는 1틱에
+ * 선을 따라 몸이 앞으로 숙고 뒷다리가 뒤로 뻗는다 (선 = 2틱) → '탁' 멈춤 → 고개를 숙인 여운 → 뒷손이 등 뒤로 → 공중 자세.
+ * 7프레임 20틱 (판정 2틱 그대로)
+ */
+export const OSCAR_AIR1 = cut('oscar/air1', '오스카 공중 1타', [
+  [AIR_END, 1],
+  [OD({ ...AIR, hx: -0.5, tl: 8, hd: 8, lFx: 4, lFy: -9, lBx: -2, lBy: -7, tw: -1 }, -2), 1, true],
+  [OD({ ...AIR, hx: 1.5, tl: 21, hd: 16, lFx: 6, lFy: -6, lBx: -5, lBy: -4, tw: 2 }, 5), 1],
+  [OD({ ...AIR, hx: 1, tl: 19, hd: 15, lFx: 6, lFy: -6, lBx: -4, lBy: -5, tw: 1 }, 0), 2, true],
+  [OD({ ...AIR, hx: 0.5, tl: 17, hd: 18, lFx: 5.5, lFy: -7, lBx: -3, lBy: -5.5 }, 0), 4, true],
+  [OR({ ...AIR, tl: 15, hd: 14, lFx: 5, lFy: -8, lBx: -1.5, lBy: -6 }), 4],
+  [AIR_END, 7],
+]);
 
 export const OSCAR_AIR2 = iai('oscar/air2', '오스카 공중 2타', {
   from: AIR_END,
