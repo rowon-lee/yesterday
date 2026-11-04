@@ -17,16 +17,19 @@ const J_RISE = E({ hx: 0, hy: -25, tl: 2, hd: -4, aFx: 5, aFy: 5, aBx: 2, aBy: -
 /** 꼭대기: 두 무릎을 당기고 뒷손은 옆으로 (균형) */
 export const J_TOP = E({ hx: 0, hy: -24, tl: 6, hd: -2, aFx: 5, aFy: 5.5, aBx: -6, aBy: 4, lFx: 7, lFy: -11, lBx: -2, lBy: -9, wa: -148 });
 
-/** 점프: 1프레임 웅크림 → 2~3프레임 박차고 솟음 → 무릎을 당김. 12프레임 × 2틱 */
+/**
+ * 점프: 1프레임 웅크림 → 2~3프레임 박차고 솟음 → 무릎을 당김. 12프레임 × 2틱.
+ * 어깨 위 해머는 몸보다 늦다 (2차 리워크): 박차고 솟는 동안 머리가 어깨에 눌려 처졌다가, 꼭대기에서 몸이 멈추면 한 번 더 떠올랐다 내려앉는다
+ */
 export const EDWARD_JUMP: MotionData = {
   name: 'edward/jump',
   label: '에드워드 점프',
   dur: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: J_CROUCH },
-    { at: 2, pose: J_PUSH },
-    { at: 5, pose: J_RISE },
-    { at: 9, pose: J_TOP, stop: true },
+    { at: 2, pose: { ...J_PUSH, wa: -154 } },
+    { at: 5, pose: { ...J_RISE, wa: -166 } },
+    { at: 9, pose: { ...J_TOP, wa: -136 }, stop: true },
     { at: 11, pose: J_TOP },
   ],
 };
