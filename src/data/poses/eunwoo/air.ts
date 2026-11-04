@@ -111,25 +111,38 @@ export const EUNWOO_FALL: MotionData = {
   ],
 };
 
-// ---- 착지 (11-1): 발끝으로 닿아 무릎을 깊이 굽혀 받고, 가운이 부풀었다가 가라앉는다 (sim은 착지 길이 3틱에 맞춰 0·4·8프레임을 보인다) ----
+// ---- 착지 (11-1): 발끝으로 닿아 무릎을 깊이 굽혀 받고, 가운이 부풀었다가 가라앉는다 ----
+// 2차 리워크: 12프레임 × 1틱 → 8프레임. sim은 착지 길이를 프레임 수로 고르게 나눈다 (dur를 보지 않는다): 보통 3틱이면 1·3·6번
+// (닿음·깊게 받음·일어섬)이 보인다. 프레임마다 다른 자세로, 닿자마자 크게 꺾이고 바닥에서 조금 더 눌렸다가 일어선다
 /** 발끝이 닿는다 (아직 뒤꿈치는 들림, 몸은 곧게) */
 const L_TOE = E({ hx: 0, hy: -23.5, tl: 4, hd: 0, aFx: 11, aFy: -2, aBx: -9, aBy: -2, lFx: 6, lFy: -1.5, lBx: -5, lBy: -1 });
+/** 무릎이 꺾이기 시작한다 (뒤꿈치가 닿고 팔이 펼쳐진다) */
+const L_BEND = E({ hx: 0.3, hy: -19, tl: 12, hd: 2, aFx: 10.5, aFy: 2, aBx: -9.5, aBy: 0, lFx: 7, lBx: -6.5 });
 /** 무릎을 깊이 굽혀 받는다: 몸이 앞으로 실리고 두 팔은 옆으로 펼쳐 균형 */
 const L_DEEP = E({ hx: 0.5, hy: -14.5, tl: 20, hd: 4, aFx: 10, aFy: 7, aBx: -10, aBy: 3, lFx: 8, lBx: -8 });
+/** 한 번 더 눌린다 (가운이 내려앉는다) */
+const L_SINK = E({ hx: 0.5, hy: -14, tl: 21, hd: 5, aFx: 9.5, aFy: 8, aBx: -9.5, aBy: 4, lFx: 8, lBx: -8 });
+/** 바닥을 밀어 일어나기 시작 */
+const L_PUSH = E({ hx: 0, hy: -17.5, tl: 14, hd: 4, aFx: 8, aFy: 10, aBx: -7.5, aBy: 8, lFx: 7.5, lBx: -7 });
 /** 일어선다 */
 const L_RISE = E({ hx: -0.5, hy: -20.5, tl: 8, hd: 4, aFx: 6, aFy: 12, aBx: -5, aBy: 12, lFx: 7, lBx: -6 });
+const L_SETTLE = E({ hx: -1, hy: -22.2, tl: 4, hd: 5, aFx: 6.5, aFy: 13, aBx: -5.3, aBy: 13.5, lFx: 6.7, lFy: -0.5, lBx: -5, lBy: 0 });
 
-/** 착지: 발끝 → 깊이 굽혀 받음(3~5) → 일어섬 → 기본자세. 12프레임 × 1틱 (리본·자락은 낙하 끝 모습에서 이어 받는다) */
+/** 착지: 발끝 → 무릎이 꺾임 → 깊게 받음(멈칫) → 한 번 더 눌림 → 밀어 일어남 → 일어섬 → 자리 잡음 → 기본자세. 8프레임 (리본·자락은 낙하 끝 모습에서 이어 받는다) */
 export const EUNWOO_LAND: MotionData = {
   name: 'eunwoo/land',
   label: '백은우 착지',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  // 표시 틱은 뷰어·시트용 (12틱을 8프레임으로 고르게 나눈 모양)
+  dur: [2, 1, 2, 1, 2, 1, 2, 1],
   keys: [
     { at: 0, pose: L_TOE },
-    { at: 3, pose: L_DEEP },
-    { at: 5, pose: L_DEEP, stop: true },
-    { at: 8, pose: L_RISE },
-    { at: 11, pose: E_STANCE },
+    { at: 1, pose: L_BEND },
+    { at: 2, pose: L_DEEP, stop: true },
+    { at: 3, pose: L_SINK },
+    { at: 4, pose: L_PUSH },
+    { at: 5, pose: L_RISE },
+    { at: 6, pose: L_SETTLE },
+    { at: 7, pose: E_STANCE },
   ],
   follow: { ribbon: { stiff: 0.6 }, from: { motion: 'eunwoo/fall', frame: 4 } },
 };
