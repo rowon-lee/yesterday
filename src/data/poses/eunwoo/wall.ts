@@ -129,8 +129,8 @@ export const EUNWOO_WALL_TECH: MotionData = {
  */
 /** 붙은 채 연검을 머리 뒤로 높이 들어 감는다 */
 const WK_COIL = E({ hx: -2.5, hy: -21, tl: 12, hd: 12, aFx: -2, aFy: -12, aBx: -8, aBy: -2, lFx: 4, lFy: -9, lBx: -7, lBy: -12 });
-/** 더 깊이 감는다 (멈칫) */
-const WK_SQUASH = E({ hx: -3, hy: -19.5, tl: 16, hd: 14, aFx: -4, aFy: -13, aBx: -8, aBy: 0, lFx: 3, lFy: -10, lBx: -7, lBy: -11 });
+/** 더 깊이 감는다 (멈칫): 엉덩이를 벽 쪽으로 붙이며 연검 쥔 손을 머리 뒤로 3px 더 당기고 웅크린다 (2차 리워크: 감기가 보이게) */
+const WK_SQUASH = E({ hx: -5, hy: -19, tl: 19, hd: 15, aFx: -7, aFy: -13.5, aBx: -7, aBy: 0.5, lFx: 2, lFy: -10.5, lBx: -7, lBy: -11 });
 /** 벽을 박차고 튀어 나간다: 연검은 머리 위 */
 const WK_PUSH = E({ hx: 3, hy: -21, tl: 22, hd: 8, aFx: 4, aFy: -14, aBx: -10, aBy: -2, lFx: 8, lFy: -10, lBx: -13, lBy: -9 });
 /** 내리꽂으며 연검을 앞아래로 크게 휘두른다: 몸은 비스듬히 앞으로, 다리는 뒤로 모은다 */

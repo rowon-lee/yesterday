@@ -6,7 +6,7 @@
 //   <이름>-path.png          끝점 경로 (공격은 치는 손발 끝, 나머지는 가장 많이 움직인 관절): 회색 = 전, 노랑 = 지금, 점 옆 숫자 = 프레임
 //   <이름>-sil.png           단색 실루엣 띠 (위 = 전, 아래 = 지금. 주황 = 판정 틱의 프레임, 빨강 = 첫 판정 프레임과 대기 그림자)
 //   --lineup이면 <out>/lineup.png 하나 더: 네 캐릭터의 같은 공격(1~4타·띄우기·차지·스킬·필살기) 첫 판정 틱 그림을 나란히 (5장)
-// 그리고 out/revise.json: 프레임 수·틱·그림과 판정 데이터의 차이 (그림 관절로 만든 상자 vs 공격 데이터, 8px 넘으면 표에 적는다: 4장)
+// 그리고 out/revise.json: 프레임 수·틱·그림과 판정 데이터의 차이 (그림 관절로 만든 상자 vs 공격 데이터, 연검 선 판정은 그림 리본 vs 판정 선. 8px 넘으면 표에 적는다: 4장)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createServer } from 'vite';
@@ -335,7 +335,14 @@ for (const name of names) {
     }
   }
   const hitDrift = [];
-  if (mo && mo.mv.data.limb) {
+  // 판정이 연검 선인 기술 (백은우): 그 판정 구간이 시작하는 틱의 그림 리본 점 8개와 판정 선 점 8개의 가장 큰 차이 (tools/ribbon-lines.mjs와 같은 잣대)
+  const PICK = [0, 1, 3, 4, 5, 6, 8, 9];
+  if (mo && mo.mv.time.hits.some((h) => h.line)) {
+    for (const h of mo.mv.time.hits) {
+      const rib = h.line && B.joints[frameAt(B.cum, h.t[0])]?.fx?.rib;
+      hitDrift.push(rib ? Math.round(Math.max(...PICK.map((k, i) => Math.hypot(rib[k][0] - h.line[i][0], rib[k][1] - h.line[i][1]))) * 10) / 10 : null);
+    }
+  } else if (mo && mo.mv.data.limb) {
     for (const h of mo.mv.time.hits) {
       const f = frameAt(B.cum, h.t[0]);
       let b = NEW.boxes.hitBox(B.joints[f], f, { frames: [f], limb: mo.mv.data.limb, reach: mo.mv.data.reach });

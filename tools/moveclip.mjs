@@ -211,6 +211,32 @@ const SCENES = {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3000, p2: 3260, settle: 70, meter: true,
     steps: [[[], 8], [['KeyO'], 1], [[], 130]],
   },
+  // 백은우 지상 평타 1~4타 (2차 리워크 이펙트 확인: 연검 궤적이 리본을 따라 그려지는지)
+  eunwoo_ground: {
+    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3150, p2: 3200, settle: 30,
+    steps: [[[], 6], ...Array.from({ length: 12 }, () => [[['KeyJ'], 1], [[], 3]]).flat(), [[], 40]],
+  },
+  // 백은우 차지 스텔라리스 발도: 공격을 길게 눌러 모았다가 떼기
+  eunwoo_charge: {
+    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3150, p2: 3210, settle: 30,
+    steps: [[[], 6], [['KeyJ'], 60], [[], 60]],
+  },
+  // 백은우 스킬 1 응답(U) → 스킬 2 아직 여기 있어(I)
+  eunwoo_skills: {
+    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3100, p2: 3260, settle: 200,
+    prep: 's.fighters[0].meter = 300;',
+    steps: [[[], 6], [['KeyU'], 1], [[], 40], [['KeyI'], 1], [[], 50]],
+  },
+  // 백은우 필살기 선의(O): 발동 → 연출 여섯 장면
+  eunwoo_super: {
+    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3150, p2: 3196, settle: 200, meter: true,
+    steps: [[[], 8], [['KeyO'], 1], [[], 380]],
+  },
+  // 백은우 이동: 대시 → 점프·공중 대시 → 착지
+  eunwoo_moves: {
+    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3000, p2: 3300, settle: 200,
+    steps: [[[], 6], [['KeyL'], 1], [[], 24], [['KeyK'], 1], [[], 10], [['KeyL'], 1], [[], 40]],
+  },
   // 라이덴 1타 잽 (동작연출지침서): 70px 떨어진 상대에게 잽 한 번 → 적뢰가 범위를 채움 (boxes=1이면 판정 상자도)
   raiden_jab: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3120, p2: 3190, settle: 30,

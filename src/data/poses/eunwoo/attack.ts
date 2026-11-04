@@ -50,9 +50,9 @@ const whip = (hit: number, o: { load?: number; snap?: number; relax?: number; cu
  */
 
 // ---- 1타: 손목 채찍 (가볍게 한 걸음, 칼날이 수평으로 앞으로 뻗고 끝이 꺾인다. 리치 60) ----
-const A1_LOAD = E({ hx: -2, hy: -22, tl: 0, hd: 4, tw: -2, aFx: 2, aFy: 11, aBx: -5, aBy: 13, lFx: 8, lBx: -6, wa: 110 });
-/** 감기 끝 (멈칫): 손을 엉덩이 뒤로 당겨 손목을 젖힌다 (칼날은 뒤아래로 늘어진다) */
-const A1_COIL = E({ hx: -2.5, hy: -21.5, tl: -2, hd: 4, tw: -3, aFx: -2, aFy: 8, aBx: -4, aBy: 12, lFx: 9, lBx: -7, wa: 160 });
+const A1_LOAD = E({ hx: -2, hy: -22, tl: 0, hd: 4, tw: -2, aFx: 2, aFy: 9, aBx: -5, aBy: 13, lFx: 8, lBx: -6, wa: 150 });
+/** 감기 끝 (멈칫): 손을 엉덩이 뒤로 당겨 손목을 젖힌다. 칼날은 뒤위로 젖혀 둔다 (2차 리워크: 튕기면 칼끝이 위로 넘어와 앞으로 뻗는 호) */
+const A1_COIL = E({ hx: -2.5, hy: -21.5, tl: -2, hd: 4, tw: -3, aFx: -2, aFy: 4, aBx: -4, aBy: 12, lFx: 9, lBx: -7, wa: 215 });
 /** 가볍게 한 걸음 내디디며 손목을 앞으로 튕긴다 (스미어) */
 const A1_SNAP = E({ hx: 1.5, hy: -20, tl: 12, hd: -2, tw: 3, aFx: 12, aFy: 0, aBx: -8, aBy: 9, lFx: 14, lBx: -9, wa: 40 });
 /** 타격: 손을 가슴 앞으로 뻗어 칼날을 수평으로 쏘아 보낸다 (뒷팔은 뒤로 뻗어 균형) */
@@ -181,8 +181,8 @@ export const EUNWOO_SWEEP = motion('low', '쓸기 다리 걸기', [1, 1, 2, 1, 2
 // ---- 대시 공격: 실 타고 찌르기 (금색 실을 따라 미끄러져 들어오며 펜싱처럼 길게 찌른다) ----
 /** 대시에서 이어진 자세: 낮게 미끄러지며 뒷손은 실을 쥐고 앞으로 */
 const DA_GLIDE = E({ hx: 3, hy: -15, tl: 28, hd: -12, tw: -1, aFx: 2, aFy: 6, aBx: 12, aBy: -2, lFx: 14, lBx: -17 });
-/** 감기 끝: 칼 쥔 손을 허리 뒤로 당긴다 */
-const DA_COIL = E({ hx: 2, hy: -16, tl: 22, hd: -8, tw: -3, aFx: -6, aFy: 2, aBx: 8, aBy: -2, lFx: 12, lBx: -16 });
+/** 감기 끝: 미끄러지던 몸을 뒷발 쪽으로 받치며(엉덩이 2.5px 뒤) 칼 쥔 손을 허리 뒤로 당긴다 */
+const DA_COIL = E({ hx: 0.5, hy: -16.5, tl: 20, hd: -8, tw: -4, aFx: -7, aFy: 2, aBx: 8, aBy: -2, lFx: 12, lBx: -16 });
 const DA_SMEAR = E({ hx: 5, hy: -14.5, tl: 34, hd: -12, tw: 3, aFx: 15.5, aFy: -6, aBx: -10, aBy: -2, lFx: 20, lBx: -18 });
 /** 타격: 앞무릎을 깊이 굽히고 뒷다리·뒷팔을 뒤로 길게 뻗어 칼 쥔 팔과 한 줄 (펜싱 런지) */
 const DA_HIT = E({ hx: 7, hy: -13.5, tl: 40, hd: -16, tw: 6, aFx: 15.8, aFy: -8.4, aBx: -14, aBy: -2, lFx: 24, lBx: -16 });
@@ -239,10 +239,12 @@ const SL_LOAD = E({ hx: 0, hy: -24, tl: -6, hd: 4, tw: 2, aFx: 10, aFy: -4, aBx:
 const SL_WIND = E({ hx: -1, hy: -24, tl: -12, hd: 2, tw: 4, aFx: 10, aFy: -2, aBx: -10, aBy: -12, lFx: 7, lFy: -9, lBx: -6, lBy: -7 });
 /** 감기 끝: 등을 젖히고 와이어 쥔 뒷손을 머리 뒤로 */
 const SL_COIL = E({ hx: -1.5, hy: -24, tl: -16, hd: 2, tw: 5, aFx: 10, aFy: 0, aBx: -12, aBy: -11, lFx: 7, lFy: -9, lBx: -6, lBy: -7 });
-const SL_SMEAR = E({ hx: 1, hy: -24, tl: 18, hd: -10, tw: -3, aFx: 8, aFy: -6, aBx: 12, aBy: 6, lFx: 4, lFy: -12, lBx: -8, lBy: -10 });
+/** 스미어: 와이어 쥔 뒷손이 어깨 위를 넘어 앞으로 (던지는 손이 호를 그린다, 2차 리워크) */
+const SL_SMEAR = E({ hx: 1, hy: -24, tl: 18, hd: -10, tw: -3, aFx: 8, aFy: -6, aBx: 12, aBy: -3, lFx: 4, lFy: -12, lBx: -8, lBy: -10 });
 /** 타격: 몸을 숙이며 와이어 쥔 뒷팔을 앞아래로 끝까지 던진다 */
 const SL_HIT = E({ hx: 2, hy: -24, tl: 30, hd: -16, tw: -5, aFx: 6, aFy: -8, aBx: 12, aBy: 13.2, lFx: 2, lFy: -14, lBx: -10, lBy: -12 });
-const SL_HIT2 = E({ hx: 2, hy: -24, tl: 31, hd: -16, tw: -5.5, aFx: 6, aFy: -8, aBx: 10.5, aBy: 14.6, lFx: 2, lFy: -14, lBx: -10, lBy: -12 });
+/** 지나치기: 던진 힘에 몸째 한 번 더 숙여 와이어 쥔 손이 2~3px 더 나간다 */
+const SL_HIT2 = E({ hx: 3.5, hy: -23.5, tl: 36, hd: -17, tw: -6.5, aFx: 6, aFy: -8, aBx: 12, aBy: 13.5, lFx: 2, lFy: -14, lBx: -10.5, lBy: -12 });
 /** 감아 챈 와이어를 끌어당긴다 */
 const SL_YANK = E({ hx: 1, hy: -24, tl: 18, hd: -10, tw: -3, aFx: 8, aFy: -6, aBx: 4, aBy: 10, lFx: 4, lFy: -12, lBx: -8, lBy: -10 });
 const SL_PULL = E({ hx: 0, hy: -24, tl: 6, hd: -4, tw: -1, aFx: 10, aFy: -4, aBx: -2, aBy: 6, lFx: 6, lFy: -10, lBx: -6, lBy: -8 });

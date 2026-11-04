@@ -70,11 +70,17 @@ const W_PULL = E({ hx: 0, hy: -23.8, tl: -1, hd: 4, aFx: 4, aFy: 4, aBx: 5, aBy:
 /** 손을 내리고 고개를 조금 기울인 채 선다 */
 const W_REST = E({ hx: 0, hy: -23.5, tl: 1, hd: 9, aFx: 3, aFy: 15, aBx: -2, aBy: 15, lFx: 4, lFy: 0, lBx: -4, lBy: 0 });
 
-/** 승리: 연검을 한 바퀴 감음(1~4) → 접어 넣음(5, 6부터 연검 없음) → 가운 깃을 잡아 바로잡음(7~9) → 섬. 14프레임 × 3틱 (끝 자세에 머문다) */
+/** 고개를 조금 더 기울이며 숨을 내쉰다 (끝 자세) */
+const W_REST2 = E({ hx: 0, hy: -23.2, tl: 2, hd: 13, aFx: 3, aFy: 15.5, aBx: -2, aBy: 15.5, lFx: 4, lFy: 0, lBx: -4, lBy: 0 });
+
+/**
+ * 승리 (2차 리워크): 연검을 한 바퀴 감음(1~4, 2틱씩 빠르게) → 접어 넣음(5~6, 멈칫) → 가운 깃을 잡아 바로잡음(7~10, 천천히, 멈칫)
+ * → 손을 내리고 고개를 기울인 채 숨을 내쉼(11~13). 14프레임 × 3틱(고른 간격) → 13프레임 42틱 (끝 자세에 머문다)
+ */
 export const EUNWOO_WIN: MotionData = {
   name: 'eunwoo/win',
   label: '백은우 승리',
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [3, 2, 2, 2, 2, 4, 3, 3, 2, 4, 3, 4, 8],
   keys: [
     { at: 0, pose: E_STANCE },
     { at: 1, pose: W_SWIRL_A },
@@ -84,9 +90,9 @@ export const EUNWOO_WIN: MotionData = {
     { at: 7, pose: W_COLLAR },
     { at: 9, pose: W_PULL, stop: true },
     { at: 11, pose: W_REST },
-    { at: 13, pose: W_REST },
+    { at: 12, pose: W_REST2 },
   ],
-  follow: { ribbon: { stiff: 0.5, damp: 0.9, hidden: [6, 7, 8, 9, 10, 11, 12, 13] }, breeze: 0.6 },
+  follow: { ribbon: { stiff: 0.5, damp: 0.9, hidden: [6, 7, 8, 9, 10, 11, 12] }, breeze: 0.6 },
 };
 
 export const EUNWOO_SHOW_MOTIONS: readonly MotionData[] = [EUNWOO_INTRO, EUNWOO_WIN];

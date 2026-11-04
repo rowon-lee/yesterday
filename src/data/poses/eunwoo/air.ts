@@ -87,42 +87,64 @@ const F_DROP = E({ hx: 0, hy: -25, tl: 4, hd: 2, aFx: 11, aFy: -9, aBx: -9, aBy:
 /** 빨리 떨어질 때: 앞발을 조금 앞으로 내밀어 발끝으로 닿을 준비, 팔은 균형을 잡으러 내려온다 */
 const F_READY = E({ hx: 0, hy: -24, tl: 6, hd: 2, aFx: 12, aFy: -2, aBx: -9, aBy: -2, lFx: 8, lFy: -2, lBx: -5, lBy: -1 });
 
-/** 낙하: 둥실 뜬 꼭대기 → 발끝을 모아 내려옴 → 착지 준비. 12프레임 */
+/** 내려오기 시작: 발끝이 모이기 시작한다 (팔은 아직 옆으로) */
+const F_EASE = E({ hx: 0, hy: -25, tl: 5.5, hd: 0.5, aFx: 12, aFy: -6.5, aBx: -10, aBy: -7, lFx: 6.5, lFy: -6, lBx: -5.5, lBy: -4.2 });
+/** 발이 바닥을 찾아 내려간다 */
+const F_REACH = E({ hx: 0, hy: -24.2, tl: 5.5, hd: 2, aFx: 11.8, aFy: -3, aBx: -9.2, aBy: -3, lFx: 7.6, lFy: -2.2, lBx: -4.8, lBy: -1.2 });
+
+/**
+ * 낙하 (2차 리워크): 둥실 뜬 꼭대기 → 발끝이 모이기 시작 → 한 번에 발끝을 모아 내려옴(팔이 떠오름) → 발이 바닥을 찾음 → 착지 준비(멈춤).
+ * 12프레임 × 3 → 5프레임 (dur 합 36 = 가장 빠른 낙하 그대로)
+ */
 export const EUNWOO_FALL: MotionData = {
   name: 'eunwoo/fall',
   label: '백은우 낙하',
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [6, 6, 6, 6, 12],
   // 빨리 떨어질수록 칼날·자락이 위로 떠오른다 (맞바람)
-  follow: { ribbon: { air: true, stiff: 0.6, curl: 0.7, keys: [{ at: 0, gravity: 0.5 }, { at: 6, gravity: 0 }, { at: 11, gravity: -0.3 }] }, wind: 0.15 },
+  follow: { ribbon: { air: true, stiff: 0.6, curl: 0.7, keys: [{ at: 0, gravity: 0.5 }, { at: 2.5, gravity: 0 }, { at: 4, gravity: -0.3 }] }, wind: 0.15 },
   keys: [
     { at: 0, pose: F_FLOAT },
-    { at: 5, pose: F_DROP },
-    { at: 10, pose: F_READY, stop: true },
-    { at: 11, pose: F_READY },
+    { at: 1, pose: F_EASE },
+    { at: 2, pose: F_DROP },
+    { at: 3, pose: F_REACH },
+    { at: 4, pose: F_READY, stop: true },
   ],
 };
 
-// ---- 착지 (11-1): 발끝으로 닿아 무릎을 깊이 굽혀 받고, 가운이 부풀었다가 가라앉는다 (sim은 착지 길이 3틱에 맞춰 0·4·8프레임을 보인다) ----
+// ---- 착지 (11-1): 발끝으로 닿아 무릎을 깊이 굽혀 받고, 가운이 부풀었다가 가라앉는다 ----
+// 2차 리워크: 12프레임 × 1틱 → 8프레임. sim은 착지 길이를 프레임 수로 고르게 나눈다 (dur를 보지 않는다): 보통 3틱이면 1·3·6번
+// (닿음·깊게 받음·일어섬)이 보인다. 프레임마다 다른 자세로, 닿자마자 크게 꺾이고 바닥에서 조금 더 눌렸다가 일어선다
 /** 발끝이 닿는다 (아직 뒤꿈치는 들림, 몸은 곧게) */
 const L_TOE = E({ hx: 0, hy: -23.5, tl: 4, hd: 0, aFx: 11, aFy: -2, aBx: -9, aBy: -2, lFx: 6, lFy: -1.5, lBx: -5, lBy: -1 });
+/** 무릎이 꺾이기 시작한다 (뒤꿈치가 닿고 팔이 펼쳐진다) */
+const L_BEND = E({ hx: 0.3, hy: -19, tl: 12, hd: 2, aFx: 10.5, aFy: 2, aBx: -9.5, aBy: 0, lFx: 7, lBx: -6.5 });
 /** 무릎을 깊이 굽혀 받는다: 몸이 앞으로 실리고 두 팔은 옆으로 펼쳐 균형 */
 const L_DEEP = E({ hx: 0.5, hy: -14.5, tl: 20, hd: 4, aFx: 10, aFy: 7, aBx: -10, aBy: 3, lFx: 8, lBx: -8 });
+/** 한 번 더 눌린다 (가운이 내려앉는다) */
+const L_SINK = E({ hx: 0.5, hy: -14, tl: 21, hd: 5, aFx: 9.5, aFy: 8, aBx: -9.5, aBy: 4, lFx: 8, lBx: -8 });
+/** 바닥을 밀어 일어나기 시작 */
+const L_PUSH = E({ hx: 0, hy: -17.5, tl: 14, hd: 4, aFx: 8, aFy: 10, aBx: -7.5, aBy: 8, lFx: 7.5, lBx: -7 });
 /** 일어선다 */
 const L_RISE = E({ hx: -0.5, hy: -20.5, tl: 8, hd: 4, aFx: 6, aFy: 12, aBx: -5, aBy: 12, lFx: 7, lBx: -6 });
+const L_SETTLE = E({ hx: -1, hy: -22.2, tl: 4, hd: 5, aFx: 6.5, aFy: 13, aBx: -5.3, aBy: 13.5, lFx: 6.7, lFy: -0.5, lBx: -5, lBy: 0 });
 
-/** 착지: 발끝 → 깊이 굽혀 받음(3~5) → 일어섬 → 기본자세. 12프레임 × 1틱 (리본·자락은 낙하 끝 모습에서 이어 받는다) */
+/** 착지: 발끝 → 무릎이 꺾임 → 깊게 받음(멈칫) → 한 번 더 눌림 → 밀어 일어남 → 일어섬 → 자리 잡음 → 기본자세. 8프레임 (리본·자락은 낙하 끝 모습에서 이어 받는다) */
 export const EUNWOO_LAND: MotionData = {
   name: 'eunwoo/land',
   label: '백은우 착지',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  // 표시 틱은 뷰어·시트용 (12틱을 8프레임으로 고르게 나눈 모양)
+  dur: [2, 1, 2, 1, 2, 1, 2, 1],
   keys: [
     { at: 0, pose: L_TOE },
-    { at: 3, pose: L_DEEP },
-    { at: 5, pose: L_DEEP, stop: true },
-    { at: 8, pose: L_RISE },
-    { at: 11, pose: E_STANCE },
+    { at: 1, pose: L_BEND },
+    { at: 2, pose: L_DEEP, stop: true },
+    { at: 3, pose: L_SINK },
+    { at: 4, pose: L_PUSH },
+    { at: 5, pose: L_RISE },
+    { at: 6, pose: L_SETTLE },
+    { at: 7, pose: E_STANCE },
   ],
-  follow: { ribbon: { stiff: 0.6 }, from: { motion: 'eunwoo/fall', frame: 11 } },
+  follow: { ribbon: { stiff: 0.6 }, from: { motion: 'eunwoo/fall', frame: 4 } },
 };
 
 // ---- 지상 대시: 손가락으로 금색 실을 앞으로 쏘고, 그 실을 따라 낮게 미끄러진다 (sim: 12틱) ----
@@ -133,20 +155,33 @@ const D_GLIDE = E({ hx: 3, hy: -14, tl: 30, hd: -14, aFx: -8, aFy: 8, aBx: 16, a
 /** 미끄러지는 끝: 뒷발을 당겨 모으며 몸을 일으킨다 */
 const D_DRAW = E({ hx: 2, hy: -18, tl: 20, hd: -6, aFx: 6, aFy: 8, aBx: 10, aBy: 2, lFx: 11, lBx: -11 });
 
-/** 지상 대시: 실을 쏨 → 2~7프레임 낮게 미끄러짐 → 일어나 기본자세. 12프레임 × 1틱 */
+/** 몸이 실 쪽으로 쏠리며 낮아진다 */
+const D_DIP = E({ hx: 2, hy: -17, tl: 22, hd: -9, aFx: 0, aFy: 9, aBx: 15.5, aBy: -4, lFx: 12, lBx: -14, lBy: 0 });
+/** 미끄러지는 중: 더 낮게, 뒷발이 바닥을 스치며 끌린다 */
+const D_GLIDE2 = E({ hx: 3.5, hy: -13.5, tl: 32, hd: -15, aFx: -9, aFy: 8, aBx: 16, aBy: -3, lFx: 14.5, lBx: -20, lBy: 0 });
+/** 미끄러지는 끝: 뒷발을 끌어당기기 시작 */
+const D_SLOW = E({ hx: 3, hy: -15, tl: 27, hd: -11, aFx: -3, aFy: 8.5, aBx: 13.5, aBy: -1, lFx: 13, lBx: -15, lBy: 0 });
+const D_STAND = E({ hx: 0, hy: -21, tl: 10, hd: 0, aFx: 7, aFy: 11, aBx: 2, aBy: 9, lFx: 8, lBx: -7 });
+
+/**
+ * 지상 대시 (2차 리워크): 실을 쏨 → 몸이 실 쪽으로 쏠림 → 낮게 미끄러짐 → 더 낮게, 뒷발이 끌림 → 끌어당김 → 일어남 → 기본자세 가까이.
+ * 12프레임 × 1틱(4~7번 같은 자세) → 8프레임. sim은 대시 12틱을 프레임 수로 고르게 나눈다
+ */
 export const EUNWOO_DASH: MotionData = {
   name: 'eunwoo/dash',
   label: '백은우 지상 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [2, 1, 2, 1, 2, 1, 2, 1],
   // 가운·머리·연검이 곧게 뒤로 날린다
-  follow: { ribbon: { stiff: 0.5, gravity: 0.4, keys: [{ at: 0, wind: 0.5 }, { at: 2, wind: 1.1 }, { at: 8, wind: 1.1 }, { at: 11, wind: 0.2 }] }, wind: 1 },
+  follow: { ribbon: { stiff: 0.5, gravity: 0.4, keys: [{ at: 0, wind: 0.5 }, { at: 1.5, wind: 1.1 }, { at: 5, wind: 1.1 }, { at: 7, wind: 0.2 }] }, wind: 1 },
   keys: [
-    { at: 0, pose: E_STANCE },
-    { at: 1, pose: D_FLICK },
-    { at: 3, pose: D_GLIDE },
-    { at: 7, pose: D_GLIDE, stop: true },
-    { at: 9, pose: D_DRAW },
-    { at: 11, pose: E_STANCE },
+    { at: 0, pose: D_FLICK },
+    { at: 1, pose: D_DIP },
+    { at: 2, pose: D_GLIDE },
+    { at: 3, pose: D_GLIDE2, stop: true },
+    { at: 4, pose: D_SLOW },
+    { at: 5, pose: D_DRAW },
+    { at: 6, pose: D_STAND },
+    { at: 7, pose: E_STANCE },
   ],
 };
 
@@ -154,17 +189,43 @@ export const EUNWOO_DASH: MotionData = {
 /** 몸을 앞으로 길게 눕힌다: 뒷손은 실을 잡고 앞으로, 두 다리는 모아 발끝을 뒤로, 연검은 뒤로 흐른다 */
 const AD_LINE = E({ hx: 2, hy: -24, tl: 66, hd: -26, aFx: -6, aFy: 8, aBx: 16, aBy: -1, lFx: -9, lFy: -15, lBx: -12, lBy: -12 });
 
-/** 공중 대시: 웅크림 → 2~8프레임 몸을 눕혀 실을 따라 날아감 → 몸을 세우며 낙하로. 12프레임 × 1틱 */
+/** 몸을 앞으로 던지기 시작: 뒷손이 실을 쏘고 몸이 기운다 */
+const AD_TILT = E({ hx: 1, hy: -24.5, tl: 34, hd: -12, aFx: 4, aFy: 4, aBx: 15, aBy: -4, lFx: 2, lFy: -10, lBx: -9, lBy: -8 });
+/** 날아가는 끝: 몸이 더 눕고 발끝이 더 뒤로 */
+const AD_LINE2 = E({ hx: 2, hy: -24, tl: 70, hd: -28, aFx: -7, aFy: 9, aBx: 16.5, aBy: -0.5, lFx: -11, lFy: -15, lBx: -14, lBy: -12 });
+/** 실을 따라 미끄러지는 동안 (k 0~1: 곧게 눕힌 몸이 조금씩 더 눕고, 두 발끝이 엇갈려 살짝 흔들린다) */
+const glideAt = (k: number): Pose => {
+  const mix = (a: number, b: number) => a + (b - a) * k;
+  return E({
+    hx: 2, hy: -24, tl: mix(66, 70), hd: mix(-26, -28), aFx: mix(-6, -7), aFy: mix(8, 9), aBx: mix(16, 16.5), aBy: mix(-1, -0.5),
+    lFx: mix(-9, -11), lFy: mix(-15, -15) + 1.2 * Math.sin(k * Math.PI), lBx: mix(-12, -14), lBy: mix(-12, -12) - 1.2 * Math.sin(k * Math.PI),
+  });
+};
+/** 몸을 세우기 시작한다 (날아가는 힘이 남아 아직 비스듬히) */
+const AD_RIGHT = E({ hx: 1.5, hy: -24.3, tl: 50, hd: -18, aFx: 1, aFy: 5, aBx: 12, aBy: -3, lFx: -5, lFy: -13, lBx: -11, lBy: -10 });
+const AD_OPEN = E({ hx: 1, hy: -24.6, tl: 30, hd: -9, aFx: 7, aFy: -1, aBx: 2, aBy: -5, lFx: 2, lFy: -10, lBx: -8, lBy: -7 });
+const AD_OPEN2 = E({ hx: 0.5, hy: -24.8, tl: 15, hd: -3, aFx: 10, aFy: -4, aBx: -5, aBy: -6, lFx: 5, lFy: -8, lBx: -6.5, lBy: -6 });
+
+/**
+ * 공중 대시 (2차 리워크): 몸을 던짐(1~3, 빠르게) → 실을 따라 길게 눕혀 미끄러짐(3~6, 느리게) → 몸을 세움(7~10, 빠르게) → 낙하로.
+ * 12프레임 × 1틱(같은 자세 복사) → 10프레임. sim은 11틱을 프레임 수로 고르게 나눈다 (표시 틱은 뷰어·시트용)
+ */
 export const EUNWOO_AIR_DASH: MotionData = {
   name: 'eunwoo/air_dash',
   label: '백은우 공중 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-  follow: { ribbon: { air: true, stiff: 0.5, gravity: 0.3, keys: [{ at: 0, wind: 0.6 }, { at: 2, wind: 1.1 }, { at: 8, wind: 1.1 }, { at: 11, wind: 0.2 }] }, wind: 1 },
+  dur: [1, 1, 1, 2, 1, 1, 2, 1, 1, 1],
+  follow: { ribbon: { air: true, stiff: 0.5, gravity: 0.3, keys: [{ at: 0, wind: 0.6 }, { at: 1.5, wind: 1.1 }, { at: 6, wind: 1.1 }, { at: 9, wind: 0.2 }] }, wind: 1 },
   keys: [
     { at: 0, pose: F_FLOAT },
+    { at: 1, pose: AD_TILT },
     { at: 2, pose: AD_LINE },
-    { at: 8, pose: AD_LINE, stop: true },
-    { at: 11, pose: F_FLOAT },
+    { at: 3, pose: glideAt(0.35) },
+    { at: 4, pose: glideAt(0.7) },
+    { at: 5, pose: AD_LINE2, stop: true },
+    { at: 6, pose: AD_RIGHT },
+    { at: 7, pose: AD_OPEN },
+    { at: 8, pose: AD_OPEN2 },
+    { at: 9, pose: F_FLOAT },
   ],
 };
 
