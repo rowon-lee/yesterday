@@ -4,6 +4,7 @@ import { SCREEN_H, SCREEN_W, onFit } from '../screen';
 import { makeCamera, MARGIN, placeCamera, RT_H, RT_W, type Placed, type View } from './core';
 import { lightPool, loadedLights, shared } from './lights';
 import { Post } from './post';
+import { fxMarked } from '../screenfx';
 
 /** 표시 그림 형식: 반정밀 부동소수에 그릴 수 있으면 그것으로 (가장 어두운 외곽선 색도 0이 되지 않게) */
 const r0 = (r: THREE.WebGLRenderer): THREE.TextureDataType =>
@@ -131,6 +132,8 @@ export class GlView {
       });
     }
     if (!any || !root) {
+      fxMarked.n = 0;
+      this.post.setFxGlow(false);
       this.post.setMask(null);
       return;
     }
@@ -149,7 +152,26 @@ export class GlView {
     r.setClearColor(0x000000, 0);
     r.setRenderTarget(this.maskRT);
     r.clear();
+    shared.uFlatPass.value = 1;
     r.render(root, this.camera);
+    shared.uFlatPass.value = 0;
+    // 이펙트 빛 번짐 원본: 이번 프레임에 애니 이펙트(vfx/anime)가 칠한 칸이 있으면 평면 층에서 그 칸만 따로 그린다
+    const marked = fxMarked.n;
+    fxMarked.n = 0;
+    if (marked > 0) {
+      r.setRenderTarget(this.post.fxSrc);
+      r.clear();
+      const auto = r.autoClear;
+      r.autoClear = false;
+      shared.uFlatPass.value = 2;
+      root.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.ShaderMaterial | undefined;
+        if ((o as THREE.Mesh).isMesh && o.visible && m?.uniforms?.uFlatPass) r.render(o, this.camera);
+      });
+      shared.uFlatPass.value = 0;
+      r.autoClear = auto;
+    }
+    this.post.setFxGlow(marked > 0);
     r.setClearColor(clear, alpha);
     this.post.setMask(this.maskRT.texture);
   }

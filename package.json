@@ -13,7 +13,8 @@
     "clip": "npm run build && node tools/clip.mjs",
     "compare": "node tools/compare.mjs",
     "moveclip": "npm run build && node tools/moveclip.mjs",
-    "balance": "node tools/balance.mjs"
+    "balance": "node tools/balance.mjs",
+    "fxcheck": "node tools/fxcheck.mjs"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.316",

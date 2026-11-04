@@ -741,19 +741,33 @@ export { keepAlpha };
 export function flatMaterial(map: THREE.Texture, color?: string): THREE.ShaderMaterial {
   const c = new THREE.Color(color ?? '#ffffff').convertSRGBToLinear();
   return new THREE.ShaderMaterial({
-    uniforms: { map: { value: map }, color: { value: c } },
+    uniforms: { map: { value: map }, color: { value: c }, uFlatPass: shared.uFlatPass },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
       void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
     `,
+    // 애니 이펙트 칸(vfx/anime)은 캔버스 알파 254로 표시돼 있다: 표시 그림 단계(1)에서는 알파 1을 적고 (후처리가 색 보정 없이 그대로),
+    // 빛 번짐 원본 단계(2)에서는 그 칸만 그린다. 화면 단계(0)의 알파는 0 (젖은 바닥 반사가 이펙트 칸을 바닥으로 보지 않게)
     fragmentShader: /* glsl */ `
       uniform sampler2D map;
       uniform vec3 color;
+      uniform float uFlatPass;
       varying vec2 vUv;
       void main() {
         vec4 t = texture2D(map, vUv);
         if (t.a < 0.5) discard;
-        gl_FragColor = vec4(t.rgb * color, 0.0);
+        float anime = step(t.a, 0.998);
+        if (uFlatPass > 1.5) {
+          if (anime < 0.5) discard;
+          // 빛 번짐 원본: 채도만큼 (흰 심은 번지지 않고 밝은 주색·보색 테두리가 그 색으로 번진다: 흰 안개 덩어리가 뜨지 않게)
+          float mx = max(t.r, max(t.g, t.b));
+          float mn = min(t.r, min(t.g, t.b));
+          gl_FragColor = vec4(t.rgb * ((mx - mn) / max(mx, 1e-3)), 1.0);
+          return;
+        }
+        // 화면 단계: 애니 이펙트 칸은 반 밝기로 적는다 (무대 빛 번짐 문턱을 넘지 않게: 이펙트 빛 번짐은 따로 한다).
+        // 후처리 합치기가 그 칸을 두 배로 되돌려 그린 색 그대로 보여 준다
+        gl_FragColor = vec4(t.rgb * color * (anime > 0.5 && uFlatPass < 0.5 ? 0.5 : 1.0), uFlatPass > 0.5 ? anime : 0.0);
       }
     `,
     depthWrite: false,

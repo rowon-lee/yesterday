@@ -23,6 +23,10 @@ export const COLORS = {
   raidenLight: '#ff7a66',
   raidenDark: '#8e1f2b',
   raidenDeep: '#4c0f1a',
+  // 라이덴 애니 이펙트 4색 띠 (동작연출지침서 14-4: 흰 → 밝은 빨강 → 검붉은 → 자홍 테두리 소량, 노랑·주황 금지). 흰 심은 fxWhite
+  raidenFxRed: '#ff2440',
+  raidenFxCrimson: '#a00c2c',
+  raidenFxMagenta: '#ff2ec4',
   suit: '#2d2735',
   suitLight: '#4a4156',
   suitDark: '#1a161f',
@@ -268,7 +272,7 @@ export const COMMON: readonly ColorName[] = [
   'sky', 'skyLight', 'skyDark', 'red', 'green',
   'fxWhite', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed', 'fxSoot', 'fxBlue', 'fxDeepBlue', 'fxNavy', 'neonRed', 'neonPink',
   // 라이덴
-  'raiden', 'raidenLight', 'raidenDark', 'raidenDeep', 'suit', 'suitLight', 'suitDark', 'suitGrey', 'suitGreyLight', 'suitGreyDark', 'paleGrey',
+  'raiden', 'raidenLight', 'raidenDark', 'raidenDeep', 'raidenFxRed', 'raidenFxCrimson', 'raidenFxMagenta', 'suit', 'suitLight', 'suitDark', 'suitGrey', 'suitGreyLight', 'suitGreyDark', 'paleGrey',
   // 백은우
   'lily', 'lilyLight', 'lilyDark', 'lilyDeep', 'gown', 'gownShade', 'gownDark', 'hairBrown', 'hairBrownLight', 'hairBrownDark', 'thread', 'threadLight', 'ash', 'ashLight', 'ashDark', 'skin', 'skinLight', 'skinDark',
   // 에드워드

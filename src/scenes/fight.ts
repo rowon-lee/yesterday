@@ -164,6 +164,8 @@ export function fightScene(app?: App): Scene {
   touch.enable(!p1Cpu);
   // 확인 도구가 읽는 값
   (window as unknown as { __fight: () => SimState }).__fight = () => s;
+  // 확인 도구(14-6 숫자 표)가 읽는 값: 애니 이펙트를 낸 기록
+  (window as unknown as { __animeLog: () => unknown }).__animeLog = () => fightVfx.animeLog;
 
   /** 잔상을 남기고, 착지·박차고 뛰는 순간에 흙먼지를 일으킨다 (대시의 잔상·먼지는 Sprite Fusion Dash & Blink) */
   const watchMotion = () => {

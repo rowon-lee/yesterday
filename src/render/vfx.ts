@@ -1,5 +1,6 @@
 import { COLORS, type ColorName } from './palette';
 import { SCREEN_H, SCREEN_W } from './screen';
+import { fxMarked } from './screenfx';
 import type { Frame, Layer } from '../vfx/impact';
 
 /**
@@ -62,6 +63,8 @@ export class VfxLayer {
   private list: VfxInstance[] = [];
   private color = new Uint32Array(SCREEN_W * SCREEN_H);
   private light = new Uint32Array(SCREEN_W * SCREEN_H);
+  /** 애니 이펙트 칸 표시 (vfx/anime이 칠한 칸 = 1): 알파 254로 내보내 후처리가 색 보정 없이 그대로 보여 주고 강하게 번지게 한다 */
+  private mark = new Uint8Array(SCREEN_W * SCREEN_H);
   private out: ImageData | null = null;
   private canvas: HTMLCanvasElement | null = null;
 
@@ -78,6 +81,7 @@ export class VfxLayer {
     for (let y = y0; y <= y1; y++) {
       this.color.fill(0, y * SCREEN_W + x0, y * SCREEN_W + x1 + 1);
       this.light.fill(0, y * SCREEN_W + x0, y * SCREEN_W + x1 + 1);
+      this.mark.fill(0, y * SCREEN_W + x0, y * SCREEN_W + x1 + 1);
     }
   }
 
@@ -105,7 +109,7 @@ export class VfxLayer {
     // 지난번에 칠한 사각형만 지우고, 이번에 칠한 사각형(box)만 훑는다
     this.wipe();
     const box = [SCREEN_W, SCREEN_H, -1, -1];
-    const frame: Frame = { w: SCREEN_W, h: SCREEN_H, ox: cam.x, oy: cam.y, color: this.color, light: this.light, box };
+    const frame: Frame & { mark: Uint8Array } = { w: SCREEN_W, h: SCREEN_H, ox: cam.x, oy: cam.y, color: this.color, light: this.light, mark: this.mark, box };
     for (const fx of this.list) fx.draw(frame, layer);
     this.used = box;
     if (box[2] < 0) return false;
@@ -118,6 +122,8 @@ export class VfxLayer {
     const px = new Uint32Array(this.out!.data.buffer);
     const color = this.color;
     const light = this.light;
+    const mark = this.mark;
+    let marked = 0;
     let x0 = SCREEN_W;
     let y0 = SCREEN_H;
     let x1 = -1;
@@ -147,6 +153,11 @@ export class VfxLayer {
           }
         }
         if (!v) continue;
+        // 애니 이펙트 칸: 알파 254 (후처리 표시). 색은 그린 그대로 (이미 팔레트 색)
+        if (mark[i] && c >>> 24) {
+          v = (v & 0x00ffffff) | 0xfe000000;
+          marked++;
+        }
         px[i] = v;
         if (x < x0) x0 = x;
         if (x > x1) x1 = x;
@@ -154,6 +165,7 @@ export class VfxLayer {
         y1 = y;
       }
     }
+    if (marked) fxMarked.n += marked;
     if (x1 < 0) return false;
     const w = x1 - x0 + 1;
     const h = y1 - y0 + 1;
