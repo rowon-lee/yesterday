@@ -55,42 +55,52 @@ export const RAIDEN_ZANHEN: MotionData = {
 };
 
 // ---- 스킬 2: 화과산 (숨을 내쉬며 몸 주변으로 스파크를 터뜨려 붙은 상대를 크게 밀어낸다) ----
-/** 들숨: 숨을 들이켜며 어깨가 올라간다 — 두 팔을 가슴 앞으로 모아 팔꿈치를 들고, 다리를 벌린다 */
-const HG_INHALE = R({ hx: -1.5, hy: -18.5, tl: 4, hd: 2, aFx: 4, aFy: 3, aBx: 8, aBy: 1, lFx: 10, lBx: -11 });
-/** 모음 (멈칫): 몸을 웅크려 고개를 숙이고 두 팔을 가슴에 단단히 붙인다 (전류를 몸 안에 가둔다) */
-const HG_GATHER = R({ hx: -2, hy: -15, tl: 14, hd: 14, aFx: 2, aFy: 8, aBx: 6, aBy: 7, lFx: 11, lBx: -12 });
-/** 터짐: 가슴을 펴며 두 팔을 앞뒤로 활짝 내던진다 (날숨) */
+// 2차 리워크: 판정 7~11틱(공격 데이터)과 0~6틱 들숨·7~10틱 날숨 박자(사용자 피드백 2026-11-02 9-3)는 그대로, 그림만 다시 깎았다.
+/** 들숨 1: 숨을 들이켜며 어깨가 올라가고 두 팔이 가슴 앞으로 모인다 */
+const HG_INHALE_A = R({ hx: -1, hy: -19.5, tl: 6, hd: 2, aFx: 6, aFy: 1, aBx: 8, aBy: 1, lFx: 9.5, lBx: -10 });
+/** 들숨 2: 팔꿈치를 들고 웅크리기 시작한다 */
+const HG_INHALE_B = R({ hx: -1.5, hy: -18, tl: 9, hd: 6, aFx: 4, aFy: 4, aBx: 7, aBy: 3, lFx: 10.5, lBx: -11.5 });
+/** 모음 (멈칫): 엉덩이를 빼며 웅크려 고개를 숙이고 두 팔을 가슴에 단단히 붙인다 (전류를 몸 안에 가둔다) */
+const HG_GATHER = R({ hx: -2.5, hy: -15, tl: 15, hd: 15, aFx: 2, aFy: 8, aBx: 6, aBy: 7, lFx: 11, lBx: -12 });
+/** 터짐 (1틱): 가슴을 펴며 두 팔을 앞뒤로 활짝 내던진다 (날숨) */
 const HG_BURST = R({ hx: -1, hy: -20, tl: -6, hd: -10, aFx: 16, aFy: -6, aBx: -14, aBy: -6, lFx: 12, lBx: -13 });
 /** 판정: 고개를 젖히며 숨을 내뿜고 두 팔을 끝까지 벌린다. 다리는 넓게 버틴다 */
 const HG_HIT = R({ hx: -1, hy: -21, tl: -10, hd: -16, aFx: 17, aFy: -3, aBx: -16.5, aBy: -3, lFx: 13, lBx: -14 });
-const HG_HIT2 = R({ hx: -1, hy: -21, tl: -11, hd: -17, aFx: 17.5, aFy: -2, aBx: -17, aBy: -2, lFx: 13, lBx: -14 });
-const HG_OVER = R({ hx: -1, hy: -21.5, tl: -12, hd: -18, aFx: 17.5, aFy: -1, aBx: -17, aBy: -1, lFx: 13, lBx: -14 });
-/** 여운: 팔을 내리며 숨을 고른다 */
-const HG_HOLD = R({ hx: -1, hy: -20.5, tl: -8, hd: -12, aFx: 15, aFy: 3, aBx: -14, aBy: 3, lFx: 13, lBx: -14 });
-const HG_BACK = R({ hx: -1, hy: -18.5, tl: 6, hd: 4, aFx: 11, aFy: -2, aBx: 3, aBy: 2, lFx: 11, lBx: -11 });
-const HG_BACK2 = R({ hx: -0.5, hy: -18.5, tl: 12, hd: 7, aFx: 12.5, aFy: -3.5, aBx: 7, aBy: 0, lFx: 9, lBx: -10 });
+/** 지나치기: 터진 힘에 몸이 발끝으로 들리고 두 팔이 더 벌어지며 아래로 휘어 나간다 */
+const HG_OVER = R({ hx: -1, hy: -22.5, tl: -13, hd: -19, aFx: 17.5, aFy: 1.5, aBx: -17, aBy: 1.5, lFx: 13, lBx: -14 });
+/** 되돌아옴 (멈칫): 발뒤꿈치가 내려앉으며 팔이 2~3px 돌아온다 */
+const HG_REBOUND = R({ hx: -1, hy: -21, tl: -11, hd: -16, aFx: 16.5, aFy: -2, aBx: -16, aBy: -2, lFx: 13, lBx: -14 });
+/** 여운 1: 숨이 끝나며 고개가 돌아오고 팔이 처지기 시작 */
+const HG_EXHALE = R({ hx: -1, hy: -20.5, tl: -6, hd: -8, aFx: 15.5, aFy: 3, aBx: -15, aBy: 3, lFx: 13, lBx: -14 });
+/** 여운 2: 두 팔이 늘어진다 (스파크가 흩어지는 동안) */
+const HG_SAG = R({ hx: -1, hy: -20, tl: -2, hd: -2, aFx: 13, aFy: 7, aBx: -11, aBy: 7, lFx: 13, lBx: -14 });
+/** 회복 첫 프레임: 무게가 뒤로 빠지며 두 손이 곧장 얼굴 앞 가드로 */
+const HG_BACK = R({ hx: -2, hy: -18, tl: 8, hd: 6, aFx: 11, aFy: -3, aBx: 6, aBy: 1, lFx: 11, lBx: -11 });
+const HG_GUARD = R({ hx: -1, hy: -18.5, tl: 13, hd: 8, aFx: 12.5, aFy: -4, aBx: 7.5, aBy: 0, lFx: 9, lBx: -10 });
 
 /**
- * 스킬 2 화과산 (128×96): 들숨(2) → 웅크려 모음(3, 멈칫) → 터짐(4) → 두 팔을 벌려 내뿜기(5~7프레임 판정) → 여운 → 가드. 13프레임 27틱.
- * 0~6틱 들숨(어깨가 올라가며 웅크림), 7~10틱 날숨 판정 (사용자 피드백 2026-11-02 9-3)
+ * 스킬 2 화과산 (128×96): 들숨 두 장(2~3, 어깨가 올라가며 웅크림) → 모음(4, 멈칫) → 터짐(5, 1틱) → 두 팔을 벌려 내뿜기(6~8프레임 판정,
+ * 7 지나치기, 8 되돌아옴) → 여운 두 장 → 가드 (처음 빠르고 끝으로 느리게). 13프레임 27틱.
+ * 0~6틱 들숨, 7~10틱 날숨 판정 (사용자 피드백 2026-11-02 9-3)
  */
 export const RAIDEN_HWAGWASAN: MotionData = {
   name: 'raiden/hwagwasan',
   label: '라이덴 스킬 2 화과산',
   wide: true,
-  dur: [1, 2, 3, 1, 2, 1, 1, 4, 3, 3, 2, 2, 2],
+  dur: [1, 2, 1, 2, 1, 2, 1, 3, 3, 3, 2, 3, 3],
   keys: [
     { at: 0, pose: R_STANCE },
-    { at: 1, pose: HG_INHALE },
-    { at: 2, pose: HG_GATHER, stop: true },
-    { at: 3, pose: HG_BURST },
-    { at: 4, pose: HG_HIT },
-    { at: 5, pose: HG_HIT2 },
+    { at: 1, pose: HG_INHALE_A },
+    { at: 2, pose: HG_INHALE_B },
+    { at: 3, pose: HG_GATHER, stop: true },
+    { at: 4, pose: HG_BURST },
+    { at: 5, pose: HG_HIT },
     { at: 6, pose: HG_OVER },
-    { at: 7, pose: HG_OVER, stop: true },
-    { at: 8, pose: HG_HOLD },
-    { at: 9, pose: HG_BACK },
-    { at: 10, pose: HG_BACK2 },
+    { at: 7, pose: HG_REBOUND, stop: true },
+    { at: 8, pose: HG_EXHALE },
+    { at: 9, pose: HG_SAG },
+    { at: 10, pose: HG_BACK },
+    { at: 11, pose: HG_GUARD },
     { at: 12, pose: R_STANCE },
   ],
 };
