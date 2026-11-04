@@ -130,20 +130,29 @@ export const RAIDEN_DASH: MotionData = {
   ],
 };
 
-// ---- 공중 대시 (sim: 11틱, 1~8틱째 앞으로) ----
+// ---- 공중 대시 (sim: 11틱, 1~8틱째 앞으로. 프레임은 11틱을 프레임 수로 고르게 나눈다) ----
+// 2차 리워크: 12프레임 × 1틱(같은 자세 복사) → 6프레임. 몸을 눕혀 날아가는 동안 다리가 점점 뒤로 끌리고, 끝에서 몸을 세운다
+/** 몸을 앞으로 던진다: 웅크린 무릎이 풀리며 상체가 먼저 앞으로 */
+const AD_THROW = R({ hx: 2, hy: -24.5, tl: 48, hd: -18, aFx: 12.5, aFy: -3.5, aBx: 8.5, aBy: 0.5, lFx: 1, lFy: -14, lBx: -7, lBy: -11 });
 /** 공중에서 몸을 앞으로 눕혀 창처럼 날아간다: 가드는 머리 앞, 두 다리는 뒤로 모아 끈다 */
 const AD_SPEAR = R({ hx: 2, hy: -24, tl: 58, hd: -24, aFx: 13, aFy: -3, aBx: 9, aBy: 1, lFx: -6, lFy: -14, lBx: -12, lBy: -10 });
+/** 날아가는 끝: 다리가 더 뒤로 끌리고 몸이 조금 더 눕는다 */
+const AD_TRAIL = R({ hx: 2, hy: -24, tl: 61, hd: -26, aFx: 13.5, aFy: -2.5, aBx: 9, aBy: 1.5, lFx: -9, lFy: -13, lBx: -14, lBy: -8 });
+/** 몸을 한 번에 세운다 (무릎을 당기며, 회복은 처음 빠르게) */
+const AD_RIGHT = R({ hx: 1, hy: -24.5, tl: 32, hd: -4, aFx: 12, aFy: -4, aBx: 8.5, aBy: 0, lFx: 6, lFy: -10, lBx: -7, lBy: -7.5 });
 
-/** 공중 대시: 웅크림 → 2~3프레임 몸을 눕혀 창처럼 날아감 → 몸을 세우며 낙하 준비. 12프레임 × 1틱 */
+/** 공중 대시: 웅크림 → 몸을 던짐 → 창처럼 날아감 → 다리가 더 끌림 → 몸을 세움 → 낙하 준비. 6프레임 (게임은 11틱을 프레임 수로 고르게 나눈다) */
 export const RAIDEN_AIR_DASH: MotionData = {
   name: 'raiden/air_dash',
   label: '라이덴 공중 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [2, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: J_TUCK },
+    { at: 1, pose: AD_THROW },
     { at: 2, pose: AD_SPEAR },
-    { at: 8, pose: AD_SPEAR, stop: true },
-    { at: 11, pose: F_OPEN },
+    { at: 3, pose: AD_TRAIL, stop: true },
+    { at: 4, pose: AD_RIGHT },
+    { at: 5, pose: F_OPEN },
   ],
 };
 
