@@ -76,7 +76,7 @@ export const RAIDEN_GG: Partial<Record<string, GMove>> = {
       { kind: 'wedge', anchor: 'hit', at: [0, 0], angle: -54, back: 120, fwd: 280, w: 22, peak: 0.36, bulge: [0.75, 1.2], skew: 0.15, hold: 2, fade: 8 },
       { kind: 'wedge', anchor: 'hit', at: [-3, -2], angle: -72, back: 50, fwd: 230, w: 7, peak: 0.25, bulge: [0.8, 1.5], hold: 2, fade: 6 },
       {
-        kind: 'bolt', pts: [[42, -46], [54, -30], [47, -21], [62, -5], [94, -8], [128, -2], [170, -6], [214, -1]],
+        kind: 'bolt', pts: [[42, -46], [54, -30], [47, -21], [62, -5], [92, -15], [126, -3], [168, -14], [214, -1]],
         w0: 6, w1: 2, forks: [[0.55, -40, 18], [0.78, 35, 12]], hold: 2, fade: 7,
       },
       { kind: 'ink', anchor: 'hit', at: [0, -36], angle: -13, len: 118, w: 10, notch: [[0.28, 2], [0.52, 3], [0.74, 2]], hold: 2, fade: 7 },
@@ -173,8 +173,8 @@ export const RAIDEN_GG: Partial<Record<string, GMove>> = {
         kind: 'bolt', arc: { c: [12, -40], r: 38, a0: -104, a1: 74, kinks: [[0.18, 3], [0.36, -2], [0.54, 4], [0.72, -2], [0.88, 3]] },
         w0: 2, wPeak: 10, w1: 4, peak: 0.6, forks: [[0.42, -50, 16]], hold: 2, fade: 6,
       },
-      { kind: 'bolt', pts: [[22, -1], [44, -5], [66, -1], [94, -5], [122, -1]], w0: 5, w1: 2, forks: [[0.5, -60, 10]], hold: 2, fade: 7 },
-      { kind: 'bolt', pts: [[18, -1], [0, -5], [-22, -1], [-46, -4]], w0: 4, w1: 2, hold: 2, fade: 6 },
+      { kind: 'bolt', pts: [[22, -1], [44, -11], [64, -2], [92, -13], [122, -1]], w0: 5, w1: 2, forks: [[0.5, -60, 10]], hold: 2, fade: 7 },
+      { kind: 'bolt', pts: [[18, -1], [0, -10], [-22, -1], [-46, -9]], w0: 4, w1: 2, hold: 2, fade: 6 },
       { kind: 'ink', at: [70, -84], angle: 118, len: 92, w: 9, notch: [[0.3, 3], [0.6, 2]], hold: 2, fade: 6 },
       { kind: 'flash', anchor: 'hit', layer: 'front', spikes: [[84, 20, 3], [-96, 12, 2.5], [20, 11, 2], [150, 10, 2], [-30, 9, 1.5]], hold: 1, fade: 3 },
       { kind: 'embers', anchor: 'hit', layer: 'front', n: 16, spread: 8, speed: 2.2, dir: -90, fan: 160, life: 16 },
@@ -269,7 +269,7 @@ export const RAIDEN_GG_SUPER: { burst: GMove; ash: GMove } = {
     light: { r: 160, t: 20 },
     screen: { press: { mode: 'crack', ticks: 3, color: '#cd1634', crack: '#0a0712' } },
     shapes: [
-      { kind: 'bolt', pts: [[0, -2], [40, -6], [84, -1], [130, -7], [182, -2], [236, -6], [290, -1]], w0: 7, w1: 3, forks: [[0.2, -70, 22], [0.48, -60, 26], [0.76, -75, 20]], hold: 10, fade: 12 },
+      { kind: 'bolt', pts: [[0, -2], [38, -14], [80, -2], [128, -16], [176, -3], [232, -15], [290, -2]], w0: 7, w1: 3, forks: [[0.2, -70, 22], [0.48, -60, 26], [0.76, -75, 20]], hold: 10, fade: 12 },
       { kind: 'ink', at: [60, -62], angle: 24, len: 170, w: 11, notch: [[0.3, 3], [0.62, 3]], hold: 10, fade: 10 },
       { kind: 'ink', at: [40, 16], angle: -40, len: 120, w: 8, notch: [[0.5, 3]], hold: 10, fade: 10 },
       { kind: 'embers', at: [120, -10], n: 30, spread: 90, speed: 0.8, dir: -90, fan: 60, life: 40 },

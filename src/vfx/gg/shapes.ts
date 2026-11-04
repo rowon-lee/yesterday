@@ -154,7 +154,7 @@ export function bolt(s: GBolt, k: number): Paint[] {
     const p = s.peak ?? 0.5;
     return u < p ? w0 + (wp - w0) * (u / p) : wp + (w1 - wp) * ((u - p) / (1 - p));
   };
-  const quads = (P: GPt[], w0: number, w1: number, extra: number, wp?: number): number[][] => {
+  const quads = (P: GPt[], w0: number, w1: number, extra: number, wp?: number, minHalf = 0.8): number[][] => {
     const cum = [0];
     for (let i = 1; i < P.length; i++) cum.push(cum[i - 1]! + Math.hypot(P[i]![0] - P[i - 1]![0], P[i]![1] - P[i - 1]![1]));
     const L = cum[cum.length - 1]! || 1;
@@ -165,9 +165,12 @@ export function bolt(s: GBolt, k: number): Paint[] {
       const l = Math.hypot(x1 - x0, y1 - y0) || 1;
       const dx = (x1 - x0) / l;
       const dy = (y1 - y0) / l;
-      const h0 = (widthAt(cum[i]! / L, w0, w1, wp) * k) / 2 + extra;
-      const h1 = (widthAt(cum[i + 1]! / L, w0, w1, wp) * k) / 2 + extra;
-      if (h0 < 0.35 && h1 < 0.35) continue;
+      const b0 = (widthAt(cum[i]! / L, w0, w1, wp) * k) / 2;
+      const b1 = (widthAt(cum[i + 1]! / L, w0, w1, wp) * k) / 2;
+      // 몸 굵기가 1.6px 아래인 마디는 그리지 않는다 (테두리도 같이): 사라지는 동안 가는 끝부터 짧아져 1px 꼬리가 남지 않게
+      if (b0 < minHalf && b1 < minHalf) continue;
+      const h0 = b0 + extra;
+      const h1 = b1 + extra;
       const e0 = i > 0 ? h0 * 0.9 : 0;
       const e1 = i + 2 < P.length ? h1 * 0.9 : 0;
       const ax = x0 - dx * e0;
@@ -206,7 +209,7 @@ export function bolt(s: GBolt, k: number): Paint[] {
   out.push({ tone: 1, rings: [...quads(pts, s.w0, s.w1, 0, s.wPeak), ...forks.flatMap((f) => quads(f, fw0, 1, 0))], sep: true });
   // 심: 굵기의 38% (가장 굵은 곳 기준 1px 이상일 때)
   const cw = Math.max(s.w0, s.wPeak ?? 0, s.w1) * 0.38;
-  if (cw * k >= 0.8) out.push({ tone: 0, rings: quads(pts, s.w0 * 0.38, s.w1 * 0.3, 0, s.wPeak !== undefined ? s.wPeak * 0.38 : undefined), sep: true });
+  if (cw * k >= 0.8) out.push({ tone: 0, rings: quads(pts, s.w0 * 0.38, s.w1 * 0.3, 0, s.wPeak !== undefined ? s.wPeak * 0.38 : undefined, 0.35), sep: true });
   return out;
 }
 

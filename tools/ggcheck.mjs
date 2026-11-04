@@ -14,7 +14,7 @@ import { encodeGif } from './gif.mjs';
 import { decodePng, encodePng } from './png.mjs';
 
 const argv = process.argv.slice(2);
-const opt = { base: 'origin/main', out: 'previews/fx/raiden-gg', only: '', noBase: false, debug: '' };
+const opt = { base: 'origin/main', out: 'previews/fx/raiden-gg', only: '', noBase: false, debug: '', dump: '' };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--base') opt.base = argv[++i];
@@ -22,6 +22,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--only') opt.only = argv[++i];
   else if (a === '--no-base') opt.noBase = true;
   else if (a === '--debug') opt.debug = argv[++i];
+  else if (a === '--dump') opt.dump = argv[++i];
 }
 mkdirSync(opt.out, { recursive: true });
 
@@ -345,6 +346,24 @@ function debugShot(m, f, d, boxes) {
   const big = img(cw * 4, ch * 4);
   blit(big, o, 0, 0, 4);
   save(`${opt.debug}/${String(m.n).padStart(2, '0')}-${m.id}-d${d}.png`, big);
+}
+
+// --dump 14:24,4:10 → 그 기술 피크 +틱 화면 전체를 이펙트 칸 표시와 함께 (이펙트 칸은 그 색, 나머지 어둡게)
+if (opt.dump) {
+  for (const spec of opt.dump.split(',')) {
+    const [n, d] = spec.split(':').map(Number);
+    const m = MOVES.find((x) => x.n === n);
+    if (!m || m.idx < 0) continue;
+    const f = shots[m.scene].new.frames[m.idx + d];
+    if (!f) continue;
+    debugShot(m, f, d, [[0, 0, W - 1, H - 1]]);
+    const full = img(W * 2, H * 2);
+    const o = img(W, H);
+    for (let i = 0; i < W * H; i++) for (let c = 0; c < 3; c++) o.d[i * 3 + c] = Math.round(f.d[i * 3 + c] * (f.marks[i] ? 1 : 0.3));
+    blit(full, o, 0, 0, 2);
+    mkdirSync(opt.debug || 'out/ggdebug', { recursive: true });
+    save(`${opt.debug || 'out/ggdebug'}/dump-${String(n).padStart(2, '0')}-${m.id}-d${d}.png`, full);
+  }
 }
 
 const lines = [];
