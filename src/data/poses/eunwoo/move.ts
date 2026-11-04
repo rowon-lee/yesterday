@@ -12,20 +12,27 @@ const TAU = Math.PI * 2;
 
 // ---- 대기: 콘트라포스토로 서서 약 1.5초(90틱)에 한 번 숨을 쉰다 ----
 /**
+ * 숨의 깊이 (0 = 다 내쉼, 1 = 다 들이쉼), i = 0..14: 2차 리워크 — 사인 곡선(고른 간격) 대신 천천히 들이쉬고(0~11) 한숨처럼 한 번에 내쉰 뒤(11~12)
+ * 잠깐 머문다(12~14). 숨 쉬는 주기 90틱(피드백 11-1)은 그대로
+ */
+const ease3 = (u: number) => u * u * (3 - 2 * u);
+const breathAt = (i: number): number => (i <= 11 ? ease3(i / 11) : 0);
+
+/**
  * i번째 프레임 (14프레임 한 바퀴): 들이쉬면 가슴이 열리며 몸이 조금 솟고(엉덩이 0.7px) 연검 쥔 손이 앞으로 살짝 떠오르고,
- * 내쉬면 가라앉는다. 무게는 뒷발에 둔 채 엉덩이가 아주 조금 좌우로 흔들린다
+ * 내쉬면 가라앉는다. 무게는 뒷발에 둔 채 엉덩이가 아주 조금 좌우로 흔들린다 (흔들림은 숨과 다른 박자)
  */
 function idleFrame(i: number): Pose {
   const ph = (i / 14) * TAU;
-  const breath = (1 - Math.cos(ph)) / 2;
+  const breath = breathAt(i);
   const sway = Math.sin(ph);
   return E({
-    hx: E_STANCE.hx - 0.4 * sway,
+    hx: E_STANCE.hx - 0.3 * sway,
     hy: E_STANCE.hy - 0.7 * breath,
     tl: E_STANCE.tl - 1.5 * breath,
     hd: E_STANCE.hd - 2 * breath + 1.2 * Math.sin(2 * ph),
-    aFx: E_STANCE.aFx + 1.4 * breath,
-    aFy: E_STANCE.aFy - 1.2 * breath,
+    aFx: E_STANCE.aFx + 2.2 * breath,
+    aFy: E_STANCE.aFy - 2 * breath,
     aBx: E_STANCE.aBx - 0.6 * breath,
     aBy: E_STANCE.aBy - 0.6 * breath,
     lFx: E_STANCE.lFx + 0.4 * sway,
@@ -33,8 +40,8 @@ function idleFrame(i: number): Pose {
 }
 
 /**
- * 대기: 14프레임 90틱 (숨 한 번). 연검은 손에서 S자로 바닥까지 늘어지고 끝이 숨에 맞춰 말렸다 풀린다 (굽힘 박자),
- * 가운 자락(세 번)과 꽁지머리(두 번)는 서로 다른 박자로 흔들린다
+ * 대기: 14프레임 90틱 (숨 한 번: 들이쉼 11프레임 → 한 번에 내쉼 → 머묾 2프레임). 연검은 손에서 S자로 바닥까지 늘어지고 끝이 숨에 맞춰
+ * 말렸다 풀린다 (굽힘 박자), 가운 자락(세 번)과 꽁지머리(두 번)는 서로 다른 박자로 흔들린다
  */
 export const EUNWOO_IDLE: MotionData = {
   name: 'eunwoo/idle',
@@ -43,7 +50,7 @@ export const EUNWOO_IDLE: MotionData = {
   dur: [7, 6, 6, 7, 6, 6, 7, 6, 6, 7, 6, 6, 7, 7],
   keys: Array.from({ length: 15 }, (_, i) => ({ at: i, pose: idleFrame(i % 14) })),
   follow: {
-    ribbon: { stiff: 0.55, keys: [{ at: 0, curl: 0.8 }, { at: 7, curl: 1.6 }, { at: 14, curl: 0.8 }] },
+    ribbon: { stiff: 0.55, keys: [{ at: 0, curl: 0.8 }, { at: 11, curl: 1.6 }, { at: 14, curl: 0.8 }] },
     breeze: 1,
   },
 };
