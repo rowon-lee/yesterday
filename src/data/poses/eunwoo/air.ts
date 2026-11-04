@@ -87,18 +87,27 @@ const F_DROP = E({ hx: 0, hy: -25, tl: 4, hd: 2, aFx: 11, aFy: -9, aBx: -9, aBy:
 /** 빨리 떨어질 때: 앞발을 조금 앞으로 내밀어 발끝으로 닿을 준비, 팔은 균형을 잡으러 내려온다 */
 const F_READY = E({ hx: 0, hy: -24, tl: 6, hd: 2, aFx: 12, aFy: -2, aBx: -9, aBy: -2, lFx: 8, lFy: -2, lBx: -5, lBy: -1 });
 
-/** 낙하: 둥실 뜬 꼭대기 → 발끝을 모아 내려옴 → 착지 준비. 12프레임 */
+/** 내려오기 시작: 발끝이 모이기 시작한다 (팔은 아직 옆으로) */
+const F_EASE = E({ hx: 0, hy: -25, tl: 5.5, hd: 0.5, aFx: 12, aFy: -6.5, aBx: -10, aBy: -7, lFx: 6.5, lFy: -6, lBx: -5.5, lBy: -4.2 });
+/** 발이 바닥을 찾아 내려간다 */
+const F_REACH = E({ hx: 0, hy: -24.2, tl: 5.5, hd: 2, aFx: 11.8, aFy: -3, aBx: -9.2, aBy: -3, lFx: 7.6, lFy: -2.2, lBx: -4.8, lBy: -1.2 });
+
+/**
+ * 낙하 (2차 리워크): 둥실 뜬 꼭대기 → 발끝이 모이기 시작 → 한 번에 발끝을 모아 내려옴(팔이 떠오름) → 발이 바닥을 찾음 → 착지 준비(멈춤).
+ * 12프레임 × 3 → 5프레임 (dur 합 36 = 가장 빠른 낙하 그대로)
+ */
 export const EUNWOO_FALL: MotionData = {
   name: 'eunwoo/fall',
   label: '백은우 낙하',
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [6, 6, 6, 6, 12],
   // 빨리 떨어질수록 칼날·자락이 위로 떠오른다 (맞바람)
-  follow: { ribbon: { air: true, stiff: 0.6, curl: 0.7, keys: [{ at: 0, gravity: 0.5 }, { at: 6, gravity: 0 }, { at: 11, gravity: -0.3 }] }, wind: 0.15 },
+  follow: { ribbon: { air: true, stiff: 0.6, curl: 0.7, keys: [{ at: 0, gravity: 0.5 }, { at: 2.5, gravity: 0 }, { at: 4, gravity: -0.3 }] }, wind: 0.15 },
   keys: [
     { at: 0, pose: F_FLOAT },
-    { at: 5, pose: F_DROP },
-    { at: 10, pose: F_READY, stop: true },
-    { at: 11, pose: F_READY },
+    { at: 1, pose: F_EASE },
+    { at: 2, pose: F_DROP },
+    { at: 3, pose: F_REACH },
+    { at: 4, pose: F_READY, stop: true },
   ],
 };
 
@@ -122,7 +131,7 @@ export const EUNWOO_LAND: MotionData = {
     { at: 8, pose: L_RISE },
     { at: 11, pose: E_STANCE },
   ],
-  follow: { ribbon: { stiff: 0.6 }, from: { motion: 'eunwoo/fall', frame: 11 } },
+  follow: { ribbon: { stiff: 0.6 }, from: { motion: 'eunwoo/fall', frame: 4 } },
 };
 
 // ---- 지상 대시: 손가락으로 금색 실을 앞으로 쏘고, 그 실을 따라 낮게 미끄러진다 (sim: 12틱) ----
