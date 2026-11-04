@@ -1,13 +1,11 @@
 // 이펙트 확인 (동작연출지침서 14-6). 한 장면을 이전 버전과 지금 버전으로 같은 입력으로 찍어 PR에 붙일 자료를 만든다.
-//   npm run fxcheck -- raiden_combo --moves atk1,atk2,atk3,atk4 --look src/render/chars/raiden-anime.ts:RAIDEN_LOOK --out previews/fx/raiden
+//   npm run fxcheck -- raiden_combo --moves atk1,atk2,atk3,atk4 --out previews/fx/raiden
 //     → <out>/<장면>-vs-ref.png        1) 피크 프레임과 레퍼런스(docs/refs/이펙트_레퍼런스_애니격투.png)를 나란히 (2배)
 //       <out>/<장면>-numbers.md        2) 피크 숫자 표 (14-3 기준과 견줌: 이 화면은 480×270이라 지침서 값 × 1.5)
 //       <out>/<장면>-gray.png          3) 피크 프레임 흑백 (이펙트 속 캐릭터 실루엣이 읽히는지)
 //       <out>/<장면>-before-after.gif  4) 같은 장면 이전(왼쪽)·지금(오른쪽) (1배, 실제 빠르기)
 //       <out>/<장면>-after-slow.gif       지금 버전만 느리게 (2배, 1/3 빠르기: 14-2 시간표를 본다)
 //       <out>/<장면>-peaks.png, -peaks-before.png  기술마다 피크 프레임 (지금·이전, 2배)
-//   npm run fxcheck -- --swatch --look src/render/chars/raiden-anime.ts:RAIDEN_LOOK --name raiden --out previews/fx/raiden
-//     → <out>/<name>-swatch.png  14-4 색표 견본 (4색 띠 + 그 색으로 그린 띠 하나, 4배)
 // 이전 버전 = --base (기본 origin/main). --no-base면 지금 버전만.
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -19,7 +17,8 @@ import { encodeGif } from './gif.mjs';
 import { encodePng } from './png.mjs';
 
 const argv = process.argv.slice(2);
-const opt = { base: 'origin/main', noBase: false, moves: '', out: 'out/fxcheck', swatch: false, look: '', name: '' };
+// --mockup-world x,y: 목업(1배)의 왼쪽 위가 놓인 월드 px. 주면 게임 피크 프레임에서 같은 자리를 같은 크기로 잘라 나란히 놓는다
+const opt = { base: 'origin/main', noBase: false, moves: '', out: 'out/fxcheck', swatch: false, look: '', name: '', peak: '', mockup: 'docs/refs/effect_mockup_raiden4.png', mockupWorld: '' };
 let sceneName = '';
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -30,7 +29,15 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--swatch') opt.swatch = true;
   else if (a === '--look') opt.look = argv[++i];
   else if (a === '--name') opt.name = argv[++i];
+  else if (a === '--peak') opt.peak = argv[++i];
+  else if (a === '--mockup') opt.mockup = argv[++i];
+  else if (a === '--mockup-world') opt.mockupWorld = argv[++i];
   else sceneName = a;
+}
+// 피크 한 장 (키 실루엣 승인용): 기술 하나의 피크 프레임만 찍어 목업과 나란히. 이전 버전은 찍지 않는다
+if (opt.peak) {
+  opt.noBase = true;
+  opt.moves = opt.peak;
 }
 mkdirSync(opt.out, { recursive: true });
 
@@ -177,111 +184,11 @@ const [lookFile, lookExp] = (opt.look || ':').split(':');
 const look = opt.look ? (await vite.ssrLoadModule(`/${lookFile}`))[lookExp] : null;
 const toHex = (rgb) => `#${rgb.map((x) => x.toString(16).padStart(2, '0')).join('')}`;
 
-// ---------------------------------------------------------------- 색 견본 (14-4)
+// 색 견본·부품 시트 (--swatch)는 길티기어식 이펙트(14-8)로 바뀌며 없앴다: 라이덴 이펙트 확인은 tools/ggcheck.mjs
 if (opt.swatch) {
-  const exp = lookExp;
-  const A = await vite.ssrLoadModule('/src/vfx/anime/index.ts');
-  const steps = [['CORE', look.ramp.core], ['MAIN', look.ramp.main], ['DEEP', look.ramp.deep], ['RIM', look.ramp.rim]];
-  const nameOf = (rgb) => Object.entries(pal.COLORS).find(([, v]) => typeof v === 'string' && v.toLowerCase() === `#${rgb.map((x) => x.toString(16).padStart(2, '0')).join('')}`)?.[0] ?? '';
-  // 1배 그림 240×120: 위 4색 칸 (60×44), 아래 그 색으로 그린 띠 (일반 등급 잽 모양)
-  const W = 240;
-  const H = 128;
-  const base = img(W, H);
-  for (let i = 0; i < W * H; i++) base.d.set([14, 16, 30], i * 3);
-  steps.forEach(([label, c], k) => {
-    const rgb = hexOf(c);
-    for (let y = 8; y < 44; y++) for (let x = 8 + k * 58; x < 8 + k * 58 + 52; x++) base.d.set(rgb, (y * W + x) * 3);
-    text(base, label, 8 + k * 58, 47, 1, [200, 200, 210]);
-    text(base, `#${rgb.map((x) => x.toString(16).padStart(2, '0')).join('')}`, 8 + k * 58, 54, 1, [150, 150, 165]);
-  });
-  // 띠: 공용 부품으로 그린다 (판정 상자 = 머리)
-  const fr = { w: W, h: H, ox: 0, oy: 0, color: new Uint32Array(W * H), light: new Uint32Array(W * H), mark: new Uint8Array(W * H), box: [W, H, -1, -1] };
-  const list = [];
-  A.animeSwing((fx) => list.push(fx), look, { grade: 'normal', path: 'line', len: 150, width: 26 }, { x: 33, y: -40, w: 50, h: 12 }, { x: 100, y: 134, floor: 140, facing: 1 }, 7);
-  for (const fx of list) fx.draw(fr, 'back');
-  for (let i = 0; i < W * H; i++) {
-    const c = fr.color[i];
-    if (c >>> 24 && Math.floor(i / W) > 64) base.d.set(hexOf(c), i * 3);
-  }
-  const out = img(W * 4, H * 4);
-  blit(out, base, 0, 0, 4);
-  const name = opt.name || exp.toLowerCase();
-  save(`${opt.out}/${name}-swatch.png`, out);
-
-  // 부품 시트: 공용 부품을 하나씩 (이 캐릭터 색표로). 칸 200×110, 2배
-  const CW = 200;
-  const CH = 110;
-  const cells = [];
-  const cell = (label, draw) => {
-    const c = img(CW, CH);
-    for (let i = 0; i < CW * CH; i++) c.d.set([14, 16, 30], i * 3);
-    const fr2 = { w: CW, h: CH, ox: 0, oy: 0, color: new Uint32Array(CW * CH), light: new Uint32Array(CW * CH), mark: new Uint8Array(CW * CH), box: [CW, CH, -1, -1] };
-    draw(fr2);
-    for (let i = 0; i < CW * CH; i++) if (fr2.color[i] >>> 24) c.d.set(hexOf(fr2.color[i]), i * 3);
-    text(c, label, 4, 4, 1, [210, 210, 220]);
-    cells.push(c);
-  };
-  const SW = await vite.ssrLoadModule('/src/vfx/anime/sweep.ts');
-  const BD = await vite.ssrLoadModule('/src/vfx/anime/bands.ts');
-  const box = { x: 33, y: -40, w: 50, h: 12 };
-  const who = { x: 70, y: 98, floor: 104, facing: 1 };
-  const rangeFn = (X, Y) => { const lx = X - who.x; const ly = Y - who.y; return lx >= box.x && lx <= box.x + box.w && ly >= box.y && ly <= box.y + box.h; };
-  const path = [[who.x + box.x + box.w - 150, who.y - 34], [who.x + box.x + box.w, who.y - 34]];
-  const sweepOnly = SW.sweep({ path, width: 26, taper: 0.55, range: rangeFn });
-  const paint = (fr2, fn) => {
-    for (let c = 0; c < sweepOnly.n; c++) {
-      const j = sweepOnly.at[c];
-      const X = sweepOnly.x0 + (j % sweepOnly.w);
-      const Y = sweepOnly.y0 + Math.floor(j / sweepOnly.w);
-      const col = fn(c);
-      if (col === null || X < 0 || Y < 0 || X >= CW || Y >= CH) continue;
-      fr2.color[Y * CW + X] = col >>> 0;
-    }
-  };
-  cell('1 SWEEP', (fr2) => paint(fr2, (c) => (Math.abs(sweepOnly.v[c]) <= sweepOnly.hw[sweepOnly.s[c]] ? look.ramp.deep : null)));
-  cell('2 BANDS', (fr2) => paint(fr2, (c) => {
-    const k = sweepOnly.s[c];
-    const E = sweepOnly.hw[k];
-    const av = Math.abs(sweepOnly.v[c]);
-    if (av > E) return null;
-    const st = BD.stepOf(sweepOnly.rd[c], av, E, 2, 2, 0);
-    return BD.colorOf(look.ramp, st);
-  }));
-  const bandAt = (fr2, t, tail, fil = false) => {
-    const l2 = [];
-    A.animeSwing((fx) => l2.push(fx), fil ? look : { ...look, filaments: [0, 0], tail }, { grade: 'normal', path: 'line', len: 150, width: 26 }, box, who, 7);
-    const band = l2[0];
-    band.update(t / 60);
-    band.draw(fr2, 'back');
-  };
-  cell('3 TEAR 0', (fr2) => bandAt(fr2, 0, look.tail));
-  cell('3 TEAR 5', (fr2) => bandAt(fr2, 5, look.tail));
-  cell('4 SPEED', (fr2) => {
-    const sl = A.speedLines({ x: 110, y: 60, dir: 0, count: 14, ticks: 6, len: [60, 300], spread: 40, reach: 160, colors: [look.ramp.core, look.ramp.main, look.ramp.rim], seed: 3 });
-    sl.update(1 / 60);
-    sl.draw(fr2, 'back');
-  });
-  cell('5 SPIKES', (fr2) => {
-    const sp = A.spikes({ x: 100, y: 60, dir: 0, count: 7, len: [36, 72], white: look.ramp.core, rim: look.ramp.rim, seed: 5 });
-    sp.draw(fr2, 'front');
-  });
-  cell('7 EMBERS', (fr2) => {
-    const pts = [];
-    for (let k = 0; k <= 8; k++) pts.push([30 + k * 17, 60]);
-    const em = A.embers({ from: pts, count: 26, dir: 0, colors: [look.ramp.core, look.ramp.main, look.ramp.rim, look.ramp.deep], kind: look.ember, born: [0, 3], life: [8, 14], seed: 11 });
-    em.update(5 / 60);
-    em.draw(fr2, 'back');
-  });
-  cell('BAND+FIL', (fr2) => bandAt(fr2, 0, look.tail, true));
-  const PC = 4;
-  const sheet = img(PC * (CW + 2) - 2, Math.ceil(cells.length / PC) * (CH + 2) - 2, 40);
-  cells.forEach((c, k) => blit(sheet, c, (k % PC) * (CW + 2), Math.floor(k / PC) * (CH + 2), 1));
-  const big = img(sheet.w * 2, sheet.h * 2);
-  blit(big, sheet, 0, 0, 2);
-  save(`${opt.out}/${name}-parts.png`, big);
-  console.log('    색:', steps.map(([l, c]) => `${l} ${nameOf(hexOf(c))}`).join(' · '));
+  console.log('--swatch는 없어졌다: node tools/ggcheck.mjs를 쓴다');
   await vite.close();
-  process.exit(0);
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------- 장면 찍기
@@ -332,18 +239,25 @@ async function run(dir, port) {
     }, [sc.p1, sc.p2, !!sc.meter, sc.prep ?? '']);
   }
   await page.evaluate((n) => window.__debug.benchTicks(n), sc.settle);
+  // 이펙트 칸 기록 켜기 (지금 버전만 있다)
+  const hasMarks = !process.env.FX_NO_MARKS && (await page.evaluate(() => typeof window.__fxMarks === 'function' && (window.__fxMarks(), true)));
+  let logLen = hasMarks ? await page.evaluate(() => (window.__animeLog ? window.__animeLog().length : 0)) : 0;
   const frames = [];
   const held = new Set();
   for (const [keys, n] of sc.steps) {
     for (const k of [...held]) if (!keys.includes(k)) { await page.keyboard.up(k); held.delete(k); }
     for (const k of keys) if (!held.has(k)) { await page.keyboard.down(k); held.add(k); }
     for (let i = 0; i < n; i++) {
-      const f = await page.evaluate(() => {
+      const f = await page.evaluate((prevLen) => {
         const fr = window.__debug.frame(1);
         const s = window.__fight();
         const v = window.__debug.gl?.view.placed;
-        return { ...fr, tick: s.tick, cam: v ? [v.ix, v.iy] : [0, 0], who: s.fighters.map((x) => ({ mode: x.mode, move: x.move, t: x.t, x: x.x / 256 })) };
-      });
+        // 애니 이펙트 기록이 새로 생긴 프레임 (띠가 난 틱·맞힌 틱)이면 이펙트 칸도 받는다
+        const len = window.__animeLog ? window.__animeLog().length : 0;
+        const marks = prevLen >= 0 && len !== prevLen && window.__fxMarks ? window.__fxMarks() : null;
+        return { ...fr, tick: s.tick, cam: v ? [v.ix, v.iy] : [0, 0], marks, logLen: len, who: s.fighters.map((x) => ({ mode: x.mode, move: x.move, t: x.t, x: x.x / 256 })) };
+      }, hasMarks ? logLen : -1);
+      if (hasMarks) logLen = f.logLen;
       frames.push(f);
     }
   }
@@ -365,12 +279,44 @@ async function run(dir, port) {
       o.d[i * 3 + 1] = (c >> 8) & 255;
       o.d[i * 3 + 2] = c & 255;
     }
-    return { ...o, tick: f.tick, cam: f.cam, who: f.who };
+    return { ...o, tick: f.tick, cam: f.cam, who: f.who, marks: f.marks ? Buffer.from(f.marks, 'base64') : null };
   });
   return { frames: rgbFrames, log };
 }
 const after = await run('new', 4312);
 const before = opt.noBase ? null : await run('base', 4311);
+/** 그림 파일 읽기 (png·jpg·webp·gif 아무것이나): 브라우저가 풀어 준다. 없으면 null */
+async function decodeImage(file) {
+  if (!file || !existsSync(file)) return null;
+  const ext = file.split('.').pop().toLowerCase();
+  const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' }[ext] ?? 'image/png';
+  const page = await browser.newPage();
+  const res = await page.evaluate(async (u) => {
+    const im = new Image();
+    im.src = u;
+    await im.decode();
+    const c = document.createElement('canvas');
+    c.width = im.naturalWidth;
+    c.height = im.naturalHeight;
+    const g = c.getContext('2d');
+    g.drawImage(im, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const rgb = new Uint8Array(c.width * c.height * 3);
+    for (let i = 0, j = 0; i < d.length; i += 4, j += 3) {
+      // 투명한 곳은 검게
+      const a = d[i + 3] / 255;
+      rgb[j] = d[i] * a;
+      rgb[j + 1] = d[i + 1] * a;
+      rgb[j + 2] = d[i + 2] * a;
+    }
+    let s = '';
+    for (let i = 0; i < rgb.length; i += 0x8000) s += String.fromCharCode(...rgb.subarray(i, i + 0x8000));
+    return { w: c.width, h: c.height, data: btoa(s) };
+  }, `data:${mime};base64,${readFileSync(file).toString('base64')}`);
+  await page.close();
+  return { w: res.w, h: res.h, d: new Uint8Array(Buffer.from(res.data, 'base64')) };
+}
+const mockup = opt.peak ? await decodeImage(opt.mockup) : null;
 await browser.close();
 await vite.close();
 if (!opt.noBase) {
@@ -386,27 +332,55 @@ const peaks = moves.map((m) => {
   const sw = after.log.find((l) => l.move === m && l.swing);
   const tick = (hit ?? sw)?.tick;
   const idx = after.frames.findIndex((f) => f.tick === tick);
-  return { move: m, idx, tick, swing: sw?.swing, impact: hit?.impact };
+  return { move: m, idx, tick, swing: sw?.swing, impact: hit?.impact, at: (hit ?? sw)?.at };
 });
 for (const p of peaks) if (p.idx < 0) console.log(`NG  ${p.move}: 피크 프레임을 찾지 못함`);
 
 // 이펙트 칸 (4색 띠 색과 같은 칸) 재기
 const fxRgb = look ? [look.ramp.core, look.ramp.main, look.ramp.deep, look.ramp.rim].map((c) => toHex(hexOf(c))) : [];
-function measure(fr, prev) {
+function measure(fr, prev, at) {
   const set = new Set(fxRgb.map((h) => parseInt(h.replace('#', ''), 16)));
   let minX = W;
   let maxX = -1;
   let n = 0;
   const seen = new Map();
-  // HUD(위 32줄)는 빼고 잰다
+  // 상대 너머 (상대 몸 가운데보다 공격 방향 앞) 칸, 공격자 몸통·머리 자리 (발밑 기준 앞 −4~22px, 위 12~46px) 칸
+  let beyond = 0;
+  let body = 0;
+  const fc = at && at.facing < 0 ? -1 : 1;
+  const sdx = at ? at.dx - fr.cam[0] : 0;
+  const sax = at ? at.ax - fr.cam[0] : 0;
+  const say = at ? at.ay - fr.cam[1] : 0;
+  // 공격자 몸통 (엉덩이 → 목 선에서 4px 안)과 머리 (머리 가운데에서 7px 안): 자리가 없으면 발밑 기준 상자
+  const seg = (px, py, ax, ay, bx, by) => {
+    const vx = bx - ax;
+    const vy = by - ay;
+    const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy || 1)));
+    return Math.hypot(px - ax - vx * t, py - ay - vy * t);
+  };
+  const cx0 = fr.cam[0];
+  const cy0 = fr.cam[1];
+  const onBody = (x, y) => {
+    if (at && at.hx !== undefined) {
+      return seg(x, y, at.hx - cx0, at.hy - cy0, at.nx - cx0, at.ny - cy0) <= 4 || Math.hypot(x - (at.kx - cx0), y - (at.ky - cy0)) <= 7;
+    }
+    const lx = (x - sax) * fc;
+    const ly = y - say;
+    return lx >= -4 && lx <= 22 && ly >= -46 && ly <= -12;
+  };
+  // HUD(위 32줄)는 빼고 잰다. 이펙트 칸 기록(marks)이 있으면 그것으로 (캐릭터 색이 이펙트 색과 같아도 세지 않게)
   for (let y = 32; y < H; y++) for (let x = 0; x < W; x++) {
     const i = (y * W + x) * 3;
     const c = (fr.d[i] << 16) | (fr.d[i + 1] << 8) | fr.d[i + 2];
-    if (!set.has(c)) continue;
-    seen.set(c, (seen.get(c) ?? 0) + 1);
+    if (fr.marks ? !fr.marks[y * W + x] : !set.has(c)) continue;
+    if (set.has(c)) seen.set(c, (seen.get(c) ?? 0) + 1);
     n++;
     if (x < minX) minX = x;
     if (x > maxX) maxX = x;
+    if (at) {
+      if ((x - sdx) * fc > 0) beyond++;
+      if (onBody(x, y)) body++;
+    }
   }
   // 배경 밝기 (이펙트 색이 아닌 칸의 평균 흑백 밝기): 배경 누르기 확인
   const lum = (f) => {
@@ -420,7 +394,97 @@ function measure(fr, prev) {
     }
     return acc / Math.max(1, k);
   };
-  return { span: maxX >= 0 ? maxX - minX + 1 : 0, px: n, steps: [...seen.values()].filter((v) => v >= 8).length, lum: lum(fr), lumPrev: prev ? lum(prev) : 0 };
+  return { span: maxX >= 0 ? maxX - minX + 1 : 0, px: n, steps: [...seen.values()].filter((v) => v >= 8).length, lum: lum(fr), lumPrev: prev ? lum(prev) : 0, beyond: n ? beyond / n : 0, body };
+}
+
+// ---------------------------------------------------------------- 피크 한 장 (--peak): 목업(왼쪽)과 게임 피크 프레임(오른쪽, 2배)을 같은 높이로 나란히
+if (opt.peak) {
+  const p = peaks[0];
+  if (!p || p.idx < 0) process.exit(1);
+  const fr = after.frames[p.idx];
+  const ms = measure(fr, after.frames[Math.max(0, p.idx - 1)], p.at);
+  const at = p.at ?? {};
+  const sx = (v) => (v === undefined ? '-' : Math.round(v - fr.cam[0]));
+  console.log(`피크: ${p.move} 틱 ${p.tick} (프레임 ${p.idx}), 카메라 ${fr.cam.join(',')}`);
+  console.log(`  화면 자리: 공격자 발밑 x ${sx(at.ax)} y ${at.ay === undefined ? '-' : Math.round(at.ay - fr.cam[1])} · 상대 몸 가운데 x ${sx(at.dx)} (공격자에서 ${at.dx === undefined ? '-' : Math.round((at.dx - at.ax) * (at.facing < 0 ? -1 : 1))}px 앞)`);
+  console.log(`  이펙트 칸: ${ms.px} · 전체 폭 ${ms.span}px (${Math.round((ms.span / W) * 100)}%) · 색 단계 ${ms.steps} · 상대 너머 ${Math.round(ms.beyond * 100)}% · 공격자 몸통·머리 위 칸 ${ms.body}`);
+  const S = 2;
+  const game = img(W * S, H * S);
+  blit(game, fr, 0, 0, S);
+  save(`${opt.out}/${p.move}-peak.png`, game);
+  // 맞추기용: 피크 앞뒤 프레임 (1배)
+  for (const d of [-2, -1, 0, 1, 2]) {
+    const f = after.frames[p.idx + d];
+    if (!f) continue;
+    writeFileSync(`${opt.out}/${p.move}-frame${d >= 0 ? '+' : ''}${d}.png`, encodePng(f.w, f.h, f.d));
+    console.log(`  프레임 ${d >= 0 ? '+' : ''}${d}: 틱 ${f.tick} 카메라 ${f.cam.join(',')} · 공격자 화면 x ${(f.who[0].x - f.cam[0]).toFixed(1)} (${f.who[0].move} t${f.who[0].t}) · 상대 화면 x ${(f.who[1].x - f.cam[0]).toFixed(1)} (${f.who[1].mode})`);
+  }
+  // 왼쪽: 목업 (없으면 레퍼런스를 대신 두고 그렇다고 적는다)
+  const left = mockup ?? readPng('docs/refs/이펙트_레퍼런스_애니격투.png');
+  // 목업 배수 (정수배로 키운 그림이면 1배로 줄인다)
+  let mScale = 1;
+  for (let k = 6; k >= 2; k--) {
+    if (left.w % k || left.h % k) continue;
+    let ok = 0;
+    let tot = 0;
+    for (let by = 0; by + k <= left.h; by += k * 4) for (let bx = 0; bx + k <= left.w; bx += k * 4) {
+      tot++;
+      const i0 = (by * left.w + bx) * 3;
+      let same = true;
+      for (let y = 0; y < k && same; y++) for (let x = 0; x < k && same; x++) {
+        const i = ((by + y) * left.w + bx + x) * 3;
+        if (left.d[i] !== left.d[i0] || left.d[i + 1] !== left.d[i0 + 1] || left.d[i + 2] !== left.d[i0 + 2]) same = false;
+      }
+      if (same) ok++;
+    }
+    if (ok / tot > 0.95) { mScale = k; break; }
+  }
+  const one = img(left.w / mScale, left.h / mScale);
+  for (let y = 0; y < one.h; y++) for (let x = 0; x < one.w; x++) {
+    const si = ((y * mScale + (mScale >> 1)) * left.w + x * mScale + (mScale >> 1)) * 3;
+    one.d.set(left.d.subarray(si, si + 3), (y * one.w + x) * 3);
+  }
+  const GAP = 8;
+  const TOP = 22;
+  let o;
+  if (mockup && opt.mockupWorld) {
+    // 같은 월드 자리·같은 크기 (2배)
+    const [wx, wy] = opt.mockupWorld.split(',').map(Number);
+    const cx = Math.round(wx - fr.cam[0]);
+    const cy = Math.round(wy - fr.cam[1]);
+    const crp = img(one.w, one.h, 0);
+    for (let y = 0; y < one.h; y++) for (let x = 0; x < one.w; x++) {
+      const X = cx + x;
+      const Y = cy + y;
+      if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+      crp.d.set(fr.d.subarray((Y * W + X) * 3, (Y * W + X) * 3 + 3), (y * one.w + x) * 3);
+    }
+    console.log(`  목업 자리: 화면 ${cx},${cy}부터 ${one.w}×${one.h} (목업 ${mScale}배 → 1배)`);
+    o = img(one.w * S * 2 + GAP, TOP + one.h * S, 24);
+    blit(o, one, 0, TOP, S);
+    blit(o, crp, one.w * S + GAP, TOP, S);
+    text(o, 'MOCKUP', 4, 4, 3, [235, 235, 240]);
+    text(o, `GAME ${p.move} PEAK - HIT TICK`, one.w * S + GAP + 4, 4, 3, [235, 235, 240]);
+  } else {
+    const LH = H * S;
+    const LW = Math.round((left.w * LH) / left.h);
+    let lim;
+    if (left.h >= LH) lim = shrink(left, LW, LH);
+    else {
+      lim = img(LW, LH);
+      for (let y = 0; y < LH; y++) for (let x = 0; x < LW; x++) {
+        const si = (Math.floor((y * left.h) / LH) * left.w + Math.floor((x * left.w) / LW)) * 3;
+        lim.d.set(left.d.subarray(si, si + 3), (y * LW + x) * 3);
+      }
+    }
+    o = img(LW + GAP + W * S, TOP + LH, 24);
+    blit(o, lim, 0, TOP, 1);
+    blit(o, game, LW + GAP, TOP, 1);
+    text(o, mockup ? 'MOCKUP' : 'MOCKUP FILE NOT IN REPO - REFERENCE SHOWN', 4, 4, 3, mockup ? [235, 235, 240] : [255, 120, 120]);
+    text(o, `GAME ${p.move} PEAK - HIT TICK`, LW + GAP + 4, 4, 3, [235, 235, 240]);
+  }
+  save(`${opt.out}/${p.move}-peak-vs-mockup.png`, o);
+  process.exit(0);
 }
 
 // ---------------------------------------------------------------- 1) 레퍼런스와 나란히, 피크 모음, 흑백
@@ -442,16 +506,18 @@ for (const [suffix, src, map] of [['peaks', after, null], ['gray', after, gray],
   save(`${opt.out}/${sceneName}-${suffix}.png`, o);
 }
 
-// ---------------------------------------------------------------- 14-2 시간표: 기술마다 맞힌 틱부터 0·1·2·3·4·6·8·10·12·16·20틱 (두 사람 가운데를 240×150으로 잘라 1배)
+// ---------------------------------------------------------------- 14-2 시간표: 기술마다 맞힌 틱부터 0·1·2·3·4·6·8·12·16틱 (공격자 40px 뒤부터 앞으로 360×150, 1배)
 {
-  const OFF = [0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20];
-  const CW = 240;
+  const OFF = [0, 1, 2, 3, 4, 6, 8, 12, 16];
+  const CW = 360;
   const CH = 150;
   const o = img(OFF.length * (CW + 2) - 2, okPeaks.length * (CH + 2) - 2, 40);
   okPeaks.forEach((p, r) => {
     const f0 = after.frames[p.idx];
-    const mid = (f0.who[0].x + f0.who[1].x) / 2 - f0.cam[0];
-    const cx = Math.max(0, Math.min(W - CW, Math.round(mid - CW / 2)));
+    const fc = p.at && p.at.facing < 0 ? -1 : 1;
+    const ax = (p.at ? p.at.ax : f0.who[0].x) - f0.cam[0];
+    const left = fc > 0 ? ax - 40 : ax + 40 - CW;
+    const cx = Math.max(0, Math.min(W - CW, Math.round(left)));
     const cy = H - CH - 6;
     OFF.forEach((d, c) => {
       const f = after.frames[Math.min(after.frames.length - 1, p.idx + d)];
@@ -478,14 +544,14 @@ const spec = {
   strong: { len: [192, 288], thick: [36, 72], steps: 4, spikes: [5, 9], speed: [8, 20], press: [1, 2] },
 };
 const lines = [];
-lines.push(`| 기술 | 등급 | 띠 길이 px (화면 폭 %) | 이펙트 전체 폭 px (%) | 두께 px | 색 단계 (그림에서) | 꼬리 가닥 | 전류 가닥 | 가시 (길이 px) | 속도선 | 잔불 | 배경 누르기 (배경 밝기) | 14-3 |`);
-lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+lines.push(`| 기술 | 등급 | 띠 길이 px (화면 폭 %) | 이펙트 전체 폭 px (%) | 두께 px | 색 단계 (그림에서) | 상대 너머 | 공격자 몸통 위 칸 | 앞끝 가닥 | 전류 가지 | 가시 (길이 px) | 속도선 | 잔불 | 배경 누르기 (배경 밝기) | 14-3 |`);
+lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
 for (const p of okPeaks) {
   const m = p.swing ?? {};
   const g = spec[m.grade] ?? spec.normal;
   const fr = after.frames[p.idx];
   const prev = after.frames[Math.max(0, p.idx - 1)];
-  const ms = measure(fr, prev);
+  const ms = measure(fr, prev, p.at);
   const len = Math.round(m.len ?? 0);
   const thick = Math.round(m.thick ?? 0);
   const spikes = p.impact?.spikes ?? 0;
@@ -497,20 +563,25 @@ for (const p of okPeaks) {
     spikes >= g.spikes[0] && spikes <= g.spikes[1],
     !g.speed || (m.speed >= g.speed[0] && m.speed <= g.speed[1]),
     !g.press || (pr >= g.press[0] && pr <= g.press[1]),
+    !p.at || ms.beyond >= 0.7,
+    !p.at || ms.body === 0,
   ];
   const ok = pass.every(Boolean);
   const lenTxt = `${len} (${Math.round((len / W) * 100)}%)`;
   const spanTxt = `${ms.span} (${Math.round((ms.span / W) * 100)}%)`;
   const sl = p.impact?.spikeLen ? `${Math.round(p.impact.spikeLen[0])}~${Math.round(p.impact.spikeLen[1])}` : '-';
   const press = pr ? `${pr}틱 (${ms.lumPrev.toFixed(0)} → ${ms.lum.toFixed(0)})` : '-';
-  lines.push(`| ${p.move} | ${m.grade === 'strong' ? '강' : '일반'} | ${lenTxt} | ${spanTxt} | ${thick} | ${ms.steps} | ${m.strands ?? '-'} | ${m.filaments ?? '-'} | ${spikes} (${sl}) | ${m.speed || '-'} | ${m.embers ?? '-'} | ${press} | ${ok ? '통과' : `NG (${pass.map((v, i) => (v ? '' : ['길이', '두께', '색', '가시', '속도선', '누르기'][i])).filter(Boolean).join(',')})`} |`);
+  const beyondTxt = p.at ? `${Math.round(ms.beyond * 100)}%` : '-';
+  const bodyTxt = p.at ? `${ms.body}` : '-';
+  lines.push(`| ${p.move} | ${m.grade === 'strong' ? '강' : '일반'} | ${lenTxt} | ${spanTxt} | ${thick} | ${ms.steps} | ${beyondTxt} | ${bodyTxt} | ${m.strands ?? '-'} | ${m.branches ?? m.filaments ?? '-'} | ${spikes} (${sl}) | ${m.speed || '-'} | ${m.embers ?? '-'} | ${press} | ${ok ? '통과' : `NG (${pass.map((v, i) => (v ? '' : ['길이', '두께', '색', '가시', '속도선', '누르기', '상대 너머', '몸통'][i])).filter(Boolean).join(',')})`} |`);
 }
 const md = [
   `## ${sceneName} 피크 숫자 (14-3 기준, 이 화면 480×270 = 지침서 320×180 × 1.5)`,
   '',
   '- 일반: 길이 72~144px · 두께 15~30px · 색 3단계 이상 · 가시 3~5 · 잔불',
   '- 강: 전체 길이 화면 폭 40~60% (192~288px) · 두께 36~72px · 4단계 · 속도선 8~20 · 가시 5~9 · 배경 누르기 1~2틱',
-  '- 띠 길이 = 머리 + 몸통 + 찢어진 꼬리 (가장 긴 가닥 끝부터), 이펙트 전체 폭 = 피크 프레임에서 띠 4색이 칠한 가장 왼쪽~오른쪽 (가시·속도선 포함)',
+  '- 띠 길이 = 주먹 → 앞끝 가닥 끝, 이펙트 전체 폭 = 피크 프레임에서 띠 4색이 칠한 가장 왼쪽~오른쪽 (가시·속도선 포함)',
+  '- 상대 너머 = 피크 프레임 이펙트 칸 가운데 상대 몸 가운데보다 공격 방향 앞에 있는 비율 (70% 이상), 공격자 몸통 위 칸 = 공격자 몸통(엉덩이 → 목 선 4px 안)·머리(7px 안)에 칠한 이펙트 칸 (0)',
   '',
   ...lines,
   '',
@@ -570,4 +641,4 @@ if (before) {
   });
   gif(`${opt.out}/${sceneName}-before-after.gif`, pairs, 1, 2);
 }
-gif(`${opt.out}/${sceneName}-after-slow.gif`, after.frames.slice(i0, i1), 2, 6, [40, 60, 400, 190]);
+gif(`${opt.out}/${sceneName}-after-slow.gif`, after.frames.slice(i0, i1), 2, 6, [0, 80, 480, 180]);

@@ -746,7 +746,7 @@ export function flatMaterial(map: THREE.Texture, color?: string): THREE.ShaderMa
       varying vec2 vUv;
       void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
     `,
-    // 애니 이펙트 칸(vfx/anime)은 캔버스 알파 254로 표시돼 있다: 표시 그림 단계(1)에서는 알파 1을 적고 (후처리가 색 보정 없이 그대로),
+    // 애니 이펙트 칸(vfx/gg)은 캔버스 알파 254로 표시돼 있다: 표시 그림 단계(1)에서는 알파 1을 적고 (후처리가 색 보정 없이 그대로),
     // 빛 번짐 원본 단계(2)에서는 그 칸만 그린다. 화면 단계(0)의 알파는 0 (젖은 바닥 반사가 이펙트 칸을 바닥으로 보지 않게)
     fragmentShader: /* glsl */ `
       uniform sampler2D map;

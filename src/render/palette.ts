@@ -27,6 +27,13 @@ export const COLORS = {
   raidenFxRed: '#ff2440',
   raidenFxCrimson: '#a00c2c',
   raidenFxMagenta: '#ff2ec4',
+  // 라이덴 길티기어식 이펙트 색 (동작연출지침서 14-8 '라이덴 색'): 심 흰·연분홍 → 주색 밝은 빨강 → 진한 주색 → 가장 바깥·잉크 검붉은,
+  // 고리·테두리 자홍 소량 (노랑·주황 금지)
+  raidenFxCore: '#fff6f8',
+  raidenFxRose: '#ff526e',
+  raidenFxScarlet: '#cd1634',
+  raidenFxDark: '#46081e',
+  raidenFxSpark: '#ff46c8',
   suit: '#2d2735',
   suitLight: '#4a4156',
   suitDark: '#1a161f',
@@ -272,7 +279,8 @@ export const COMMON: readonly ColorName[] = [
   'sky', 'skyLight', 'skyDark', 'red', 'green',
   'fxWhite', 'fxYellow', 'fxOrange', 'fxFlame', 'fxRed', 'fxSoot', 'fxBlue', 'fxDeepBlue', 'fxNavy', 'neonRed', 'neonPink',
   // 라이덴
-  'raiden', 'raidenLight', 'raidenDark', 'raidenDeep', 'raidenFxRed', 'raidenFxCrimson', 'raidenFxMagenta', 'suit', 'suitLight', 'suitDark', 'suitGrey', 'suitGreyLight', 'suitGreyDark', 'paleGrey',
+  'raiden', 'raidenLight', 'raidenDark', 'raidenDeep', 'raidenFxRed', 'raidenFxCrimson', 'raidenFxMagenta',
+  'raidenFxCore', 'raidenFxRose', 'raidenFxScarlet', 'raidenFxDark', 'raidenFxSpark', 'suit', 'suitLight', 'suitDark', 'suitGrey', 'suitGreyLight', 'suitGreyDark', 'paleGrey',
   // 백은우
   'lily', 'lilyLight', 'lilyDark', 'lilyDeep', 'gown', 'gownShade', 'gownDark', 'hairBrown', 'hairBrownLight', 'hairBrownDark', 'thread', 'threadLight', 'ash', 'ashLight', 'ashDark', 'skin', 'skinLight', 'skinDark',
   // 에드워드

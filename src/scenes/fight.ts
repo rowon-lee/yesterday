@@ -167,6 +167,13 @@ export function fightScene(app?: App): Scene {
   (window as unknown as { __fight: () => SimState }).__fight = () => s;
   // 확인 도구(14-6 숫자 표)가 읽는 값: 애니 이펙트를 낸 기록
   (window as unknown as { __animeLog: () => unknown }).__animeLog = () => fightVfx.animeLog;
+  // 확인 도구: 이번 프레임 애니 이펙트 칸 (뒤·앞 겹 합침, 화면 칸마다 0/1, base64). 처음 부르면 기록을 켠다
+  (window as unknown as { __fxMarks: () => string }).__fxMarks = () => {
+    if (!vfx.debugMarks) vfx.debugMarks = new Uint8Array(SCREEN_W * SCREEN_H);
+    let bin = '';
+    for (let i = 0; i < vfx.debugMarks.length; i += 0x8000) bin += String.fromCharCode(...vfx.debugMarks.subarray(i, i + 0x8000));
+    return btoa(bin);
+  };
 
   /** 잔상을 남기고, 착지·박차고 뛰는 순간에 흙먼지를 일으킨다 (대시의 잔상·먼지는 Sprite Fusion Dash & Blink) */
   const watchMotion = () => {
@@ -353,20 +360,22 @@ export function fightScene(app?: App): Scene {
     const order = [...s.fighters].sort((a, b) => Number(a.mode === 'attack') - Number(b.mode === 'attack'));
     g.actors.update(s.fighters.map((f, i) => {
       const pose = fighterPose(f);
-      const white = fightVfx.white(i);
+      // 강타에 맞은 1~3틱: 주색 실루엣 + 밝은 테두리 (14-8 ⑧), 아니면 하얀 번쩍임
+      const struck = fightVfx.struck(i);
+      const white = !struck && fightVfx.white(i);
       const glow = chargeGlow(f);
       const jitter = f.hitstop > 0 && SHAKEN.has(f.mode) ? (s.tick % 2 ? 1 : -1) : 0;
       return {
         motion: motionByName.get(pose.motion)!,
         frame: pose.frame,
-        look: white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
+        look: struck ? 'struck' : white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
         skin: skins[i],
         flip: f.facing < 0,
         x: f.x / 256 + jitter,
         // 라이덴 등장: 번개 속에서 나타나 위에서 떨어진다 (렌더 전용 높이)
         h: -f.y / 256 + raidenIntroLift(f),
         floor: -floorBelow(s, f.x, f.y) / 256,
-        rim: !white,
+        rim: !white && !struck,
         // 대시 중 순간이동 구간은 깜빡인다. 순간이동 기술(라이덴 잔흔)은 사라지는 틱에 한 번 보이지 않는다
         visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f) && !raidenIntroHidden(f) && !rendersOf(f.char).hidden?.(s, f, i) && !fightVfx.hides(i),
         order: order.indexOf(f),
