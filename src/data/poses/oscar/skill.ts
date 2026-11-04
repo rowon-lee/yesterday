@@ -157,19 +157,19 @@ export const OSCAR_SUPER_ORBIT = seq('oscar/super_orbit', '오스카 필살기 �
   [SP_LIFT, 13, true],
 ]);
 
-/** 짧은 판 장면 1 (40틱, 같은 경기 두 번째부터): 전개와 검영을 한 장면에 — 눈을 감았다가 고개를 든다 */
-export const OSCAR_SUPER_OPEN_S: MotionData = {
-  name: 'oscar/super_open_s',
-  label: '오스카 필살기 짧은 판 장면 1 (전개·검영)',
-  wide: true,
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2],
-  keys: [
-    { at: 0, pose: SP_PUSH },
-    { at: 2, pose: SP_CLOSE, stop: true },
-    { at: 7, pose: SP_BREATH, stop: true },
-    { at: 13, pose: SP_LIFT, stop: true },
-  ],
-};
+/**
+ * 짧은 판 장면 1 (40틱, 같은 경기 두 번째부터, 2차 리워크): 날밑을 민 자세로 굳음 → 칼날이 되들어가며 고개가 숙는다 → 눈을 감고 멈춤 →
+ * 숨 한 번 → 고개가 한 번 더 숙었다가 (1틱) → 한 번에 고개를 든다 (순간) → 든 채 멈춤. 7프레임 (전개와 검영을 한 장면에)
+ */
+export const OSCAR_SUPER_OPEN_S = seq('oscar/super_open_s', '오스카 필살기 짧은 판 장면 1 (전개·검영)', [
+  [SP_PUSH, 4, true],
+  [OD({ hy: -21.9, tl: 12, hd: 11, lFx: 6, lBx: -6 }, 0), 2],
+  [SP_CLOSE, 10, true],
+  [SP_BREATH, 10, true],
+  [OD({ hy: -21.6, tl: 13.5, hd: 24, lFx: 6, lBx: -6 }, 0), 1],
+  [OD({ hy: -22.2, tl: 10, hd: 2, lFx: 6, lBx: -6 }, 0), 2],
+  [SP_LIFT, 11, true],
+]);
 
 /** 장면 3 정적 (20틱): 모든 소리가 멈춘 듯. 칼을 반 치쯤(7px) 뽑는다 */
 export const OSCAR_SUPER_STILL: MotionData = {
