@@ -70,17 +70,29 @@ const WJ_TUCK = R({ hx: 0, hy: -26, tl: 18, hd: 6, aFx: 11, aFy: -4, aBx: 8, aBy
 /** 꼭대기에서 몸을 펴 떨어질 준비 (라이덴 낙하 둘째 자세와 같은 꼴) */
 const WJ_OPEN = R({ hx: 0, hy: -25, tl: 14, hd: 7, aFx: 11, aFy: -5, aBx: 8, aBy: -1, lFx: 9, lFy: -7, lBx: -6, lBy: -5 });
 
-/** 벽 점프: 뒷발 하나로 벽을 걷어차고 → 앞무릎을 내지르며 비스듬히 솟고 → 웅크렸다 → 몸을 펴 낙하로. 14프레임 */
+/** 벽을 끝까지 민다: 뒷다리가 쭉 펴지며 몸이 벽에서 튀어 나간다 */
+const WJ_PUSH = R({ hx: 3, hy: -23.5, tl: 26, hd: -6, aFx: 12, aFy: -5.5, aBx: 8, aBy: -2.5, lFx: 10, lFy: -12, lBx: -14, lBy: -5 });
+/** 솟는 중: 끌리던 뒷다리를 당기기 시작한다 */
+const WJ_RISE = R({ hx: 1, hy: -26, tl: 18, hd: 1, aFx: 11.5, aFy: -5, aBx: 8, aBy: -2, lFx: 10, lFy: -13.5, lBx: -4, lBy: -8 });
+/** 웅크렸던 무릎이 풀리기 시작한다 */
+const WJ_UNFOLD = R({ hx: 0, hy: -25.5, tl: 16, hd: 6.5, aFx: 11, aFy: -4.5, aBx: 8, aBy: -1, lFx: 8.5, lFy: -11, lBx: -3, lBy: -9 });
+
+/**
+ * 벽 점프 (2차 리워크): 뒷발 하나로 벽을 걷어차고(1틱) → 끝까지 밀어(1틱) → 앞무릎을 내지르며 비스듬히 솟고 → 뒷다리를 당겨
+ * → 웅크림(멈칫) → 무릎이 풀리며 → 몸을 펴 낙하로. 7프레임 26틱 (총 길이 그대로, 끝의 복사 프레임 13=14는 dur로)
+ */
 export const RAIDEN_WALL_JUMP: MotionData = {
   name: 'raiden/wall_jump',
   label: '라이덴 벽 점프',
-  dur: [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+  dur: [1, 1, 3, 3, 6, 5, 7],
   keys: [
     { at: 0, pose: WJ_KICK },
+    { at: 1, pose: WJ_PUSH },
     { at: 2, pose: WJ_LAUNCH },
-    { at: 6, pose: WJ_TUCK, stop: true },
-    { at: 11, pose: WJ_OPEN },
-    { at: 13, pose: WJ_OPEN },
+    { at: 3, pose: WJ_RISE },
+    { at: 4, pose: WJ_TUCK, stop: true },
+    { at: 5, pose: WJ_UNFOLD },
+    { at: 6, pose: WJ_OPEN },
   ],
 };
 
