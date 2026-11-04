@@ -79,18 +79,22 @@ export const OSCAR_FALL: MotionData = {
 /** 닿는 순간: 무릎으로 가볍게 받는다 (소리 없이) */
 const L_TOUCH = OR({ hy: -20, tl: 16, hd: 14, lFx: 6, lBx: -5 });
 /** 가장 낮게: 2px 더 내려앉고 고개가 숙는다 */
-const L_LOW = OR({ hy: -18.5, tl: 18, hd: 15, lFx: 6, lBx: -5.5 });
+const L_LOW = OR({ hy: -18.3, tl: 18.5, hd: 16, lFx: 6, lBx: -5.5 });
 
-/** 착지: 닿음 → 무릎으로 받음 → 천천히 일어나 기본자세. 12프레임 × 1틱 (sim 착지 3틱에는 1·5·9번 프레임) */
+/**
+ * 착지 (2차 리워크): 닿음 → 무릎으로 받아 가장 낮게 (고개가 숙는다) → 일어나기 시작 → 고개를 들며 일어섬 → 기본자세.
+ * 5프레임 (sim은 착지 길이를 프레임 수로 고르게 나눈다: 표시 틱은 뷰어·시트용. 키 4개를 12장 × 1틱으로 늘이던 것 대신)
+ */
 export const OSCAR_LAND: MotionData = {
   name: 'oscar/land',
   label: '오스카 착지',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 2, 3, 3, 3],
   keys: [
     { at: 0, pose: L_TOUCH },
-    { at: 4, pose: L_LOW, stop: true },
-    { at: 8, pose: OR({ hy: -20.5, tl: 15, hd: 13 }) },
-    { at: 11, pose: O_STANCE },
+    { at: 1, pose: L_LOW, stop: true },
+    { at: 2, pose: OR({ hy: -19.8, tl: 16.5, hd: 14.5, lFx: 6, lBx: -5.5 }) },
+    { at: 3, pose: OR({ hy: -21.2, tl: 14.5, hd: 11 }) },
+    { at: 4, pose: O_STANCE },
   ],
 };
 
