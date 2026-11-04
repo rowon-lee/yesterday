@@ -48,18 +48,32 @@ export const EUNWOO_GUARD: MotionData = {
   follow: { ribbon: { disc: { r: 18, frames: [3, 4, 5, 6, 7, 8, 9] }, stiff: 0.5 } },
 };
 
-/** 방어 막힘: 몸이 뒤로 젖혀짐 → 되돌려 막기, 원은 내내 앞에. 12프레임 (sim은 막힌 경직 길이에 맞춰 늘인다) */
+/** 막힌 힘에 한 번 더 밀려 가장 젖혀진다 */
+const COVER_PUSHED = E({ hx: -5.5, hy: -20.8, tl: -16, hd: 14, aFx: 9.5, aFy: -5.5, aBx: -10.5, aBy: 3.5, lFx: 9, lBx: -11.5 });
+/** 젖혀졌던 몸이 앞으로 돌아온다 */
+const COVER_RECOIL = E({ hx: -3, hy: -20, tl: -6, hd: 8, aFx: 10.5, aFy: -3.5, aBx: -9.5, aBy: 6, lFx: 9, lBx: -10.5 });
+/** 자리 잡는 중 */
+const COVER_EASE = E({ hx: -2.2, hy: -19.8, tl: -3, hd: 6, aFx: 11, aFy: -2.5, aBx: -9, aBy: 7, lFx: 9, lBx: -10 });
+
+/**
+ * 방어 막힘 (2차 리워크): 몸이 뒤로 젖혀짐 → 한 번 더 밀림(멈칫) → 앞으로 돌아옴 → 버팀(멈칫) → 자리 잡음 → 막기, 원은 내내 앞에서 돈다.
+ * 12프레임 × 1틱 → 8프레임 (sim은 막힌 경직 길이를 프레임 수로 고르게 나눈다: 표시 틱은 뷰어·시트용)
+ */
 export const EUNWOO_GUARD_HIT: MotionData = {
   name: 'eunwoo/guard_hit',
   label: '백은우 방어 막힘',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [2, 1, 2, 1, 2, 1, 2, 1],
   keys: [
     { at: 0, pose: COVER_HIT },
-    { at: 2, pose: COVER_HIT, stop: true },
-    { at: 7, pose: COVER_BRACE, stop: true },
-    { at: 11, pose: COVER },
+    { at: 1, pose: COVER_PUSHED, stop: true },
+    { at: 2, pose: COVER_RECOIL },
+    { at: 3, pose: COVER_BRACE, stop: true },
+    { at: 4, pose: COVER_EASE },
+    { at: 5, pose: COVER_BREATH },
+    { at: 6, pose: COVER_SET },
+    { at: 7, pose: COVER },
   ],
-  follow: { ribbon: { disc: { r: 18, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] } } },
+  follow: { ribbon: { disc: { r: 18, frames: [0, 1, 2, 3, 4, 5, 6, 7] } } },
 };
 
 export const EUNWOO_GUARD_MOTIONS: readonly MotionData[] = [EUNWOO_GUARD, EUNWOO_GUARD_HIT];
