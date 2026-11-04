@@ -314,20 +314,23 @@ export const RAIDEN_PACHEON_REACT4: MotionData = {
 };
 
 // 장면 5 (잔심 20틱): 라이덴은 뻗은 주먹을 거두며 숨을 고른다 (김·잔 스파크는 렌더), 상대는 멀리서 떨어진다
-const PA_EXHALE = R({ hx: 4, hy: -14, tl: 22, hd: 10, tw: -4, aFx: 4, aFy: 3, aBx: 14, aBy: -5, lFx: 20, lBx: -10 });
-const PA_LOWER = R({ hx: 2, hy: -17, tl: 16, hd: 9, tw: -1, aFx: 10, aFy: -2, aBx: 9, aBy: 0, lFx: 14, lBx: -10 });
-/** 파천 장면 5: 라이덴 — 주먹을 거두고 잔심 (12프레임 20틱) */
+/** 숨을 크게 내쉬며 어깨가 내려앉는다 (주먹은 아직 앞에) */
+const PA_EXHALE = R({ hx: 5, hy: -13.5, tl: 28, hd: 11, tw: -4.5, aFx: 3, aFy: 3, aBx: 15, aBy: -5.5, lFx: 20, lBx: -12 });
+/** 회복: 무게가 뒤로 빠지며 두 손이 곧장 얼굴 앞 가드로, 앞발을 끌어들인다 */
+const PA_LOWER = R({ hx: 2.5, hy: -16.5, tl: 18, hd: 9, tw: -1.5, aFx: 10, aFy: -2, aBx: 10, aBy: -1, lFx: 15, lBx: -10.5 });
+const PA_GUARD = R({ hx: 0, hy: -18.5, tl: 15, hd: 8.5, aFx: 12.5, aFy: -3.5, aBx: 8.2, aBy: 0, lFx: 9.5, lBx: -9.5 });
+/** 파천 장면 5: 라이덴 — 주먹을 거두고 잔심 (5프레임 20틱: 뻗은 채 7틱 버팀 → 거둠, 처음 빠르고 끝으로 느리게) */
 export const RAIDEN_PACHEON_AFTER: MotionData = {
   name: 'raiden/pacheon_after',
   label: '라이덴 파천 연출 5 (잔심)',
   wide: true,
-  dur: [2, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2],
+  dur: [7, 3, 3, 3, 4],
   keys: [
-    { at: 0, pose: PB_HOLD },
-    { at: 3, pose: PB_HOLD, stop: true },
-    { at: 6, pose: PA_EXHALE },
-    { at: 9, pose: PA_LOWER },
-    { at: 11, pose: R_STANCE },
+    { at: 0, pose: PF_IN, stop: true },
+    { at: 1, pose: PA_EXHALE },
+    { at: 2, pose: PA_LOWER },
+    { at: 3, pose: PA_GUARD },
+    { at: 4, pose: R_STANCE },
   ],
 };
 /** 파천 장면 5: 상대 반응 — 멀리서 떨어진다 (12프레임 20틱) */
