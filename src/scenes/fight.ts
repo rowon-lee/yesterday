@@ -166,6 +166,13 @@ export function fightScene(app?: App): Scene {
   (window as unknown as { __fight: () => SimState }).__fight = () => s;
   // 확인 도구(14-6 숫자 표)가 읽는 값: 애니 이펙트를 낸 기록
   (window as unknown as { __animeLog: () => unknown }).__animeLog = () => fightVfx.animeLog;
+  // 확인 도구: 이번 프레임 애니 이펙트 칸 (뒤·앞 겹 합침, 화면 칸마다 0/1, base64). 처음 부르면 기록을 켠다
+  (window as unknown as { __fxMarks: () => string }).__fxMarks = () => {
+    if (!vfx.debugMarks) vfx.debugMarks = new Uint8Array(SCREEN_W * SCREEN_H);
+    let bin = '';
+    for (let i = 0; i < vfx.debugMarks.length; i += 0x8000) bin += String.fromCharCode(...vfx.debugMarks.subarray(i, i + 0x8000));
+    return btoa(bin);
+  };
 
   /** 잔상을 남기고, 착지·박차고 뛰는 순간에 흙먼지를 일으킨다 (대시의 잔상·먼지는 Sprite Fusion Dash & Blink) */
   const watchMotion = () => {

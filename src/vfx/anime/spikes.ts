@@ -1,7 +1,7 @@
 // YESTERDAY 애니 이펙트 부품 5 — 가시 파편 (동작연출지침서 14-1 ⑤).
-// 맞는 지점에서 날카로운 삼각 가시 5~9개(일반 3~5)가 방사형으로 튄다. 길이 16~48px(이 화면 24~72px), 흰색 + 보색. 동그란 고리를 대신한다.
-// 0틱에 다 뻗은 채로 나타나 1~2틱 그대로, 그 뒤 뿌리가 떨어져 바깥으로 날아가며 가늘어지고 짧아진다.
-// 공격 방향 쪽 가시가 가장 길다. 앞 겹에 그린다 (맞는 쪽을 덮는다: 14-5).
+// 맞는 지점에서 날카로운 삼각 가시가 튄다. 흰색 + 보색. 동그란 고리를 대신한다.
+// 사용자 피드백 2026-11-04: 가시는 공격 방향(앞쪽)으로만 방사한다 (뒤·위아래 십자 별 없이). 부채꼴·수·길이·굵기는 타마다 다르게 넘긴다.
+// 0틱에 다 뻗은 채로 나타나 hold틱 그대로, 그 뒤 뿌리가 떨어져 바깥으로 날아가며 가늘어지고 짧아진다. 앞 겹에 그린다 (맞는 쪽을 덮는다: 14-5).
 import { put, rng, tri, type AFrame, type Layer } from './common';
 
 export interface SpikeSpec {
@@ -10,9 +10,13 @@ export interface SpikeSpec {
   y: number;
   dir: number;
   count: number;
-  /** 길이 범위 (px) */
+  /** 길이 범위 (px): 부채꼴 가운데가 가장 길다 */
   len: readonly [number, number];
-  /** 흰색과 보색 (가시의 한쪽 면·테두리) */
+  /** 부채꼴 (라디안, 공격 방향 기준 [시작, 끝]: 화면 y가 아래로 +라서 −가 위쪽). 보는 쪽은 부르는 쪽이 이미 반영해 넘긴다 */
+  fan?: readonly [number, number];
+  /** 뿌리 굵기 (px) */
+  base?: number;
+  /** 흰색과 보색 (가시의 한쪽 면) */
   white: number;
   rim: number;
   /** 유지 틱, 전체 틱 */
@@ -26,18 +30,22 @@ export default function spikes(o: SpikeSpec) {
   const rand = rng(o.seed ?? 5);
   const hold = o.hold ?? 2;
   const ticks = o.ticks ?? 7;
+  const [f0, f1] = o.fan ?? [-0.6, 0.6];
+  const mid = (f0 + f1) / 2;
+  const half = Math.max(1e-3, (f1 - f0) / 2);
   const list = Array.from({ length: o.count }, (_, i) => {
-    // 고르게 돌리되 공격 방향에 하나를 둔다. 공격 방향 쪽은 길고 뒤쪽은 짧다
-    const a = o.dir + (i / o.count) * Math.PI * 2 + (rand() - 0.5) * (Math.PI / o.count);
-    const front = Math.max(0, Math.cos(a - o.dir));
-    const len = (o.len[0] + (o.len[1] - o.len[0]) * (0.35 + 0.65 * front) * (0.75 + rand() * 0.25)) * (i === 0 ? 1.1 : 1);
-    return { a, len, base: 2 + rand() * 2.2, r0: 2 + rand() * 3, side: rand() < 0.5 ? -1 : 1 };
+    // 부채꼴 안에 고르게, 조금씩 흔들어서. 가운데가 길고 가장자리가 짧다
+    const u = o.count === 1 ? 0.5 : i / (o.count - 1);
+    const off = f0 + (f1 - f0) * u + (rand() - 0.5) * ((f1 - f0) / Math.max(2, o.count)) * 0.6;
+    const center = 1 - Math.min(1, Math.abs(off - mid) / half);
+    const len = (o.len[0] + (o.len[1] - o.len[0]) * (0.3 + 0.7 * center)) * (0.85 + rand() * 0.3);
+    return { a: o.dir + off, len, base: (o.base ?? 3) * (0.7 + rand() * 0.5), r0: 2 + rand() * 3, side: rand() < 0.5 ? -1 : 1 };
   });
   const layer = o.layer ?? 'front';
   let t = 0;
   return {
     count: o.count,
-    /** 확인용: 가장 긴·짧은 가시 길이 */
+    /** 확인용: 가장 짧은·긴 가시 길이 */
     lengths(): [number, number] {
       const l = list.map((s) => s.len);
       return [Math.min(...l), Math.max(...l)];

@@ -499,10 +499,10 @@ export class FightVfx {
   private bolts: Array<{ who: number; fx: ReturnType<typeof raidenTrail> }> = [];
   /** 지상 1~4타 애니 이펙트 띠 (동작연출지침서 14장): 머리에서 띠 색 빛을 낸다 */
   private animes: Array<{ who: number; band: ReturnType<typeof animeSwing>['band']; strong: boolean }> = [];
-  /** 마지막으로 애니 이펙트 기술에 맞았는가 (그러면 하얗게 번쩍이지 않는다) */
+  /** 마지막으로 애니 이펙트 기술에 맞았는가 (그러면 하얀 번쩍임을 2틱만) */
   private flashOff = [false, false];
   /** 확인 도구용: 애니 이펙트를 낸 기록 (틱, 기술, 피크 숫자, 맞힘) — 14-6 숫자 표 */
-  readonly animeLog: Array<{ tick: number; move: string; swing?: Record<string, unknown>; impact?: Record<string, unknown> }> = [];
+  readonly animeLog: Array<{ tick: number; move: string; swing?: Record<string, unknown>; impact?: Record<string, unknown>; at?: Record<string, number> }> = [];
   /** 투전승불: 모으는 동안의 전류 윤곽 (사람마다), 그 단계, 떼면서 낸 원뿔 방전 (빛을 낸다) */
   private armor: Array<ReturnType<typeof raidenChargeArmor> | null> = [null, null];
   private chargeStage = [0, 0];
@@ -592,11 +592,19 @@ export class FightVfx {
         // 맞힌 자리 불꽃을 스스로 그리는 캐릭터 (오스카: 베기 선 끝의 작은 반짝임만)는 공통 불꽃을 쓰지 않는다
         // 라이덴 지상 1~4타: 가시 파편 (동그란 고리·불꽃 대신, 14-1 ⑤) + 4타는 배경 누르기 (14-1 ⑥)
         const anime = att?.char === 'raiden' && e.move ? RAIDEN_ANIME_MOVES[e.move] : undefined;
-        // 애니 이펙트로 맞으면 하얗게 번쩍이지 않는다 (14-5 '캐릭터 읽기': 흰 머리 위에서 흰 몸이 묻히지 않게, 1px 외곽선과 제 색으로 읽힌다)
+        // 애니 이펙트로 맞으면 하얀 번쩍임은 1~2틱만 (사용자 피드백 2026-11-04: 흰 머리 위에서 흰 몸이 오래 묻히지 않게)
         this.flashOff[1 - e.who] = !!anime;
         if (anime && att) {
-          const imp = animeImpact((fx) => this.layer.add(fx), RAIDEN_LOOK, anime.grade, wx, wy, att.facing, s.tick, this.seed++);
-          this.animeLog.push({ tick: s.tick, move: e.move!, impact: imp });
+          const imp = animeImpact((fx) => this.layer.add(fx), RAIDEN_LOOK, anime, wx, wy, att.facing, s.tick, this.seed++);
+          // 확인 도구용 자리: 공격자 발밑·몸통(엉덩이·목)·머리, 상대 몸 가운데 (월드 px)
+          const ax = att.x / 256;
+          const ay = GROUND_Y + att.y / 256;
+          const jt = fighterPose(att).joints;
+          const J = (q: readonly [number, number]) => [ax + att.facing * q[0], ay + q[1]];
+          const [hx, hy] = J(jt.hip);
+          const [nx, ny] = J(jt.neck);
+          const [kx, ky] = J(jt.head);
+          this.animeLog.push({ tick: s.tick, move: e.move!, impact: imp, at: { ax, ay, facing: att.facing, dx: def ? def.x / 256 : wx, hx, hy, nx, ny, kx, ky } });
           if (this.animeLog.length > 64) this.animeLog.shift();
         } else if (!(att && rendersOf(att.char).ownSpark)) this.layer.add(impact({ kind: 'hit', x, y, angle, size, ramp: fxRamp(att?.char === 'raiden' ? RAIDEN_RAMP : (att && (rendersOf(att.char).ramp as ColorName[] | undefined)) || WARM), seed: this.seed++ }));
         // 라이덴 지상 1~4타·투전승불·화과산: 화면 흔들림·번쩍임 정리 (1~4타 맞은 자리 그림은 위의 가시 파편), 4타는 짧게 흔들림
@@ -1023,10 +1031,16 @@ export class FightVfx {
    */
   private raidenAnime(f: Fighter, who: number, id: string, mv: MoveOf): void {
     const shape = RAIDEN_ANIME_MOVES[id]!;
-    const sw = animeSwing((fx) => this.layer.add(fx), RAIDEN_LOOK, shape, mv.data.box!, { x: f.x / 256, y: GROUND_Y + f.y / 256, floor: GROUND_Y + f.floor / 256, facing: f.facing }, this.seed++);
+    // 그 틱 주먹·발 자리 (판정이 시작하는 프레임의 치는 팔다리 끝): 띠는 여기서 시작해 상대 너머로 뻗는다
+    const joints = mv.frames.joints[mv.data.active[0]];
+    const tip = joints[(mv.data.limb?.[1] ?? 'hF') as 'hF'];
+    const ax = f.x / 256;
+    const ay = GROUND_Y + f.y / 256;
+    const sw = animeSwing((fx) => this.layer.add(fx), RAIDEN_LOOK, shape, mv.data.box!, { x: ax, y: ay, floor: GROUND_Y + f.floor / 256, facing: f.facing }, this.seed++, [tip[0], tip[1]]);
     this.animes = this.animes.filter((x) => x.who !== who);
     this.animes.push({ who, band: sw.band, strong: shape.grade !== 'normal' });
-    this.animeLog.push({ tick: this.now, move: id, swing: sw.metrics() });
+    const def = this.fighters?.[1 - who];
+    this.animeLog.push({ tick: this.now, move: id, swing: sw.metrics(), at: { ax, ay, facing: f.facing, dx: def ? def.x / 256 : ax } });
     if (this.animeLog.length > 64) this.animeLog.shift();
   }
 
@@ -1774,8 +1788,8 @@ export class FightVfx {
   /** 맞은 쪽을 하얗게 그릴 틱인가 */
   white(i: number): boolean {
     if (this.blink[i] > 0) return true;
-    if (this.flashOff[i]) return false;
     const t = this.since[i];
+    if (this.flashOff[i]) return t < 3;
     return this.heavy[i] ? t < FLASH_HEAVY || t === 6 : t < FLASH_LIGHT;
   }
 }

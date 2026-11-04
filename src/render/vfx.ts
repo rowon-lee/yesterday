@@ -67,6 +67,11 @@ export class VfxLayer {
   private mark = new Uint8Array(SCREEN_W * SCREEN_H);
   private out: ImageData | null = null;
   private canvas: HTMLCanvasElement | null = null;
+  /**
+   * 확인 도구용 (켜면): 이번 프레임에 애니 이펙트가 칠한 칸 (뒤·앞 겹을 합친 것, 화면 칸마다 1). 뒤 겹을 그릴 때 비우고 앞 겹까지 더한다.
+   * 캐릭터 색과 이펙트 색이 같아도 이펙트 칸만 셀 수 있다 (tools/fxcheck)
+   */
+  debugMarks: Uint8Array | null = null;
 
   /** 지난 그리기에서 이펙트가 칠한 사각형 (x0, y0, x1, y1). 다음 그리기 전에 그 안만 지운다 */
   private used = [0, 0, SCREEN_W - 1, SCREEN_H - 1];
@@ -112,6 +117,17 @@ export class VfxLayer {
     const frame: Frame & { mark: Uint8Array } = { w: SCREEN_W, h: SCREEN_H, ox: cam.x, oy: cam.y, color: this.color, light: this.light, mark: this.mark, box };
     for (const fx of this.list) fx.draw(frame, layer);
     this.used = box;
+    if (this.debugMarks) {
+      if (layer === 'back') this.debugMarks.fill(0);
+      if (box[2] >= 0) {
+        for (let y = box[1]!; y <= box[3]!; y++) {
+          for (let x = box[0]!; x <= box[2]!; x++) {
+            const i = y * SCREEN_W + x;
+            if (this.mark[i] && this.color[i] >>> 24) this.debugMarks[i] = 1;
+          }
+        }
+      }
+    }
     if (box[2] < 0) return false;
     if (!this.canvas) {
       this.canvas = document.createElement('canvas');

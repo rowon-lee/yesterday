@@ -1,14 +1,17 @@
 // YESTERDAY 애니 이펙트 부품 1 — 꽉 찬 면 (동작연출지침서 14-1 ① '면이다, 선이 아니다').
-// 궤적은 속이 꽉 찬 쐐기·띠·빔이다. 길(꼬리 → 머리)을 따라 두께가 있는 면을 한 번 래스터로 깔아 두고
+// 궤적은 속이 꽉 찬 쐐기·띠·빔이다. 길(시작 → 끝)을 따라 두께가 있는 면을 한 번 래스터로 깔아 두고
 // (칸마다 길 위 자리 u·중심선에서 떨어진 거리 v·판정 범위 가장자리까지 거리 rd), 프레임마다 그 값으로 색만 정한다.
-// 두께는 머리에서 가장 두껍고 꼬리로 갈수록 taper만큼 줄어든다 (쐐기). 머리 앞은 cap px만큼 둥글게 마감한다.
+// 두께 모양은 profile(길 위 자리 u마다 가장 굵은 곳 대비 비율)로 정한다. 없으면 끝에서 가장 두껍고 시작으로 갈수록 taper만큼 줄어드는 쐐기,
+// 끝은 cap px만큼 둥글게 마감한다.
 import { clamp01 } from './common';
 
 export interface SweepSpec {
-  /** 지나는 길 (월드 px, 꼬리 → 머리). 점 몇 개면 되고 촘촘히 다시 찍는다. 굽은 길은 점을 2px쯤 간격으로 */
+  /** 지나는 길 (월드 px, 시작 → 끝). 점 몇 개면 되고 촘촘히 다시 찍는다. 굽은 길은 점을 2px쯤 간격으로 */
   path: ReadonlyArray<readonly [number, number]>;
-  /** 머리 두께 (px) */
+  /** 가장 굵은 곳 두께 (px) */
   width: number;
+  /** 두께 모양: [길 위 자리 u (0 시작 → 1 끝), 가장 굵은 곳 대비 비율] 점들을 직선으로 잇는다. 있으면 taper·cap은 쓰지 않는다 */
+  profile?: ReadonlyArray<readonly [number, number]>;
   /** 꼬리 끝 두께 비율 (기본 0.55: 쐐기) */
   taper?: number;
   /** 머리 앞 둥근 마감 길이 (px, 기본 두께의 1/3) */
@@ -33,7 +36,7 @@ export interface Sweep {
   s: Int32Array;
   v: Float32Array;
   rd: Uint8Array;
-  /** 길 표본 (DS px 간격): 자리, 접선, 0~1 (꼬리 → 머리), 기본 반두께 (px) */
+  /** 길 표본 (DS px 간격): 자리, 접선, 0~1 (시작 → 끝), 기본 반두께 (px) */
   N: number;
   px: Float32Array;
   py: Float32Array;
@@ -45,8 +48,9 @@ export interface Sweep {
   len: number;
   /** 판정 범위 안 칸 수 (흰 심이 들어갈 자리가 있는가) */
   inRange: number;
-  /** 중심선이 판정 범위에 처음 들어가는 자리 u (머리가 시작하는 곳, 범위가 없으면 1) */
+  /** 중심선이 판정 범위에 들어가 있는 구간 [처음 u, 마지막 u] (범위가 없으면 [1, 1]) */
   uRange: number;
+  uRangeEnd: number;
 }
 
 /** 길 표본 간격 (px): 굽은 길 바깥쪽에서도 칸이 비지 않게 촘촘히 */
@@ -90,13 +94,24 @@ export function sweep(o: SweepSpec): Sweep {
   const cap = o.cap ?? o.width / 3;
   const u = new Float32Array(N);
   const hw = new Float32Array(N);
+  const pf = o.profile;
   for (let k = 0; k < N; k++) {
     const uk = k / (N - 1);
     u[k] = uk;
-    // 쐐기: 꼬리 taper → 머리 1 (앞쪽 절반에서 거의 다 두꺼워진다)
-    let prof = taper + (1 - taper) * Math.pow(uk, 0.6);
-    const fromHead = (1 - uk) * total;
-    if (fromHead < cap) prof *= Math.sqrt(Math.max(0, 1 - (1 - fromHead / cap) ** 2));
+    let prof: number;
+    if (pf && pf.length) {
+      // 두께 모양 점들 사이를 직선으로
+      let j = 0;
+      while (j + 1 < pf.length && pf[j + 1]![0] < uk) j++;
+      const a = pf[j]!;
+      const b = pf[Math.min(pf.length - 1, j + 1)]!;
+      prof = b[0] > a[0] ? a[1] + ((b[1] - a[1]) * clamp01((uk - a[0]) / (b[0] - a[0]))) : a[1];
+    } else {
+      // 쐐기: 시작 taper → 끝 1 (뒤쪽 절반에서 거의 다 두꺼워진다), 끝은 둥글게
+      prof = taper + (1 - taper) * Math.pow(uk, 0.6);
+      const fromHead = (1 - uk) * total;
+      if (fromHead < cap) prof *= Math.sqrt(Math.max(0, 1 - (1 - fromHead / cap) ** 2));
+    }
     hw[k] = (o.width / 2) * prof;
   }
   const slack = o.slack ?? 0;
@@ -176,13 +191,20 @@ export function sweep(o: SweepSpec): Sweep {
     if (rd[c]) inRange++;
   });
   let uRange = 1;
+  let uRangeEnd = 1;
   if (o.range) {
+    let first = -1;
+    let last = -1;
     for (let k = 0; k < N; k++) {
       if (o.range(px[k]!, py[k]!)) {
-        uRange = u[k]!;
-        break;
+        if (first < 0) first = k;
+        last = k;
       }
     }
+    if (first >= 0) {
+      uRange = u[first]!;
+      uRangeEnd = u[last]!;
+    }
   }
-  return { x0, y0, w, h, n, at, s, v, rd, N, px, py, tx, ty, u, hw, len: total, inRange, uRange };
+  return { x0, y0, w, h, n, at, s, v, rd, N, px, py, tx, ty, u, hw, len: total, inRange, uRange, uRangeEnd };
 }

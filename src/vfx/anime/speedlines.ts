@@ -21,6 +21,10 @@ export interface SpeedSpec {
   colors: readonly number[];
   /** 한 틱에 밀려가는 거리 (px) */
   speed?: number;
+  /** 선이 이 자리(가운데 기준 공격 방향 px)보다 뒤로는 그리지 않는다 (공격자 몸 쪽으로 넘어가지 않게) */
+  back?: number;
+  /** 바닥 y (월드): 이보다 아래(+)는 그리지 않는다 */
+  floor?: number;
   layer?: Layer;
   seed?: number;
 }
@@ -67,8 +71,10 @@ export default function speedLines(o: SpeedSpec) {
           let gap = false;
           for (const c of ln.cuts) if (Math.abs(u - c) * ln.len < 1 + 3 * k) gap = true;
           if (gap) continue;
+          if (o.back !== undefined && a - s < o.back) break;
           const x = sx - cx * s;
           const y = sy - cy * s;
+          if (o.floor !== undefined && y > o.floor - 1) continue;
           put(f, x, y, ln.col);
           if (ln.wide && k < 0.5 && s > n * 0.4) put(f, x - cy, y + cx, ln.col);
         }

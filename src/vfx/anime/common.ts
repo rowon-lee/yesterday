@@ -141,5 +141,33 @@ export function zigzag(n: number, step: number, rand: () => number, ds = 1): Flo
   return out;
 }
 
+/**
+ * 번개 윤곽 (지그재그): step px 안팎 간격으로 꼭짓점을 두고, 꼭짓점 값은 +와 −를 번갈아 (크기 0.3~1), 그 사이는 직선.
+ * zigzag보다 날카롭게 꺾인다 (부드러운 붓 자국이 아니라 번개). 길이 n짜리 배열 (표본마다 −1~1)
+ */
+export function sawtooth(n: number, step: number, rand: () => number, ds = 1): Float32Array {
+  const out = new Float32Array(n);
+  const stepN = Math.max(1, Math.round(step / ds));
+  let sign = rand() < 0.5 ? 1 : -1;
+  let a = sign * (0.3 + 0.7 * rand());
+  sign = -sign;
+  let b = sign * (0.3 + 0.7 * rand());
+  let next = Math.max(1, Math.round(stepN * (0.55 + rand() * 0.9)));
+  let since = 0;
+  for (let i = 0; i < n; i++) {
+    out[i] = a + ((b - a) * since) / next;
+    since++;
+    if (since >= next) {
+      since = 0;
+      a = b;
+      sign = -sign;
+      // 가끔 크게 튀어나온 뾰족한 끝 (번개 가지 끝처럼)
+      b = sign * (rand() < 0.15 ? 1.6 : 0.3 + 0.7 * rand());
+      next = Math.max(1, Math.round(stepN * (0.55 + rand() * 0.9)));
+    }
+  }
+  return out;
+}
+
 /** 0~1로 자른 값 */
 export const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
