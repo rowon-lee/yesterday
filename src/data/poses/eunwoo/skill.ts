@@ -96,9 +96,14 @@ export const EUNWOO_STILL_HERE = motion('still_here', '스킬 2 아직 여기 �
 const BT_FOLD = E({ hx: -0.5, hy: -19.5, tl: 14, hd: 4, tw: -3, aFx: -2, aFy: 12, aBx: -4, aBy: 12, lFx: 9, lBx: -9 });
 /** 칼집에 쥐고 몸을 낮춰 모은다 (멈칫) */
 const BT_SET = E({ hx: -1, hy: -17, tl: 22, hd: 6, tw: -4, aFx: -4, aFy: 13, aBx: -3, aBy: 12, lFx: 11, lBx: -10 });
-/** 모으는 동안 (되풀이 두 자세): 숨을 고르며 몸이 아주 조금 오르내린다 */
+/** 모으는 동안 (9~21틱 되풀이, 다섯 장): 숨을 고르며 몸이 오르내리고 고개가 들썩인다 (몸이 멈추지 않는다, 3장 백은우) */
 const BT_HOLD_A = E({ hx: -1, hy: -16.5, tl: 24, hd: 6, tw: -4, aFx: -4, aFy: 13, aBx: -3, aBy: 12.5, lFx: 11, lBx: -10 });
-const BT_HOLD_B = E({ hx: -1, hy: -17.2, tl: 22, hd: 4, tw: -4, aFx: -4, aFy: 12.6, aBx: -3, aBy: 12, lFx: 11, lBx: -10 });
+const BT_HOLD_B = E({ hx: -1, hy: -17.6, tl: 21, hd: 2.5, tw: -4, aFx: -4, aFy: 12.2, aBx: -3, aBy: 11.6, lFx: 11, lBx: -10 });
+const BT_HOLD_C = E({ hx: -1.2, hy: -16.1, tl: 25.5, hd: 7.5, tw: -4.5, aFx: -4.3, aFy: 13.3, aBx: -3.2, aBy: 13, lFx: 11, lBx: -10 });
+const BT_HOLD_D = E({ hx: -0.9, hy: -17.2, tl: 22, hd: 3.5, tw: -4, aFx: -4, aFy: 12.4, aBx: -3, aBy: 11.9, lFx: 11, lBx: -10 });
+const BT_HOLD_E = E({ hx: -1.1, hy: -16.4, tl: 24.8, hd: 6.8, tw: -4.3, aFx: -4.2, aFy: 13.1, aBx: -3.1, aBy: 12.8, lFx: 11, lBx: -10 });
+/** 접을 연검을 뒤허리로 가져가기 시작 (칼날은 아직 보인다) */
+const BT_FOLD_A = E({ hx: -1, hy: -21, tl: 8, hd: 3, tw: -1.5, aFx: 2, aFy: 13, aBx: -5, aBy: 13, lFx: 8, lBx: -7.5 });
 /** 뗀 순간: 칼을 뽑아 펼치며 앞위로 휘둘러 나간다 (스미어) */
 const BT_DRAW = E({ hx: 3, hy: -16, tl: 24, hd: -6, tw: 4, aFx: 14, aFy: -10, aBx: -9, aBy: 8, lFx: 18, lBx: -14 });
 /** 타격: 펼친 연검을 크게 휘두른다 (칼 쥔 팔 끝까지, 깊이 내디딤) */
@@ -108,16 +113,22 @@ const BT_HIT2 = E({ hx: 6.5, hy: -15, tl: 32, hd: -6, tw: 6, aFx: 16, aFy: 7.6, 
 const BT_WIRE = E({ hx: 5, hy: -16, tl: 24, hd: -4, tw: -4, aFx: 6, aFy: 12, aBx: 16, aBy: -6, lFx: 22, lBx: -15 });
 /** 감아 챈 와이어를 끌어당긴다 (몸을 뒤로 젖힌다) */
 const BT_PULL = E({ hx: 1, hy: -19, tl: 4, hd: 2, tw: -2, aFx: 10, aFy: 6, aBx: -6, aBy: 4, lFx: 16, lBx: -12 });
+/** 당긴 손을 내리며 앞발을 끌어들인다 */
+const BT_BACK = E({ hx: -0.5, hy: -21, tl: 3, hd: 4, aFx: 8.5, aFy: 10, aBx: -6, aBy: 10, lFx: 11, lBx: -8 });
 
-/** 차지 스텔라리스 발도: 14프레임 36틱 (모으기 되풀이 한 바퀴 12틱) */
-export const EUNWOO_BATTO = motion('batto', '차지 스텔라리스 발도', [2, 2, 2, 3, 3, 3, 3, 3, 1, 2, 2, 3, 4, 3], [
-  K(0, E_STANCE), K(1, BT_FOLD), K(3, BT_SET, true), K(4, BT_HOLD_A), K(6, BT_HOLD_B), K(7, BT_HOLD_A, true),
-  K(8, BT_DRAW), K(9, BT_HIT), K(10, BT_HIT2), K(11, BT_WIRE), K(12, BT_PULL, true), K(13, E_STANCE),
-], { frame: 8, limb: 'aF', stretch: 1.5 }, {
-  // 접어 칼집에 넣은 동안(2~8프레임)은 연검이 보이지 않고, 뽑으며 펼쳐 크게 휘두른다
+/**
+ * 차지 스텔라리스 발도 (2차 리워크): 1~4프레임 칼을 접어 칼집에 쥐고 낮춰 모음(한 번, 4 멈칫) → 5~9프레임 모으는 동안 되풀이(숨을 고르며 들썩, 다섯 장)
+ * → 떼면 10프레임(스미어)부터 뽑아 크게 휘두름(11~12프레임 판정) → 와이어를 던져 끌어당김 → 내림 → 기본자세.
+ * 14프레임 → 16프레임 36틱 (모으기 되풀이 9~21틱·떼기 21틱·판정 22~26틱은 공격 데이터 그대로)
+ */
+export const EUNWOO_BATTO = motion('batto', '차지 스텔라리스 발도', [2, 2, 2, 3, 3, 2, 3, 2, 2, 1, 2, 2, 3, 3, 2, 2], [
+  K(0, E_STANCE), K(1, BT_FOLD_A), K(2, BT_FOLD), K(3, BT_SET, true), K(4, BT_HOLD_A), K(5, BT_HOLD_B), K(6, BT_HOLD_C), K(7, BT_HOLD_D), K(8, BT_HOLD_E),
+  K(9, BT_DRAW), K(10, BT_HIT), K(11, BT_HIT2), K(12, BT_WIRE), K(13, BT_PULL, true), K(14, BT_BACK), K(15, E_STANCE),
+], { frame: 9, limb: 'aF', stretch: 1.5 }, {
+  // 접어 칼집에 넣은 동안(3~9프레임)은 연검이 보이지 않고, 뽑으며 펼쳐 크게 휘두른다
   ribbon: {
-    hidden: [2, 3, 4, 5, 6, 7], damp: 0.93, gravity: 0.6,
-    keys: [{ at: 0, stiff: 0.6, curl: 1 }, { at: 8, stiff: 0.4, curl: 1.2 }, { at: 9, stiff: 3.2, curl: 0.15 }, { at: 10, stiff: 2.6, curl: 0.25 }, { at: 11, stiff: 0.9, curl: 0.8 }, { at: 13, stiff: 0.6, curl: 1 }],
+    hidden: [2, 3, 4, 5, 6, 7, 8], damp: 0.93, gravity: 0.6,
+    keys: [{ at: 0, stiff: 0.6, curl: 1 }, { at: 9, stiff: 0.4, curl: 1.2 }, { at: 10, stiff: 3.2, curl: 0.15 }, { at: 11, stiff: 2.6, curl: 0.25 }, { at: 12, stiff: 0.9, curl: 0.8 }, { at: 15, stiff: 0.6, curl: 1 }],
   },
   wind: 0.3,
 });
