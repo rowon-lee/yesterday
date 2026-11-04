@@ -251,9 +251,10 @@ function pointsOf(j, who) {
 /**
  * 판정 손발(limb)이 없는 기술의 끝을 사람이 정한 것: 이름 → 관절. 없으면 '첫 프레임보다 가장 많이 앞으로 나간 손·발'.
  * 화과산은 몸 주변으로 터지는 기술이라 그 규칙이 넓게 디딘 앞발을 고른다 → 두 팔을 내던지는 앞손으로 (2차 리워크 라이덴).
- * 은우 와이어 내려찍기는 뒷손으로 던지는 와이어가 판정이라 연검 끝이 아니라 뒷손 (2차 리워크 백은우). 이 표가 연검 끝 규칙보다 먼저다
+ * 은우 와이어 내려찍기는 뒷손으로 던지는 와이어가 판정이라 연검 끝이 아니라 뒷손 (2차 리워크 백은우).
+ * 에드워드 염동력 끌어당김은 빈 뒷손으로 장막을 뻗는 기술이라 해머 머리가 아니라 뒷손 (2차 리워크 에드워드). 이 표가 연검 끝·해머 머리 규칙보다 먼저다
  */
-const TIP = { 'raiden/hwagwasan': 'hF', 'eunwoo/wire': 'hB' };
+const TIP = { 'raiden/hwagwasan': 'hF', 'eunwoo/wire': 'hB', 'edward/telekinesis': 'hB' };
 
 /** 공격의 끝 (손·발·무기 끝) */
 function tipFn(name, atk, joints) {
@@ -275,7 +276,7 @@ function tipFn(name, atk, joints) {
 /** 치는 쪽 어깨와 그 앞 마디 (어깨 → 팔꿈치 → 손 → 무기 끝, 엉덩이 → 무릎 → 발) */
 function chainOf(name, tip) {
   const who = whoOf(name);
-  if (who === 'edward' || who === 'eunwoo' && tip.ko === '연검 끝') return { sh: 'shF', mids: ['eF', 'hF'], weapon: true };
+  if (who === 'edward' && !tip.joint || who === 'eunwoo' && tip.ko === '연검 끝') return { sh: 'shF', mids: ['eF', 'hF'], weapon: true };
   const k = tip.joint ?? 'hF';
   if (k === 'hF') return { sh: 'shF', mids: ['eF', 'hF'] };
   if (k === 'hB') return { sh: 'shB', mids: ['eB', 'hB'] };

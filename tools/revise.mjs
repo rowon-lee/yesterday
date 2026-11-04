@@ -6,7 +6,7 @@
 //   <이름>-path.png          끝점 경로 (공격은 치는 손발 끝, 나머지는 가장 많이 움직인 관절): 회색 = 전, 노랑 = 지금, 점 옆 숫자 = 프레임
 //   <이름>-sil.png           단색 실루엣 띠 (위 = 전, 아래 = 지금. 주황 = 판정 틱의 프레임, 빨강 = 첫 판정 프레임과 대기 그림자)
 //   --lineup이면 <out>/lineup.png 하나 더: 네 캐릭터의 같은 공격(1~4타·띄우기·차지·스킬·필살기) 첫 판정 틱 그림을 나란히 (5장)
-// 그리고 out/revise.json: 프레임 수·틱·그림과 판정 데이터의 차이 (그림 관절로 만든 상자 vs 공격 데이터, 연검 선 판정은 그림 리본 vs 판정 선. 8px 넘으면 표에 적는다: 4장)
+// 그리고 out/revise.json: 프레임 수·틱·그림과 판정 데이터의 차이 (그림 관절로 만든 상자 vs 공격 데이터, 연검 선 판정은 그림 리본 vs 판정 선, 에드워드 해머 판정은 판정 틱마다 그림 해머 머리가 궤적 상자 밖으로 나간 거리. 8px 넘으면 표에 적는다: 4장)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createServer } from 'vite';
@@ -335,6 +335,7 @@ for (const name of names) {
     }
   }
   const hitDrift = [];
+  let hammerBefore = null;
   // 판정이 연검 선인 기술 (백은우): 그 판정 구간이 시작하는 틱의 그림 리본 점 8개와 판정 선 점 8개의 가장 큰 차이 (tools/ribbon-lines.mjs와 같은 잣대)
   const PICK = [0, 1, 3, 4, 5, 6, 8, 9];
   if (mo && mo.mv.time.hits.some((h) => h.line)) {
@@ -355,15 +356,30 @@ for (const name of names) {
       const data = h.box && { x: h.box[0], y: h.box[1], w: h.box[2], h: h.box[3] };
       hitDrift.push(edge(b, data));
     }
+  } else if (mo && name.startsWith('edward/') && mo.mv.time.hits.some((h) => h.box)) {
+    // 해머 판정 (에드워드): 판정 상자는 해머 머리가 지나는 길을 감싼 궤적 상자다. 판정 틱마다 그림 해머 머리 가운데(염동력은 뒷손, 내려찍기는 엉덩이)가 상자 밖으로 나간 거리의 최대
+    const out = (R, h) => {
+      let m = 0;
+      for (let t = h.t[0]; t < h.t[1]; t++) {
+        const j = R.joints[frameAt(R.cum, t)];
+        // 염동력은 장막을 뻗는 뒷손, 내려찍기의 떨어지는 판정은 몸(엉덩이)이 판정 자리다
+        const [x, y] = name === 'edward/telekinesis' ? j.hB : name === 'edward/air_slam' ? j.hip : [j.hF[0] + Math.cos(j.wa) * 30, j.hF[1] + Math.sin(j.wa) * 30];
+        const [bx, by, bw, bh] = h.box;
+        m = Math.max(m, Math.hypot(Math.max(bx - x, 0, x - bx - bw), Math.max(by - y, 0, y - by - bh)));
+      }
+      return Math.round(m * 10) / 10;
+    };
+    for (const h of mo.mv.time.hits) if (h.box) hitDrift.push(out(B, h));
+    if (A) hammerBefore = mo.mv.time.hits.filter((h) => h.box).map((h) => out(A, h));
   }
   const r = {
     name, before: A && { frames: A.frames.length, ticks: A.total, dur: A.dur }, now: { frames: B.frames.length, ticks: B.total, dur: B.dur },
-    dataTicks: mo?.mv.total ?? tl?.total ?? null, hits, hurtDrift, hitDrift, tip: tipJ,
+    dataTicks: mo?.mv.total ?? tl?.total ?? null, hits, hurtDrift, hitDrift, hammerBefore, tip: tipJ,
   };
   report.push(r);
   const warn = [r.dataTicks !== null && r.dataTicks !== B.total ? `틱 ${B.total} ≠ 데이터 ${r.dataTicks}` : '', hurtDrift > 8 ? `피격 ${hurtDrift}px` : '', hitDrift.some((x) => x > 8) ? `판정 ${Math.max(...hitDrift)}px` : '']
     .filter(Boolean).join(', ');
-  console.log(`${warn ? '!! ' : 'OK '} ${name}: ${A ? `${A.frames.length}F ${A.total}T → ` : ''}${B.frames.length}F ${B.total}T, 피격 차이 ${hurtDrift}px${hitDrift.length ? `, 판정 차이 ${hitDrift.join('/')}px` : ''}${warn ? `  (${warn})` : ''}`);
+  console.log(`${warn ? '!! ' : 'OK '} ${name}: ${A ? `${A.frames.length}F ${A.total}T → ` : ''}${B.frames.length}F ${B.total}T, 피격 차이 ${hurtDrift}px${hitDrift.length ? `, 판정 차이 ${hammerBefore ? `${hammerBefore.join('/')} → ` : ''}${hitDrift.join('/')}px` : ''}${warn ? `  (${warn})` : ''}`);
 }
 mkdirSync('out', { recursive: true });
 writeFileSync('out/revise.json', JSON.stringify(report, null, 1));
