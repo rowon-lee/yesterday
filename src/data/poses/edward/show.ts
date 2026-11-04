@@ -19,8 +19,11 @@ const IN_FALL = E({ hx: 0, hy: -23.5, tl: -3, hd: -7, lFx: 5, lFy: 0, lBx: -6, l
 const IN_TOUCH = E({ hx: 0, hy: -21.6, tl: 1, hd: -4, lFx: 6, lBx: -7, wind: 0.4 });
 /** 받은 힘을 버틴다 (1.5px 내려앉는다), 자락이 내려앉는다 */
 const IN_DIP = E({ hx: 0, hy: -21.2, tl: 2, hd: -3, lFx: 6.5, lBx: -7, wind: 0 });
-/** 선다: 턱을 든다 */
-const IN_STAND = E({ hd: -7 });
+/** 선다: 턱을 든다 (해머 머리는 착지에 눌렸다가 늦게 떠오른다) */
+const IN_STAND = E({ hd: -7, wa: -153 });
+/** 껍데기가 비치는 동안 가슴을 더 펴고 턱을 든다 (해머가 어깨에 늦게 자리 잡는다) */
+const IN_PROUD = E({ hy: -23, tl: -6, hd: -10, aFy: 6, wa: -143 });
+const IN_PROUD2 = E({ hy: -23.1, tl: -6.3, hd: -10.5, aFy: 6.1, wa: -147 });
 /** 빈 뒷손을 주머니에서 빼 넥타이 매듭으로 */
 const IN_TIE_REACH = E({ hd: -8, tl: -4, aBx: 6.5, aBy: 0.5 });
 /** 매듭을 쥐고 당겨 고쳐 맨다 (턱을 더 든다) */
@@ -30,7 +33,8 @@ const IN_TIE_TUG2 = E({ hd: -9, tl: -4.5, aBx: 6.5, aBy: 0.8 });
 const IN_TIE_DONE = E({ hd: -6, tl: -4, aBx: 1, aBy: 9 });
 
 /**
- * 등장: 선 채로 수직 낙하(1프레임 20틱) → 두 발로 쿵(2~3) → 선다(4~6, 껍데기가 비침) → 넥타이를 고쳐 맨다(7~12) → 기본자세(13~14). 14프레임 80틱
+ * 등장: 선 채로 수직 낙하(1프레임 20틱) → 두 발로 쿵(2~3) → 선다(4~6, 껍데기가 비치는 동안 가슴을 펴고 턱을 들며 해머가 늦게 자리 잡음) →
+ * 넥타이를 고쳐 맨다(7~12) → 기본자세(13~14). 14프레임 80틱 (2차 리워크: 같은 자세가 이어지던 5번을 바꿈)
  */
 export const EDWARD_INTRO: MotionData = {
   name: 'edward/intro',
@@ -41,7 +45,8 @@ export const EDWARD_INTRO: MotionData = {
     { at: 1, pose: IN_TOUCH },
     { at: 2, pose: IN_DIP, stop: true },
     { at: 3, pose: IN_STAND },
-    { at: 5, pose: IN_STAND, stop: true },
+    { at: 4, pose: IN_PROUD },
+    { at: 5, pose: IN_PROUD2, stop: true },
     { at: 7, pose: IN_TIE_REACH, stop: true },
     { at: 8, pose: IN_TIE_TUG },
     { at: 9, pose: IN_TIE_TUG2 },
