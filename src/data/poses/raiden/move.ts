@@ -89,9 +89,16 @@ const WF_DROP = R({ hx: 0.8, hy: -21.5, tl: 17, hd: 8, aFx: 13.5, aFy: -4.5, aBy
 const WB_LAND = R({ hx: -1, hy: -19.5, tl: 12, hd: 10, aFx: 12, aFy: -5, lFx: 6, lBx: -11 });
 /** 박참: 몸이 물러나 두 발이 앞으로 (닿은 자리 그대로) */
 const WB_PUSH = R({ hx: -1.5, hy: -18, tl: 13, hd: 11, aFx: 12, aFy: -3.5, aBy: 1.5, lFx: 6 + STEP_B, lBx: -11 + STEP_B });
-/** 공중 꼭대기: 엉덩이 3.5px 위, 두 발 2px 뜸. 1번째는 앞손을 앞으로 내밀어 거리를 재고, 2번째는 가드를 단단히 */
+/** 떠오름: 한 번에 솟고 발은 앞에 남는다 (손은 늦게 따라옴) */
+const WB_LIFT = R({ hx: -1.5, hy: -21.5, tl: 12, hd: 10, aFx: 12, aFy: -3.5, aBy: 1.5, lFx: 11, lFy: -1.5, lBx: -6, lBy: -1.5 });
+const WB_RISE_A = R({ hx: -1.5, hy: -22.3, tl: 11, hd: 9, aFx: 13.5, aFy: -4, aBy: -0.5, lFx: 10, lFy: -2, lBx: -7, lBy: -2 });
+const WB_RISE_B = R({ hx: -1.5, hy: -22.3, tl: 12, hd: 10, aFx: 12, aFy: -5, aBy: -0.5, lFx: 10, lFy: -2, lBx: -7, lBy: -2 });
+/** 공중 꼭대기 (멈칫): 엉덩이 3.5px 위, 두 발 2px 뜸. 1번째는 앞손을 앞으로 내밀어 거리를 재고, 2번째는 가드를 단단히 */
 const WB_TOP_A = R({ hx: -1.5, hy: -22.5, tl: 11, hd: 9, aFx: 14.5, aFy: -4.5, aBy: -1, lFx: 9, lFy: -2, lBx: -8, lBy: -2 });
 const WB_TOP_B = R({ hx: -1.5, hy: -22.5, tl: 12, hd: 10, aFx: 12, aFy: -5.5, aBy: -1, lFx: 9, lFy: -2, lBx: -8, lBy: -2 });
+const WB_DESC_A = R({ hx: -1.3, hy: -22, tl: 11.5, hd: 9.5, aFx: 13.5, aFy: -5, aBy: -1, lFx: 7.5, lFy: -1.8, lBx: -9.5, lBy: -1.8 });
+const WB_DESC_B = R({ hx: -1.3, hy: -22, tl: 12, hd: 10, aFx: 12, aFy: -5.5, aBy: -1, lFx: 7.5, lFy: -1.8, lBx: -9.5, lBy: -1.8 });
+const WB_DROP = R({ hx: -1, hy: -20.5, tl: 12, hd: 10, aFx: 12, aFy: -5, aBy: -0.5, lFx: 6.5, lFy: -0.8, lBx: -10.5, lBy: -0.8 });
 
 /** 앞 걷기 (sim 자리 run_f): 바운스 스텝으로 나아감. 14프레임, 표시 틱은 라이덴 속도(3.2px/틱)로 한 바퀴 84px를 가는 시간 */
 export const RAIDEN_WALK_F: MotionData = {
@@ -124,14 +131,23 @@ export const RAIDEN_WALK_B: MotionData = {
   name: 'raiden/walk_b',
   label: '라이덴 뒤 걷기',
   loop: true,
-  dur: [2, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2, 1, 2, 1],
+  // 표시 틱(뷰어·시트용, 게임은 거리로 넘긴다): 박차고 솟는 프레임과 닿기 직전 프레임을 1틱으로
+  dur: [2, 1, 2, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2, 1],
   keys: [
     { at: 0, pose: WB_LAND },
     { at: 1, pose: WB_PUSH },
+    { at: 2, pose: WB_LIFT },
+    { at: 3, pose: WB_RISE_A },
     { at: 4, pose: WB_TOP_A, stop: true },
+    { at: 5, pose: WB_DESC_A },
+    { at: 6, pose: WB_DROP },
     { at: 7, pose: WB_LAND },
     { at: 8, pose: WB_PUSH },
+    { at: 9, pose: WB_LIFT },
+    { at: 10, pose: WB_RISE_B },
     { at: 11, pose: WB_TOP_B, stop: true },
+    { at: 12, pose: WB_DESC_B },
+    { at: 13, pose: WB_DROP },
     { at: 14, pose: WB_LAND },
   ],
 };
