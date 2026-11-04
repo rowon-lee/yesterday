@@ -161,16 +161,33 @@ export const EDWARD_DASH: MotionData = {
 /** 공중에서 해머를 두 손으로 어깨 뒤에 치켜 감고 몸을 앞으로 던진다: 다리는 뒤로 끌린다 */
 const AD_LUNGE = grip2(E({ hx: 2, hy: -24, tl: 34, hd: -18, aFx: 2, aFy: -1, lFx: -2, lFy: -10, lBx: -11, lBy: -6, wa: -118 }));
 
-/** 공중 대시: 웅크림 → 2~3프레임 해머를 뒤로 끌고 몸을 던짐 → 몸을 세우며 낙하 준비. 12프레임 × 1틱 */
+/** 무릎을 끌어당겨 웅크리며 두 손으로 해머를 어깨 뒤로 당긴다 */
+const AD_COCK = grip2(E({ hx: 0, hy: -24.5, tl: 12, hd: -8, aFx: 3, aFy: 2, lFx: 8, lFy: -13, lBx: -1, lBy: -11, wa: -140 }));
+/** 몸을 앞으로 던진다: 다리가 뒤로 끌리고, 해머 머리는 아직 어깨 뒤에 처진다 */
+const AD_THROW = grip2(E({ hx: 2, hy: -24, tl: 30, hd: -16, aFx: 3, aFy: 0, lFx: -1, lFy: -9, lBx: -10, lBy: -6, wa: -146 }));
+/** 미끄러지며 몸이 더 눕는다 (머리가 따라잡았다가 한 번 더 쏠린다) */
+const AD_GLIDE = grip2(E({ hx: 2, hy: -23.6, tl: 37, hd: -17, aFx: 2, aFy: -0.5, lFx: -3, lFy: -9, lBx: -12, lBy: -5, wa: -110 }));
+const AD_GLIDE2 = grip2(E({ hx: 2, hy: -23.4, tl: 38, hd: -16, aFx: 2.5, aFy: 0, lFx: -2, lFy: -8, lBx: -12, lBy: -4.5, wa: -115 }));
+/** 몸을 세운다: 뒷손이 손잡이를 놓고, 해머는 늦게 어깨로 넘어온다 */
+const AD_RIGHT = E({ hx: 1, hy: -24, tl: 14, hd: -6, aFx: 4, aFy: 2, aBx: -5, aBy: 0, lFx: 5, lFy: -6, lBx: -6, lBy: -5, wa: -122 });
+
+/**
+ * 공중 대시 (2차 리워크): 꼭대기 → 웅크려 해머를 당김 → 몸을 던짐(해머 머리는 뒤에 처짐) → 해머가 따라잡음 → 미끄러지며 더 눕고 쏠림 →
+ * 몸을 세움(해머는 늦게 넘어옴) → 낙하 준비. 8프레임 (sim이 12틱을 프레임 수로 고르게 나눈다: 표시 틱은 뷰어·시트용)
+ */
 export const EDWARD_AIR_DASH: MotionData = {
   name: 'edward/air_dash',
   label: '에드워드 공중 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 1, 1, 2, 2, 2, 1, 2],
   keys: [
     { at: 0, pose: J_TOP },
-    { at: 2, pose: AD_LUNGE },
-    { at: 8, pose: AD_LUNGE, stop: true },
-    { at: 11, pose: F_OPEN },
+    { at: 1, pose: AD_COCK, stop: true },
+    { at: 2, pose: AD_THROW },
+    { at: 3, pose: AD_LUNGE },
+    { at: 4, pose: AD_GLIDE },
+    { at: 5, pose: AD_GLIDE2, stop: true },
+    { at: 6, pose: AD_RIGHT },
+    { at: 7, pose: F_OPEN },
   ],
 };
 
