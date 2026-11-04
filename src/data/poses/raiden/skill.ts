@@ -187,15 +187,15 @@ export const RAIDEN_PACHEON_PRESS: MotionData = {
 const RX1_A = S({ hx: -1, hy: -19, tl: 24, hd: 10, aFx: 5, aFy: 7, aBx: 3, aBy: 9, lFx: 8, lBx: -10 });
 const RX1_B = S({ hx: -1.5, hy: -18.5, tl: 18, hd: -14, aFx: 10, aFy: -4, aBx: -5, aBy: 2, lFx: 8, lBx: -10 });
 const RX1_C = S({ hx: -1, hy: -19, tl: 22, hd: 4, aFx: 4, aFy: 10, aBx: 6, aBy: 6, lFx: 9, lBx: -9 });
-/** 파천 장면 1: 상대 반응 — 굳음 (12프레임 24틱) */
+/** 파천 장면 1: 상대 반응 — 굳음 (1프레임 24틱) */
 export const RAIDEN_PACHEON_REACT1: MotionData = {
   name: 'raiden/pacheon_react1',
   label: '파천 상대 반응 1 (굳음)',
   wide: true,
-  dur: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+  dur: [24],
   keys: [
     { at: 0, pose: RX1_A, stop: true },
-    { at: 11, pose: RX1_A },
+    { at: 1, pose: RX1_A },
   ],
 };
 
