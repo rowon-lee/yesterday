@@ -83,12 +83,16 @@ export const OSCAR_ATK2 = cut('oscar/atk2', '오스카 2타 (반 걸음 미끄�
 ]);
 
 // ---- 3타 몸을 살짝 낮춤: 무릎을 굽혀 엉덩이를 2px 낮추고 칼날이 5px 비친다 ----
-export const OSCAR_ATK3 = iai('oscar/atk3', '오스카 3타 (몸을 살짝 낮춤)', {
-  ready: OD({ hy: -20.5, tl: 15, hd: 10, lFx: 7, lBx: -8 }, 0),
-  flick: OD({ hx: 0.5, hy: -19.8, tl: 17, hd: 9, lFx: 7.5, lBx: -8.5, tw: 1 }, 5),
-  click: OD({ hy: -20, tl: 16, hd: 12, lFx: 7.5, lBx: -8.5 }, 0),
-  still: OD({ hy: -20.3, tl: 15, hd: 13, lFx: 7.5, lBx: -8 }, 0),
-}, QUICK);
+/** 3타 (2차 리워크): 무릎을 굽혀 낮추고 손이 날밑으로 물러나 멈춤 (3틱) → 칼날 5px 1틱에 1px 더 가라앉음 (가로 선 두 줄) → '탁' → 낮은 채 여운 → 일어나며 무게가 뒤로 → 기본자세. 7프레임 26틱 */
+export const OSCAR_ATK3 = cut('oscar/atk3', '오스카 3타 (몸을 살짝 낮춤)', [
+  [O_STANCE, 1],
+  [OD({ hx: -0.5, hy: -20.3, tl: 15, hd: 12, lFx: 7, lBx: -8 }, -2), 3, true],
+  [OD({ hx: 0.5, hy: -19.4, tl: 18, hd: 8, lFx: 7.5, lBx: -8.5, tw: 1 }, 5), 1],
+  [OD({ hy: -19.7, tl: 16, hd: 12, lFx: 7.5, lBx: -8.5 }, 0), 2, true],
+  [OD({ hy: -20.1, tl: 15, hd: 16, lFx: 7.5, lBx: -8 }, 0), 6, true],
+  [OR({ hx: 0, hy: -21.8, tl: 12.5, hd: 10, lFx: 6.5, lBx: -6.5 }), 6],
+  [O_STANCE, 7],
+]);
 
 // ---- 4타 반쯤 뽑았다 납도: 칼을 반(7px) 뽑아 든 채 멈췄다가, 천천히 밀어 넣어 '탁' 하는 순간 앞 공간이 세 줄로 베인다 ----
 const A4_READY = OD({ hy: -21, tl: 15, hd: 9, lFx: 7, lBx: -8 }, 1);
