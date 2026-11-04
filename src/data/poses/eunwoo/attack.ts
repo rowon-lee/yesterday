@@ -181,8 +181,8 @@ export const EUNWOO_SWEEP = motion('low', '쓸기 다리 걸기', [1, 1, 2, 1, 2
 // ---- 대시 공격: 실 타고 찌르기 (금색 실을 따라 미끄러져 들어오며 펜싱처럼 길게 찌른다) ----
 /** 대시에서 이어진 자세: 낮게 미끄러지며 뒷손은 실을 쥐고 앞으로 */
 const DA_GLIDE = E({ hx: 3, hy: -15, tl: 28, hd: -12, tw: -1, aFx: 2, aFy: 6, aBx: 12, aBy: -2, lFx: 14, lBx: -17 });
-/** 감기 끝: 칼 쥔 손을 허리 뒤로 당긴다 */
-const DA_COIL = E({ hx: 2, hy: -16, tl: 22, hd: -8, tw: -3, aFx: -6, aFy: 2, aBx: 8, aBy: -2, lFx: 12, lBx: -16 });
+/** 감기 끝: 미끄러지던 몸을 뒷발 쪽으로 받치며(엉덩이 2.5px 뒤) 칼 쥔 손을 허리 뒤로 당긴다 */
+const DA_COIL = E({ hx: 0.5, hy: -16.5, tl: 20, hd: -8, tw: -4, aFx: -7, aFy: 2, aBx: 8, aBy: -2, lFx: 12, lBx: -16 });
 const DA_SMEAR = E({ hx: 5, hy: -14.5, tl: 34, hd: -12, tw: 3, aFx: 15.5, aFy: -6, aBx: -10, aBy: -2, lFx: 20, lBx: -18 });
 /** 타격: 앞무릎을 깊이 굽히고 뒷다리·뒷팔을 뒤로 길게 뻗어 칼 쥔 팔과 한 줄 (펜싱 런지) */
 const DA_HIT = E({ hx: 7, hy: -13.5, tl: 40, hd: -16, tw: 6, aFx: 15.8, aFy: -8.4, aBx: -14, aBy: -2, lFx: 24, lBx: -16 });
