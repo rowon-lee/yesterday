@@ -296,18 +296,20 @@ export const RAIDEN_PACHEON_FLY: MotionData = {
 const RX3_LAUNCH = S({ hx: -4, hy: -21, tl: -58, hd: -16, aFx: 14, aFy: -4, aBx: 11, aBy: -8, lFx: 14, lFy: -8, lBx: 6, lBy: -6 });
 const RX3_FLY = S({ hx: -2, hy: -22, tl: -80, hd: -10, aFx: 13, aFy: 4, aBx: 10, aBy: 2, lFx: 17, lFy: -14, lBx: 12, lBy: -10 });
 const RX3_FLY2 = S({ hx: -2, hy: -22, tl: -84, hd: -8, aFx: 14, aFy: 6, aBx: 11, aBy: 5, lFx: 18, lFy: -12, lBx: 13, lBy: -9 });
-/** 파천 장면 4: 상대 반응 — 날아감 (13프레임 34틱) */
+/** 날아가는 끝: 팔다리가 바람에 더 끌려 몸 앞쪽으로 늘어진다 */
+const RX3_FLY3 = S({ hx: -2, hy: -22, tl: -86, hd: -4, aFx: 15, aFy: 9, aBx: 12, aBy: 8, lFx: 19, lFy: -9, lBx: 15, lBy: -7 });
+/** 파천 장면 4: 상대 반응 — 날아감 (5프레임 34틱: 튀어 나감 → 눕듯 날아감, 처음 빠르고 점점 느리게) */
 export const RAIDEN_PACHEON_REACT4: MotionData = {
   name: 'raiden/pacheon_react4',
   label: '파천 상대 반응 4 (날아감)',
   wide: true,
-  dur: [3, 3, 3, 3, 3, 2, 2, 2, 3, 3, 3, 2, 2],
+  dur: [2, 4, 8, 10, 10],
   keys: [
     { at: 0, pose: RX2_ARCH2 },
-    { at: 2, pose: RX3_LAUNCH },
-    { at: 5, pose: RX3_FLY },
-    { at: 8, pose: RX3_FLY2 },
-    { at: 12, pose: RX3_FLY },
+    { at: 1, pose: RX3_LAUNCH },
+    { at: 2, pose: RX3_FLY },
+    { at: 3, pose: RX3_FLY2 },
+    { at: 4, pose: RX3_FLY3 },
   ],
 };
 
