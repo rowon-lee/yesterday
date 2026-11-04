@@ -239,10 +239,12 @@ const SL_LOAD = E({ hx: 0, hy: -24, tl: -6, hd: 4, tw: 2, aFx: 10, aFy: -4, aBx:
 const SL_WIND = E({ hx: -1, hy: -24, tl: -12, hd: 2, tw: 4, aFx: 10, aFy: -2, aBx: -10, aBy: -12, lFx: 7, lFy: -9, lBx: -6, lBy: -7 });
 /** 감기 끝: 등을 젖히고 와이어 쥔 뒷손을 머리 뒤로 */
 const SL_COIL = E({ hx: -1.5, hy: -24, tl: -16, hd: 2, tw: 5, aFx: 10, aFy: 0, aBx: -12, aBy: -11, lFx: 7, lFy: -9, lBx: -6, lBy: -7 });
-const SL_SMEAR = E({ hx: 1, hy: -24, tl: 18, hd: -10, tw: -3, aFx: 8, aFy: -6, aBx: 12, aBy: 6, lFx: 4, lFy: -12, lBx: -8, lBy: -10 });
+/** 스미어: 와이어 쥔 뒷손이 어깨 위를 넘어 앞으로 (던지는 손이 호를 그린다, 2차 리워크) */
+const SL_SMEAR = E({ hx: 1, hy: -24, tl: 18, hd: -10, tw: -3, aFx: 8, aFy: -6, aBx: 12, aBy: -3, lFx: 4, lFy: -12, lBx: -8, lBy: -10 });
 /** 타격: 몸을 숙이며 와이어 쥔 뒷팔을 앞아래로 끝까지 던진다 */
 const SL_HIT = E({ hx: 2, hy: -24, tl: 30, hd: -16, tw: -5, aFx: 6, aFy: -8, aBx: 12, aBy: 13.2, lFx: 2, lFy: -14, lBx: -10, lBy: -12 });
-const SL_HIT2 = E({ hx: 2, hy: -24, tl: 31, hd: -16, tw: -5.5, aFx: 6, aFy: -8, aBx: 10.5, aBy: 14.6, lFx: 2, lFy: -14, lBx: -10, lBy: -12 });
+/** 지나치기: 던진 힘에 몸째 한 번 더 숙여 와이어 쥔 손이 2~3px 더 나간다 */
+const SL_HIT2 = E({ hx: 3.5, hy: -23.5, tl: 36, hd: -17, tw: -6.5, aFx: 6, aFy: -8, aBx: 12, aBy: 13.5, lFx: 2, lFy: -14, lBx: -10.5, lBy: -12 });
 /** 감아 챈 와이어를 끌어당긴다 */
 const SL_YANK = E({ hx: 1, hy: -24, tl: 18, hd: -10, tw: -3, aFx: 8, aFy: -6, aBx: 4, aBy: 10, lFx: 4, lFy: -12, lBx: -8, lBy: -10 });
 const SL_PULL = E({ hx: 0, hy: -24, tl: 6, hd: -4, tw: -1, aFx: 10, aFy: -4, aBx: -2, aBy: 6, lFx: 6, lFy: -10, lBx: -6, lBy: -8 });
