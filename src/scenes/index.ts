@@ -4,6 +4,7 @@ import { stageScene } from './stage';
 import type { App, Scene } from './scene';
 import { titleScene } from './title';
 import { viewerScene } from './viewer';
+import { soundScene } from './sound';
 
 export type { App, Scene } from './scene';
 
@@ -13,6 +14,7 @@ export const SCENES: Record<string, (app: App) => Scene> = {
   stage: stageScene,
   blank: blankScene,
   viewer: viewerScene,
+  sound: soundScene,
 };
 export const DEFAULT_SCENE = 'title';
 /** three.js 2.5D 화면으로 무대를 그리는 장면 (나머지는 2D 캔버스에 바로 그린다) */

@@ -6,7 +6,7 @@
 //    재는 것: 피크(찢어짐), 시작 시각(맞는 틱에 바로), 길이(피크보다 40dB 낮아질 때까지), 저음 비중(200Hz 아래 에너지),
 //    1→4타가 갈수록 저음 비중과 길이가 늘어나는지, 강타 덕킹 깊이, 1→4타 틱 간격
 // 결과: previews/sound/NN-이름.wav, previews/sound/README.md(번호표·잰 값), previews/sound/waveforms.png(파형 모음)
-import { mkdirSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { createServer } from 'vite';
 import { chromium } from 'playwright';
 
@@ -114,7 +114,8 @@ if (res.error) {
 
 mkdirSync(OUT, { recursive: true });
 // 번호표에서 빠진 옛 파일은 지운다 (번호·이름이 바뀌었을 때)
-for (const f of readdirSync(OUT)) if (f.endsWith('.wav')) unlinkSync(`${OUT}/${f}`);
+const keep = new Set(res.items.map((it) => `${String(it.no).padStart(2, '0')}-${it.file}.wav`));
+for (const f of readdirSync(OUT)) if (f.endsWith('.wav') && !keep.has(f)) unlinkSync(`${OUT}/${f}`);
 
 const rows = [];
 const measured = {};
@@ -122,7 +123,10 @@ for (const it of res.items) {
   const x = f32(it.pcm);
   const dry = f32(it.dry);
   const name = `${String(it.no).padStart(2, '0')}-${it.file}.wav`;
-  writeFileSync(`${OUT}/${name}`, wav(x, it.rate));
+  // 브라우저 리버브의 덧셈 순서 때문에 몇 샘플이 1LSB씩 달라질 때가 있다 (-90dB, 들리지 않음).
+  // 그 정도 차이면 있던 파일을 그대로 둔다 (다시 돌릴 때마다 git에 바뀐 파일이 생기지 않게)
+  const bytes = wav(x, it.rate);
+  if (!sameWav(`${OUT}/${name}`, bytes)) writeFileSync(`${OUT}/${name}`, bytes);
   const peak = x.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
   // 시작: 첫 소리를 부른 시각(0)부터 (바닥 소리를 깐 덕킹 확인은 첫 타격부터)
   const first = it.marks[0]?.at ?? 0;
@@ -177,6 +181,15 @@ process.exit(failed ? 1 : 0);
 function f32(b64) {
   const buf = Buffer.from(b64, 'base64');
   return new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+}
+
+/** 있던 WAV와 길이가 같고 모든 샘플 차이가 2LSB 이하인가 */
+function sameWav(path, bytes) {
+  if (!existsSync(path)) return false;
+  const old = readFileSync(path);
+  if (old.length !== bytes.length) return false;
+  for (let i = 44; i < old.length; i += 2) if (Math.abs(old.readInt16LE(i) - bytes.readInt16LE(i)) > 2) return false;
+  return true;
 }
 
 /** 16비트 PCM 모노 WAV */

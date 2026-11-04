@@ -16,12 +16,21 @@ export interface MenuItem {
   /** 흐린 항목 옆에 작게 */
   note?: string;
   act?: () => void;
+  /**
+   * 좌우로 조절하는 항목 (음량): ←→(A·D)로 한 단계씩. 화면을 누르면 항목 왼쪽 반은 -1, 오른쪽 반은 +1.
+   * 고르기(J·Enter)는 act가 있으면 act
+   */
+  adjust?: (d: number) => void;
+  /** 이름 옆에 칸 막대로 보인다 (값, 칸 수) */
+  bar?: () => readonly [number, number];
 }
 
 const UP = ['ArrowUp', 'KeyW'];
 const DOWN = ['ArrowDown', 'KeyS'];
 const OK = ['KeyJ', 'Enter', 'Space'];
 const BACK = ['KeyK', 'Escape', 'Backspace'];
+const LEFT = ['ArrowLeft', 'KeyA'];
+const RIGHT = ['ArrowRight', 'KeyD'];
 const any = (set: ReadonlySet<string>, keys: string[]) => keys.some((k) => set.has(k));
 
 export const LINE_H = 16;
@@ -51,11 +60,20 @@ export class Menu {
   handle(input: TickInput, taps: readonly Tap[]): 'back' | null {
     if (any(input.pressed, UP)) this.move(-1);
     if (any(input.pressed, DOWN)) this.move(1);
+    const cur = this.items[this.sel];
+    if (cur?.adjust && !cur.disabled) {
+      if (any(input.pressed, LEFT)) cur.adjust(-1);
+      if (any(input.pressed, RIGHT)) cur.adjust(1);
+    }
     for (const t of taps) {
       const i = this.rects.findIndex(([x, y, w, h]) => t.x >= x && t.x < x + w && t.y >= y && t.y < y + h);
       if (i >= 0 && !this.items[i].disabled) {
         this.sel = i;
-        this.items[i].act?.();
+        const it = this.items[i];
+        if (it.adjust) {
+          const [x, , w] = this.rects[i]!;
+          it.adjust(t.x < x + w / 2 ? -1 : 1);
+        } else it.act?.();
         return null;
       }
     }
@@ -78,7 +96,9 @@ export class Menu {
     }
     this.items.forEach((it, i) => {
       const text = it.value ? `${it.label}  ${it.value()}` : it.label;
-      const w = textWidth(text, SCALE);
+      const bar = it.bar?.();
+      const textW = textWidth(text, SCALE);
+      const w = bar ? textW + BAR_GAP + barWidth(bar[1]) : textW;
       const x = Math.round(cx - w / 2);
       const on = i === this.sel && !it.disabled;
       const color = it.disabled ? COLORS.gridLight : on ? COLORS.goldLight : COLORS.white;
@@ -90,12 +110,27 @@ export class Menu {
       }
       drawText(ctx, text, x + 1, yy + 1, COLORS.ink, SCALE);
       drawText(ctx, text, x, yy, color, SCALE);
+      if (bar) drawBar(ctx, x + textW + BAR_GAP, yy + 1, bar[0], bar[1], on);
       if (it.disabled && it.note) drawText(ctx, it.note, x + w + 6, yy + 3, COLORS.gridLight);
       // 누르기 판정은 글자보다 넉넉히 (손가락)
       this.rects.push([x - 14, yy - 4, w + 28, LINE_H]);
       yy += LINE_H;
     });
     return yy - y;
+  }
+}
+
+/** 막대: 칸 하나 4px (3px 칸 + 1px 틈), 높이 8px */
+const BAR_GAP = 8;
+const barWidth = (n: number) => n * 4 - 1;
+
+/** 칸 막대 (음량): 찬 칸은 금빛, 빈 칸은 어둡게. 고른 항목이면 찬 칸을 밝게 */
+function drawBar(ctx: CanvasRenderingContext2D, x: number, y: number, value: number, n: number, on: boolean): void {
+  for (let i = 0; i < n; i++) {
+    ctx.fillStyle = i < value ? (on ? COLORS.goldLight : COLORS.gold) : COLORS.gridLight;
+    // 칸 높이가 오른쪽으로 갈수록 조금씩 커진다 (크게 들림)
+    const h = 4 + Math.round((i / Math.max(1, n - 1)) * 4);
+    ctx.fillRect(x + i * 4, y + 8 - h, 3, h);
   }
 }
 

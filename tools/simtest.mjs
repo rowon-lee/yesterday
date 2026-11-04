@@ -16,11 +16,17 @@ const NEW_KINDS = new Set(['containers', 'stump', 'watertower', 'sign', 'tram', 
 const FORBIDDEN = /\b(Math\.random|Date\.now|performance\.now|new Date)\b/;
 /** sim은 그림(anim/)을 읽지 않는다: 판정·시간은 공격 데이터(data/moves)에서만 (3-0a(2)) */
 const ANIM_IMPORT = /from '(\.\.\/)+anim\//;
+/** sim은 소리를 모른다: 소리는 렌더 쪽이 sim 사건을 읽어 낸다 (사운드기획서 0장) */
+const AUDIO_IMPORT = /from '(\.\.\/)+audio\//;
 for (const file of walk('src/sim')) {
   readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
     if (ANIM_IMPORT.test(line)) {
       failed++;
       console.log(`NG  sim이 그림을 읽음: ${file}:${i + 1}  ${line.trim()}`);
+    }
+    if (AUDIO_IMPORT.test(line)) {
+      failed++;
+      console.log(`NG  sim이 소리를 읽음: ${file}:${i + 1}  ${line.trim()}`);
     }
     if (FORBIDDEN.test(line)) {
       failed++;

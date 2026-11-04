@@ -25,6 +25,8 @@ class AudioEngine {
   jitter = true;
   /** 사람이 한 번이라도 눌러 켰다 (탭이 다시 보일 때 다시 켜도 되는지) */
   private unlocked = false;
+  /** 확인용: 소리 열쇠마다 실제로 튼 횟수 (window.__debug.sounds) */
+  readonly played: Record<string, number> = {};
 
   constructor() {
     onAudioSettings((s) => this.apply(s));
@@ -60,6 +62,13 @@ class AudioEngine {
       src.connect(this.ctx.destination);
       src.start();
     }
+  }
+
+  /** 사람의 입력 안에서 부른다: 켜고, 켜질 때까지 기다린다 (소리 시험 화면의 버튼처럼 누르자마자 틀 때) */
+  async ready(): Promise<boolean> {
+    this.unlock();
+    if (this.ctx && this.ctx.state !== 'running') await this.ctx.resume().catch(() => {});
+    return this.running;
   }
 
   /** 탭이 가려짐·다시 보임 */
@@ -104,6 +113,7 @@ class AudioEngine {
       if (prev !== undefined && Math.abs(t - prev) < TICK_SEC * 0.99) return null;
       this.last.set(key, t);
     }
+    if (key) this.played[key] = (this.played[key] ?? 0) + 1;
     return this.mixer.play(recipe, t, this.opts(stopTicks * TICK_SEC));
   }
 
