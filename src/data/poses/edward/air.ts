@@ -59,16 +59,30 @@ const F_OPEN = E({ hx: 0, hy: -24, tl: 3, hd: -2, aFx: 5, aFy: 5.5, aBx: -7, aBy
 /** 빨리 떨어질 때: 두 발을 넓게 벌려 무겁게 내리고 무릎을 굽혀 착지를 준비, 뒷손은 옆으로 벌려 균형 */
 const F_READY = E({ hx: 0, hy: -23, tl: 6, hd: 0, aFx: 5, aFy: 5, aBx: -9, aBy: -1, lFx: 10, lFy: -1, lBx: -10, lBy: -1, wa: -152 });
 
-/** 낙하: 웅크림(꼭대기) → 다리를 펴며 → 발을 넓게 벌려 착지 준비. 12프레임 */
+/** 무릎이 풀리기 시작한다 (해머는 아직 어깨에 걸친 그대로) */
+const F_UNTUCK = E({ hx: 0, hy: -24, tl: 4, hd: -2, aFx: 5, aFy: 5.5, aBx: -6, aBy: 3, lFx: 7, lFy: -9, lBx: -3, lBy: -7, wa: -148 });
+/** 두 발을 넓게 벌려 균형을 잡는다 (떨어지기 시작하자 해머 머리가 늦게 떠오른다) */
+const F_SPREAD = E({ hx: 0, hy: -23.5, tl: 5, hd: -1, aFx: 5, aFy: 5, aBx: -8.5, aBy: 0, lFx: 9.5, lFy: -2, lBx: -9, lBy: -2, wa: -137 });
+/** 팔로 균형을 잡으며 자리 잡는다 (해머 머리가 늦게 내려오기 시작한다) */
+const F_BALANCE = E({ hx: 0, hy: -23.2, tl: 5.5, hd: -0.5, aFx: 5, aFy: 5, aBx: -9.5, aBy: -2, lFx: 10, lFy: -1.5, lBx: -9.5, lBy: -1.5, wa: -145 });
+/** 빨리 떨어질 때: 무릎을 조금 더 굽혀 받을 준비를 하고 뒷손을 더 벌린다 */
+const F_FAST = E({ hx: 0, hy: -22.2, tl: 8, hd: 1.5, aFx: 5, aFy: 4.8, aBx: -10, aBy: -3, lFx: 10.5, lFy: -0.5, lBx: -10.5, lBy: -0.5, wa: -153 });
+
+/**
+ * 낙하 (2차 리워크): 웅크림(꼭대기) → 무릎이 풀림 → 한 번에 다리를 넓게 펴고 (해머 머리가 늦게 떠오름) → 팔로 균형 →
+ * 착지 준비 (해머가 늦게 내려앉음) → 빨리 떨어지면 무릎을 더 굽힘. 6프레임 (떨어지는 빠르기로 프레임을 고른다: dur 합 36 그대로)
+ */
 export const EDWARD_FALL: MotionData = {
   name: 'edward/fall',
   label: '에드워드 낙하',
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [3, 2, 7, 6, 8, 10],
   keys: [
     { at: 0, pose: J_TOP },
-    { at: 5, pose: F_OPEN },
-    { at: 10, pose: F_READY, stop: true },
-    { at: 11, pose: F_READY },
+    { at: 1, pose: F_UNTUCK },
+    { at: 2, pose: F_SPREAD },
+    { at: 3, pose: F_BALANCE },
+    { at: 4, pose: F_READY, stop: true },
+    { at: 5, pose: F_FAST },
   ],
 };
 
