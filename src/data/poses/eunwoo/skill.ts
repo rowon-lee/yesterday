@@ -147,9 +147,32 @@ export const EUNWOO_BATTO = motion('batto', '차지 스텔라리스 발도', [2,
 const GW_LOWER = E({ hx: -1, hy: -23, tl: 2, hd: 10, aFx: 5, aFy: 15, aBx: -2, aBy: 13, lFx: 6, lBx: -5, wa: 90 });
 const GW_OPEN = E({ hx: -0.5, hy: -23.4, tl: 0, hd: 4, aFx: 5, aFy: 15, aBx: 7, aBy: 7, lFx: 6, lBx: -5, wa: 90 });
 
-/** 필살기 선의 발동: 칼을 내림(1~4) → 뒷손을 편다(5~7) → 판정(8~10: 발밑 물결) → 거둠. 13프레임 33틱 */
-export const EUNWOO_GOODWILL = motion('goodwill', '필살기 선의', [2, 2, 3, 3, 2, 3, 3, 2, 3, 3, 3, 2, 2], [
-  K(0, E_STANCE), K(2, GW_LOWER), K(4, GW_LOWER, true), K(6, GW_OPEN), K(8, GW_OPEN, true), K(11, GW_LOWER), K(12, E_STANCE),
+/** 눈을 감으며 숨을 들이쉰다 */
+const GW_BREATH = E({ hx: -1.3, hy: -23.6, tl: 0.5, hd: 2.5, aFx: 6.5, aFy: 13.2, aBx: -5, aBy: 13.2, lFx: 6.3, lBx: -4.8, wa: 82 });
+/** 칼 쥔 손이 내려가기 시작하며 고개를 숙인다 */
+const GW_LOWER_A = E({ hx: -1.2, hy: -23.1, tl: 1.5, hd: 7, aFx: 5.6, aFy: 14.5, aBx: -3.5, aBy: 13.3, lFx: 6.1, lBx: -4.9, wa: 88 });
+/** 연검 끝까지 바닥에 늘어뜨리고 (멈칫) 숨을 내쉰다 */
+const GW_DEEP = E({ ...GW_LOWER, hy: -22.6, tl: 3.5, hd: 13, aFy: 15.5, aBx: -1.5, aBy: 13.8 });
+const GW_STILL = E({ ...GW_LOWER, hy: -23.2, tl: 2, hd: 11, aBx: -2.5, aBy: 12.8 });
+/** 뒷손이 천천히 열리며 앞으로 */
+const GW_OPEN_A = E({ hx: -0.8, hy: -23.2, tl: 1.5, hd: 8, aFx: 5, aFy: 15, aBx: 1.5, aBy: 11, lFx: 6, lBx: -5, wa: 90 });
+const GW_OPEN_B = E({ hx: -0.6, hy: -23.3, tl: 0.5, hd: 6, aFx: 5, aFy: 15, aBx: 5, aBy: 8.5, lFx: 6, lBx: -5, wa: 90 });
+/** 편 손을 내민 채 발밑에서 물결이 퍼지는 동안 (판정 20~29틱): 숨에 맞춰 손끝이 아주 조금 오르내린다 */
+const GW_HOLD_A = E({ ...GW_OPEN, hy: -23.8, tl: -1, hd: 2.5, aBx: 8, aBy: 5.6 });
+const GW_HOLD_B = E({ ...GW_OPEN, hy: -23.1, tl: 1, hd: 5, aBx: 6.6, aBy: 7.8 });
+const GW_HOLD_C = E({ ...GW_OPEN, hy: -23.6, tl: -0.5, hd: 3, aBx: 7.8, aBy: 6 });
+/** 거둔다 (처음 빠르고 끝으로 느리게) */
+const GW_RET_A = E({ hx: -1, hy: -23.2, tl: 1.5, hd: 6, aFx: 5.8, aFy: 14.3, aBx: -1, aBy: 12, lFx: 6.2, lBx: -4.8, wa: 86 });
+const GW_RET_B = E({ hx: -1.4, hy: -23.1, tl: 2, hd: 6.3, aFx: 6.6, aFy: 13.8, aBx: -4.5, aBy: 13.6, lFx: 6.4, lBx: -4.6, wa: 82 });
+
+/**
+ * 필살기 선의 발동 (2차 리워크): 눈을 감으며 숨을 들이쉼 → 칼을 내리며 고개를 숙임 → 연검을 바닥까지 늘어뜨리고 내쉼(멈칫)
+ * → 뒷손이 천천히 열리며 앞으로(멈칫) → 판정(20~29틱: 발밑 물결) 동안 숨에 맞춰 손끝이 오르내림 → 4틱 만에 거둠.
+ * 13프레임 → 16프레임 33틱 (dur 1~3으로 고르게 짧게, 3장 백은우)
+ */
+export const EUNWOO_GOODWILL = motion('goodwill', '필살기 선의', [2, 2, 2, 2, 3, 2, 2, 2, 3, 3, 3, 3, 1, 1, 1, 1], [
+  K(0, E_STANCE), K(1, GW_BREATH), K(2, GW_LOWER_A), K(3, GW_LOWER), K(4, GW_DEEP, true), K(5, GW_STILL), K(6, GW_OPEN_A), K(7, GW_OPEN_B),
+  K(8, GW_OPEN, true), K(9, GW_HOLD_A), K(10, GW_HOLD_B), K(11, GW_HOLD_C), K(12, GW_RET_A), K(13, GW_RET_B), K(14, E({ ...E_STANCE, hd: 6.3, aBy: 13.8, wa: 82 })), K(15, E_STANCE),
 ], undefined, { ribbon: { stiff: 0.4, gravity: 1.3 }, breeze: 0.5 });
 
 /** 장면 길이 맞추기: n프레임에 total틱을 고르게 */
