@@ -29,27 +29,31 @@ const IN_GUARD = R({ hx: -0.5, hy: -20, tl: 14, hd: 4, aFx: 12, aFy: -6, aBx: 8,
 /** 스텝을 밟기 시작한다: 웅크렸다 (대기의 웅크림과 같은 꼴) */
 const IN_SQUASH = R({ hx: 0, hy: -17, tl: 18, hd: 11, aFx: 12.5, aFy: -2.5, aBx: 8, aBy: 1.5 });
 
+/** 일어나는 중: 뒷무릎이 바닥에서 떨어지고 몸이 세워진다 */
+const IN_RISE2 = R({ hx: -0.8, hy: -18, tl: 22, hd: 1, aFx: 10.5, aFy: 0, aBx: 2, aBy: 0, lFx: 8, lFy: 0, lBx: -10, lBy: -1 });
+
 /**
- * 등장: 보이지 않음(1프레임 6틱) → 번개와 함께 떨어짐(2~3프레임) → 쾅! 히어로 랜딩(4~6프레임) → 고개를 들어 상대를 봄(7프레임) →
- * 바닥을 밀고 일어나 가드를 올림(8~11프레임) → 한 번 웅크렸다 기본자세(12~14프레임). 14프레임 55틱 (라운드 시작 연출 70틱 안).
- * 번개·충격·먼지·떨어지는 높이는 렌더
+ * 등장 (2차 리워크): 보이지 않음 → 번개와 함께 떨어짐(1, 6틱부터 보임) → 땅 직전(2) → 쾅! 히어로 랜딩(3, 10틱 = 렌더 RAIDEN_INTRO.land)
+ * → 버팀(4) → 숨 고름(5) → 고개를 들어 상대를 봄(6) → 바닥을 밀고 일어나 가드를 올림(7~9) → 한 번 웅크렸다 기본자세(10~11).
+ * 11프레임 55틱 (라운드 시작 연출 70틱 안). 번개·충격·먼지·떨어지는 높이는 렌더.
+ * 보이지 않는 6틱과 떨어지는 첫 프레임을 한 장으로, 히어로 랜딩의 사이 프레임(복사)은 dur로 늘였다
  */
 export const RAIDEN_INTRO: MotionData = {
   name: 'raiden/intro',
   label: '라이덴 등장',
-  dur: [6, 2, 2, 2, 6, 8, 6, 4, 4, 3, 3, 3, 3, 3],
+  dur: [8, 2, 2, 10, 10, 4, 4, 3, 3, 4, 5],
   keys: [
-    { at: 0, pose: IN_FALL },
-    { at: 1, pose: IN_FALL, stop: true },
-    { at: 2, pose: IN_FALL2, stop: true },
-    { at: 3, pose: IN_IMPACT, stop: true },
-    { at: 4, pose: IN_HERO },
-    { at: 6, pose: IN_HERO2, stop: true },
-    { at: 7, pose: IN_LOOKUP, stop: true },
-    { at: 8, pose: IN_RISE },
-    { at: 10, pose: IN_GUARD, stop: true },
-    { at: 11, pose: IN_SQUASH },
-    { at: 13, pose: R_STANCE },
+    { at: 0, pose: IN_FALL, stop: true },
+    { at: 1, pose: IN_FALL2, stop: true },
+    { at: 2, pose: IN_IMPACT, stop: true },
+    { at: 3, pose: IN_HERO },
+    { at: 4, pose: IN_HERO2, stop: true },
+    { at: 5, pose: IN_LOOKUP, stop: true },
+    { at: 6, pose: IN_RISE },
+    { at: 7, pose: IN_RISE2 },
+    { at: 8, pose: IN_GUARD, stop: true },
+    { at: 9, pose: IN_SQUASH },
+    { at: 10, pose: R_STANCE },
   ],
 };
 

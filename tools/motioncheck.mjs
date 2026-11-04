@@ -248,6 +248,12 @@ function pointsOf(j, who) {
   return p;
 }
 
+/**
+ * 판정 손발(limb)이 없는 기술의 끝을 사람이 정한 것: 이름 → 관절. 없으면 '첫 프레임보다 가장 많이 앞으로 나간 손·발'.
+ * 화과산은 몸 주변으로 터지는 기술이라 그 규칙이 넓게 디딘 앞발을 고른다 → 두 팔을 내던지는 앞손으로 (2차 리워크 라이덴)
+ */
+const TIP = { 'raiden/hwagwasan': 'hF' };
+
 /** 공격의 끝 (손·발·무기 끝) */
 function tipFn(name, atk, joints) {
   const who = whoOf(name);
@@ -256,10 +262,10 @@ function tipFn(name, atk, joints) {
   if (who === 'oscar') return { f: (j) => j.hF, ko: '칼자루 손' };
   const limb = atk.d.limb;
   if (limb) return { f: (j) => j[limb[1]], ko: { hF: '앞손', hB: '뒷손', fF: '앞발', fB: '뒷발', kF: '앞무릎', kB: '뒷무릎' }[limb[1]] ?? limb[1], joint: limb[1] };
-  // 판정 구간이 없는 기술: 첫 프레임보다 가장 많이 앞으로 나간 손·발
+  // 판정 구간이 없는 기술: 정해 둔 끝, 없으면 첫 프레임보다 가장 많이 앞으로 나간 손·발
   const hit = atk.active[0];
-  let best = 'hF';
-  for (const k of ['hF', 'hB', 'fF', 'fB']) if (joints[hit][k][0] - joints[0][k][0] > joints[hit][best][0] - joints[0][best][0]) best = k;
+  let best = TIP[name] ?? 'hF';
+  if (!TIP[name]) for (const k of ['hF', 'hB', 'fF', 'fB']) if (joints[hit][k][0] - joints[0][k][0] > joints[hit][best][0] - joints[0][best][0]) best = k;
   return { f: (j) => j[best], ko: { hF: '앞손', hB: '뒷손', fF: '앞발', fB: '뒷발' }[best], joint: best };
 }
 

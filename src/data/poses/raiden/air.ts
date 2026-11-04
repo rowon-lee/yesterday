@@ -49,81 +49,110 @@ export const RAIDEN_JUMP2: MotionData = {
   ],
 };
 
-// ---- 낙하 (프레임은 떨어지는 속도로 고른다: sim은 1/4px/틱마다 한 프레임) ----
-/** 내려오며 다리를 펴기 시작한다 */
+// ---- 낙하 (프레임은 떨어지는 속도로 고른다: sim은 1/4px/틱마다 한 틱 = dur 합 36이 가장 빠른 낙하) ----
+// 2차 리워크: 12프레임 × 3 → 5프레임. 막 떨어지기 시작할 땐 웅크린 채 조금, 빨라지면 다리가 한 번에 펴지고, 착지 준비에서 멈춘다
+/** 웅크린 무릎이 조금 풀린다 */
+const F_EASE = R({ hx: 0, hy: -25.5, tl: 15, hd: 7, aFx: 11, aFy: -4.5, aBx: 8, aBy: -1, lFx: 7.2, lFy: -12.3, lBx: -1.6, lBy: -10.3 });
+/** 내려오며 다리를 편다 */
 const F_OPEN = R({ hx: 0, hy: -25, tl: 14, hd: 7, aFx: 11, aFy: -5, aBx: 8, aBy: -1, lFx: 9, lFy: -7, lBx: -6, lBy: -5 });
+/** 발이 바닥을 찾아 내려간다 */
+const F_REACH = R({ hx: 0, hy: -24.3, tl: 13.3, hd: 7, aFx: 11.7, aFy: -5, aBx: 8, aBy: -1, lFx: 9, lFy: -2.8, lBx: -8.5, lBy: -1.8 });
 /** 빨리 떨어질 때: 두 발을 앞뒤로 벌려 내리고 무릎을 살짝 굽혀 착지를 준비, 가드는 그대로 */
 const F_READY = R({ hx: 0, hy: -24, tl: 13, hd: 7, aFx: 12, aFy: -5, aBx: 8, aBy: -1, lFx: 9, lFy: -2, lBx: -9, lBy: -1 });
 
-/** 낙하: 웅크림(꼭대기) → 다리를 펴며 → 발을 앞뒤로 벌려 착지 준비. 12프레임 */
+/** 낙하: 웅크림(꼭대기) → 무릎이 풀림 → 다리를 한 번에 폄 → 발이 바닥을 찾음 → 착지 준비(멈춤). 5프레임 (dur = 떨어지는 빠르기 구간) */
 export const RAIDEN_FALL: MotionData = {
   name: 'raiden/fall',
   label: '라이덴 낙하',
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [6, 6, 6, 6, 12],
   keys: [
     { at: 0, pose: J_TUCK },
-    { at: 5, pose: F_OPEN },
-    { at: 10, pose: F_READY, stop: true },
-    { at: 11, pose: F_READY },
+    { at: 1, pose: F_EASE },
+    { at: 2, pose: F_OPEN },
+    { at: 3, pose: F_REACH },
+    { at: 4, pose: F_READY, stop: true },
   ],
 };
 
-// ---- 착지 (sim은 착지 길이에 맞춰 늘이거나 줄인다: 보통 3틱이면 1·5·9번이 보인다) ----
+// ---- 착지 (sim은 착지 길이에 맞춰 프레임 수로 고르게 나눈다: dur를 보지 않는다. 보통 3틱이면 1·3·5번이 보인다) ----
+// 2차 리워크: 12프레임 × 1틱 → 6프레임. 같은 길이로 나뉘므로 빠르기 차이는 자세 간격으로: 닿자마자 크게 꺾이고, 바닥에서 조금 더 눌렸다가,
+// 한 번에 튀어 오르고, 꼭대기에서 천천히 기본자세로
+/** 무릎이 꺾이기 시작한다 (발이 닿은 바로 다음) */
+const L_HIT = R({ hx: 0, hy: -17, tl: 19, hd: 10, aFx: 11.5, aFy: -3, aBx: 7.5, aBy: 1, lFx: 9, lBx: -9 });
 /** 무릎으로 받는다: 깊게 웅크리고 손이 처진다 */
 const L_SQUASH = R({ hx: 0, hy: -14, tl: 24, hd: 12, aFx: 11, aFy: -1, aBx: 7, aBy: 3, lFx: 9, lBx: -9 });
 /** 받은 힘으로 통 튀어 오른다 (발끝으로, 바운스로 이어짐) */
 const L_BOUNCE = R({ hx: 0, hy: -21.5, tl: 13, hd: 7, aFx: 13, aFy: -5, aBx: 8, aBy: -1, lFx: 8, lFy: -1, lBx: -9, lBy: -1 });
+/** 튀어 오른 끝에서 내려앉기 시작 */
+const L_SETTLE = R({ hx: -0.3, hy: -20, tl: 14, hd: 7.5, aFx: 13, aFy: -4.5, aBx: 8, aBy: -0.5, lFx: 8, lFy: -0.5, lBx: -9, lBy: -0.5 });
 
-/** 착지: 발이 닿음 → 무릎으로 깊게 받음 → 통 튀어 올라 → 기본자세 (대기 바운스로 이어진다). 12프레임 × 1틱 */
+/** 착지: 발이 닿음 → 무릎이 꺾임 → 깊게 받음(멈칫) → 통 튀어 오름 → 내려앉음 → 기본자세 (대기 바운스로 이어진다). 6프레임 */
 export const RAIDEN_LAND: MotionData = {
   name: 'raiden/land',
   label: '라이덴 착지',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  // 표시 틱은 뷰어·시트용 (게임은 착지 길이를 프레임 수로 고르게 나눈다)
+  dur: [2, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: F_READY },
-    { at: 3, pose: L_SQUASH, stop: true },
-    { at: 8, pose: L_BOUNCE, stop: true },
-    { at: 11, pose: R_STANCE },
+    { at: 1, pose: L_HIT },
+    { at: 2, pose: L_SQUASH, stop: true },
+    { at: 3, pose: L_BOUNCE },
+    { at: 4, pose: L_SETTLE },
+    { at: 5, pose: R_STANCE },
   ],
 };
 
-// ---- 지상 대시 (sim: 12틱, 2~7틱째 앞으로 빠르게) ----
+// ---- 지상 대시 (sim: 12틱, 2~7틱째 앞으로 빠르게. 프레임은 12틱을 프레임 수로 고르게 나눈다) ----
+// 2차 리워크: 12프레임 × 1틱(4~7번 같은 자세) → 6프레임 × 2틱. 같은 자세를 늘어놓지 않고 파고든 뒤 뒷발을 끌며 일어선다
+/** 박차기 시작: 엉덩이가 먼저 떨어지며 몸이 앞으로 기운다 (뒷발로 바닥을 민다) */
+const D_DIP = R({ hx: 1.5, hy: -16, tl: 28, hd: -2, aFx: 12, aFy: -2, aBx: 8, aBy: 2, lFx: 11, lBx: -12, lBy: 0 });
 /** 낮게 파고든다: 엉덩이를 6px 낮추고 몸을 깊이 숙이되 고개는 들어 상대를 보고, 가드는 얼굴 앞. 앞발은 멀리, 뒷다리는 뒤로 쭉 */
 const D_DIVE = R({ hx: 3, hy: -13, tl: 36, hd: -10, aFx: 12, aFy: 0, aBx: 8, aBy: 3, lFx: 16, lBx: -16, lBy: 0 });
+/** 미끄러지는 중: 뒷발이 바닥을 긁으며 끌려온다 (몸은 낮은 채) */
+const D_DRAG = R({ hx: 3, hy: -13.5, tl: 34, hd: -9, aFx: 12, aFy: -0.5, aBx: 8, aBy: 2.5, lFx: 15.5, lBx: -13, lBy: -1 });
 /** 미끄러지듯 나아가는 끝: 뒷발을 끌어당기며 몸을 일으킨다 */
 const D_GLIDE = R({ hx: 2, hy: -15, tl: 30, hd: -6, aFx: 12, aFy: -1, aBx: 8, aBy: 2, lFx: 14, lBx: -10, lBy: -2 });
 /** 다시 가드 자세로 서며 한 번 내려앉는다 */
 const D_SETTLE = R({ hx: 0, hy: -17, tl: 20, hd: 6, aFx: 12, aFy: -3, aBx: 8, aBy: 1, lFx: 9, lBx: -9 });
 
-/** 지상 대시: 기본자세 → 2~3프레임 낮게 파고듦 → 미끄러지듯 나아감 → 내려앉으며 가드. 12프레임 × 1틱 (검붉은 잔상은 렌더) */
+/** 지상 대시: 엉덩이 먼저 떨어짐 → 낮게 파고듦 → 뒷발을 끌며 미끄러짐 → 일어섬 → 내려앉으며 가드. 6프레임 × 2틱 (검붉은 잔상은 렌더) */
 export const RAIDEN_DASH: MotionData = {
   name: 'raiden/dash',
   label: '라이덴 지상 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [2, 2, 2, 2, 2, 2],
   keys: [
-    { at: 0, pose: R_STANCE },
-    { at: 2, pose: D_DIVE },
-    { at: 6, pose: D_DIVE, stop: true },
-    { at: 8, pose: D_GLIDE },
-    { at: 10, pose: D_SETTLE },
-    { at: 11, pose: R_STANCE },
+    { at: 0, pose: D_DIP },
+    { at: 1, pose: D_DIVE, stop: true },
+    { at: 2, pose: D_DRAG },
+    { at: 3, pose: D_GLIDE },
+    { at: 4, pose: D_SETTLE },
+    { at: 5, pose: R_STANCE },
   ],
 };
 
-// ---- 공중 대시 (sim: 11틱, 1~8틱째 앞으로) ----
+// ---- 공중 대시 (sim: 11틱, 1~8틱째 앞으로. 프레임은 11틱을 프레임 수로 고르게 나눈다) ----
+// 2차 리워크: 12프레임 × 1틱(같은 자세 복사) → 6프레임. 몸을 눕혀 날아가는 동안 다리가 점점 뒤로 끌리고, 끝에서 몸을 세운다
+/** 몸을 앞으로 던진다: 웅크린 무릎이 풀리며 상체가 먼저 앞으로 */
+const AD_THROW = R({ hx: 2, hy: -24.5, tl: 48, hd: -18, aFx: 12.5, aFy: -3.5, aBx: 8.5, aBy: 0.5, lFx: 1, lFy: -14, lBx: -7, lBy: -11 });
 /** 공중에서 몸을 앞으로 눕혀 창처럼 날아간다: 가드는 머리 앞, 두 다리는 뒤로 모아 끈다 */
 const AD_SPEAR = R({ hx: 2, hy: -24, tl: 58, hd: -24, aFx: 13, aFy: -3, aBx: 9, aBy: 1, lFx: -6, lFy: -14, lBx: -12, lBy: -10 });
+/** 날아가는 끝: 다리가 더 뒤로 끌리고 몸이 조금 더 눕는다 */
+const AD_TRAIL = R({ hx: 2, hy: -24, tl: 61, hd: -26, aFx: 13.5, aFy: -2.5, aBx: 9, aBy: 1.5, lFx: -9, lFy: -13, lBx: -14, lBy: -8 });
+/** 몸을 한 번에 세운다 (무릎을 당기며, 회복은 처음 빠르게) */
+const AD_RIGHT = R({ hx: 1, hy: -24.5, tl: 32, hd: -4, aFx: 12, aFy: -4, aBx: 8.5, aBy: 0, lFx: 6, lFy: -10, lBx: -7, lBy: -7.5 });
 
-/** 공중 대시: 웅크림 → 2~3프레임 몸을 눕혀 창처럼 날아감 → 몸을 세우며 낙하 준비. 12프레임 × 1틱 */
+/** 공중 대시: 웅크림 → 몸을 던짐 → 창처럼 날아감 → 다리가 더 끌림 → 몸을 세움 → 낙하 준비. 6프레임 (게임은 11틱을 프레임 수로 고르게 나눈다) */
 export const RAIDEN_AIR_DASH: MotionData = {
   name: 'raiden/air_dash',
   label: '라이덴 공중 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [2, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: J_TUCK },
+    { at: 1, pose: AD_THROW },
     { at: 2, pose: AD_SPEAR },
-    { at: 8, pose: AD_SPEAR, stop: true },
-    { at: 11, pose: F_OPEN },
+    { at: 3, pose: AD_TRAIL, stop: true },
+    { at: 4, pose: AD_RIGHT },
+    { at: 5, pose: F_OPEN },
   ],
 };
 

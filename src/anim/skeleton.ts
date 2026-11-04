@@ -265,8 +265,8 @@ function fillPoly(pts: readonly Point[], set: (x: number, y: number) => void): v
   }
 }
 
-/** 색 번호 그림 → 캔버스 픽셀 */
-export function toImageData(img: Indexed, look: Look): ImageData {
+/** 색 번호 → [r, g, b] (이 색 묶음으로). 캔버스 없이도 쓴다 (확인 도구) */
+export function lookTable(look: Look): number[][] {
   const rgb = (name: ColorName) => {
     const n = parseInt(COLORS[name].slice(1), 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -298,6 +298,12 @@ export function toImageData(img: Indexed, look: Look): ImageData {
   table[SLOT.metalShadow] = rgb(metal[0]);
   table[SLOT.metal] = rgb(metal[1]);
   table[SLOT.metalLight] = rgb(metal[2]);
+  return table;
+}
+
+/** 색 번호 그림 → 캔버스 픽셀 */
+export function toImageData(img: Indexed, look: Look): ImageData {
+  const table = lookTable(look);
   const out = new ImageData(img.w, img.h);
   for (let i = 0; i < img.a.length; i++) {
     const c = img.a[i];
