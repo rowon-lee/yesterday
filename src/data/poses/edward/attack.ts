@@ -228,51 +228,60 @@ export const EDWARD_RISE: MotionData = {
 // ---- 4타: 몸 한 바퀴 돌린 풀스윙 (가로 원호 지름 110px, 해머 머리 잔상) ----
 /** 4타 원호: 등 뒤 멀리에서 몸 아래를 휘돌아 앞 멀리로 (반시계 방향, 가로로 납작한 반원) */
 const ARC4: HammerArc = { cx: 0, cy: -32, rx: 55, ry: 22, a0: 175, a1: -5 };
-/** 감기: 해머를 바닥에서 뽑아 몸 뒤로 끌어 돌린다 (몸을 크게 튼다) */
-const C4_PULL = A({ hx: 2, hy: -17, tl: 20, hd: -6, tw: -1, lFx: 15, lBx: -12, wa: 120 }, [10, -10]);
-const C4_TURN = A({ hx: -2, hy: -17, tl: 6, hd: -10, tw: -5, lFx: 12, lBx: -14, wa: 165 }, [-36, -22]);
-/** 감기 끝 (멈춤): 등을 보일 만큼 몸을 틀어 해머를 등 뒤 멀리 수평으로 뻗는다 */
+/** 감기: 두 손이 먼저 해머를 바닥에서 뽑아 몸 쪽으로 끈다 (머리는 아직 바닥을 긁는다) */
+const C4_PULL = A({ hx: 2, hy: -17, tl: 20, hd: -6, tw: -1, lFx: 15, lBx: -12, wa: 80 }, [19, -5]);
+/** 몸을 크게 틀며 해머를 몸 뒤로 끌어 돌린다 (머리는 손보다 늦게 따라온다) */
+const C4_TURN = A({ hx: -2, hy: -17, tl: 6, hd: -10, tw: -5, lFx: 12, lBx: -14, wa: 135 }, [-39, -12]);
+/** 감기 끝 (멈춤 7틱): 등을 보일 만큼 몸을 틀어 해머를 등 뒤 멀리 수평으로 뻗는다 */
 const C4_MAX = A({ hx: -4, hy: -17.5, tl: -4, hd: -12, tw: -7, lFx: 12, lBx: -16, wa: 180 }, [-54, -34]);
-/** 스미어: 몸이 한 바퀴 풀리며 뒷발이 앞으로 넘어온다, 해머 머리는 몸 아래 뒤에 처져 휘돈다 */
-const C4_SMEAR = A({ hx: 2, hy: -15, tl: 14, hd: -10, tw: 2, lFx: 15, lBx: -12, wa: 128 }, arcAt(ARC4, 120));
-/** 타격: 몸 아래를 휘돌아 앞으로 크게 뻗는다 */
-const C4_HIT = A({ hx: 5, hy: -15, tl: 18, hd: -10, tw: 6, lFx: 19, lBx: -15, wa: 40 }, arcAt(ARC4, 50));
-const C4_HIT2 = A({ hx: 7, hy: -16, tl: 12, hd: -12, tw: 6.5, lFx: 20, lBx: -15, wa: 0 }, arcAt(ARC4, 5));
+/** 풀림: 허리가 먼저 돌아 나온다 (뒷발 앞꿈치로 돈다). 손과 해머는 아직 등 뒤 멀리 */
+const C4_RELEASE = A({ hx: -1.5, hy: -17, tl: 2, hd: -12, tw: -4, lFx: 13, lBx: -15, lBy: -1, wa: 177 }, [-54, -32.4]);
+/** 스미어: 몸이 한 바퀴 풀리며 뒷발이 앞으로 넘어온다, 두 손이 허리 앞으로 끌려 나오고 해머 머리는 몸 아래 뒤에 처져 휘돈다 */
+const C4_SMEAR = A({ hx: 2, hy: -15, tl: 14, hd: -10, tw: 2, lFx: 15, lBx: -12, wa: 132 }, arcAt(ARC4, 110));
+/** 타격: 머리가 손을 따라잡아 몸 아래를 휘돌아 앞으로 크게 뻗는다 */
+const C4_HIT = A({ hx: 5, hy: -15, tl: 18, hd: -10, tw: 6, lFx: 19, lBx: -15, wa: 28 }, arcAt(ARC4, 50));
+const C4_HIT2 = A({ hx: 7, hy: -16, tl: 12, hd: -12, tw: 6.5, lFx: 20, lBx: -15, wa: -10 }, arcAt(ARC4, 5));
 /** 지나치기: 머리가 앞 위로 크게 쏠리며 몸이 앞으로 끌려간다 (뒷발이 들린다) */
 const C4_OVER = A({ hx: 8, hy: -18, tl: 4, hd: -14, tw: 6, lFx: 20, lBx: -13, lBy: -3, wa: -52 }, [44, -62]);
 const C4_OVER2 = A({ hx: 8, hy: -19.5, tl: 0, hd: -14, tw: 5.5, lFx: 20, lBx: -12, lBy: -2, wa: -82 }, [32, -76]);
-/** 여운: 앞 위로 치켜든 채 멈춘다 */
+/** 여운: 앞 위로 치켜든 채 멈춘다 (쏠린 머리가 조금 돌아오고, 들린 뒷발이 내려오며 2px 내려앉는다) */
 const C4_HOLD = A({ hx: 7.5, hy: -19.5, tl: 2, hd: -13, tw: 5, lFx: 20, lBx: -13, wa: -74 }, [35, -73]);
-const C4_HOLD2 = A({ hx: 7, hy: -19.7, tl: 2, hd: -12, tw: 5, lFx: 20, lBx: -13.5, wa: -76 }, [34, -74]);
-/** 복귀: 머리 위로 넘겨 어깨에 (뒷발을 끌어 와 선다) */
-const C4_BACK1 = G({ hx: 5, hy: -21, tl: -2, hd: -8, tw: 2, aFx: 5, aFy: -11, lFx: 16, lBx: -10, wa: -110 });
-const C4_BACK2 = E({ hx: 2.5, hy: -22, tl: -3, hd: -5, aFx: 5, aFy: 3, aBx: -2.5, aBy: 12, lFx: 11, lBx: -8, wa: -136 });
+const C4_HOLD2 = A({ hx: 7, hy: -18.5, tl: 3, hd: -12, tw: 5, lFx: 20, lBx: -13.5, wa: -76 }, [34, -71]);
+/** 복귀: 무게가 먼저 뒤로 빠진다 (해머는 아직 앞 위) → 뒷발을 끌어 오며 손이 얼굴 앞으로 → 어깨로 오는 동안 머리가 넘어간다 → 어깨에 걸침 */
+const C4_BACK0 = A({ hx: 5, hy: -20, tl: 0, hd: -11, tw: 4, lFx: 18, lBx: -12, wa: -76 }, [31, -73]);
+const C4_BACK1 = G({ hx: 3.5, hy: -21, tl: -2, hd: -8, tw: 2, aFx: 6, aFy: -10, lFx: 15, lBx: -10, wa: -95 });
+const C4_BACK2 = G({ hx: 2, hy: -21.8, tl: -3, hd: -5, tw: 1.5, aFx: 5, aFy: -1, lFx: 11, lBx: -8.5, wa: -122 });
+const C4_BACK3 = E({ hx: 0.8, hy: -21.8, tl: -3, hd: -4, aFx: 5, aFy: 4, aBx: 1, aBy: 8, lFx: 8, lBx: -7.5, wa: -153 });
 
 /**
- * 4타 풀스윙 (128×96): 3타 박힌 자세에서 → 2~4 해머를 뽑아 몸 뒤로 끌어 돌리고 등을 보일 만큼 틀어 멈춤 → 5 스미어(몸이 한 바퀴 풀림, 잔상) →
- * 6~7 몸 아래를 휘돌아 앞으로(판정, 멀리 날림) → 8~9 앞 위로 쏠림 → 10~11 치켜든 채 멈춤 → 12~14 어깨로. 14프레임 48틱
+ * 4타 풀스윙 (128×96, 2차 리워크): 3타 박힌 자세에서 → 2~4 해머를 뽑아(머리는 바닥에 끌린다) 몸 뒤로 끌어 돌리고 등을 보일 만큼 틀어 7틱 멈춤 →
+ * 5 허리가 먼저 풀림 → 6 스미어(몸이 한 바퀴 풀림, 잔상) → 7~8 몸 아래를 휘돌아 앞으로(판정, 멀리 날림) → 9~10 앞 위로 쏠림 →
+ * 11~12 치켜든 채 멈춤 → 13~17 무게가 뒤로 빠진 뒤 어깨로. 17프레임 48틱 (공격 데이터 그대로: 발동 19 · 지속 4 · 회복 25)
  */
 export const EDWARD_SMASH: MotionData = {
   name: 'edward/smash',
   label: '에드워드 4타 한 바퀴 풀스윙',
   wide: true,
-  smear: { frame: 4, limb: 'aF', stretch: 1.35, ghosts: 3 },
-  dur: [3, 4, 4, 7, 1, 2, 2, 2, 2, 6, 6, 3, 3, 3],
+  smear: { frame: 5, limb: 'aF', stretch: 1.35, ghosts: 3 },
+  dur: [3, 3, 4, 7, 1, 1, 2, 2, 2, 2, 6, 6, 2, 2, 2, 2, 1],
   keys: [
     { at: 0, pose: C3_IMPACT },
     { at: 1, pose: C4_PULL },
     { at: 2, pose: C4_TURN },
     { at: 3, pose: C4_MAX, stop: true },
-    { at: 4, pose: C4_SMEAR },
-    { at: 5, pose: C4_HIT },
-    { at: 6, pose: C4_HIT2 },
-    { at: 7, pose: C4_OVER },
-    { at: 8, pose: C4_OVER2, stop: true },
-    { at: 9, pose: C4_HOLD },
-    { at: 10, pose: C4_HOLD2, stop: true },
-    { at: 11, pose: C4_BACK1 },
-    { at: 12, pose: C4_BACK2 },
-    { at: 13, pose: E_STANCE },
+    { at: 4, pose: C4_RELEASE },
+    { at: 5, pose: C4_SMEAR },
+    { at: 6, pose: C4_HIT },
+    { at: 7, pose: C4_HIT2 },
+    { at: 8, pose: C4_OVER },
+    { at: 9, pose: C4_OVER2, stop: true },
+    { at: 10, pose: C4_HOLD },
+    { at: 11, pose: C4_HOLD2, stop: true },
+    { at: 12, pose: C4_BACK0 },
+    { at: 13, pose: C4_BACK1 },
+    { at: 14, pose: C4_BACK2 },
+    { at: 15, pose: C4_BACK3 },
+    { at: 16, pose: E_STANCE },
   ],
 };
 
