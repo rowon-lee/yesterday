@@ -19,7 +19,8 @@ import { encodeGif } from './gif.mjs';
 import { encodePng } from './png.mjs';
 
 const argv = process.argv.slice(2);
-const opt = { base: 'origin/main', noBase: false, moves: '', out: 'out/fxcheck', swatch: false, look: '', name: '' };
+// --mockup-world x,y: 목업(1배)의 왼쪽 위가 놓인 월드 px. 주면 게임 피크 프레임에서 같은 자리를 같은 크기로 잘라 나란히 놓는다
+const opt = { base: 'origin/main', noBase: false, moves: '', out: 'out/fxcheck', swatch: false, look: '', name: '', peak: '', mockup: 'docs/refs/effect_mockup_raiden4.png', mockupWorld: '' };
 let sceneName = '';
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -30,7 +31,15 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--swatch') opt.swatch = true;
   else if (a === '--look') opt.look = argv[++i];
   else if (a === '--name') opt.name = argv[++i];
+  else if (a === '--peak') opt.peak = argv[++i];
+  else if (a === '--mockup') opt.mockup = argv[++i];
+  else if (a === '--mockup-world') opt.mockupWorld = argv[++i];
   else sceneName = a;
+}
+// 피크 한 장 (키 실루엣 승인용): 기술 하나의 피크 프레임만 찍어 목업과 나란히. 이전 버전은 찍지 않는다
+if (opt.peak) {
+  opt.noBase = true;
+  opt.moves = opt.peak;
 }
 mkdirSync(opt.out, { recursive: true });
 
@@ -385,6 +394,38 @@ async function run(dir, port) {
 }
 const after = await run('new', 4312);
 const before = opt.noBase ? null : await run('base', 4311);
+/** 그림 파일 읽기 (png·jpg·webp·gif 아무것이나): 브라우저가 풀어 준다. 없으면 null */
+async function decodeImage(file) {
+  if (!file || !existsSync(file)) return null;
+  const ext = file.split('.').pop().toLowerCase();
+  const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' }[ext] ?? 'image/png';
+  const page = await browser.newPage();
+  const res = await page.evaluate(async (u) => {
+    const im = new Image();
+    im.src = u;
+    await im.decode();
+    const c = document.createElement('canvas');
+    c.width = im.naturalWidth;
+    c.height = im.naturalHeight;
+    const g = c.getContext('2d');
+    g.drawImage(im, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const rgb = new Uint8Array(c.width * c.height * 3);
+    for (let i = 0, j = 0; i < d.length; i += 4, j += 3) {
+      // 투명한 곳은 검게
+      const a = d[i + 3] / 255;
+      rgb[j] = d[i] * a;
+      rgb[j + 1] = d[i + 1] * a;
+      rgb[j + 2] = d[i + 2] * a;
+    }
+    let s = '';
+    for (let i = 0; i < rgb.length; i += 0x8000) s += String.fromCharCode(...rgb.subarray(i, i + 0x8000));
+    return { w: c.width, h: c.height, data: btoa(s) };
+  }, `data:${mime};base64,${readFileSync(file).toString('base64')}`);
+  await page.close();
+  return { w: res.w, h: res.h, d: new Uint8Array(Buffer.from(res.data, 'base64')) };
+}
+const mockup = opt.peak ? await decodeImage(opt.mockup) : null;
 await browser.close();
 await vite.close();
 if (!opt.noBase) {
@@ -463,6 +504,96 @@ function measure(fr, prev, at) {
     return acc / Math.max(1, k);
   };
   return { span: maxX >= 0 ? maxX - minX + 1 : 0, px: n, steps: [...seen.values()].filter((v) => v >= 8).length, lum: lum(fr), lumPrev: prev ? lum(prev) : 0, beyond: n ? beyond / n : 0, body };
+}
+
+// ---------------------------------------------------------------- 피크 한 장 (--peak): 목업(왼쪽)과 게임 피크 프레임(오른쪽, 2배)을 같은 높이로 나란히
+if (opt.peak) {
+  const p = peaks[0];
+  if (!p || p.idx < 0) process.exit(1);
+  const fr = after.frames[p.idx];
+  const ms = measure(fr, after.frames[Math.max(0, p.idx - 1)], p.at);
+  const at = p.at ?? {};
+  const sx = (v) => (v === undefined ? '-' : Math.round(v - fr.cam[0]));
+  console.log(`피크: ${p.move} 틱 ${p.tick} (프레임 ${p.idx}), 카메라 ${fr.cam.join(',')}`);
+  console.log(`  화면 자리: 공격자 발밑 x ${sx(at.ax)} y ${at.ay === undefined ? '-' : Math.round(at.ay - fr.cam[1])} · 상대 몸 가운데 x ${sx(at.dx)} (공격자에서 ${at.dx === undefined ? '-' : Math.round((at.dx - at.ax) * (at.facing < 0 ? -1 : 1))}px 앞)`);
+  console.log(`  이펙트 칸: ${ms.px} · 전체 폭 ${ms.span}px (${Math.round((ms.span / W) * 100)}%) · 색 단계 ${ms.steps} · 상대 너머 ${Math.round(ms.beyond * 100)}% · 공격자 몸통·머리 위 칸 ${ms.body}`);
+  const S = 2;
+  const game = img(W * S, H * S);
+  blit(game, fr, 0, 0, S);
+  save(`${opt.out}/${p.move}-peak.png`, game);
+  // 맞추기용: 피크 앞뒤 프레임 (1배)
+  for (const d of [-2, -1, 0, 1, 2]) {
+    const f = after.frames[p.idx + d];
+    if (!f) continue;
+    writeFileSync(`${opt.out}/${p.move}-frame${d >= 0 ? '+' : ''}${d}.png`, encodePng(f.w, f.h, f.d));
+    console.log(`  프레임 ${d >= 0 ? '+' : ''}${d}: 틱 ${f.tick} 카메라 ${f.cam.join(',')} · 공격자 화면 x ${(f.who[0].x - f.cam[0]).toFixed(1)} (${f.who[0].move} t${f.who[0].t}) · 상대 화면 x ${(f.who[1].x - f.cam[0]).toFixed(1)} (${f.who[1].mode})`);
+  }
+  // 왼쪽: 목업 (없으면 레퍼런스를 대신 두고 그렇다고 적는다)
+  const left = mockup ?? readPng('docs/refs/이펙트_레퍼런스_애니격투.png');
+  // 목업 배수 (정수배로 키운 그림이면 1배로 줄인다)
+  let mScale = 1;
+  for (let k = 6; k >= 2; k--) {
+    if (left.w % k || left.h % k) continue;
+    let ok = 0;
+    let tot = 0;
+    for (let by = 0; by + k <= left.h; by += k * 4) for (let bx = 0; bx + k <= left.w; bx += k * 4) {
+      tot++;
+      const i0 = (by * left.w + bx) * 3;
+      let same = true;
+      for (let y = 0; y < k && same; y++) for (let x = 0; x < k && same; x++) {
+        const i = ((by + y) * left.w + bx + x) * 3;
+        if (left.d[i] !== left.d[i0] || left.d[i + 1] !== left.d[i0 + 1] || left.d[i + 2] !== left.d[i0 + 2]) same = false;
+      }
+      if (same) ok++;
+    }
+    if (ok / tot > 0.95) { mScale = k; break; }
+  }
+  const one = img(left.w / mScale, left.h / mScale);
+  for (let y = 0; y < one.h; y++) for (let x = 0; x < one.w; x++) {
+    const si = ((y * mScale + (mScale >> 1)) * left.w + x * mScale + (mScale >> 1)) * 3;
+    one.d.set(left.d.subarray(si, si + 3), (y * one.w + x) * 3);
+  }
+  const GAP = 8;
+  const TOP = 22;
+  let o;
+  if (mockup && opt.mockupWorld) {
+    // 같은 월드 자리·같은 크기 (2배)
+    const [wx, wy] = opt.mockupWorld.split(',').map(Number);
+    const cx = Math.round(wx - fr.cam[0]);
+    const cy = Math.round(wy - fr.cam[1]);
+    const crp = img(one.w, one.h, 0);
+    for (let y = 0; y < one.h; y++) for (let x = 0; x < one.w; x++) {
+      const X = cx + x;
+      const Y = cy + y;
+      if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+      crp.d.set(fr.d.subarray((Y * W + X) * 3, (Y * W + X) * 3 + 3), (y * one.w + x) * 3);
+    }
+    console.log(`  목업 자리: 화면 ${cx},${cy}부터 ${one.w}×${one.h} (목업 ${mScale}배 → 1배)`);
+    o = img(one.w * S * 2 + GAP, TOP + one.h * S, 24);
+    blit(o, one, 0, TOP, S);
+    blit(o, crp, one.w * S + GAP, TOP, S);
+    text(o, 'MOCKUP', 4, 4, 3, [235, 235, 240]);
+    text(o, `GAME ${p.move} PEAK - HIT TICK`, one.w * S + GAP + 4, 4, 3, [235, 235, 240]);
+  } else {
+    const LH = H * S;
+    const LW = Math.round((left.w * LH) / left.h);
+    let lim;
+    if (left.h >= LH) lim = shrink(left, LW, LH);
+    else {
+      lim = img(LW, LH);
+      for (let y = 0; y < LH; y++) for (let x = 0; x < LW; x++) {
+        const si = (Math.floor((y * left.h) / LH) * left.w + Math.floor((x * left.w) / LW)) * 3;
+        lim.d.set(left.d.subarray(si, si + 3), (y * LW + x) * 3);
+      }
+    }
+    o = img(LW + GAP + W * S, TOP + LH, 24);
+    blit(o, lim, 0, TOP, 1);
+    blit(o, game, LW + GAP, TOP, 1);
+    text(o, mockup ? 'MOCKUP' : 'MOCKUP FILE NOT IN REPO - REFERENCE SHOWN', 4, 4, 3, mockup ? [235, 235, 240] : [255, 120, 120]);
+    text(o, `GAME ${p.move} PEAK - HIT TICK`, LW + GAP + 4, 4, 3, [235, 235, 240]);
+  }
+  save(`${opt.out}/${p.move}-peak-vs-mockup.png`, o);
+  process.exit(0);
 }
 
 // ---------------------------------------------------------------- 1) 레퍼런스와 나란히, 피크 모음, 흑백

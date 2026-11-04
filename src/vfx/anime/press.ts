@@ -12,7 +12,9 @@ export interface PressSpec {
   k: number;
   /** 물들일 색 ('#rrggbb'): 캐릭터 이펙트의 진한 색 */
   color: string;
-  mode?: 'dark' | 'invert' | 'white';
+  mode?: 'dark' | 'invert' | 'white' | 'tint';
+  /** tint: 무대 밝기 배수 */
+  scale?: number;
 }
 
 /** 배경 누르기를 건다 (이미 더 센 누르기가 걸려 있으면 그것을 둔다) */
@@ -24,4 +26,5 @@ export default function pressBackground(o: PressSpec): void {
   press.k = o.k;
   press.color = o.color;
   press.mode = o.mode ?? 'dark';
+  press.scale = o.scale ?? 1;
 }

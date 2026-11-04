@@ -67,9 +67,10 @@ export function clearScreenFx(): void {
 /**
  * 배경 누르기 (동작연출지침서 14-1 ⑥): 강타 순간 1~3틱 동안 무대(배경) 명도를 확 낮추고 이펙트 색으로 물들인다.
  * 캐릭터와 이펙트 칸(후처리의 캐릭터·이펙트 표시 칸)은 그대로 둔다. 필살기 타격은 반전(invert)이나 흰 화면(white)도 쓴다.
+ * tint: 무대 밝기를 scale배로 낮추고 color를 더한다 (무대 무늬·구간 색은 그대로, 라이덴 4타 목업 2026-11-04).
  * at: 시작 틱 (sim 틱), life: 틱 수, k: 세기 (0~1), color: 물들일 색 ('#rrggbb')
  */
-export const press = { at: -1e9, life: 0, k: 0, color: '#000000', mode: 'dark' as 'dark' | 'invert' | 'white' };
+export const press = { at: -1e9, life: 0, k: 0, color: '#000000', mode: 'dark' as 'dark' | 'invert' | 'white' | 'tint', scale: 1 };
 
 /** 이 틱의 배경 누르기 세기 (0이면 없음) */
 export function pressAt(tick: number): number {
@@ -91,3 +92,5 @@ export const rainHold = { on: false };
  * 0이 아니면 이펙트 빛 번짐(이펙트 칸만 따로 그려 번지게 하는 단계)을 돌린다 (14-5 '빛 번짐: 이펙트에는 강하게')
  */
 export const fxMarked = { n: 0 };
+/** 이펙트 빛 번짐 배수 (키 실루엣 이펙트가 설계값으로 줄인다, 기본 1) */
+export const fxGlowScale = { k: 1 };

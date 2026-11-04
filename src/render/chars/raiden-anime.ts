@@ -19,13 +19,21 @@ export const RAIDEN_LOOK: AnimeLook = {
 };
 
 /**
+ * 실루엣 이펙트 색표 (data/vfx/raiden의 색 단계 번호 순서, 4타 목업 색 2026-11-04):
+ * 0 순백 · 1 흰 심 · 2 연분홍 · 3 분홍빨강 · 4 빨강 · 5 검붉은 · 6 아주 검붉은 · 7 자홍
+ */
+export const RAIDEN_SIL_RAMP: readonly number[] = (
+  ['fxWhite', 'raidenFxCore', 'raidenFxPink', 'raidenFxRose', 'raidenFxScarlet', 'raidenFxWine', 'raidenFxDark', 'raidenFxSpark'] as const
+).map(fxColor);
+
+/**
  * 기술별 모양값 (사용자 피드백 2026-11-04): 힘이 주먹에서 상대를 관통해 앞으로 터져 나간다. 덩어리는 상대 너머, 찢어진 가닥은 앞끝.
+ * 4타는 여기 없다: 목업에서 뽑은 키 실루엣 (data/vfx/raiden, vfx/silhouette)으로 그린다. 1~3타도 차례로 옮긴다.
  * 흰 심이 든 가장 밝은 곳 = 판정 상자 (data/characters/raiden의 box). 등급 (14-3, 480×270이라 지침서 값 × 1.5):
  * 1~3타 일반 (길이 72~144 · 두께 15~30), 4타 강 (192~288 · 36~72). 타마다 다르게:
  * - 잽: 가늘고 빠른 직선 (유지 1틱, 가닥이 빨리 날아간다), 가시 3개 좁은 부채꼴
  * - 크로스: 더 굵은 직선 + 굵은 전류 가지 4, 가시 5개 넓은 부채꼴
  * - 미들킥: 발이 지난 반원을 번개 줄기 3가닥으로 (매끈한 초승달 금지, 9-2, 앞 겹이라 맞는 쪽 몸에 가려지지 않는다) + 반원 앞에서 상대 너머로 터지는 띠, 가시는 위 앞쪽
- * - 슈퍼맨 펀치: 주먹에서 바닥으로 꽂히는 번개 + 바닥을 타고 앞으로 갈수록 가늘어지는 큰 쐐기, 가시 7개 앞·위로 (공격자 머리에 닿지 않게 12px 앞에서)
  */
 export const RAIDEN_ANIME_MOVES: Partial<Record<string, AnimeMove>> = {
   atk1: {
@@ -81,29 +89,5 @@ export const RAIDEN_ANIME_MOVES: Partial<Record<string, AnimeMove>> = {
     branchLen: 18,
     branchW: 2,
     spikes: { count: 4, fan: [-70, 0], len: [28, 48], base: 3 },
-  },
-  atk4: {
-    grade: 'strong',
-    path: 'ground',
-    len: 240,
-    width: 100,
-    // 맞힌 자리 바로 앞이 가장 높고, 앞으로 갈수록 가늘어진다 (바닥을 타고 달리는 쐐기)
-    profile: [[0, 0.7], [0.06, 1], [0.3, 0.68], [0.6, 0.38], [1, 0.1]],
-    ground: { strikeW: 5, land: 12, from: 40 },
-    // 흰 심·밝은 주색은 쐐기 모양을 따라 앞으로 가늘어지게 (판정 상자 네모에 잘리지 않게)
-    coreW: 0.1,
-    mainW: 0.16,
-    // 속도선은 쐐기 위로 (쐐기 실루엣을 가리지 않게)
-    speedAt: { y: -78, spread: 26 },
-    strands: 7,
-    scatter: 0.3,
-    spread: 12,
-    reach: 34,
-    strandW: 4,
-    fly: 5,
-    branches: 6,
-    branchLen: 34,
-    branchW: 4,
-    spikes: { count: 7, fan: [-62, -8], len: [40, 72], base: 4, ahead: 12 },
   },
 };

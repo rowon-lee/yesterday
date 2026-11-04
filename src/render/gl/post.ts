@@ -4,7 +4,7 @@ import { COLORS, COMMON, POST_FAMILIES, POST_LADDER, type PostRampName } from '.
 import { SCREEN_W } from '../screen';
 import { DIST, FAR, MARGIN, NEAR, RT_H, RT_W, type Placed } from './core';
 import { LIGHT_N, loadedLights } from './lights';
-import { press, pressAt, SHEAR_MAX, shearFrame, tint } from '../screenfx';
+import { fxGlowScale, press, pressAt, SHEAR_MAX, shearFrame, tint } from '../screenfx';
 
 /** 이펙트 빛 번짐 세기 (애니 이펙트 둘레 무대에 더하는 빛) */
 const FX_GLOW = 2.6;
@@ -522,7 +522,7 @@ uniform vec2 hot;
 /** 이펙트 빛 번짐 (애니 이펙트 칸만 그려 번지게 한 것, 1/4 크기)과 세기: 무대 칸에만 더한다 (14-5) */
 uniform sampler2D fxGlow;
 uniform float fxGlowK;
-/** 배경 누르기 (render/screenfx press, 14-1 ⑥): rgb = 물들일 색 (선형), a = 세기. 방식 0 어둡게·물들이기, 1 반전, 2 흰 화면 */
+/** 배경 누르기 (render/screenfx press, 14-1 ⑥): rgb = 물들일 색 (선형), a = 세기. 방식 0 어둡게·물들이기, 1 반전, 2 흰 화면, 3 어둡게 + 색 더하기 (tint) */
 uniform vec4 press;
 uniform float pressMode;
 varying vec2 vUv;
@@ -601,7 +601,8 @@ void main() {
   if (mk < 0.5) {
     // 배경 누르기: 무대만 (캐릭터·이펙트 칸은 그대로). 누른 무대는 캐릭터·이펙트 칸처럼 공통 색표로 줄여
     // (디더 없이 몇 단계로 뭉친다: 애니 '임팩트 프레임'처럼 납작한 이펙트 색 실루엣)
-    if (press.a > 0.0) {
+    // (tint는 여기서 하지 않는다: 구간 팔레트로 줄인 뒤 팔레트 단계에서 무대 칸 색만 바꾼다)
+    if (press.a > 0.0 && pressMode < 2.5) {
       vec3 pc = pow(clamp(press.rgb, 0.0, 1.0), vec3(1.0 / 2.2));
       float ls = dot(s, vec3(0.299, 0.587, 0.114));
       vec3 dark = pc * (0.04 + 0.5 * ls);
@@ -640,6 +641,9 @@ uniform vec2 ditherOrigin;
 uniform float ditherK;
 uniform float ditherMax;
 uniform float curveLimit;
+/** 배경 누르기 tint (render/screenfx press, 방식 tint): rgb = 더할 색 (sRGB), a = 세기. 팔레트로 줄인 무대 칸 색을 scale배로 낮추고 색을 더한다 */
+uniform vec4 pressTint;
+uniform float pressScale;
 varying vec2 vUv;
 ${BAYER_GLSL}
 vec2 lutUv(vec3 c, float row, float rows) {
@@ -685,6 +689,8 @@ void main() {
 #endif
   vec3 o = texelFetch(rampTex, ivec2(int(stp), int(r)), 0).rgb;
   if (isMask > 0.5) o = texture2D(maskLut, lutUv(c, 0.0, 1.0)).rgb;
+  // 무대만 어둡게 + 색 (팔레트 색마다 한 색으로 바뀌므로 새 그러데이션이 생기지 않는다: 2틱 동안 팔레트를 바꿔 끼운 것)
+  else if (pressTint.a > 0.0) o = mix(o, o * pressScale + pressTint.rgb, pressTint.a);
   gl_FragColor = vec4(o, 1.0);
 }
 `;
@@ -945,6 +951,8 @@ export class Post {
       ditherK: { value: 0.9 },
       ditherMax: { value: 0.35 },
       curveLimit: { value: 4 },
+      pressTint: { value: new THREE.Vector4(0, 0, 0, 0) },
+      pressScale: { value: 1 },
     });
     this.palette.defines = { DETAIL: '' };
     this.blit = mat(BLIT_FRAG, { src: { value: this.final.texture } });
@@ -1077,11 +1085,19 @@ export class Post {
       this.half(renderer, this.fxSrc, this.fxH);
       this.half(renderer, this.fxH, this.fxQ[0]);
       this.blur2(renderer, this.fxQ, 1);
-      u.fxGlowK.value = FX_GLOW;
+      u.fxGlowK.value = FX_GLOW * fxGlowScale.k;
     } else u.fxGlowK.value = 0;
     // 배경 누르기 (render/screenfx press)
     const pk = pressAt(time);
-    if (pk > 0) {
+    const pt = this.palette.uniforms.pressTint.value as THREE.Vector4;
+    pt.w = 0;
+    if (pk > 0 && press.mode === 'tint') {
+      // 팔레트 단계에서 (sRGB 그대로)
+      const v = parseInt(press.color.slice(1), 16);
+      pt.set(((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255, pk);
+      this.palette.uniforms.pressScale.value = press.scale;
+      u.press.value.w = 0;
+    } else if (pk > 0) {
       const pc = this.tintColor.set(press.color);
       u.press.value.set(pc.r, pc.g, pc.b, pk);
       u.pressMode.value = press.mode === 'invert' ? 1 : press.mode === 'white' ? 2 : 0;
