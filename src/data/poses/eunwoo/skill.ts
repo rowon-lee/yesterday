@@ -108,10 +108,6 @@ const spread = (n: number, total: number): number[] => Array.from({ length: n },
 // 두 자세를 12프레임으로 늘이던 장면을 프레임마다 다른 자세로 (숨·걸음·손 얹기의 박자). 머리·가운·연검은 follow가 늦게 따라온다
 const SCENE_FOLLOW: FollowSpec = { ribbon: { stiff: 0.4, gravity: 1.3 }, breeze: 0.9 };
 
-/** 가만히 선 장면 (숨만 쉰다): 은우 */
-const still = (name: string, label: string, n: number, total: number, from: Pose, to: Pose) =>
-  motion(name, label, spread(n, total), [K(0, from), K(n - 1, to)], undefined, { ribbon: { stiff: 0.4, gravity: 1.3 }, breeze: 0.6 });
-
 /** 장면 1 전개 (60틱, 짧은 판 30틱): 칼을 내린 채 눈을 감고 숨을 천천히 깊이 들이쉬었다가(16틱), 짧게 내쉬며 고개를 숙이고(8틱) 자리 잡는다 (발밑에서 물결이 퍼진다) */
 const DEPLOY_IN = E({ ...GW_LOWER, hy: -24, tl: -2, hd: 5, aFx: 5.5, aFy: 14, aBx: -3.5, aBy: 11 });
 const DEPLOY_OUT = E({ ...GW_LOWER, hy: -22.8, tl: 3, hd: 12.5, aBx: -1.3, aBy: 13.6 });
@@ -122,9 +118,13 @@ export const EUNWOO_SUPER_DEPLOY = motion('super_deploy', '선의 연출 1 전�
 export const EUNWOO_SUPER_DEPLOY_SHORT = motion('super_deploy_s', '선의 연출 1 전개 (짧은 판)', [8, 4, 5, 13], [
   K(0, GW_LOWER), K(1, DEPLOY_IN), K(2, DEPLOY_OUT), K(3, DEPLOY_END),
 ], undefined, SCENE_FOLLOW);
-/** 장면 2 세계 완성 (40틱): 고개를 들어 상대를 바라본다 */
-const LOOK = E({ ...GW_LOWER, hd: 2, tl: 0 });
-export const EUNWOO_SUPER_WORLD = still('super_world', '선의 연출 2 세계', 13, 40, DEPLOY_END, LOOK);
+/** 장면 2 세계 완성 (40틱): 눈을 뜨며 고개를 들어 → 한 번 더 올려다봤다가 → 상대를 바라본다 */
+const LOOK_RISE = E({ ...GW_LOWER, hd: 9, tl: 1.5, aBy: 13.5 });
+const LOOK_UP = E({ ...GW_LOWER, hy: -23.8, hd: -2, tl: -2, aBx: -4, aBy: 10 });
+const LOOK = E({ ...GW_LOWER, hy: -23.4, hd: 2, tl: -0.5, aBx: -3.5, aBy: 11.5 });
+export const EUNWOO_SUPER_WORLD = motion('super_world', '선의 연출 2 세계', [10, 6, 10, 14], [
+  K(0, DEPLOY_END), K(1, LOOK_RISE), K(2, LOOK_UP), K(3, LOOK),
+], undefined, SCENE_FOLLOW);
 
 /**
  * 장면 3 (70틱): 물 위를 천천히 네 걸음. 한 걸음 5프레임: 닿음 → 무게를 앞으로 옮김 → 뒤꿈치를 듦 (여기까지 느리게) → 뒷발이 지나감 → 앞으로 내뻗음 (빠르게).
