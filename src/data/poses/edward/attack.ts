@@ -1,5 +1,6 @@
 import type { MotionData } from '../../../anim/motion';
 import type { Pose } from '../../../anim/pose';
+import { HAMMER } from '../../../anim/decor/edward';
 import { aim, E, E_STANCE, grip2 } from './stance';
 
 /*
@@ -34,6 +35,11 @@ export const arcAt = (a: HammerArc, deg: number): [number, number] => {
 const A = (o: Partial<Pose>, at: readonly [number, number]): Pose => aim(E(o), at[0], at[1]);
 /** 두 손으로 쥔 포즈 (앞손 목표는 포즈대로) */
 const G = (o: Partial<Pose>): Pose => grip2(E(o));
+/** 두 손 해머 포즈: 앞손을 그림 자리 hand에 두고, 해머 머리는 손에서 무기 각도(wa)로 해머 길이(30px)만큼 (손이 튀지 않게 손 길을 먼저 정할 때) */
+const AH = (o: Partial<Pose>, hand: readonly [number, number]): Pose => {
+  const a = ((o.wa ?? 0) * Math.PI) / 180;
+  return A(o, [hand[0] + Math.cos(a) * HAMMER.reach, hand[1] + Math.sin(a) * HAMMER.reach]);
+};
 /** 해머가 몸 둘레를 한 바퀴 돌고 어깨로 돌아온 기본자세 (각도만 한 바퀴 뺀 값: 그림은 기본자세와 같다) */
 const STANCE_TURNED: Pose = { ...E_STANCE, wa: (E_STANCE.wa ?? 0) - 360 };
 
@@ -341,34 +347,65 @@ export const EDWARD_SWEEP: MotionData = {
 };
 
 // ---- 대시 공격: 세 걸음 돌진하던 힘을 실어 해머가 크게 가로지른다 ----
+/*
+ * 손 길을 먼저 정하고 (어깨 뒤 위 → 가슴 앞 → 앞으로 뻗음), 해머 머리는 손에서 해머 길이만큼 무기 각도로 둔다.
+ * 머리는 몸 뒤 어깨 높이 → 몸 옆 허리 아래로 처졌다가 → 가슴 앞을 가로질러 → 앞 위로 쏠린다 (아래로 처진 호)
+ */
+/** 돌진 자세: 몸을 숙여 달리며 두 손으로 해머를 어깨에 걸쳐 쥔다 */
 const D_RUSH = G({ hx: 2, hy: -17, tl: 26, hd: -12, tw: 2, aFx: 2, aFy: 1, lFx: 15, lBx: -15, wa: -150 });
-const D_COIL = A({ hx: 1, hy: -17, tl: 14, hd: -10, tw: -4, lFx: 16, lBx: -15, wa: -188 }, [-44, -34]);
-const D_SMEAR = A({ hx: 3, hy: -15.5, tl: 22, hd: -8, tw: 3, lFx: 18, lBx: -16, wa: -240 }, [2, -18]);
-const D_HIT = A({ hx: 5, hy: -15, tl: 24, hd: -6, tw: 5, lFx: 19, lBx: -17, wa: -342 }, [52, -26]);
-const D_OVER = A({ hx: 5.5, hy: -16, tl: 18, hd: -8, tw: 5, lFx: 19, lBx: -17.5, wa: -390 }, [50, -46]);
-const D_HOLD = A({ hx: 5, hy: -16.5, tl: 16, hd: -8, tw: 4.5, lFx: 19, lBx: -17, wa: -384 }, [51, -42]);
-const D_BACK1 = G({ hx: 2.5, hy: -19, tl: 8, hd: -4, tw: 2, aFx: 7, aFy: -8, lFx: 13, lBx: -12, wa: -460 });
-const D_BACK2 = E({ hx: 0.5, hy: -21.5, tl: -2, hd: -3, aFx: 5, aFy: 4, aBx: -2.5, aBy: 12, lFx: 9, lBx: -9, wa: -498 });
+/** 앞발이 쿵 디딘다 (엉덩이 2px 내려앉음): 손이 먼저 해머를 들기 시작한다 */
+const D_STEP = G({ hx: 2.5, hy: -15.5, tl: 24, hd: -10, tw: 1, aFx: 0, aFy: -3, lFx: 14, lBx: -13, wa: -154 });
+/** 두 손을 머리 옆으로 들어 올리고, 해머 머리는 뒤로 넘어가며 처진다 */
+const D_LIFT = AH({ hx: 1.5, hy: -17, tl: 18, hd: -10, tw: -2, lFx: 15, lBx: -14, wa: -168 }, [-6, -46]);
+/** 감기 끝 (멈춤 6틱): 어깨를 뒤로 틀어 해머를 등 뒤 어깨 높이에 눕힌다 (돌진하던 힘으로 미끄러진다) */
+const D_COIL = AH({ hx: 0, hy: -17.5, tl: 12, hd: -10, tw: -4, lFx: 16, lBx: -15, wa: -188 }, [-14, -40]);
+/** 풀림: 허리·어깨가 먼저 돌며 앞발을 더 내딛는다. 손은 아직 뒤, 해머 머리는 처진다 */
+const D_RELEASE = AH({ hx: 2, hy: -16.5, tl: 16, hd: -9, tw: -2, lFx: 18, lBx: -16, wa: -196 }, [-15, -40]);
+/** 스미어: 두 손이 가슴 앞으로 끌려 나오고, 해머 머리는 몸 옆 허리 아래로 처져 따라온다 (잔상) */
+const D_SMEAR = AH({ hx: 3.5, hy: -15.5, tl: 22, hd: -8, tw: 3, lFx: 18, lBx: -16, wa: -225 }, [12, -41]);
+/** 타격: 머리가 손을 앞질러 허리 앞을 가로질러 올라온다 */
+const D_HIT = AH({ hx: 5, hy: -15, tl: 24, hd: -6, tw: 5, lFx: 19, lBx: -17, wa: -330 }, [16, -36]);
+const D_HIT2 = AH({ hx: 5.5, hy: -15.5, tl: 22, hd: -7, tw: 5.5, lFx: 19, lBx: -17.5, wa: -350 }, [24, -36]);
+/** 지나치기: 머리가 앞 위로 쏠리며 몸이 끌려 나간다 (뒷발 뒤꿈치가 들린다) */
+const D_OVER = AH({ hx: 6.5, hy: -16, tl: 18, hd: -8, tw: 5, lFx: 19.5, lBx: -16, lBy: -1.5, wa: -375 }, [28, -38]);
+const D_OVER2 = AH({ hx: 7, hy: -16.5, tl: 15, hd: -9, tw: 4.5, lFx: 19.5, lBx: -15, lBy: -2, wa: -398 }, [28, -40]);
+/** 여운: 쏠린 머리가 조금 돌아오며 (3px), 뒷발이 내려앉는다 */
+const D_HOLD = AH({ hx: 6.5, hy: -15.8, tl: 15, hd: -8, tw: 4.5, lFx: 19.5, lBx: -15.5, wa: -390 }, [27, -39]);
+/** 복귀: 무게가 먼저 뒤로 빠진다 (해머는 아직 앞 위) → 두 손으로 얼굴 앞에 들고 → 손이 어깨로 오는 동안 해머가 머리 위로 넘어간다 → 두 손으로 어깨에 걸치고, 끝에 뒷손이 주머니로 */
+const D_BACK1 = G({ hx: 3.5, hy: -18, tl: 10, hd: -5, tw: 2, aFx: 12, aFy: -2, lFx: 16, lBx: -14, wa: -390 });
+const D_BACK2 = G({ hx: 2, hy: -19.5, tl: 6, hd: -4, tw: 1.5, aFx: 10, aFy: -8, lFx: 13, lBx: -12, wa: -400 });
+const D_BACK3 = G({ hx: 1, hy: -21, tl: 0, hd: -3, tw: 1, aFx: 6, aFy: 0, lFx: 10, lBx: -10, wa: -455 });
+const D_BACK4 = G({ hx: 0.5, hy: -21.3, tl: -2, hd: -4, aFx: 5, aFy: 5, lFx: 9, lBx: -9, wa: -515 });
 
-/** 대시 공격 돌진 휘두르기 (128×96): 돌진 자세 → 등 뒤로 감고(2~4) → 스미어(5) → 크게 가로지름(6~7 판정) → 여운 → 복귀. 13프레임 */
+/**
+ * 대시 공격 돌진 휘두르기 (128×96, 2차 리워크): 1 돌진 → 2 앞발이 쿵 (손이 먼저 해머를 든다) → 3 머리 옆으로 들어 올림 →
+ * 4 감기 끝(6틱 멈춤, 해머가 등 뒤에 눕는다) → 5 허리가 먼저 풀림 → 6 스미어 → 7~8 허리 앞을 가로질러 올라옴(판정) →
+ * 9~10 머리가 앞 위로 쏠리며 몸이 끌려 나감 → 11 여운 → 12~16 무게가 뒤로 빠진 뒤 해머를 어깨로. 16프레임 33틱
+ * (공격 데이터 그대로: 발동 11 · 지속 4 · 회복 18)
+ */
 export const EDWARD_RUSH: MotionData = {
   name: 'edward/rush',
   label: '에드워드 대시 공격 돌진 휘두르기',
   wide: true,
-  smear: { frame: 4, limb: 'aF', stretch: 1.35, ghosts: 3 },
-  dur: [1, 2, 3, 4, 1, 2, 2, 2, 4, 3, 3, 3, 3],
+  smear: { frame: 5, limb: 'aF', stretch: 1.35, ghosts: 3 },
+  dur: [1, 1, 1, 6, 1, 1, 2, 2, 2, 2, 3, 2, 2, 2, 2, 3],
   keys: [
     { at: 0, pose: D_RUSH },
-    { at: 1, pose: D_RUSH },
+    { at: 1, pose: D_STEP, stop: true },
+    { at: 2, pose: D_LIFT },
     { at: 3, pose: D_COIL, stop: true },
-    { at: 4, pose: D_SMEAR },
-    { at: 5, pose: D_HIT },
+    { at: 4, pose: D_RELEASE },
+    { at: 5, pose: D_SMEAR },
     { at: 6, pose: D_HIT },
-    { at: 7, pose: D_OVER },
-    { at: 8, pose: D_HOLD, stop: true },
-    { at: 10, pose: D_BACK1 },
-    { at: 11, pose: D_BACK2 },
-    { at: 12, pose: STANCE_TURNED },
+    { at: 7, pose: D_HIT2 },
+    { at: 8, pose: D_OVER },
+    { at: 9, pose: D_OVER2, stop: true },
+    { at: 10, pose: D_HOLD },
+    { at: 11, pose: D_BACK1 },
+    { at: 12, pose: D_BACK2 },
+    { at: 13, pose: D_BACK3 },
+    { at: 14, pose: D_BACK4 },
+    { at: 15, pose: STANCE_TURNED },
   ],
 };
 
