@@ -26,6 +26,8 @@ import type { App, Scene } from './scene';
 import { hintBar, Menu, panel } from '../render/menu';
 import { drawControls } from './title';
 import { touch } from '../core/touch';
+import { audio } from '../audio/engine';
+import { SoundBridge } from '../audio/events';
 
 /**
  * 1P 키보드 키 배치. 방향: 화살표 또는 WASD.
@@ -112,6 +114,8 @@ export function fightScene(app?: App): Scene {
   let vfx: VfxLayer;
   let fightVfx: FightVfx;
   let hud: Hud;
+  /** sim 사건 → 소리 (렌더 전용: 상태를 읽기만 한다) */
+  const sound = new SoundBridge();
   /** 필살 컷인 (video: 컷씬 영상 훅이 영상을 틀어 기본 띠를 그리지 않음) */
   let cutin: { who: number; text: string; t: number; video: boolean; length: number; style?: CutinData } | null = null;
   /** 카메라: 화면 왼쪽 위의 월드 좌표 (px, 렌더 전용). x가 -1이면 아직 안 정함 */
@@ -149,6 +153,7 @@ export function fightScene(app?: App): Scene {
     fightVfx = new FightVfx(vfx, fx);
     fightVfx.skins = skins;
     fightVfx.reset(s);
+    sound.reset();
     hud = new Hud();
     hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', practice ? 'DUMMY' : 'CPU'];
     paused = false;
@@ -460,6 +465,8 @@ export function fightScene(app?: App): Scene {
       const canTech = d2.mode === 'airhit' && d2.comboHits >= RULES.TECH_HITS && d2.hitstop === 0;
       const p2 = dummy === 'stand' ? 0 : dummy === 'guard' ? (s.phase === 'fight' ? IN_DOWN : 0) : dummy === 'tech' ? (canTech ? IN_JUMP : 0) : cpuInput(cpus[1], s, 1);
       step(s, [p1, p2]);
+      // 소리: 이번 틱 사건을 읽어 바로 낸다 (맞는 틱에 소리가 시작)
+      for (const c of sound.read(s)) audio.cue(c);
       fx.push(s.events);
       for (const e of s.events) if (e.type === 'cine' && e.text === 'start') cineStart = s.tick;
       fightVfx.tick(s);

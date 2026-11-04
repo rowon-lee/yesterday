@@ -9,6 +9,7 @@ import { drawText, textWidth } from './render/font';
 import { SCREEN_H, SCREEN_W } from './render/screen';
 import { gl, hasWebGL2, initGl } from './render/gl';
 import { SIGNS } from './render/gl/signs';
+import { audio, installAudioUnlock } from './audio/engine';
 
 const params = new URLSearchParams(location.search);
 let sceneName = params.get('scene') ?? DEFAULT_SCENE;
@@ -37,6 +38,8 @@ function noWebGL(c: HTMLCanvasElement): void {
   box.style.cssText = 'color:#f4f0e6;font:16px/1.6 sans-serif;padding:24px;max-width:640px;text-align:center;word-break:keep-all';
   c.replaceWith(box);
 }
+// 소리: 휴대폰 브라우저는 사람이 누르기 전에는 소리를 못 낸다. 첫 터치·클릭·키 입력 때 켠다 (첫 화면 타이틀에서)
+installAudioUnlock();
 const keyboard = new Keyboard();
 const pointer = new Pointer(canvas);
 // 모든 동작의 시트를 시작할 때 미리 그려 둔다.
@@ -81,6 +84,8 @@ function tick(): void {
   scenes: Object.keys(SCENES),
   get tick() { return tickCount; },
   get held() { return lastInput ? [...lastInput.held] : []; },
+  /** 소리: 켜졌나, 소리마다 실제로 튼 횟수 (확인 도구용) */
+  get sounds() { return { running: audio.running, played: { ...audio.played } }; },
   /** 확인 도구(tools/clip)용: 멈춤 해제 (frame()으로 직접 진행) */
   unstop() {
     stopAt = Infinity;
