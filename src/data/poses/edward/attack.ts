@@ -478,39 +478,54 @@ export const AIR_REST = E({ ...AIR_BASE, tl: 6, hd: -2, aFx: 5, aFy: 5.5, aBx: -
 /** 공중 1타 원호: 머리 뒤 위에서 앞 아래로 (시계 방향) */
 const ARC_A1: HammerArc = { cx: 12, cy: -42, rx: 32, ry: 32, a0: -120, a1: 30 };
 const A1_LIFT = A({ ...AIR_BASE, tl: -4, hd: -6, tw: -2, wa: -150 }, [-24, -66]);
-const A1_COIL = A({ ...AIR_BASE, tl: -14, hd: -8, tw: -3, lFx: 6, lFy: -8, lBx: -6, lBy: -6, wa: -170 }, [-38, -56]);
-const A1_SMEAR = A({ ...AIR_BASE, tl: 10, hd: -6, tw: 3, wa: -110 }, arcAt(ARC_A1, -100));
-/** 타격: 해머 무게에 몸이 앞으로 끌려 돈다 (다리가 뒤로 들린다) */
+const A1_COIL = A({ ...AIR_BASE, tl: -9, hd: -7, tw: -2.5, lFx: 6.5, lFy: -9.5, lBx: -4.5, lBy: -7.5, wa: -168 }, [-35, -57]);
+/** 감기 끝 (멈춤 6틱): 몸을 뒤로 젖혀 해머를 머리 뒤로 눕힌다 (다리가 앞으로 모인다) */
+const A1_MAX = A({ ...AIR_BASE, tl: -14, hd: -8, tw: -3, lFx: 6, lFy: -8, lBx: -6, lBy: -6, wa: -170 }, [-38, -56]);
+/** 풀림: 허리가 먼저 앞으로 접히기 시작한다. 손과 해머는 아직 머리 뒤 */
+const A1_RELEASE = A({ ...AIR_BASE, tl: -2, hd: -7, tw: -1, lFx: 5, lFy: -8, lBx: -7, lBy: -6, wa: -165 }, [-37.5, -58.6]);
+/** 스미어: 두 손이 머리 앞 위로 끌려 나오고, 해머 머리는 머리 위에 처져 뒤따른다 */
+const A1_SMEAR = A({ ...AIR_BASE, tl: 10, hd: -6, tw: 3, wa: -122 }, arcAt(ARC_A1, -110));
+/** 타격: 머리가 손을 따라잡고, 해머 무게에 몸이 앞으로 끌려 돈다 (다리가 뒤로 들린다) */
 const A1_HIT = A({ hy: -24, tl: 30, hd: -4, tw: 4.5, lFx: 2, lFy: -6, lBx: -10, lBy: -4, wa: -30 }, arcAt(ARC_A1, -30));
-const A1_HIT2 = A({ hy: -24, tl: 40, hd: -2, tw: 5, lFx: 0, lFy: -5, lBx: -12, lBy: -3, wa: 18 }, arcAt(ARC_A1, 10));
-const A1_OVER = A({ hy: -24, tl: 48, hd: 0, tw: 5, lFx: -2, lFy: -4, lBx: -13, lBy: -2, wa: 52 }, arcAt(ARC_A1, 40));
+const A1_HIT2 = A({ hy: -24, tl: 40, hd: -2, tw: 5, lFx: 0, lFy: -5, lBx: -12, lBy: -3, wa: 1 }, arcAt(ARC_A1, 10));
+const A1_OVER = A({ hy: -24, tl: 49, hd: 0, tw: 5, lFx: -2, lFy: -4, lBx: -13, lBy: -2, wa: 56 }, arcAt(ARC_A1, 47));
 const A1_OVER2 = A({ hy: -24, tl: 52, hd: 2, tw: 4.5, lFx: -3, lFy: -4, lBx: -13, lBy: -1, wa: 70 }, arcAt(ARC_A1, 60));
+/** 여운: 쏠린 머리가 돌아오고 몸이 조금씩 되감긴다 */
 const A1_HOLD = A({ hy: -24, tl: 46, hd: 0, tw: 4, lFx: -1, lFy: -5, lBx: -12, lBy: -2, wa: 60 }, arcAt(ARC_A1, 52));
-const A1_BACK = G({ ...AIR_BASE, tl: 20, hd: -4, tw: 2, aFx: 10, aFy: -2, wa: -30 });
-const A1_BACK2 = G({ ...AIR_BASE, tl: 10, hd: -3, tw: 1, aFx: 6, aFy: -7, wa: -110 });
+const A1_HOLD2 = A({ hy: -24, tl: 40, hd: -1, tw: 3.5, lFx: 1, lFy: -6, lBx: -10, lBy: -3, wa: 56 }, arcAt(ARC_A1, 48));
+/** 복귀: 몸이 먼저 바로 서고 (해머는 아직 앞 아래) → 두 손이 앞 위로 들고 (해머는 아직 앞을 향한다) → 손이 어깨로 오는 동안 해머가 넘어가 어깨에 걸친다 */
+const A1_BACK = G({ ...AIR_BASE, tl: 26, hd: -3, tw: 2, aFx: 12, aFy: 6, wa: 48 });
+const A1_BACK2 = E({ ...AIR_BASE, tl: 12, hd: -3, tw: 1.5, aFx: 8, aFy: -6, aBx: 6, aBy: -3, wa: 15 });
+const A1_BACK3 = E({ ...AIR_BASE, tl: 7, hd: -2.5, tw: 0.5, aFx: 5.5, aFy: 2, aBx: 1, aBy: 1, wa: -140 });
 
-/** 공중 1타 내려치기 (128×96): 감기(2~4) → 스미어(5) → 몸이 앞으로 끌려 돌며 앞 아래로 내려침(6~7 판정) → 쏠림 → 여운 → 어깨로. 14프레임 34틱 */
+/**
+ * 공중 1타 내려치기 (128×96, 2차 리워크): 2~3 해머를 머리 뒤로 들어 감고 → 4 감기 끝(6틱 멈춤) → 5 허리가 먼저 접힘 → 6 스미어 →
+ * 7~8 몸이 앞으로 끌려 돌며 앞 아래로 내려침(판정) → 9~10 쏠림 → 11~12 여운 → 13~16 몸이 먼저 바로 선 뒤 어깨로.
+ * 16프레임 34틱 (공격 데이터 그대로: 발동 14 · 지속 4 · 회복 16)
+ */
 export const EDWARD_AIR_CHOP: MotionData = {
   name: 'edward/air_chop',
   label: '에드워드 공중 1타 내려치기',
   wide: true,
-  smear: { frame: 4, limb: 'aF', stretch: 1.3, ghosts: 3 },
-  dur: [2, 3, 3, 5, 1, 2, 2, 2, 2, 3, 3, 2, 2, 2],
+  smear: { frame: 5, limb: 'aF', stretch: 1.3, ghosts: 3 },
+  dur: [1, 2, 3, 6, 1, 1, 2, 2, 2, 2, 3, 3, 1, 2, 2, 1],
   keys: [
     { at: 0, pose: AIR_REST },
     { at: 1, pose: A1_LIFT },
     { at: 2, pose: A1_COIL },
-    { at: 3, pose: A1_COIL, stop: true },
-    { at: 4, pose: A1_SMEAR },
-    { at: 5, pose: A1_HIT },
-    { at: 6, pose: A1_HIT2 },
-    { at: 7, pose: A1_OVER },
-    { at: 8, pose: A1_OVER2, stop: true },
-    { at: 9, pose: A1_HOLD },
-    { at: 10, pose: A1_HOLD, stop: true },
-    { at: 11, pose: A1_BACK },
-    { at: 12, pose: A1_BACK2 },
-    { at: 13, pose: AIR_REST },
+    { at: 3, pose: A1_MAX, stop: true },
+    { at: 4, pose: A1_RELEASE },
+    { at: 5, pose: A1_SMEAR },
+    { at: 6, pose: A1_HIT },
+    { at: 7, pose: A1_HIT2 },
+    { at: 8, pose: A1_OVER },
+    { at: 9, pose: A1_OVER2, stop: true },
+    { at: 10, pose: A1_HOLD },
+    { at: 11, pose: A1_HOLD2, stop: true },
+    { at: 12, pose: A1_BACK },
+    { at: 13, pose: A1_BACK2 },
+    { at: 14, pose: A1_BACK3 },
+    { at: 15, pose: AIR_REST },
   ],
 };
 
