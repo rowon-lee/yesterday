@@ -106,47 +106,58 @@ export const RAIDEN_HWAGWASAN: MotionData = {
 };
 
 // ---- 필살기: 파천 (검붉은 전격을 두른 붕권. 맞으면 상대 몸통에 주먹을 댄 채 멈추고, 몸 안에서 터진 전격이 등 뒤로 뚫고 나간다) ----
+// 2차 리워크: 판정 12~18틱·몸 이동(공격 데이터)과 진각 바닥 금(4번 프레임이 시작하는 7틱, 그 프레임 앞발 자리)은 그대로.
+// 진각 뒤에 골반·뒷어깨가 먼저 돌고(5), 주먹은 허리에서 낮게 나와 가슴 높이로 솟는 호를 그리며(6 스미어), 한 번 더 밀고 들어갔다 돌아온다
 /** 가라앉으며 뒷주먹을 허리로 당기고 (세운 주먹), 앞손을 펴 앞으로 겨눈다 */
 const PC_SINK = R({ hx: -1, hy: -16, tl: 12, hd: 8, tw: 2, aFx: 13, aFy: -3, aBx: -3, aBy: 11, lFx: 11, lBx: -11 });
-/** 감기 끝 (멈칫): 낮게 버텨 앉고 (마보), 뒷주먹은 허리, 앞손은 상대를 겨눈다. 몸에 검붉은 전격이 감긴다 */
-const PC_LOAD = R({ hx: -2, hy: -13, tl: 10, hd: 10, tw: 3, aFx: 14, aFy: -2, aBx: -4, aBy: 12, lFx: 12, lBx: -13 });
-/** 진각: 앞발을 들었다가 내리찍으며 무게를 앞으로 옮긴다 */
+/** 감기 끝 (멈칫): 낮게 버텨 앉고 (마보) 엉덩이를 뒷발 쪽으로 4px 빼며 몸통을 틀어, 뒷어깨가 엉덩이보다 4~5px 뒤 (2장 ①②). 뒷주먹은 허리, 앞손은 상대를 겨눈다.
+ * 앞발은 진각하려고 살짝 든다. 몸에 검붉은 전격이 감긴다 */
+const PC_LOAD = R({ hx: -4.5, hy: -13, tl: 2, hd: 12, tw: 9, aFx: 14, aFy: -2, aBx: -4, aBy: 12, lFx: 12, lFy: -4, lBx: -13 });
+/** 진각: 든 앞발을 내리찍으며 무게를 앞으로 옮긴다 (이 프레임이 시작하는 틱에 앞발 자리 바닥 금) */
 const PC_STOMP = R({ hx: 1, hy: -12.5, tl: 16, hd: 8, tw: 1, aFx: 12, aFy: 0, aBx: -2, aBy: 11, lFx: 16, lFy: -2, lBx: -12 });
-/** 스미어: 허리를 틀며 뒷주먹이 쏘아져 나간다 (그림은 뒷팔 1.45배), 앞손은 가슴으로 거둔다 */
-const PC_SMEAR = R({ hx: 3.5, hy: -13, tl: 22, hd: 8, tw: -4, aFx: 4, aFy: 3, aBx: 14, aBy: -5, lFx: 19, lBx: -11 });
+/** 골반이 먼저: 허리와 뒷어깨가 앞으로 돌고, 주먹은 아직 허리 높이에서 낮게 따라 나온다 (재수정 지침 2장 '어깨가 먼저') */
+const PC_TURN = R({ hx: 3, hy: -12.5, tl: 20, hd: 8, tw: -3, aFx: 8, aFy: 1, aBx: 2, aBy: 9, lFx: 17, lBx: -12 });
+/** 스미어: 주먹이 허리에서 가슴 높이로 솟으며 쏘아져 나간다 (그림은 뒷팔 1.45배), 앞손은 가슴으로 거둔다 */
+const PC_SMEAR = R({ hx: 4, hy: -13, tl: 26, hd: 7, tw: -5, aFx: 4, aFy: 3, aBx: 13, aBy: -2, lFx: 18.5, lBx: -12.5 });
 /** 타격: 짧고 곧은 세운 주먹 (붕권). 뒷어깨가 앞장서고, 앞발은 진각으로 디딘 채, 뒷발은 뒤로 버틴다 */
 const PC_HIT = R({ hx: 5, hy: -13, tl: 32, hd: 6, tw: -6, aFx: 2, aFy: 4, aBx: 15.8, aBy: -8.2, lFx: 20, lBx: -14 });
-const PC_HIT2 = R({ hx: 5.5, hy: -13, tl: 33, hd: 6, tw: -6.5, aFx: 2, aFy: 4, aBx: 16.2, aBy: -8.2, lFx: 20, lBx: -14.5 });
-const PC_OVER = R({ hx: 6, hy: -12.8, tl: 35, hd: 6, tw: -7, aFx: 2, aFy: 4, aBx: 16.5, aBy: -7.6, lFx: 20, lBx: -15 });
-const PC_HOLD = R({ hx: 5.5, hy: -13, tl: 33, hd: 6, tw: -6, aFx: 2, aFy: 4, aBx: 16.1, aBy: -7.6, lFx: 20, lBx: -14.5 });
-const PC_BACK = R({ hx: 3, hy: -16, tl: 20, hd: 8, tw: -2, aFx: 9, aFy: -2, aBx: 10, aBy: -2, lFx: 15, lBx: -10 });
-const PC_BACK2 = R({ hx: 1, hy: -18, tl: 16, hd: 8, aFx: 12, aFy: -4, aBx: 8.5, aBy: 0, lFx: 11, lBx: -9.5 });
+/** 지나치기: 엉덩이·뒷어깨째 한 번 더 밀어 넣어 주먹이 솟던 길을 따라 4~5px 더 나간다 */
+const PC_OVER = R({ hx: 7, hy: -12.5, tl: 37, hd: 6, tw: -7.5, aFx: 2, aFy: 4, aBx: 16, aBy: -10, lFx: 20, lBx: -15.5 });
+/** 되돌아옴 (멈칫): 2~3px 돌아와 주먹을 댄 자리에 굳힌다 */
+const PC_REBOUND = R({ hx: 5.5, hy: -13, tl: 33, hd: 6, tw: -6, aFx: 2, aFy: 4, aBx: 16, aBy: -7.8, lFx: 20, lBx: -14.5 });
+/** 잔심: 뻗은 채 고개를 들어 상대를 본다 (빗나가면 여기가 큰 빈틈) */
+const PC_ZANSHIN = R({ hx: 5, hy: -13.5, tl: 30, hd: 3, tw: -5.5, aFx: 3, aFy: 2, aBx: 15.5, aBy: -6.5, lFx: 20, lBx: -14 });
+/** 회복 첫 프레임: 무게가 뒤로 빠지며 두 손이 곧장 얼굴 앞 가드로, 앞발을 들어 물러 디딘다 */
+const PC_BACK = R({ hx: 2, hy: -16.5, tl: 18, hd: 8, tw: -1.5, aFx: 10, aFy: -3, aBx: 9.5, aBy: -1, lFx: 15, lFy: -2, lBx: -10 });
+const PC_GUARD = R({ hx: 0.5, hy: -18, tl: 15, hd: 8, aFx: 12, aFy: -4, aBx: 8.5, aBy: 0, lFx: 10, lBx: -9.5 });
 
 /**
- * 필살기 파천 (128×96): 가라앉기(2) → 마보로 버티며 감기(3, 멈칫) → 진각(4) → 스미어(5) → 붕권(6~8프레임 판정) → 여운 → 가드.
- * 맞으면 연출(파천 장면 다섯)로, 빗나가면 풍압이 앞으로 날아가고 큰 빈틈. 14프레임 35틱
+ * 필살기 파천 (128×96): 가라앉기(2) → 마보로 버티며 감기(3, 멈칫, 앞발을 든다) → 진각(4, 7틱 바닥 금) → 골반·어깨 먼저(5) → 스미어(6, 1틱)
+ * → 붕권(7~9프레임 판정, 8 지나치기, 9 되돌아옴) → 잔심(10) → 가드 (처음 빠르고 끝으로 느리게).
+ * 맞으면 연출(파천 장면 다섯)로, 빗나가면 풍압이 앞으로 날아가고 큰 빈틈. 13프레임 35틱
  */
 export const RAIDEN_PACHEON: MotionData = {
   name: 'raiden/pacheon',
   label: '라이덴 필살기 파천',
   wide: true,
-  smear: { frame: 4, limb: 'aB', stretch: 1.45 },
-  // 판정 프레임(6번)이 12틱째: 컷인 정지 20틱 뒤 20~32틱 동안 굳게 디디고 주먹을 상대 가슴에 댄다 (사용자 피드백 2026-11-02 9-4)
-  dur: [2, 2, 3, 3, 2, 2, 2, 2, 4, 3, 3, 3, 2, 2],
+  smear: { frame: 5, limb: 'aB', stretch: 1.45 },
+  // 판정 프레임(7번)이 12틱째: 컷인 정지 20틱 뒤 20~32틱 동안 굳게 디디고 주먹을 상대 가슴에 댄다 (사용자 피드백 2026-11-02 9-4)
+  // 앞 네 프레임의 표시 틱(2·2·3)은 진각 바닥 금(render/fightvfx: 4번 프레임 시작 틱 = 7틱)과 맞물려 있어 그대로 둔다
+  dur: [2, 2, 3, 3, 1, 1, 2, 2, 3, 6, 3, 4, 3],
   keys: [
     { at: 0, pose: R_STANCE },
     { at: 1, pose: PC_SINK },
     { at: 2, pose: PC_LOAD, stop: true },
     { at: 3, pose: PC_STOMP },
-    { at: 4, pose: PC_SMEAR },
-    { at: 5, pose: PC_HIT },
-    { at: 6, pose: PC_HIT2 },
+    { at: 4, pose: PC_TURN },
+    { at: 5, pose: PC_SMEAR },
+    { at: 6, pose: PC_HIT },
     { at: 7, pose: PC_OVER },
-    { at: 8, pose: PC_OVER, stop: true },
-    { at: 9, pose: PC_HOLD },
+    { at: 8, pose: PC_REBOUND, stop: true },
+    { at: 9, pose: PC_ZANSHIN },
     { at: 10, pose: PC_BACK },
-    { at: 12, pose: PC_BACK2 },
-    { at: 13, pose: R_STANCE },
+    { at: 11, pose: PC_GUARD },
+    { at: 12, pose: R_STANCE },
   ],
 };
 
