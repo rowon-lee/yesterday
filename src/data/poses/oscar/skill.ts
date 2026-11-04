@@ -130,21 +130,20 @@ export const OSCAR_SUPER = seq('oscar/super', '오스카 필살기 (월령수류
   [O_STANCE, 10],
 ]);
 
-/** 장면 1 전개 (70틱): 눈을 감은 채 꼼짝하지 않는다. 숨 두 번. 그동안 구름이 갈라지고 핏빛 달이 떠오르고 물이 차오른다 */
-export const OSCAR_SUPER_OPEN: MotionData = {
-  name: 'oscar/super_open',
-  label: '오스카 필살기 장면 1 (전개)',
-  wide: true,
-  dur: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
-  keys: [
-    { at: 0, pose: SP_PUSH },
-    { at: 2, pose: SP_CLOSE, stop: true },
-    { at: 5, pose: SP_BREATH, stop: true },
-    { at: 8, pose: SP_CLOSE, stop: true },
-    { at: 11, pose: SP_BREATH, stop: true },
-    { at: 13, pose: SP_CLOSE, stop: true },
-  ],
-};
+/**
+ * 장면 1 전개 (70틱, 2차 리워크): 시간이 멈춘 채 날밑을 민 자세로 굳어 있다 → 칼날이 되들어가며 고개가 숙는다 →
+ * 눈을 감고 꼼짝하지 않는다 (숨 두 번: 들이쉼 · 내쉼 · 들이쉼 · 내쉼). 그동안 구름이 갈라지고 핏빛 달이 떠오르고 물이 차오른다.
+ * 7프레임 (사이 프레임 14장 × 5틱 대신, 숨마다 한 장)
+ */
+export const OSCAR_SUPER_OPEN = seq('oscar/super_open', '오스카 필살기 장면 1 (전개)', [
+  [SP_PUSH, 6, true],
+  [OD({ hy: -21.9, tl: 12, hd: 11, lFx: 6, lBx: -6 }, 0), 2],
+  [SP_CLOSE, 14, true],
+  [SP_BREATH, 14, true],
+  [OD({ hy: -21.5, tl: 14, hd: 22, lFx: 6, lBx: -6 }, 0), 14, true],
+  [OD({ hy: -22.3, tl: 12, hd: 19, lFx: 6, lBx: -6 }, 0), 10, true],
+  [SP_CLOSE, 10, true],
+]);
 
 /**
  * 장면 2 검영 (40틱, 2차 리워크): 검영들이 떠올라 둘레를 도는 동안 눈을 감고 멈춰 있다 (숨 한 번: 1px 오른다) →
