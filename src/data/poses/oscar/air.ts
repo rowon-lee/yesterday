@@ -58,16 +58,21 @@ const F_OPEN = OR({ hy: -25, tl: 12, hd: 13, lFx: 4, lFy: -3, lBx: -3, lBy: -2 }
 /** 빨리 떨어질 때: 두 발을 조금 벌려 내리고 무릎을 살짝 굽혀 착지 준비 (등은 굽은 그대로, 고개는 아래를 본다) */
 const F_READY = OR({ hy: -24, tl: 14, hd: 16, lFx: 6, lFy: -1, lBx: -5, lBy: 0 });
 
-/** 낙하: 접은 다리(꼭대기) → 펴며 → 발을 벌려 착지 준비. 12프레임 (떨어지는 속도로 프레임이 넘어간다) */
+/**
+ * 낙하 (2차 리워크): 접은 다리(꼭대기에 오래 머문다) → 무릎이 살짝 풀림 → 다리가 한 번에 펴진다 → 발을 뻗어 땅을 찾음 →
+ * 발을 벌려 착지 준비 → 빨리 떨어지면 무릎을 더 굽혀 내려앉을 채비. 6프레임 (떨어지는 속도로 프레임이 넘어간다: dur 합 36 그대로)
+ */
 export const OSCAR_FALL: MotionData = {
   name: 'oscar/fall',
   label: '오스카 낙하',
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [8, 3, 4, 8, 7, 6],
   keys: [
     { at: 0, pose: J_TOP },
-    { at: 4, pose: F_OPEN },
-    { at: 9, pose: F_READY, stop: true },
-    { at: 11, pose: F_READY },
+    { at: 1, pose: OR({ hy: -25, tl: 12.8, hd: 12.5, lFx: 4.8, lFy: -7, lBx: -1.5, lBy: -5 }) },
+    { at: 2, pose: F_OPEN },
+    { at: 3, pose: OR({ hy: -24.6, tl: 13, hd: 15, lFx: 5, lFy: -1.5, lBx: -4, lBy: -0.5 }) },
+    { at: 4, pose: F_READY, stop: true },
+    { at: 5, pose: OR({ hy: -23.4, tl: 15.5, hd: 17, lFx: 6.5, lFy: 0, lBx: -5.5, lBy: 0.5 }) },
   ],
 };
 
