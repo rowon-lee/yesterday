@@ -49,7 +49,6 @@ export const EDWARD_REENACT: MotionData = {
  * 해머는 앞손이 가슴 앞에서 쥔 채 어깨에 걸쳐 둔다 (가슴 앞 버팀). 손을 뻗는 것은 빈 뒷손
  */
 /** 염동력 박자: 14프레임 48틱 (0~10 준비, 10~14 뻗음, 14~34 당김·밀어붙임, 34~40 놓음, 40~48 복귀) */
-const TK_DUR = [2, 4, 4, 2, 2, 4, 4, 4, 4, 4, 3, 3, 4, 4] as const;
 /*
  * 끌어당김 (2차 리워크): 빈 뒷손을 엉덩이 뒤로 당겨 감고(멈춤 5틱) → 뒷어깨가 먼저 앞으로 돌고 → 손이 아래에서 위로 호를 그리며
  * 얼굴 높이로 뻗어(10틱, 판정) → 손바닥이 한 번 더 밀렸다가(지나치기) 주먹을 쥐며 2px 되돌아온다 →
@@ -112,35 +111,62 @@ export const EDWARD_TELEKINESIS: MotionData = {
   ],
 };
 
-/** 밀어냄 0~10틱: 두 손을 가슴 앞에 모은다 (몸을 조금 웅크린다) */
-const TS_GATHER = E({ hx: -1, hy: -21, tl: -2, hd: -4, tw: -1, aBx: 5, aBy: -1, lFx: 9, lBx: -10 });
-const TS_GATHER2 = E({ hx: -1.5, hy: -20.5, tl: -4, hd: -5, tw: -1.5, aBx: 3, aBy: 0, lFx: 9.5, lBx: -10.5 });
-/** 10~14틱: 앞으로 밀친다 (앞발을 내딛고 손바닥을 끝까지 뻗는다) */
-const TS_THRUST = E({ hx: 3, hy: -20, tl: 14, hd: -6, tw: -6, aBx: 18, aBy: -3, lFx: 14, lBx: -12 });
-/** 14~34틱: 밀어붙인 채 버틴다 */
-const TS_HOLD = E({ hx: 3.5, hy: -20, tl: 16, hd: -6, tw: -6, aBx: 18, aBy: -2.5, lFx: 14.5, lBx: -12.5 });
-const TS_HOLD2 = E({ hx: 4, hy: -19.8, tl: 18, hd: -6, tw: -6.5, aBx: 18, aBy: -2, lFx: 15, lBx: -13 });
-/** 34~40틱: 장막이 터지며 손이 튕겨 돌아온다 */
-const TS_RECOIL = E({ hx: 1.5, hy: -21, tl: 6, hd: -5, tw: -3, aBx: 13, aBy: -7, lFx: 12, lBx: -11 });
+/*
+ * 밀어냄 (2차 리워크, 끌어당김과 같은 박자): 빈 뒷손을 가슴 앞에 모아 웅크리고(멈춤 5틱) → 앞발을 내디디며 어깨가 먼저 →
+ * 손바닥을 끝까지 밀침(10틱, 장막 벽) → 몸이 기울며 한 번 더 밀렸다 2px 물러나 버팀(14틱) → 밀어붙이는 동안 뒷발이 미끄러지며
+ * 점점 낮게 버팀 → 34틱 장막이 터지며 손이 위로 튕기고 몸이 밀려 선다 → 천천히 주머니로
+ */
+const TS_DRAW = E({ hx: -0.5, hy: -21.6, tl: -2, hd: -4, tw: 1, aBx: 3, aBy: 2, lFx: 9.5, lBx: -10, wa: -149 });
+/** 감기 끝 (멈춤): 앞발을 넓게 디디고 조금 웅크려, 손바닥을 가슴 앞에 모은다 */
+const TS_GATHER = E({ hx: -1.8, hy: -20.4, tl: -5, hd: -5, tw: 2.5, aBx: 1, aBy: 1, lFx: 12, lBx: -10.5, wa: -150 });
+/** 앞발을 내디디며 어깨가 먼저 나간다 (손은 아직 가슴 앞) */
+const TS_STEP = E({ hx: 0.5, hy: -20.6, tl: 3, hd: -5, tw: 0, aBx: -2, aBy: 1, lFx: 13.5, lBx: -11, wa: -151 });
+const TS_PUSH = E({ hx: 2, hy: -20.2, tl: 9, hd: -6, tw: -4, aBx: 9, aBy: -2, lFx: 14, lBx: -12, wa: -152 });
+/** 10~14틱: 손바닥을 끝까지 밀친다 (장막 벽) */
+const TS_THRUST = E({ hx: 3, hy: -20, tl: 14, hd: -6, tw: -6, aBx: 18, aBy: -3, lFx: 14, lBx: -12, wa: -146 });
+/** 지나치기: 몸이 기울며 한 번 더 밀린다 */
+const TS_OVER = E({ hx: 4.5, hy: -19.7, tl: 18, hd: -6, tw: -7.5, aBx: 18, aBy: -2.5, lFx: 15, lBx: -12.5, wa: -140 });
+/** 14~34틱: 2px 물러나 버틴 뒤, 밀어붙이는 동안 뒷발이 미끄러지며 점점 낮게 버틴다 */
+const TS_HOLD = E({ hx: 3.6, hy: -19.9, tl: 16, hd: -6, tw: -6.5, aBx: 18, aBy: -2.5, lFx: 15, lBx: -12.5, wa: -138 });
+const TS_PRESS1 = E({ hx: 4.4, hy: -19.6, tl: 18, hd: -6, tw: -7, aBx: 18, aBy: -2, lFx: 15, lBx: -14, wa: -140 });
+const TS_PRESS2 = E({ hx: 5.2, hy: -19.2, tl: 20, hd: -7, tw: -7.5, aBx: 18, aBy: -1.5, lFx: 15.5, lBx: -15.5, wa: -139 });
+const TS_PRESS3 = E({ hx: 6, hy: -18.8, tl: 22, hd: -8, tw: -8, aBx: 18, aBy: -1, lFx: 16, lBx: -17, wa: -137 });
+/** 버티다 어깨가 움츠러든다 (가장 낮다) */
+const TS_PRESS4 = E({ hx: 6.4, hy: -18.4, tl: 23, hd: -9, tw: -8, aBx: 18, aBy: -0.5, lFx: 16, lBx: -17.5, wa: -135 });
+/** 34~40틱: 장막이 터지며 손이 위로 튕기고 몸이 밀려 선다 (어깨의 해머는 한 박자 늦게 들썩인다) */
+const TS_RECOIL = E({ hx: 1.5, hy: -21, tl: 4, hd: -3, tw: -3, aBx: 12, aBy: -9, lFx: 13, lBx: -11.5, wa: -135 });
+const TS_RECOIL2 = E({ hx: 0, hy: -21.6, tl: -2, hd: -3, tw: -1, aBx: 8, aBy: -4, lFx: 11, lBx: -10.5, wa: -146 });
+/** 손이 주머니로 돌아가며 발을 모은다 */
+const TS_BACK1 = E({ hx: -0.3, hy: -22, tl: -3, hd: -4, tw: 0.5, aBx: 3, aBy: 7, lFx: 9, lBx: -9, wa: -152 });
+const TS_BACK2 = E({ hx: -0.2, hy: -22.4, tl: -4, hd: -4, tw: 1.3, aBx: -1, aBy: 11.5, lFx: 7.5, lBx: -8, wa: -150 });
 
-/** 스킬 2 염동력 밀어냄 (128×96): 두 손을 가슴 앞에 모아(1~3) → 앞으로 밀침(4~5 판정, 장막 벽) → 밀어붙임(6~10) → 장막이 터짐(11~12) → 기본자세. 14프레임 48틱 */
+/**
+ * 스킬 2 염동력 밀어냄 (128×96, 2차 리워크): 1~3 손을 가슴 앞에 모아 멈춤 → 4 앞발을 내디디며 어깨가 먼저 → 5~6 끝까지 밀침(10틱, 장막 벽) →
+ * 7 지나치기 → 8 버팀(14틱) → 9~12 밀어붙이며 낮아짐 → 13~14 장막이 터져 튕김(34틱) → 15~17 기본자세. 17프레임 48틱 (끌어당김과 같은 박자)
+ */
 export const EDWARD_TK_PUSH: MotionData = {
   name: 'edward/tk_push',
   label: '에드워드 스킬 2 염동력 밀어냄',
   wide: true,
-  dur: TK_DUR,
+  dur: [1, 2, 5, 1, 1, 2, 2, 3, 4, 4, 4, 5, 3, 3, 3, 3, 2],
   keys: [
     { at: 0, pose: E_STANCE },
-    { at: 1, pose: TS_GATHER },
-    { at: 2, pose: TS_GATHER2, stop: true },
-    { at: 3, pose: TS_THRUST },
-    { at: 4, pose: TS_THRUST },
-    { at: 5, pose: TS_HOLD },
-    { at: 7, pose: TS_HOLD2 },
-    { at: 9, pose: TS_HOLD, stop: true },
-    { at: 10, pose: TS_RECOIL },
-    { at: 11, pose: TS_RECOIL, stop: true },
-    { at: 13, pose: E_STANCE },
+    { at: 1, pose: TS_DRAW },
+    { at: 2, pose: TS_GATHER, stop: true },
+    { at: 3, pose: TS_STEP },
+    { at: 4, pose: TS_PUSH },
+    { at: 5, pose: TS_THRUST },
+    { at: 6, pose: TS_OVER },
+    { at: 7, pose: TS_HOLD, stop: true },
+    { at: 8, pose: TS_PRESS1 },
+    { at: 9, pose: TS_PRESS2 },
+    { at: 10, pose: TS_PRESS3 },
+    { at: 11, pose: TS_PRESS4, stop: true },
+    { at: 12, pose: TS_RECOIL },
+    { at: 13, pose: TS_RECOIL2 },
+    { at: 14, pose: TS_BACK1 },
+    { at: 15, pose: TS_BACK2 },
+    { at: 16, pose: E_STANCE },
   ],
 };
 
