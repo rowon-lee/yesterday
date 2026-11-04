@@ -21,31 +21,29 @@ function seq(name: string, label: string, frames: readonly Fr[]): MotionData {
  */
 
 // ---- 스킬 1 월하참뢰검 (13-3): 0~18틱 표식 (상대 자리에 앞으로 그어질 선이 점선으로) → 18틱 칼자루에 손, 칼날 반짝 → 점선이 실선으로 ----
-/** 상대를 바라본다 (고개를 들고 등을 조금 편다): 칼자루에 손을 얹은 채 멈춘다 */
-const S1_GAZE = OD({ hy: -21.5, tl: 10, hd: 2, lFx: 6, lBx: -7 }, 0);
-const S1_STILL = OD({ hy: -21.6, tl: 10, hd: 3, lFx: 6, lBx: -7 }, 0);
-/** 칼날이 5px 비친다 (이 순간 점선이 실선으로) */
-const S1_DRAW = OD({ hx: 0.5, hy: -21.3, tl: 12, hd: 3, lFx: 6.5, lBx: -7, tw: 1 }, 5);
-const S1_CLICK = OD({ hy: -21.5, tl: 11, hd: 6, lFx: 6.5, lBx: -7 }, 0);
-const S1_BOW = OD({ hy: -21.8, tl: 12, hd: 12, lFx: 6.5, lBx: -7 }, 0);
-
-/** 스킬 1: 손을 얹고 바라봄 (표식이 뜨는 동안 18틱) → 칼날이 비침 (7번째 프레임 = 18틱, 원격 베기) → '탁' 1프레임 멈춤 → 고개를 숙임 → 기본자세. 14프레임 34틱 */
-export const OSCAR_SKILL1: MotionData = {
-  name: 'oscar/skill1',
-  label: '오스카 스킬 1 (월하참뢰검)',
-  wide: true,
-  dur: [1, 3, 3, 3, 3, 3, 2, 1, 2, 3, 3, 3, 2, 2],
-  keys: [
-    { at: 0, pose: O_STANCE },
-    { at: 1, pose: S1_GAZE, stop: true },
-    { at: 6, pose: S1_STILL, stop: true },
-    { at: 7, pose: S1_DRAW },
-    { at: 8, pose: S1_CLICK, stop: true },
-    { at: 9, pose: S1_CLICK, stop: true },
-    { at: 11, pose: S1_BOW, stop: true },
-    { at: 13, pose: O_STANCE },
-  ],
-};
+/**
+ * 스킬 1 (2차 리워크): 상대를 바라봄 → 굳음 → 눈을 가늘게 (고개가 숙는다) → 뒷손이 칼집 입구로 → 엄지가 날밑으로 (멈춤) →
+ * 숨을 들이쉬고 멈춤 (표식이 뜨는 18틱) → 칼날 5px 1틱 (18틱, 원격 베기) → '탁' 멈춤 → 바라본 채 여운 → 고개를 숙임 → 깊이 숙여 멈춤 →
+ * 뒷손이 등 뒤로 → 무게가 뒤로 → 기본자세. 16프레임 34틱 (같은 자세를 늘어놓던 14장 대신, 표식을 기다리는 동안 한 동작씩)
+ */
+export const OSCAR_SKILL1 = seq('oscar/skill1', '오스카 스킬 1 (월하참뢰검)', [
+  [O_STANCE, 1],
+  [OR({ hy: -22.4, tl: 9, hd: 1 }), 2],
+  [OR({ hy: -22.5, tl: 8, hd: -1 }), 3, true],
+  [OR({ hy: -22.2, tl: 10, hd: 8 }), 2],
+  [OD({ hy: -22, tl: 10.5, hd: 8, lFx: 7, lBx: -6.5 }, 0), 2],
+  [OD({ hy: -21.7, tl: 11, hd: 7, lFx: 7.5, lBx: -7 }, -2), 3, true],
+  [OD({ hy: -22.6, tl: 8, hd: 4, lFx: 7.5, lBx: -7 }, -2), 2],
+  [OD({ hy: -22.6, tl: 8, hd: 3, lFx: 7.5, lBx: -7 }, -2.5), 3, true],
+  [OD({ hx: 0.5, hy: -22.2, tl: 10, hd: 2, lFx: 8, lBx: -7, tw: 1 }, 5), 1],
+  [OD({ hy: -22.3, tl: 9, hd: 4, lFx: 8, lBx: -7 }, 0), 2, true],
+  [OD({ hy: -22.3, tl: 9.5, hd: 6, lFx: 8, lBx: -7 }, 0), 3, true],
+  [OD({ hy: -21.9, tl: 11.5, hd: 12, lFx: 7.5, lBx: -7 }, 0), 2],
+  [OD({ hy: -21.6, tl: 13, hd: 17, lFx: 7, lBx: -6.5 }, 0), 3, true],
+  [OR({ hy: -21.8, tl: 13, hd: 14, lFx: 6.5, lBx: -6 }), 2],
+  [OR({ hx: 0, hy: -22.5, tl: 11.5, hd: 9, lFx: 6, lBx: -6 }), 2],
+  [O_STANCE, 1],
+]);
 
 // ---- 스킬 2 월하윤회궤 (13-4): 0~4 고른 검영이 맥동 → 4~8 앞 허공에 세로 틈이 열리고 들어간다 → 8~10 사라짐 (9틱째 옮김) → 10~16 검영 자리 틈에서 걸어 나온다 ----
 const S2_READY = OD({ hy: -21.5, tl: 13, hd: 10, lFx: 6, lBx: -6 }, 1);
