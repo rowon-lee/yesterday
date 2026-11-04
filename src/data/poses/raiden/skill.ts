@@ -169,6 +169,7 @@ const S = (o: Partial<Pose>): Pose => ({ ...STANCE, ...o });
 // 장면 3 80~96 등 뒤로 · 장면 4 96~130 잿더미 · 장면 5 130~150 잔심 (장면 길이 24·24·16·34·20틱)
 // 2차 리워크: 장면 길이(공격 데이터 scenes 24·24·16·34·20틱)와 렌더 이펙트 틱(장면 2 번쩍임 6·16틱, 장면 3 터짐 2틱)은 그대로.
 // 같은 자세를 복사해 늘어놓던 프레임을 없애고, 움직이지 않는 장면은 한 장을 dur로 길게, 움직이는 장면은 이펙트 틱에 맞춰 고르지 않은 박자로.
+const PB_HOLD2 = R({ hx: 6.5, hy: -12.6, tl: 34.5, hd: 7.5, tw: -7, aFx: 2, aFy: 4, aBx: 16.4, aBy: -7.4, lFx: 21, lBx: -15 });
 // 장면 1 (정적 24틱): 주먹을 가슴에 댄 채 굳는다 (떨림 없이. 상대 몸 가운데는 40px 앞: 팔 길이, 실루엣이 겹치지 않는다)
 const PP_A = R({ hx: 5, hy: -13, tl: 32, hd: 6, tw: -6, aFx: 2, aFy: 4, aBx: 15.8, aBy: -8.2, lFx: 20, lBx: -14 });
 /** 파천 장면 1: 라이덴 — 주먹을 댄 채 멈춤 (1프레임 24틱: 움직이지 않는 장면이라 한 장) */
@@ -237,20 +238,22 @@ export const RAIDEN_PACHEON_REACT2: MotionData = {
 };
 
 // 장면 3 (등 뒤로 16틱): 라이덴이 허리를 틀어 한 번 더 밀어 넣고, 상대 몸 안의 전격이 등 뒤로 뚫고 나가며 상대는 활처럼 젖혀진다
+/** 감기: 허리를 1틱 살짝 빼며 뒷어깨를 뒤로 (주먹은 댄 채) */
+const PB_COIL = R({ hx: 5.5, hy: -12.5, tl: 34, hd: 9, tw: -4.5, aFx: 2, aFy: 4, aBx: 16.4, aBy: -8.2, lFx: 20.5, lBx: -14.5 });
 const PB_DRIVE = R({ hx: 6.5, hy: -12.5, tl: 36, hd: 6, tw: -7, aFx: 2, aFy: 4, aBx: 16.6, aBy: -7.6, lFx: 21, lBx: -15 });
-const PB_HOLD = R({ hx: 6.5, hy: -12.8, tl: 35, hd: 7, tw: -7, aFx: 2, aFy: 4, aBx: 16.4, aBy: -7.6, lFx: 21, lBx: -15 });
-const PB_HOLD2 = R({ hx: 6.5, hy: -12.6, tl: 34.5, hd: 7.5, tw: -7, aFx: 2, aFy: 4, aBx: 16.4, aBy: -7.4, lFx: 21, lBx: -15 });
-/** 파천 장면 3: 라이덴 — 허리를 틀어 밀어 넣고 굳힘 (12프레임 16틱) */
+/** 틀어 넣은 뒤 굳힘 (지나쳤던 어깨가 조금 돌아온다): 장면 4·5가 이 자세에서 이어진다 */
+const PB_HOLD = R({ hx: 6.5, hy: -12.8, tl: 34, hd: 7, tw: -6, aFx: 2, aFy: 4, aBx: 16.4, aBy: -7.6, lFx: 21, lBx: -15 });
+/** 파천 장면 3: 라이덴 — 허리를 틀어 밀어 넣고 굳힘 (4프레임 16틱: 감기 1틱 → 터짐 2틱에 틀어 넣음 → 굳힘) */
 export const RAIDEN_PACHEON_BURST: MotionData = {
   name: 'raiden/pacheon_burst',
   label: '라이덴 파천 연출 3 (밀어 넣기)',
   wide: true,
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2],
+  dur: [1, 1, 3, 11],
   keys: [
     { at: 0, pose: PP_A },
-    { at: 2, pose: PB_DRIVE },
-    { at: 4, pose: PB_DRIVE, stop: true },
-    { at: 11, pose: PB_HOLD },
+    { at: 1, pose: PB_COIL },
+    { at: 2, pose: PB_DRIVE, stop: true },
+    { at: 3, pose: PB_HOLD },
   ],
 };
 /** 상대 반응 3: 등 뒤로 전격이 터져 나가며 가슴이 앞으로 튀어나오고 몸이 활처럼 뒤로 젖혀진다 */
