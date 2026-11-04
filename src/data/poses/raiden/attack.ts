@@ -9,49 +9,46 @@ import { R, R_STANCE } from './stance';
  */
 
 // ---- 1타: 잽 (동작연출지침서 7장: 앞발을 크게 내디디며 앞손 스트레이트, 짧은 직선 번개) ----
-// 128×96 칸. 감기(2~3프레임, 마지막 멈칫) → 스미어 1틱(4프레임, 앞팔 1.4배) → 타격(5~6프레임 판정) → 지나치기 → 여운(뻗은 자세로 멈춤) → 복귀.
-// 타격 프레임 기준값(2장): 발 간격 34px, 엉덩이 5px 낮게, 몸통 36°, 앞팔 끝까지(18px), 앞어깨 5px 앞, 뒷발→엉덩이→어깨→주먹 한 줄(어긋남 12°)
-/** 감기 1: 무게를 뒷발로 옮기며 어깨를 뒤로 돌린다 */
-const JAB_LOAD = R({ hx: -1.5, hy: -17.5, tl: 10, hd: 10, tw: -1, aFx: 10, aFy: -6, aBx: 7, aBy: -1, lFx: 9, lBx: -10 });
-/** 감기 끝 (멈칫): 뒷발에 실어 웅크리고, 앞주먹을 얼굴 앞으로 당겨 어깨를 뒤로 감는다 */
-const JAB_COIL = R({ hx: -3, hy: -16, tl: 6, hd: 12, tw: -2.5, aFx: 7, aFy: -7, aBx: 6, aBy: -2, lFx: 10, lBx: -12 });
-/** 스미어: 앞발을 크게 내디디며 앞팔이 쏘아져 나간다 (그림은 앞팔 1.4배) */
-const JAB_SMEAR = R({ hx: 1.5, hy: -14.5, tl: 28, hd: 9, tw: 3, aFx: 15, aFy: -7, aBx: 6, aBy: -2, lFx: 17, lBx: -14 });
+// 128×96 칸. 타격 프레임 기준값(2장): 발 간격 34px, 엉덩이 5px 낮게, 몸통 36°, 앞팔 끝까지(18px), 앞어깨 5px 앞, 뒷발→엉덩이→어깨→주먹 한 줄(어긋남 12°)
+// 2차 리워크: 판정 4~7틱·몸 이동(공격 데이터)은 그대로. 12 → 9프레임(빠른 타격 참고 6~10). 감기는 한 장(멈칫)으로 짧게,
+// 주먹은 턱에서 살짝 아래로 처졌다 솟아 닿는 얕은 호, 지나쳤다 2~3px 돌아온 뒤 손이 곧장 턱 앞 가드로 (재수정 지침 3장 라이덴)
+/** 감기 끝 (멈칫): 엉덩이를 뒷발 쪽으로 4px 빼고 몸통을 살짝 세워, 앞어깨가 엉덩이보다 4px 뒤에 오게 감는다 (2장 ①②). 앞주먹은 얼굴 앞 */
+const JAB_COIL = R({ hx: -4.5, hy: -16, tl: -4, hd: 14, tw: -5, aFx: 7, aFy: -7, aBx: 6, aBy: -2, lFx: 10, lBx: -12 });
+/** 스미어: 앞발을 크게 내디디며 앞팔이 쏘아져 나간다 (그림은 앞팔 1.4배). 주먹은 어깨 높이보다 조금 낮게 지나간다 */
+const JAB_SMEAR = R({ hx: 1.5, hy: -14.5, tl: 28, hd: 9, tw: 3, aFx: 14, aFy: -2.5, aBx: 6, aBy: -2, lFx: 17, lBx: -14 });
 /** 타격: 몸을 실어 앞손을 끝까지, 뒷손은 턱, 뒷다리는 길게 뻗어 한 줄 */
 const JAB_HIT = R({ hx: 4, hy: -14, tl: 36, hd: 8, tw: 5, aFx: 15.5, aFy: -8.7, aBx: 6, aBy: -2, lFx: 20, lBx: -14 });
-const JAB_HIT2 = R({ hx: 4.5, hy: -13.8, tl: 37, hd: 8, tw: 5.5, aFx: 16.2, aFy: -9, aBx: 6, aBy: -2, lFx: 20, lBx: -14.5 });
-/** 지나치기: 몸이 한 박 더 앞으로 쏠린다 */
-const JAB_OVER = R({ hx: 5, hy: -13.5, tl: 39, hd: 8, tw: 6, aFx: 16.5, aFy: -8.5, aBx: 6, aBy: -2, lFx: 20, lBx: -15 });
-/** 여운: 뻗은 자세로 멈췄다가 조금 가라앉는다 */
-const JAB_HOLD = R({ hx: 4.5, hy: -14, tl: 37, hd: 8, tw: 5, aFx: 16, aFy: -8, aBx: 6, aBy: -1.5, lFx: 20, lBx: -14 });
-/** 복귀: 팔을 거두며 발을 당긴다 */
-const JAB_BACK1 = R({ hx: 2, hy: -16, tl: 26, hd: 9, tw: 2, aFx: 13, aFy: -6, aBx: 7, aBy: -1, lFx: 15, lBx: -12 });
-const JAB_BACK2 = R({ hx: 0.5, hy: -18, tl: 18, hd: 8, tw: 0.5, aFx: 12.5, aFy: -5, aBx: 8, aBy: -0.5, lFx: 10, lBx: -10 });
+/** 지나치기: 몸이 한 박 더 앞으로 쏠려 주먹이 더 나간다 */
+const JAB_OVER = R({ hx: 5.5, hy: -13.5, tl: 40, hd: 8, tw: 6.5, aFx: 16.5, aFy: -8.5, aBx: 6, aBy: -2, lFx: 20, lBx: -15 });
+/** 되돌아옴 (멈칫): 팔꿈치가 접히며 주먹이 2~3px 돌아온다 */
+const JAB_REBOUND = R({ hx: 4.5, hy: -14, tl: 37, hd: 8, tw: 5, aFx: 14, aFy: -7.5, aBx: 6, aBy: -2, lFx: 20, lBx: -14.5 });
+/** 회복 첫 프레임: 앞손이 곧장 턱 앞 가드로 돌아오고 무게가 뒤로 빠지기 시작한다 */
+const JAB_SNAP = R({ hx: 3, hy: -15, tl: 31, hd: 9, tw: 2.5, aFx: 10.5, aFy: -6, aBx: 6.5, aBy: -1.5, lFx: 18, lBx: -13.5 });
+/** 앞발을 들어 당기며 몸을 세운다 */
+const JAB_BACK = R({ hx: 1, hy: -17.5, tl: 20, hd: 8, tw: 0.5, aFx: 12.5, aFy: -5, aBx: 8, aBy: -0.5, lFx: 11, lFy: -1.5, lBx: -10 });
 
 /**
- * 1타 잽 (128×96): 감기(2~3프레임) → 스미어(4프레임 1틱) → 앞손을 끝까지(5~6프레임 판정) → 지나치기(7) → 여운(8~9) → 복귀(10~12).
- * 12프레임 23틱
+ * 1타 잽 (128×96): 감기(2, 멈칫) → 스미어(3, 1틱) → 앞손을 끝까지(4~5프레임 판정, 5 지나치기) → 되돌아옴(6) → 손이 곧장 가드(7) → 복귀(8~9).
+ * 9프레임 19틱
  */
 export const RAIDEN_JAB: MotionData = {
   name: 'raiden/jab',
   label: '라이덴 1타 잽',
   wide: true,
-  smear: { frame: 3, limb: 'aF', stretch: 1.4 },
-  // 박자 (사용자 피드백 2026-11-02 '1·2타는 붙여서 빠르게'): 감기 3틱 + 스미어 1틱 → 판정 5~6프레임
-  dur: [1, 1, 1, 1, 2, 1, 1, 3, 2, 2, 2, 2],
+  smear: { frame: 2, limb: 'aF', stretch: 1.4 },
+  // 박자 (사용자 피드백 2026-11-02 '1·2타는 붙여서 빠르게'): 감기 3틱 + 스미어 1틱 → 판정 4틱.
+  // 되돌아온 자세는 11틱까지 (피격 상자 시간표가 13틱까지 뻗은 자세라 손을 거두는 것은 11~13틱)
+  dur: [1, 2, 1, 2, 1, 4, 2, 3, 3],
   keys: [
     { at: 0, pose: R_STANCE },
-    { at: 1, pose: JAB_LOAD },
-    { at: 2, pose: JAB_COIL, stop: true },
-    { at: 3, pose: JAB_SMEAR },
-    { at: 4, pose: JAB_HIT },
-    { at: 5, pose: JAB_HIT2 },
-    { at: 6, pose: JAB_OVER },
-    { at: 7, pose: JAB_OVER, stop: true },
-    { at: 8, pose: JAB_HOLD },
-    { at: 9, pose: JAB_BACK1 },
-    { at: 10, pose: JAB_BACK2 },
-    { at: 11, pose: R_STANCE },
+    { at: 1, pose: JAB_COIL, stop: true },
+    { at: 2, pose: JAB_SMEAR },
+    { at: 3, pose: JAB_HIT },
+    { at: 4, pose: JAB_OVER },
+    { at: 5, pose: JAB_REBOUND, stop: true },
+    { at: 6, pose: JAB_SNAP },
+    { at: 7, pose: JAB_BACK },
+    { at: 8, pose: R_STANCE },
   ],
 };
 
