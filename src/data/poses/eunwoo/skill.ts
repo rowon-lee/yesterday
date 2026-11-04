@@ -119,7 +119,9 @@ const DEPLOY_END = E({ ...GW_LOWER, hd: 14, aBx: -1, aBy: 14 });
 export const EUNWOO_SUPER_DEPLOY = motion('super_deploy', '선의 연출 1 전개', [16, 8, 10, 26], [
   K(0, GW_LOWER), K(1, DEPLOY_IN), K(2, DEPLOY_OUT), K(3, DEPLOY_END),
 ], undefined, SCENE_FOLLOW);
-export const EUNWOO_SUPER_DEPLOY_SHORT = still('super_deploy_s', '선의 연출 1 전개 (짧은 판)', 12, 30, GW_LOWER, DEPLOY_END);
+export const EUNWOO_SUPER_DEPLOY_SHORT = motion('super_deploy_s', '선의 연출 1 전개 (짧은 판)', [8, 4, 5, 13], [
+  K(0, GW_LOWER), K(1, DEPLOY_IN), K(2, DEPLOY_OUT), K(3, DEPLOY_END),
+], undefined, SCENE_FOLLOW);
 /** 장면 2 세계 완성 (40틱): 고개를 들어 상대를 바라본다 */
 const LOOK = E({ ...GW_LOWER, hd: 2, tl: 0 });
 export const EUNWOO_SUPER_WORLD = still('super_world', '선의 연출 2 세계', 13, 40, DEPLOY_END, LOOK);
