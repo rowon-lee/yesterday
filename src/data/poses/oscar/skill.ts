@@ -304,17 +304,12 @@ export const REACT_OSCAR_WHITE = seq('react/oscar_white', '월령수류 반응 4
   [g({ hx: 0, tl: 2, hd: 0, aFx: 4, aFy: 6, aBx: 2, aBy: 7 }), 7, true],
 ]);
 
-/** 반응 5 어긋남 (40틱): 팔을 늘어뜨린 채 그대로 서 있다 (몸도 선 위에 있다) */
-export const REACT_OSCAR_CUT: MotionData = {
-  name: 'react/oscar_cut',
-  label: '월령수류 반응 5 (베여 있음)',
-  wide: true,
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 3],
-  keys: [
-    { at: 0, pose: g({ hx: 0, tl: 2, hd: 0, aFx: 4, aFy: 6, aBx: 2, aBy: 7 }) },
-    { at: 12, pose: g({ hx: 0, tl: 3, hd: 2, aFx: 4, aFy: 7, aBx: 2, aBy: 8 }), stop: true },
-  ],
-};
+/** 반응 5 어긋남 (40틱, 2차 리워크): 팔을 늘어뜨린 채 그대로 서 있다 (몸도 선 위에 있다) → 고개가 떨어짐 → 몸이 반쯤 돌아옴. 3프레임 (키 2개를 13장으로 늘이던 것 대신) */
+export const REACT_OSCAR_CUT = seq('react/oscar_cut', '월령수류 반응 5 (베여 있음)', [
+  [g({ hx: 0, tl: 2, hd: 0, aFx: 4, aFy: 6, aBx: 2, aBy: 7 }), 16, true],
+  [g({ hx: 0, hy: -21.7, tl: 3.5, hd: 7, aFx: 4, aFy: 7, aBx: 2, aBy: 8 }), 12, true],
+  [g({ hx: 0, tl: 3, hd: 2, aFx: 4, aFy: 7, aBx: 2, aBy: 8 }), 12, true],
+]);
 
 /**
  * 반응 6 납도 (30틱, 2차 리워크): 팔을 늘어뜨린 채 그대로 섰다 → 몸이 한 번 흔들림 → '탁' 직전 굳고 (1틱) →
