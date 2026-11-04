@@ -189,19 +189,16 @@ export const OSCAR_SUPER_STILL = seq('oscar/super_still', '오스카 필살기 �
 /** 백색 동안 빠져 지나가 상대 등 뒤에 선 자세: 칼을 다 뽑아 낮게 든 채 (등을 돌리고 있다) */
 const SP_PASSED = OD({ hx: 3.5, hy: -17, tl: 30, hd: 6, lFx: 16, lBx: -13, tw: 2 }, 14);
 
-/** 장면 4 백색 (20틱): 다 뽑으며 상대를 지나쳐 등 뒤에 선다 (흰 화면 뒤라 끝에만 보인다) */
-export const OSCAR_SUPER_WHITE: MotionData = {
-  name: 'oscar/super_white',
-  label: '오스카 필살기 장면 4 (백색)',
-  wide: true,
-  dur: [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3],
-  keys: [
-    { at: 0, pose: OD({ hx: 0.5, hy: -21, tl: 15, hd: 5, lFx: 8, lBx: -8, tw: 1 }, 7) },
-    { at: 1, pose: OD({ hx: 4, hy: -16, tl: 34, hd: 0, lFx: 16, lBx: -13, tw: 4 }, 14) },
-    { at: 6, pose: OD({ hx: 4, hy: -16.5, tl: 33, hd: 2, lFx: 16, lBx: -13, tw: 3 }, 14), stop: true },
-    { at: 12, pose: SP_PASSED, stop: true },
-  ],
-};
+/**
+ * 장면 4 백색 (20틱, 2차 리워크): 반 치 뽑은 자세 → 한 번에 다 뽑으며 낮게 상대를 지나친다 (1틱, 흰 화면 뒤) →
+ * 미끄러지며 멈춤 → 등 뒤에 선 자세. 4프레임 (같은 자세를 사이 프레임으로 늘이던 13장 대신)
+ */
+export const OSCAR_SUPER_WHITE = seq('oscar/super_white', '오스카 필살기 장면 4 (백색)', [
+  [SP_HALF, 1],
+  [OD({ hx: 4, hy: -16, tl: 34, hd: 0, lFx: 16, lBx: -13, tw: 4 }, 14), 1],
+  [OD({ hx: 4, hy: -16.4, tl: 33, hd: 2, lFx: 16, lBx: -13, tw: 3 }, 14), 8, true],
+  [SP_PASSED, 10, true],
+]);
 
 /** 납도를 시작하는 자세 (장면 5 끝 = 장면 6 처음): 칼날 13px, 등을 돌린 채 */
 const SP_TURN = OD({ hx: 3, hy: -17.6, tl: 27, hd: 10, lFx: 16, lBx: -13 }, 13);
