@@ -223,18 +223,18 @@ const SCENES = {
   },
   // 백은우 스킬 1 응답(U) → 스킬 2 아직 여기 있어(I)
   eunwoo_skills: {
-    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3100, p2: 3260, settle: 30,
-    prep: 's.fighters[0].meter = 100;',
+    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3100, p2: 3260, settle: 200,
+    prep: 's.fighters[0].meter = 300;',
     steps: [[[], 6], [['KeyU'], 1], [[], 40], [['KeyI'], 1], [[], 50]],
   },
   // 백은우 필살기 선의(O): 발동 → 연출 여섯 장면
   eunwoo_super: {
-    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3150, p2: 3196, settle: 70, meter: true,
+    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3150, p2: 3196, settle: 200, meter: true,
     steps: [[[], 8], [['KeyO'], 1], [[], 380]],
   },
   // 백은우 이동: 대시 → 점프·공중 대시 → 착지
   eunwoo_moves: {
-    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3000, p2: 3300, settle: 30,
+    q: 'scene=fight&p2=idle&p1char=eunwoo', p1: 3000, p2: 3300, settle: 200,
     steps: [[[], 6], [['KeyL'], 1], [[], 24], [['KeyK'], 1], [[], 10], [['KeyL'], 1], [[], 40]],
   },
   // 라이덴 1타 잽 (동작연출지침서): 70px 떨어진 상대에게 잽 한 번 → 적뢰가 범위를 채움 (boxes=1이면 판정 상자도)
