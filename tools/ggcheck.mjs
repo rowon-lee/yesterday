@@ -1,16 +1,17 @@
 // 라이덴 길티기어식 이펙트 확인 (동작연출지침서 14-8). 이전 버전(--base, 기본 origin/main)과 지금 버전을 같은 입력으로 찍어 PR 자료를 만든다.
 //   node tools/ggcheck.mjs [--base origin/main] [--out previews/fx/raiden-gg] [--only 1,4,5]
 //     → <out>/style-sample.png    스타일 견본: 잽·미들킥·4타·띄우기 피크 정지 화면 + 레퍼런스 세 장 (docs/refs/gg_ref_*.png)
-//       <out>/NN-<기술>.gif        동작마다 번호: 왼쪽 이전 · 오른쪽 지금 (같은 장면·같은 틱, 2배, 0.55배 빠르기)
-//       <out>/NN-<기술>-peak.png   지금 버전 피크 (2배)
-//       <out>/check.md             자체 점검: 1px 선 다발 · 자로 그은 직사각형 · 같은 굵기 평행선 · 공격자 머리·몸통 위 칸
-// 피크 = 그 기술이 처음 맞힌 틱 (없으면 판정이 시작한 틱). 파천은 등 뒤로 뚫고 나가는 틱.
+//       <out>/NN-<기술>-1x.gif     동작마다 번호: 왼쪽 이전 · 오른쪽 지금, 맞기 20틱 전 ~ 맞은 뒤 45틱 (같은 장면·같은 틱, 2배), 실제 속도
+//       <out>/NN-<기술>-half.gif   같은 범위 0.5배속 (틱마다 한 장)
+//       <out>/NN-<기술>-peak.png   지금 버전 피크 (맞은 틱 +2: 다 펼쳐진 모습, 2배)
+//       <out>/check.md             자체 점검: 1px 선 다발 · 자로 그은 직사각형 · 같은 굵기 평행선 · 같은 그림 정지 (2틱 넘게) · 공격자 머리·몸통 위 칸
+// 맞은 틱(0) = 그 기술이 처음 맞힌 틱 (없으면 판정이 시작한 틱). 파천은 등 뒤로 뚫고 나가는 틱. 점검은 −20 ~ +45틱 전부 (동작연출지침서 14-2)
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { build, createServer, preview } from 'vite';
 import { chromium } from 'playwright';
-import { encodeGif } from './gif.mjs';
+import { encodeGifDelta } from './gif.mjs';
 import { decodePng, encodePng } from './png.mjs';
 
 const argv = process.argv.slice(2);
@@ -44,6 +45,11 @@ const MOVES = [
   { n: 14, id: 'super', name: 'PACHEON', scene: 'raiden_pacheon' },
 ].filter((m) => !opt.only || opt.only.split(',').map(Number).includes(m.n));
 const SAMPLE = ['atk1', 'atk3', 'atk4', 'launcher'];
+/** 맞기 전·맞은 뒤 틱 (14-2 미리보기) */
+const PRE = 20;
+const POST = 45;
+/** 피크 정지 화면: 다 펼쳐진 틱 (14-2 펼쳐짐 0~2틱) */
+const PEAK_AT = 2;
 
 // ---------------------------------------------------------------- 그림 도우미 (RGB)
 const img = (w, h, fill = 0) => ({ w, h, d: new Uint8Array(w * h * 3).fill(fill) });
@@ -137,7 +143,17 @@ const servers = {
   base: opt.noBase ? null : await preview({ root: tmp, preview: { port: 4321, strictPort: true }, build: { outDir: `${tmp}/dist` }, logLevel: 'error' }),
 };
 
-async function run(which, sc) {
+/** 맞기 20틱 전부터 찍히게 처음 기다림을, 맞은 뒤 45틱까지 찍히게 마지막 기다림을 늘린다 (두 버전 같은 입력) */
+function padded(sc) {
+  const steps = sc.steps.map((st) => [st[0], st[1]]);
+  if (steps.length && steps[0][0].length === 0) steps[0][1] = Math.max(steps[0][1], PRE + 8);
+  const last = steps[steps.length - 1];
+  if (last && last[0].length === 0) last[1] = Math.max(last[1], POST + 15);
+  return { ...sc, steps };
+}
+
+async function run(which, sc0) {
+  const sc = padded(sc0);
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -367,8 +383,8 @@ if (opt.dump) {
 }
 
 const lines = [];
-lines.push('| 번호 | 기술 | 쓴 문법 (14-8) | 1px 선 (24px 넘게) | 같은 방향 1px 선 최대 | 자로 그은 곧은 테두리 (30px 넘게) | 공격자 몸통·머리 위 칸 (피크) |');
-lines.push('| --- | --- | --- | --- | --- | --- | --- |');
+lines.push('| 번호 | 기술 | 쓴 문법 (14-8) | 1px 선 (24px 넘게) | 같은 방향 1px 선 최대 | 자로 그은 곧은 테두리 (30px 넘게) | 같은 그림이 이어진 가장 긴 틱 | 공격자 몸통·머리 위 칸 (+2틱) |');
+lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
 for (const m of MOVES) {
   if (m.idx < 0) continue;
   const sh = shots[m.scene].new;
@@ -378,8 +394,8 @@ for (const m of MOVES) {
   let straight = 0;
   let body = 0;
   let where = '';
-  // 피크 틱부터 이펙트가 사라질 때까지 (얇아지는 동안 긴 1px 선이 남지 않는지도 본다)
-  for (let d = 0; d <= (m.id === 'super' ? 34 : 18); d++) {
+  // 맞기 20틱 전 (전조) ~ 맞은 뒤 45틱 (잔향) 전부: 펼쳐지고 흩어지는 동안 긴 1px 선이 남지 않는지도 본다
+  for (let d = -PRE; d <= POST; d++) {
     const f = sh.frames[m.idx + d];
     if (!f) continue;
     const r = checkFrame(f, m.at);
@@ -387,20 +403,49 @@ for (const m of MOVES) {
     thin = Math.max(thin, r.thin);
     thinMax = Math.max(thinMax, r.thinMax);
     parallel = Math.max(parallel, r.parallel);
-    if (r.straight > straight) where = `+${d}틱 ${r.where.slice(0, 2).join(' ')}`;
+    if (r.straight > straight) where = `${d >= 0 ? '+' : ''}${d}틱 ${r.where.slice(0, 2).join(' ')}`;
     if (opt.debug && r.boxes.length) debugShot(m, f, d, r.boxes);
     straight = Math.max(straight, r.straight);
-    if (d === 0) body = r.body;
+    if (d === PEAK_AT) body = r.body;
   }
-  m.check = { thin, parallel, straight, body };
-  lines.push(`| ${m.n} | ${m.id} | ${grammarOf(m.id).join(' · ')} | ${thin}${thin ? ` (가장 긴 ${thinMax}px)` : ''} | ${parallel} | ${straight}${straight ? ` (${where})` : ''} | ${body} |`);
+  // 같은 그림 정지 (14-2): 이펙트 칸(월드 자리 + 색)이 3틱 넘게 이어서 같으면 실패. 카메라가 움직여도 월드 자리로 맞춰 본다
+  const sig = [];
+  for (let d = -PRE; d <= POST; d++) {
+    const f = sh.frames[m.idx + d];
+    if (!f || !f.marks) { sig.push(null); continue; }
+    let h = 2166136261;
+    let n = 0;
+    for (let i = 0; i < W * H; i++) {
+      if (!f.marks[i]) continue;
+      const wx = (i % W) + f.cam[0];
+      const wy = ((i / W) | 0) + f.cam[1];
+      const c = (f.d[i * 3] << 16) | (f.d[i * 3 + 1] << 8) | f.d[i * 3 + 2];
+      h = Math.imul(h ^ (wx * 73856093) ^ (wy * 19349663) ^ c, 16777619) >>> 0;
+      n++;
+    }
+    sig.push(n ? `${n}:${h}` : null);
+  }
+  let run = 1;
+  let longest = 1;
+  let frozen = '';
+  for (let k = 1; k < sig.length; k++) {
+    run = sig[k] && sig[k] === sig[k - 1] ? run + 1 : 1;
+    if (run > longest) {
+      longest = run;
+      if (run >= 3) frozen = `${k - PRE - run + 1 >= 0 ? '+' : ''}${k - PRE - run + 1}~${k - PRE >= 0 ? '+' : ''}${k - PRE}틱`;
+    }
+  }
+  m.check = { thin, parallel, straight, body, longest };
+  lines.push(`| ${m.n} | ${m.id} | ${grammarOf(m.id).join(' · ')} | ${thin}${thin ? ` (가장 긴 ${thinMax}px)` : ''} | ${parallel} | ${straight}${straight ? ` (${where})` : ''} | ${longest}${longest >= 3 ? ` (${frozen})` : ''} | ${body} |`);
 }
-const md = ['## 라이덴 길티기어식 이펙트 자체 점검 (지금 버전, 피크 틱부터 사라질 때까지 18틱, 파천 34틱)', '', '- 1px 선: 보이는 이펙트 칸(밤 배경에 묻히는 어두운 잉크·테두리 칸은 뺀다) 묶음 중, 상하좌우가 모두 이펙트인 칸(가로·세로 3칸 굵기)이 하나도 없이 24px 넘게 이어진 것. 2px 띠도 1px 선으로 센다', '- 자로 그은 곧은 테두리: 같은 줄에서 이펙트 위·아래 경계가 30칸 넘게 곧게 이어진 곳 수', '- 공격자 몸통·머리 위 칸: 피크 틱에 공격자 몸통(엉덩이 → 목 선 4px 안)·머리(7px 안)에 칠한 이펙트 칸 (뒤 겹이면 몸이 위에 그려진다)', '', ...lines, ''].join('\n');
+const md = ['## 라이덴 길티기어식 이펙트 자체 점검 (지금 버전, 맞기 20틱 전 ~ 맞은 뒤 45틱)', '', '- 1px 선: 보이는 이펙트 칸(밤 배경에 묻히는 어두운 잉크·테두리 칸은 뺀다) 묶음 중, 상하좌우가 모두 이펙트인 칸(가로·세로 3칸 굵기)이 하나도 없이 24px 넘게 이어진 것. 2px 띠도 1px 선으로 센다', '- 자로 그은 곧은 테두리: 같은 줄에서 이펙트 위·아래 경계가 30칸 넘게 곧게 이어진 곳 수', '- 같은 그림이 이어진 가장 긴 틱: 이펙트 칸(월드 자리·색)이 그대로인 틱 수 (14-2: 2틱 넘으면 실패, 이펙트가 없는 틱은 세지 않는다)', '- 공격자 몸통·머리 위 칸: 맞은 틱 +2(다 펼쳐진 모습)에 공격자 몸통(엉덩이 → 목 선 4px 안)·머리(7px 안)에 칠한 이펙트 칸 (뒤 겹이면 몸이 위에 그려진다)', '', ...lines, ''].join('\n');
 writeFileSync(`${opt.out}/check.md`, md);
 console.log(md);
 
-// ---------------------------------------------------------------- 동작마다 전후 GIF (2배, 0.55배 빠르기) + 지금 피크 PNG
-function gif(file, list, delay) {
+// ---------------------------------------------------------------- 동작마다 전후 GIF (2배, 맞기 20틱 전 ~ 맞은 뒤 45틱, 실제 속도 · 0.5배속) + 지금 피크 PNG
+/** 프레임 사이 시간 (1/100초): 3·3·4를 돌려 평균 3.33 = 0.5배속 한 틱 = 실제 속도 두 틱 */
+const DELAYS = [3, 3, 4];
+function gif(file, list) {
   const OW = list[0].w;
   const OH = list[0].h;
   const palette = [];
@@ -411,7 +456,8 @@ function gif(file, list, delay) {
       const c = (f.d[i * 3] << 16) | (f.d[i * 3 + 1] << 8) | f.d[i * 3 + 2];
       let k = index.get(c);
       if (k === undefined) {
-        if (palette.length >= 256) {
+        // 255색까지 (255번은 '앞 프레임과 같음' 투명색)
+        if (palette.length >= 255) {
           let best = 0;
           let bd = Infinity;
           palette.forEach((p, j) => {
@@ -429,37 +475,43 @@ function gif(file, list, delay) {
     }
     return o;
   });
-  const delays = out.map(() => delay);
-  delays[delays.length - 1] += 60;
-  const buf = encodeGif(OW, OH, palette, out, delays);
+  const delays = out.map((_, k) => DELAYS[k % DELAYS.length]);
+  delays[delays.length - 1] += 80;
+  const buf = encodeGifDelta(OW, OH, palette, out, delays);
   writeFileSync(file, buf);
   console.log(`    ${file} (${OW}×${OH}, ${out.length}장, ${(buf.length / 1024).toFixed(0)}KB)`);
 }
 const CW = 260;
 const CH = 150;
 const S = 2;
+/** GIF는 1배 (원래 칸 크기): 66틱 × 두 속도 × 14개라 2배면 60MB가 넘는다 */
+const GS = 1;
 for (const m of MOVES) {
   if (m.idx < 0) continue;
   const sh = shots[m.scene];
-  const f0 = sh.new.frames[m.idx];
+  const f0 = sh.new.frames[m.idx + PEAK_AT] ?? sh.new.frames[m.idx];
   const [x0, y0] = windowOf(m, f0, CW, CH);
   const tag = `${String(m.n).padStart(2, '0')}-${m.id}`;
   const peak = img(CW * S, CH * S);
   blit(peak, crop(f0, x0, y0, CW, CH), 0, 0, S);
   save(`${opt.out}/${tag}-peak.png`, peak);
-  const from = Math.max(0, m.idx - 6);
-  const to = Math.min(sh.new.frames.length, m.idx + (m.id === 'super' ? 34 : 18));
-  const list = [];
-  for (let i = from; i < to; i++) {
-    const o = img(CW * S * (sh.base ? 2 : 1) + (sh.base ? 6 : 0), CH * S + 16, 24);
-    if (sh.base) blit(o, crop(sh.base.frames[i] ?? sh.base.frames[sh.base.frames.length - 1], x0, y0, CW, CH), 0, 16, S);
-    blit(o, crop(sh.new.frames[i], x0, y0, CW, CH), sh.base ? CW * S + 6 : 0, 16, S);
-    text(o, `${m.n} ${m.name}${sh.base ? ' - BEFORE' : ''}`, 4, 3, 2, [235, 235, 240]);
-    if (sh.base) text(o, `${m.n} ${m.name} - AFTER`, CW * S + 10, 3, 2, [255, 200, 210]);
-    text(o, `${i - m.idx >= 0 ? '+' : ''}${i - m.idx}`, o.w - 40, 3, 2, [180, 180, 190]);
-    list.push(o);
-  }
-  gif(`${opt.out}/${tag}.gif`, list, 3);
+  const frameAt = (list, i) => list[Math.max(0, Math.min(list.length - 1, i))];
+  const make = (i, speed) => {
+    const o = img(CW * GS * (sh.base ? 2 : 1) + (sh.base ? 6 : 0), CH * GS + 16, 24);
+    if (sh.base) blit(o, crop(frameAt(sh.base.frames, i), x0, y0, CW, CH), 0, 16, GS);
+    blit(o, crop(frameAt(sh.new.frames, i), x0, y0, CW, CH), sh.base ? CW * GS + 6 : 0, 16, GS);
+    text(o, sh.base ? `${m.n} BEFORE` : `${m.n} AFTER ${speed}`, 4, 3, 2, sh.base ? [235, 235, 240] : [255, 200, 210]);
+    if (sh.base) text(o, `AFTER ${speed}`, CW * GS + 10, 3, 2, [255, 200, 210]);
+    const d = i - m.idx;
+    text(o, `${d >= 0 ? '+' : ''}${d}`, o.w - 34, 3, 2, d >= 0 && d <= 2 ? [255, 236, 120] : [180, 180, 190]);
+    return o;
+  };
+  const half = [];
+  for (let d = -PRE; d <= POST; d++) half.push(make(m.idx + d, '0.5X'));
+  gif(`${opt.out}/${tag}-half.gif`, half);
+  const real = [];
+  for (let d = -PRE; d <= POST; d += 2) real.push(make(m.idx + d, '1X'));
+  gif(`${opt.out}/${tag}-1x.gif`, real);
 }
 
 // ---------------------------------------------------------------- 스타일 견본: 레퍼런스 세 장 (위) + 잽·미들킥·4타·띄우기 피크 (아래 2×2)
@@ -483,7 +535,7 @@ for (const m of MOVES) {
     });
     pk.forEach((m, k) => {
       const sh = shots[m.scene].new;
-      const f0 = sh.frames[m.idx];
+      const f0 = sh.frames[m.idx + PEAK_AT] ?? sh.frames[m.idx];
       const [x0, y0] = windowOf(m, f0, PW, PH);
       const ox = (k % 2) * (PW * 2 + GAP);
       const oy = 24 + RH + GAP + Math.floor(k / 2) * (PH * 2 + 24) + 24;

@@ -2,6 +2,8 @@
 // 기준: 동작연출지침서 14-8 '길티기어식 이펙트' 여덟 가지 (2026-11-04). 레퍼런스 그림을 베끼지 않고 문법만 옮긴다.
 // 공격 하나의 이펙트는 큰 모양 몇 개의 숫자(기준점, 축 방향, 길이, 두께 곡선, 꺾임, 잉크 쐐기, 고리…)로 정한다.
 // 난수는 불씨 위치·속도 같은 작은 변화에만 쓴다 (14-7).
+// 시간 (14-2, 2026-11-04 고침): 전조 −4~−1 (vfx/gg/prelude) → 펼쳐짐 0~2틱 (0틱 전체 길이·두께 1/3) → 살아 있는 정지 (히트스톱 동안도
+// 다시 꺾이고 맥동하고 자란다) → 흩어짐 (fade: 꼬리부터 가닥으로 찢어져 공격 방향으로 흘러가고, 바깥 단계 색부터 빠진다) → 잔향 (불씨·연기·빛).
 //
 // 좌표: 오른쪽 보기 기준 px. x는 공격 방향 앞이 +, y는 아래가 + (위가 −). 각도는 도, 0 = 앞, −90 = 위, 90 = 아래.
 // 기준(anchor): 'self' = 공격자 발밑 (판정이 시작하는 틱 자리), 'hit' = 맞은 점 (맞은 틱에만 나온다).
@@ -20,9 +22,9 @@ interface GBase {
   anchor?: 'self' | 'hit';
   /** 캐릭터 뒤 (기본) · 앞. 앞 겹에는 섬광·불씨만 (14-7 '맞는 사람은 덩어리 앞에') */
   layer?: 'back' | 'front';
-  /** 최대 크기로 머무는 틱 (히트스톱 동안은 따로 머문다) */
+  /** 히트스톱이 끝난 뒤에도 살아 있는 정지로 머무는 틱 (히트스톱 동안은 따로 머문다) */
   hold?: number;
-  /** 그 뒤 두께부터 얇아져 사라지는 틱 (14-8 시간: 4~10) */
+  /** 흩어지는 틱 (14-2: 꼬리부터 가닥으로 찢어지며 흘러간다. 진행 0.7쯤에서 보이지 않게 된다) */
   fade?: number;
   /** 나타나는 틱 (기본 0) */
   delay?: number;
@@ -152,11 +154,24 @@ export interface GEmbers extends GBase {
   speed: number;
   dir: number;
   fan: number;
-  /** 사는 틱 */
+  /** 사는 틱 (14-2 잔향: 중력으로 떨어져 바닥에서 튀고, 식으며 색이 어두워진다) */
   life: number;
 }
 
-export type GShape = GWedge | GSwoosh | GBolt | GInk | GRing | GRays | GFlash | GEmbers;
+/** 연기·열기 (14-2 잔향): 단단한 경계의 작은 덩어리가 천천히 오르며 커졌다 작아진다. 처음은 진한 주색(열기) → 잉크색 */
+export interface GSmoke extends GBase {
+  kind: 'smoke';
+  at?: GPt;
+  /** 덩어리 수, 처음 퍼진 반지름 (px) */
+  n: number;
+  spread: number;
+  /** 오르는 빠르기 (px/틱), 가장 클 때 반지름 (px), 사는 틱 */
+  rise: number;
+  size: number;
+  life: number;
+}
+
+export type GShape = GWedge | GSwoosh | GBolt | GInk | GRing | GRays | GFlash | GEmbers | GSmoke;
 
 /** 화면 전환 (문법 8): 맞힌 틱부터 */
 export interface GScreen {
@@ -175,7 +190,7 @@ export interface GMove {
   /** 맞은 점 높이 (공격자 발밑 기준 y). 없으면 판정 상자 가운데. 맞은 사람 몸 안으로 자른다 */
   hitY?: number;
   screen?: GScreen;
-  /** 맞은 점 빛 (실제 광원): 반지름 px, 틱 */
+  /** 맞은 점 빛 (실제 광원): 반지름 px, 사그라드는 틱 (14-2: 모양보다 늦게, 15~25틱. 히트스톱 동안은 그대로) */
   light?: { r: number; t: number };
   /** 이 기술에 쓴 문법 번호 (14-8, 확인용) */
   grammar: readonly number[];
