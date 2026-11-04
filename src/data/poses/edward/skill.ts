@@ -13,6 +13,8 @@ import { aim, E, E_STANCE, grip2 } from './stance';
 
 /** 두 손 해머 포즈: 해머 머리 가운데를 그림 자리 (x, y)에 */
 const A = (o: Partial<Pose>, at: readonly [number, number]): Pose => aim(E(o), at[0], at[1]);
+/** 두 손으로 쥔 포즈 (앞손 목표는 포즈대로) */
+const G = (o: Partial<Pose>): Pose => grip2(E(o));
 
 // ---- 스킬 1 재현:나 ----
 /** 해머를 어깨에서 들어 머리 위로 (손은 가슴 앞) */
@@ -178,51 +180,68 @@ export const EDWARD_TK_PUSH: MotionData = {
  */
 /** 올려치기 원호: 몸 뒤 바닥 → 발 아래 → 앞 → 위 (반시계 방향) */
 export const CHARGE_ARC: HammerArc = { cx: 4, cy: -34, rx: 44, ry: 28, a0: 125, a1: -25 };
-/** 끌어 오기: 앞 아래의 해머 머리를 바닥에 대고 몸 쪽으로 끈다 */
-const H_DRAG1 = A({ hx: 3, hy: -17, tl: 26, hd: -4, tw: 2, lFx: 15, lBx: -14, wa: 96 }, [24, -6]);
+/** 끌어 오기: 두 손이 먼저 앞 아래의 해머를 몸 쪽으로 끈다 (머리는 바닥에 대고 늦게 따라온다) */
+const H_DRAG1 = A({ hx: 3, hy: -17, tl: 26, hd: -4, tw: 2, lFx: 15, lBx: -14, wa: 90 }, [26, -6]);
 /** 해머 머리가 발밑을 지나 몸 뒤로 끌려간다 (바닥을 긁는다) */
 const H_DRAG2 = A({ hx: 0, hy: -15.5, tl: 22, hd: -6, tw: -1, lFx: 13, lBx: -14, wa: 135 }, [-14, -6]);
+/** 해머 머리가 몸 뒤 바닥에 닿으며 무릎을 굽혀 모으는 자세로 들어선다 */
+const H_SETTLE = A({ hx: -1, hy: -15.2, tl: 23, hd: -7, tw: -2.5, lFx: 13, lBx: -14, wa: 165 }, [-37, -6.5]);
 /** 모으는 자세: 무릎을 깊이 굽히고 해머를 몸 뒤 바닥에 끌어 놓는다 (두 손으로 자루를 쥐고 앞으로 숙인다) */
 const H_HOLD_A = A({ hx: -1.5, hy: -14.5, tl: 24, hd: -8, tw: -3, lFx: 13, lBx: -14, wa: 168 }, [-40, -6]);
-/** 모으는 동안 몸이 떨린다 (조금 더 웅크린다) */
-const H_HOLD_B = A({ hx: -2, hy: -14, tl: 26, hd: -9, tw: -3.5, lFx: 13, lBx: -14.5, wa: 167 }, [-41, -6]);
-/** 떼기 0틱: 무릎을 펴기 시작하며 해머 머리가 뒤 바닥에서 아래로 (머리는 뒤에 처진다) */
-const H_SWING1 = A({ hx: 1, hy: -16, tl: 18, hd: -10, tw: 0, lFx: 14, lBx: -13, wa: 150 }, arcAt(CHARGE_ARC, 110));
-/** 스미어: 발 아래를 지나 앞으로 (잔상) */
+/** 모으는 동안 (12~28틱 되풀이): 숨을 눌러 더 웅크리며 머리가 바닥을 갈고 → 어깨가 떨리고 → 버텨 조금 든다 → 처음으로 */
+const H_HOLD_B = A({ hx: -2, hy: -13.2, tl: 27, hd: -9, tw: -3.5, lFx: 13, lBx: -14.5, wa: 167 }, [-41.5, -6]);
+const H_HOLD_C = A({ hx: -2.6, hy: -13.6, tl: 25, hd: -11, tw: -4.5, lFx: 13, lBx: -14.5, wa: 169 }, [-42, -5.5]);
+const H_HOLD_D = A({ hx: -1.8, hy: -15, tl: 22.5, hd: -9, tw: -3, lFx: 13, lBx: -14, wa: 168 }, [-40.5, -6]);
+/** 떼기 28틱: 무릎이 먼저 펴지며 엉덩이가 솟는다 (손과 해머 머리는 아직 몸 뒤 바닥) */
+const H_RELEASE = A({ hx: 0, hy: -16.5, tl: 18, hd: -10, tw: -1, lFx: 14, lBx: -13.5, wa: 166 }, [-40, -6.5]);
+/** 두 손이 앞으로 끌려 나오고, 해머 머리는 뒤 바닥에서 아래로 처져 따라온다 */
+const H_SWING1 = A({ hx: 1.5, hy: -17, tl: 15, hd: -11, tw: 1, lFx: 14.5, lBx: -13, wa: 150 }, arcAt(CHARGE_ARC, 110));
+/** 스미어 (30틱, 판정 시작): 머리가 발 아래를 지나 앞으로 (잔상) */
 const H_SMEAR = A({ hx: 3, hy: -18, tl: 10, hd: -12, tw: 3, lFx: 15, lBx: -12, wa: 70 }, arcAt(CHARGE_ARC, 60));
 /** 앞 위로 크게 올려친다: 몸이 따라 일어선다 */
 const H_UP = A({ hx: 4, hy: -21.5, tl: -2, hd: -16, tw: 4.5, lFx: 14, lFy: -1, lBx: -10, lBy: -1, wa: -10 }, arcAt(CHARGE_ARC, -5));
-/** 머리 위로 치켜든다: 발끝까지 펴진다 (앞쪽 바닥이 솟구치는 동안 이 자세) */
+const H_UP2 = A({ hx: 4, hy: -23, tl: -4, hd: -17, tw: 4, lFx: 13, lFy: -2, lBx: -9.5, lBy: -2, wa: -40 }, arcAt(CHARGE_ARC, -20));
+/** 머리 위로 치켜든다: 발끝까지 펴진다 (34틱부터 앞쪽 바닥이 솟구치는 동안 이 자세) */
 const H_TOP = A({ hx: 3, hy: -24.5, tl: -6, hd: -18, tw: 3, lFx: 11, lFy: -2.5, lBx: -8, lBy: -2.5, wa: -84 }, [14, -84]);
-/** 여운: 치켜든 채 버틴다 (발뒤꿈치가 내려온다) */
+/** 여운: 치켜든 채 발뒤꿈치가 내려오고 → 무게가 2px 내려앉는다 */
 const H_TOP2 = A({ hx: 2.5, hy: -23.5, tl: -5, hd: -16, tw: 3, lFx: 11, lFy: -1, lBx: -8, lBy: -1, wa: -88 }, [12, -84]);
+const H_TOP3 = A({ hx: 2, hy: -21.6, tl: -4, hd: -12, tw: 2.5, lFx: 10.5, lBx: -8.5, wa: -92 }, [10, -82]);
+/** 복귀: 손이 어깨로 내려오는 동안 해머가 뒤로 넘어가 어깨에 걸친다 (뒷손은 끝에 주머니로) */
+const H_BACK1 = G({ hx: 1.5, hy: -21.8, tl: -3, hd: -8, tw: 2, aFx: 5, aFy: -6, lFx: 9.5, lBx: -8.5, wa: -118 });
+const H_BACK2 = E({ hx: 0.5, hy: -22, tl: -3, hd: -5, aFx: 5, aFy: 4, aBx: 1, aBy: 8, lFx: 7.5, lBx: -7.5, wa: -156 });
 
 /**
- * 차지 워 해머 올려치기 (128×96): 1~4프레임 1타 자세에서 해머를 바닥에 끌어 몸 뒤로 (한 번) → 5~8프레임 모으기 (누르는 동안 되풀이) →
- * 떼면 9~11 뒤 바닥에서 아래 → 앞 → 위로 큰 반원 (10번 스미어, 10~11 판정, 떼고 6틱 만에 머리 위) →
- * 12 머리 위로 치켜든 채 (앞쪽 바닥이 차례로 솟구친다, 떼고 6~20틱) → 13 여운 → 14 어깨로. 14프레임
+ * 차지 워 해머 올려치기 (128×96, 2차 리워크): 1~4 1타 자세에서 해머를 바닥에 끌어 몸 뒤로 (한 번, 0~12틱) →
+ * 5~8 모으기 (누르는 동안 12~28틱 되풀이: 더 웅크림 → 떨림 → 버텨 듦 → 처음으로) → 떼면 9 무릎이 먼저 펴짐(28틱) → 10 손이 앞으로 →
+ * 11 스미어(30틱 판정) → 12~13 앞 위로 큰 반원(판정) → 14 머리 위로 치켜든 채 (34틱부터 앞쪽 바닥이 차례로 솟구친다) →
+ * 15~16 발뒤꿈치가 내려와 내려앉음 → 17~19 어깨로. 19프레임 62틱 (공격 데이터 그대로: 모으기 12~28틱, 떼기 28틱, 판정 30~34틱, 솟구침 34틱)
  */
 export const EDWARD_CHARGE: MotionData = {
   name: 'edward/charge',
   label: '에드워드 차지 워 해머 올려치기',
   wide: true,
-  smear: { frame: 9, limb: 'aF', stretch: 1.3, ghosts: 3 },
-  dur: [3, 3, 3, 3, 4, 4, 4, 4, 2, 1, 3, 14, 8, 6],
+  smear: { frame: 10, limb: 'aF', stretch: 1.3, ghosts: 3 },
+  dur: [3, 2, 2, 5, 4, 4, 4, 4, 1, 1, 1, 2, 1, 10, 6, 4, 3, 3, 2],
   keys: [
     { at: 0, pose: C1_OVER },
     { at: 1, pose: H_DRAG1 },
     { at: 2, pose: H_DRAG2 },
-    { at: 3, pose: H_HOLD_A, stop: true },
-    { at: 4, pose: H_HOLD_B },
-    { at: 5, pose: H_HOLD_A },
-    { at: 6, pose: H_HOLD_B },
-    { at: 7, pose: H_HOLD_A, stop: true },
-    { at: 8, pose: H_SWING1 },
-    { at: 9, pose: H_SMEAR },
-    { at: 10, pose: H_UP },
-    { at: 11, pose: H_TOP, stop: true },
-    { at: 12, pose: H_TOP2, stop: true },
-    { at: 13, pose: { ...E_STANCE, wa: (E_STANCE.wa ?? 0) - 360 } },
+    { at: 3, pose: H_SETTLE, stop: true },
+    { at: 4, pose: H_HOLD_A },
+    { at: 5, pose: H_HOLD_B },
+    { at: 6, pose: H_HOLD_C },
+    { at: 7, pose: H_HOLD_D },
+    { at: 8, pose: H_RELEASE },
+    { at: 9, pose: H_SWING1 },
+    { at: 10, pose: H_SMEAR },
+    { at: 11, pose: H_UP },
+    { at: 12, pose: H_UP2 },
+    { at: 13, pose: H_TOP, stop: true },
+    { at: 14, pose: H_TOP2 },
+    { at: 15, pose: H_TOP3, stop: true },
+    { at: 16, pose: H_BACK1 },
+    { at: 17, pose: H_BACK2 },
+    { at: 18, pose: E_STANCE },
   ],
 };
 
