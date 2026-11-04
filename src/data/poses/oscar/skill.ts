@@ -214,18 +214,21 @@ export const OSCAR_SUPER_WHITE: MotionData = {
   ],
 };
 
-/** 장면 5 어긋남 (40틱): 색이 돌아온 화면이 선을 따라 조각조각 어긋나 있는 동안, 등을 돌린 채 칼을 든 그대로 멈춰 있다 */
-export const OSCAR_SUPER_CUT: MotionData = {
-  name: 'oscar/super_cut',
-  label: '오스카 필살기 장면 5 (어긋남)',
-  wide: true,
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 3],
-  keys: [
-    { at: 0, pose: SP_PASSED },
-    { at: 6, pose: OD({ hx: 3.2, hy: -17.3, tl: 28, hd: 9, lFx: 16, lBx: -13, tw: 1 }, 14), stop: true },
-    { at: 12, pose: OD({ hx: 3, hy: -17.6, tl: 27, hd: 10, lFx: 16, lBx: -13 }, 13), stop: true },
-  ],
-};
+/** 납도를 시작하는 자세 (장면 5 끝 = 장면 6 처음): 칼날 13px, 등을 돌린 채 */
+const SP_TURN = OD({ hx: 3, hy: -17.6, tl: 27, hd: 10, lFx: 16, lBx: -13 }, 13);
+
+/**
+ * 장면 5 어긋남 (40틱, 2차 리워크): 색이 돌아온 화면이 선을 따라 조각조각 어긋나 있는 동안, 등을 돌린 채 칼을 든 그대로 멈춰 있다 →
+ * 숨을 내쉬며 어깨가 내려앉고 고개가 숙는다 → 고개가 한 번 더 숙었다가 (1틱, 감기) → 한 번에 몸을 세우며 고개를 든다 (순간) →
+ * 칼을 13px로 거두어 납도를 시작하는 자세로 멈춤. 5프레임 (키 3개를 13장으로 늘이던 것 대신)
+ */
+export const OSCAR_SUPER_CUT = seq('oscar/super_cut', '오스카 필살기 장면 5 (어긋남)', [
+  [SP_PASSED, 12, true],
+  [OD({ hx: 3.4, hy: -16.4, tl: 31, hd: 10, lFx: 16, lBx: -13, tw: 1 }, 14), 12, true],
+  [OD({ hx: 3.4, hy: -16.2, tl: 33, hd: 16, lFx: 16, lBx: -13, tw: 1 }, 14), 1],
+  [OD({ hx: 3.1, hy: -17.9, tl: 25, hd: 3, lFx: 16, lBx: -13 }, 13), 2],
+  [SP_TURN, 13, true],
+]);
 
 /** 장면 6 납도 (30틱): 등을 돌린 채 천천히 칼집에 밀어 넣고 '탁' (마지막 두 프레임 멈춤). 이 순간 조각들이 한꺼번에 무너진다 (연출 끝) */
 export const OSCAR_SUPER_SHEATHE: MotionData = {
@@ -234,7 +237,7 @@ export const OSCAR_SUPER_SHEATHE: MotionData = {
   wide: true,
   dur: [3, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 1, 2],
   keys: [
-    { at: 0, pose: OD({ hx: 3, hy: -17.6, tl: 27, hd: 10, lFx: 16, lBx: -13 }, 13) },
+    { at: 0, pose: SP_TURN },
     { at: 3, pose: OD({ hx: 2, hy: -19, tl: 21, hd: 12, lFx: 13, lBx: -11 }, 9), stop: true },
     { at: 8, pose: OD({ hx: 1, hy: -20.5, tl: 16, hd: 15, lFx: 10, lBx: -9 }, 2) },
     { at: 10, pose: OD({ hx: 1, hy: -21, tl: 16, hd: 18, lFx: 9, lBx: -8 }, 0), stop: true },
