@@ -281,17 +281,12 @@ export const REACT_OSCAR_OPEN_S = seq('react/oscar_open_s', '월령수류 짧은
   [BRACE, 14, true],
 ]);
 
-/** 반응 3 정적 (20틱): 숨을 멈춘 듯 굳는다 */
-export const REACT_OSCAR_STILL: MotionData = {
-  name: 'react/oscar_still',
-  label: '월령수류 반응 3 (정적)',
-  wide: true,
-  dur: [2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 2, 2],
-  keys: [
-    { at: 0, pose: BRACE },
-    { at: 11, pose: g({ hy: -21.2, hd: -2, tl: 3, aFx: 8, aFy: -10, aBx: 6, aBy: -7 }), stop: true },
-  ],
-};
+/** 반응 3 정적 (20틱, 2차 리워크): 움츠린 채 → 숨을 멈추고 어깨가 오름 → 굳음. 3프레임 (키 2개를 12장으로 늘이던 것 대신) */
+export const REACT_OSCAR_STILL = seq('react/oscar_still', '월령수류 반응 3 (정적)', [
+  [BRACE, 6, true],
+  [g({ hy: -21.7, hd: -7, tl: 1, aFx: 8, aFy: -11, aBx: 6, aBy: -8 }), 8, true],
+  [g({ hy: -21.2, hd: -2, tl: 3, aFx: 8, aFy: -10, aBx: 6, aBy: -7 }), 6, true],
+]);
 
 /** 반응 4 백색 (20틱): 무수한 베기에 몸이 이리저리 떨린다 */
 export const REACT_OSCAR_WHITE: MotionData = {
