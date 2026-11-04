@@ -26,6 +26,7 @@ for (const file of walk('src/sim')) {
 // 2) sim 코드를 그대로 불러와 돌린다 (TypeScript는 Vite가 변환).
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 const sim = await vite.ssrLoadModule('/src/sim/index.ts');
+const { HIT_AIR_LOOP_FROM } = await vite.ssrLoadModule('/src/data/poses/common.ts');
 const R = sim.RULES;
 const HP = sim.createState(0).fighters[0].hp;
 
@@ -1196,7 +1197,9 @@ function hitMotionChecks() {
     return c;
   };
   const inOrder = (fr) => fr.every((v, i) => i === 0 || v === fr[i - 1] || v === fr[i - 1] + 1);
-  results.push(['약하게 맞음은 12프레임, 기본 20틱', m.dur.length === 12 && m.total === 20, `${m.dur.length}프레임, ${m.total}틱 (${m.dur.join(' ')})`]);
+  // 프레임 수는 동작의 목적에 맞게 정하므로 (12~14 규칙 폐기, 3-0a) 길이(틱)만 본다. 아래 '끝 프레임'도 그 동작의 프레임 수로 본다
+  const nLight = m.dur.length;
+  results.push(['약하게 맞음 기본 20틱', m.total === 20, `${m.dur.length}프레임, ${m.total}틱 (${m.dur.join(' ')})`]);
 
   const base = spans(frames(20));
   results.push(['경직 20틱이면 사양서 표시 틱 그대로', base.every((n, i) => n === m.dur[i]), base.join(' ')]);
@@ -1207,10 +1210,10 @@ function hitMotionChecks() {
 
   const ok16 = frames(16);
   const s16 = spans(ok16);
-  results.push(['경직 16틱(평타 1·2타)이면 줄여서 12프레임이 모두 차례로 보이고 12번으로 끝난다', inOrder(ok16) && s16.every((n) => n >= 1) && ok16[15] === 11, s16.join(' ')]);
+  results.push([`경직 16틱(평타 1·2타)이면 줄여서 ${nLight}프레임이 모두 차례로 보이고 ${nLight}번으로 끝난다`, inOrder(ok16) && s16.every((n) => n >= 1) && ok16[15] === nLight - 1, s16.join(' ')]);
 
   const ok8 = frames(8);
-  results.push(['콤보 보정으로 8틱까지 줄어도 앞으로만 넘어간다 (고르게 건너뜀)', ok8[0] === 0 && ok8.every((v, i) => i === 0 || v > ok8[i - 1]) && ok8[7] <= 11, ok8.map((v) => v + 1).join(' ')]);
+  results.push(['콤보 보정으로 8틱까지 줄어도 앞으로만 넘어간다 (고르게 건너뜀)', ok8[0] === 0 && ok8.every((v, i) => i === 0 || v > ok8[i - 1]) && ok8[7] <= nLight - 1, ok8.map((v) => v + 1).join(' ')]);
 
   // 실제 대전: 평타 1타에 맞으면 약하게 맞음을 처음부터 끝까지 (히트스톱 동안 1번, 경직 마지막 틱에 12번)
   const s = sim.createState(1);
@@ -1230,7 +1233,8 @@ function hitMotionChecks() {
   }
   const fr = seen.map((v) => Number(v.split('#')[1]));
   const allLight = seen.length > 0 && seen.every((v) => v.startsWith('common/hit_light#'));
-  results.push(['평타 1타에 맞으면 약하게 맞음을 1번부터 12번까지 재생한다', allLight && fr[0] === 1 && fr[fr.length - 1] === 12 && fr.every((v, i) => i === 0 || v >= fr[i - 1]),
+  const lastLight = sim.motionFrames('common/hit_light').dur.length;
+  results.push([`평타 1타에 맞으면 약하게 맞음을 1번부터 ${lastLight}번까지 재생한다`, allLight && fr[0] === 1 && fr[fr.length - 1] === lastLight && fr.every((v, i) => i === 0 || v >= fr[i - 1]),
     `경직 ${len}틱, 히트스톱 포함 ${seen.length}틱: ${[...new Set(fr)].join(' ')}`]);
   return results;
 }
@@ -1243,10 +1247,12 @@ function commonMotionChecks() {
   const R = sim.RULES;
   const I = sim;
   const mf = (n) => sim.motionFrames(n);
-  // 1) 프레임 수와 기본 길이 (사양서 표)
-  const spec = [['hit_light', 12, 20], ['hit_heavy', 14, 32], ['guard_crush', 12, 44], ['hit_air', 12, 24], ['knockdown', 14, 32], ['getup', 12, 24], ['tech', 12, 18]];
-  const got = spec.map(([n, f, t]) => [n, mf(`common/${n}`).dur.length === f && mf(`common/${n}`).total === t, `${mf(`common/${n}`).dur.length}·${mf(`common/${n}`).total}`]);
-  results.push(['공통 동작 7개의 프레임 수·기본 길이가 사양서대로', got.every((g) => g[1]), got.map((g) => `${g[0]} ${g[2]}`).join(', ')]);
+  // 1) 기본 길이 (사양서 표). 프레임 수는 동작의 목적에 맞게 정하므로 (12~14 규칙 폐기, 3-0a) 보지 않고 적기만 한다
+  const spec = [['hit_light', 20], ['hit_heavy', 32], ['guard_crush', 44], ['hit_air', 24], ['knockdown', 32], ['getup', 24], ['tech', 18]];
+  const got = spec.map(([n, t]) => [n, mf(`common/${n}`).total === t, `${mf(`common/${n}`).dur.length}프레임·${mf(`common/${n}`).total}틱`]);
+  results.push(['공통 동작 7개의 기본 길이가 사양서대로', got.every((g) => g[1]), got.map((g) => `${g[0]} ${g[2]}`).join(', ')]);
+  /** 그 동작의 마지막 프레임 번호 (1부터) */
+  const lastOf = (n) => mf(`common/${n}`).dur.length;
   // 2) sim 길이·무적이 동작과 맞는다
   const cum = (n, k) => mf(`common/${n}`).cum[k - 1];
   const timing = R.CRUSH_TICKS === 44 && R.KNOCKDOWN_TICKS === mf('common/knockdown').total + R.KNOCKDOWN_WAIT && R.GETUP_TICKS === mf('common/getup').total
@@ -1293,7 +1299,7 @@ function commonMotionChecks() {
     const s = fresh(2400, 2500);
     const log = watch(s, 70, (t) => [t === 0 ? I.IN_DASH | I.IN_RIGHT : t === 3 ? I.IN_ATTACK : 0, 0]);
     const fr = framesOf(log, 'common/hit_heavy');
-    results.push(['세게 맞음: 대시 공격에 맞으면 1번부터 14번까지 차례로', ordered(fr) && fr[0] === 1 && fr[fr.length - 1] === 14, [...new Set(fr)].join(' ')]);
+    results.push([`세게 맞음: 대시 공격에 맞으면 1번부터 ${lastOf('hit_heavy')}번까지 차례로`, ordered(fr) && fr[0] === 1 && fr[fr.length - 1] === lastOf('hit_heavy'), [...new Set(fr)].join(' ')]);
   }
   // 5) 가드 크러시 실제: 막다가 방어가 깨지면 44틱 동안 1번부터 12번까지, 그동안 맞는 판정은 켜져 있다
   {
@@ -1303,7 +1309,7 @@ function commonMotionChecks() {
     const crush = log.filter((l) => l.mode === 'crush' && l.hitstop === 0);
     const fr = framesOf(log.filter((l) => l.mode === 'crush'), 'common/guard_crush');
     // 히트스톱이 끝난 뒤 44틱 (히트스톱 동안은 1번 프레임에 멈춰 있다)
-    results.push(['가드 크러시: 방어가 깨지면 히트스톱 뒤 44틱 동안 1번부터 12번까지, 무적 없음', crush.length === R.CRUSH_TICKS && ordered(fr) && fr[0] === 1 && fr[fr.length - 1] === 12 && crush.every((l) => l.hurt),
+    results.push([`가드 크러시: 방어가 깨지면 히트스톱 뒤 44틱 동안 1번부터 ${lastOf('guard_crush')}번까지, 무적 없음`, crush.length === R.CRUSH_TICKS && ordered(fr) && fr[0] === 1 && fr[fr.length - 1] === lastOf('guard_crush') && crush.every((l) => l.hurt),
       `크러시 ${crush.length}틱, 프레임 ${[...new Set(fr)].join(' ')}`]);
   }
   // 6) 공중에서 맞음 실제: 띄우기에 맞으면 1~9번은 한 번, 그 뒤 떨어지는 동안 10·11·12번을 되풀이, 바닥에 닿으면 다운
@@ -1311,11 +1317,14 @@ function commonMotionChecks() {
     const s = fresh(2400, 2440);
     const log = watch(s, 140, (t) => [t === 0 ? I.IN_ATTACK | I.IN_UP : 0, 0]);
     const air = log.filter((l) => l.mode === 'airhit' && l.hitstop === 0).map((l) => l.frame);
-    const head = air.slice(0, air.indexOf(10));
-    const tail = air.slice(air.indexOf(10));
-    const loops = tail.every((v, i) => i === 0 || v === tail[i - 1] || v === (tail[i - 1] === 12 ? 10 : tail[i - 1] + 1));
+    // 되풀이 구간: HIT_AIR_LOOP_FROM(0부터)번째 프레임부터 끝까지 (data/poses/common.ts)
+    const loop0 = HIT_AIR_LOOP_FROM + 1;
+    const last = lastOf('hit_air');
+    const head = air.slice(0, air.indexOf(loop0));
+    const tail = air.slice(air.indexOf(loop0));
+    const loops = tail.every((v, i) => i === 0 || v === tail[i - 1] || v === (tail[i - 1] === last ? loop0 : tail[i - 1] + 1));
     const kd = log.findIndex((l) => l.mode === 'knockdown');
-    results.push(['공중에서 맞음: 1~9번은 한 번, 그 뒤 10·11·12번을 되풀이하다 바닥에 닿으면 다운', ordered(head) && head[0] <= 2 && tail.length > 8 && tail.includes(12) && loops && kd > 0 && log[kd].motion === 'common/knockdown',
+    results.push([`공중에서 맞음: 1~${loop0 - 1}번은 한 번, 그 뒤 ${loop0}~${last}번을 되풀이하다 바닥에 닿으면 다운`, ordered(head) && head[0] <= 2 && tail.length > 8 && tail.includes(last) && loops && kd > 0 && log[kd].motion === 'common/knockdown',
       `앞 ${[...new Set(head)].join(' ')} / 되풀이 ${tail.slice(0, 12).join(' ')}… (${tail.length}틱) → ${kd > 0 ? log[kd].motion : '다운 없음'}`]);
   }
   // 7) 공중에서 다시 맞으면 1번부터: 연속 장면(대시 공격 → 차지 → 점프 → 공중 3타)의 공중 타격마다 2P가 1번 프레임
@@ -1343,8 +1352,9 @@ function commonMotionChecks() {
     const gu = log.filter((l) => l.mode === 'getup');
     const guHurt = gu.map((l) => (l.hurt ? 1 : 0)).join('');
     const after = log.findIndex((l, i) => i > 0 && log[i - 1].mode === 'getup' && l.mode !== 'getup');
-    results.push(['다운: 1번부터 14번까지 한 번, 14번에서 멈춘 채 누워 기다리고 내내 무적', ordered(fr) && fr[0] === 1 && fr[fr.length - 1] === 14 && fr.filter((v) => v === 14).length >= R.KNOCKDOWN_WAIT && kd.length === R.KNOCKDOWN_TICKS && kd.every((l) => !l.hurt),
-      `다운 ${kd.length}틱, 14번 ${fr.filter((v) => v === 14).length}틱, 맞는 판정 ${kd.some((l) => l.hurt) ? '있음' : '없음'}`]);
+    const lastKd = lastOf('knockdown');
+    results.push([`다운: 1번부터 ${lastKd}번까지 한 번, ${lastKd}번에서 멈춘 채 누워 기다리고 내내 무적`, ordered(fr) && fr[0] === 1 && fr[fr.length - 1] === lastKd && fr.filter((v) => v === lastKd).length >= R.KNOCKDOWN_WAIT && kd.length === R.KNOCKDOWN_TICKS && kd.every((l) => !l.hurt),
+      `다운 ${kd.length}틱, ${lastKd}번 ${fr.filter((v) => v === lastKd).length}틱, 맞는 판정 ${kd.some((l) => l.hurt) ? '있음' : '없음'}`]);
     results.push(['기상: 24틱, 1~10번(20틱)은 무적이고 11~12번은 맞는다, 끝나면 대기', gu.length === R.GETUP_TICKS && guHurt === '0'.repeat(R.GETUP_INVULN) + '1'.repeat(R.GETUP_TICKS - R.GETUP_INVULN) && after > 0 && log[after].mode === 'idle',
       `기상 ${gu.length}틱, 맞는 판정 ${guHurt}, 다음 ${after > 0 ? log[after].mode : '-'}`]);
   }
@@ -1364,7 +1374,7 @@ function commonMotionChecks() {
     const fr = tech.map((l) => l.frame);
     const hurt = tech.map((l) => (l.hurt ? 1 : 0)).join('');
     const end = log.findIndex((l, i) => i > 0 && log[i - 1].mode === 'tech' && l.mode !== 'tech');
-    results.push(['낙법: 18틱 동안 1번부터 12번까지, 1~8번(12틱)은 무적, 끝나면 낙하(공중)', tech.length === R.TECH_TICKS && ordered(fr) && fr[0] <= 2 && fr[fr.length - 1] === 12
+    results.push([`낙법: 18틱 동안 1번부터 ${lastOf('tech')}번까지, 1~8번(12틱)은 무적, 끝나면 낙하(공중)`, tech.length === R.TECH_TICKS && ordered(fr) && fr[0] <= 2 && fr[fr.length - 1] === lastOf('tech')
       && hurt.startsWith('0'.repeat(R.TECH_INVULN - 1)) && hurt.endsWith('1'.repeat(R.TECH_TICKS - R.TECH_INVULN)) && end > 0 && ['air', 'land'].includes(log[end].mode),
       `낙법 ${tech.length}틱, 프레임 ${[...new Set(fr)].join(' ')}, 맞는 판정 ${hurt}, 다음 ${end > 0 ? log[end].mode : '-'}`]);
   }

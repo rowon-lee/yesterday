@@ -1,11 +1,14 @@
 import { drawText, GLYPH_H } from '../render/font';
-import { cellOf, MAX_FRAMES, MIN_FRAMES, type DrawOptions, type Motion } from './motion';
+import { cellOf, type DrawOptions, type Motion } from './motion';
 
-/** 규격 위반을 문장으로 돌려준다. 없으면 빈 배열. */
+/**
+ * 규격 위반을 문장으로 돌려준다. 없으면 빈 배열.
+ * 프레임 수는 보지 않는다 (동작의 목적에 맞게 정한다: 12~14 규칙 폐기, 3-0a). 프레임이 하나 이상이고 표시 틱이 1 이상 정수인지만 본다
+ */
 export function checkMotion(m: Motion): string[] {
   const errors: string[] = [];
-  const n = m.dur.length;
-  if (n < MIN_FRAMES || n > MAX_FRAMES) errors.push(`프레임 ${n}개 (12~14여야 함)`);
+  if (m.dur.length < 1) errors.push('프레임이 없음');
+  if (m.joints && m.joints.length !== m.dur.length) errors.push(`관절 ${m.joints.length}프레임과 표시 틱 ${m.dur.length}개가 다름`);
   m.dur.forEach((d, i) => {
     if (!Number.isInteger(d) || d < 1) errors.push(`${i + 1}번 프레임 dur ${d} (1 이상 정수여야 함)`);
   });

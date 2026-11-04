@@ -11,9 +11,11 @@ import { O_STANCE, OD, OR } from './stance';
  * 4타만 "반쯤 뽑아 들었다가 납도하는 '탁'에 세 줄".
  */
 
-/** 표준 발도 13프레임: 기본자세 → 손을 얹음(멈칫) → 칼날이 비침(1틱) → '탁'(1프레임 멈춤) → 그대로 → 기본자세 */
-function iai(name: string, label: string, p: { from?: Pose; ready: Pose; flick: Pose; click: Pose; still: Pose; end?: Pose }, dur: number[]): MotionData {
-  const air = dur.length === 12;
+/**
+ * 표준 발도 13프레임: 기본자세 → 손을 얹음(멈칫) → 칼날이 비침(1틱) → '탁'(1프레임 멈춤) → 그대로 → 기본자세.
+ * air: 공중 평타 (손을 얹는 멈칫이 한 프레임 짧다. 전에는 프레임 수 12로 알아냈다 — 3-0a에서 프레임 수와 떼어 냄)
+ */
+function iai(name: string, label: string, p: { from?: Pose; ready: Pose; flick: Pose; click: Pose; still: Pose; end?: Pose }, dur: number[], air = false): MotionData {
   const k = air ? -1 : 0;
   return {
     name,
@@ -142,7 +144,7 @@ export const OSCAR_AIR1 = iai('oscar/air1', '오스카 공중 1타', {
   click: OD({ ...AIR, hx: 1, tl: 17, hd: 13, tw: 1 }, 0),
   still: OD({ ...AIR, hx: 0.5, tl: 16, hd: 13 }, 0),
   end: AIR_END,
-}, AIR_QUICK);
+}, AIR_QUICK, true);
 
 export const OSCAR_AIR2 = iai('oscar/air2', '오스카 공중 2타', {
   from: AIR_END,
@@ -151,7 +153,7 @@ export const OSCAR_AIR2 = iai('oscar/air2', '오스카 공중 2타', {
   click: OD({ ...AIR, tl: 11, hd: 12, lFx: 7, lFy: -6 }, 0),
   still: OD({ ...AIR, tl: 12, hd: 12, lFx: 6, lFy: -7 }, 0),
   end: AIR_END,
-}, AIR_QUICK);
+}, AIR_QUICK, true);
 
 /** 공중 3타: 한 번 크게 비틀며 X자 두 줄 */
 export const OSCAR_AIR3 = iai('oscar/air3', '오스카 공중 3타 (X자)', {
@@ -161,7 +163,7 @@ export const OSCAR_AIR3 = iai('oscar/air3', '오스카 공중 3타 (X자)', {
   click: OD({ ...AIR, hx: 1, tl: 18, hd: 12, lFx: 7, lFy: -5, lBx: -4, lBy: -4 }, 0),
   still: OD({ ...AIR, hx: 0.5, tl: 16, hd: 13, lFx: 6, lFy: -6, lBx: -3, lBy: -5 }, 0),
   end: AIR_END,
-}, AIR_QUICK);
+}, AIR_QUICK, true);
 
 // ---- 내려찍기 (공중 ↓+공격) 내려다봄: 발밑을 내려다보는 순간 위에서 아래로 세로 선이 바닥까지 갈라진다 ----
 export const OSCAR_SLAM = iai('oscar/slam', '오스카 내려찍기 (내려다봄)', {
