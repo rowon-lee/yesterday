@@ -2,6 +2,19 @@ import type { MotionData } from '../../../anim/motion';
 import type { Pose } from '../../../anim/pose';
 import { O_STANCE, OD, OR } from './stance';
 
+/** 한 프레임 = [자세, 표시 틱, 멈춤(stop)] */
+type Fr = readonly [pose: Pose, dur: number, stop?: boolean];
+/** 프레임마다 키 하나 (사이 프레임으로 채우지 않는다, 길이는 dur로). 2차 리워크 */
+function seq(name: string, label: string, frames: readonly Fr[]): MotionData {
+  return {
+    name,
+    label,
+    wide: true,
+    dur: frames.map((f) => f[1]),
+    keys: frames.map(([pose, , stop], at) => (stop ? { at, pose, stop } : { at, pose })),
+  };
+}
+
 /*
  * 오스카 기술 4개 (캐릭터 기획서 13장): 스킬 1 월하참뢰검, 스킬 2 월하윤회궤, 차지 만검지화, 필살기 월령수류(연출 장면 포함).
  * 칸은 128×96. 칼은 휘두르지 않는다: 손을 얹고, 칼날이 비치고, '탁' 납도한다(1프레임 멈춤). 베이는 것은 허공·상대 자리·화면이다 (렌더·sim).
@@ -144,18 +157,17 @@ export const OSCAR_SUPER_OPEN: MotionData = {
   ],
 };
 
-/** 장면 2 검영 (40틱): 검영들이 떠올라 둘레를 도는 동안 천천히 고개를 든다 */
-export const OSCAR_SUPER_ORBIT: MotionData = {
-  name: 'oscar/super_orbit',
-  label: '오스카 필살기 장면 2 (검영)',
-  wide: true,
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3],
-  keys: [
-    { at: 0, pose: SP_CLOSE },
-    { at: 5, pose: OD({ hy: -22, tl: 12, hd: 12, lFx: 6, lBx: -6 }, 0) },
-    { at: 13, pose: SP_LIFT, stop: true },
-  ],
-};
+/**
+ * 장면 2 검영 (40틱, 2차 리워크): 검영들이 떠올라 둘레를 도는 동안 눈을 감고 멈춰 있다 (숨 한 번: 1px 오른다) →
+ * 고개가 한 번 더 깊이 숙었다가 (1틱, 감기) → 한 번에 고개를 든다 (순간) → 든 채 멈춤. 5프레임 (키 3개를 14장으로 늘이던 것 대신)
+ */
+export const OSCAR_SUPER_ORBIT = seq('oscar/super_orbit', '오스카 필살기 장면 2 (검영)', [
+  [SP_CLOSE, 12, true],
+  [OD({ hy: -22.4, tl: 12, hd: 18, lFx: 6, lBx: -6 }, 0), 12, true],
+  [OD({ hy: -21.6, tl: 13.5, hd: 24, lFx: 6, lBx: -6 }, 0), 1],
+  [OD({ hy: -22.2, tl: 10, hd: 2, lFx: 6, lBx: -6 }, 0), 2],
+  [SP_LIFT, 13, true],
+]);
 
 /** 짧은 판 장면 1 (40틱, 같은 경기 두 번째부터): 전개와 검영을 한 장면에 — 눈을 감았다가 고개를 든다 */
 export const OSCAR_SUPER_OPEN_S: MotionData = {
