@@ -189,17 +189,43 @@ export const EUNWOO_DASH: MotionData = {
 /** 몸을 앞으로 길게 눕힌다: 뒷손은 실을 잡고 앞으로, 두 다리는 모아 발끝을 뒤로, 연검은 뒤로 흐른다 */
 const AD_LINE = E({ hx: 2, hy: -24, tl: 66, hd: -26, aFx: -6, aFy: 8, aBx: 16, aBy: -1, lFx: -9, lFy: -15, lBx: -12, lBy: -12 });
 
-/** 공중 대시: 웅크림 → 2~8프레임 몸을 눕혀 실을 따라 날아감 → 몸을 세우며 낙하로. 12프레임 × 1틱 */
+/** 몸을 앞으로 던지기 시작: 뒷손이 실을 쏘고 몸이 기운다 */
+const AD_TILT = E({ hx: 1, hy: -24.5, tl: 34, hd: -12, aFx: 4, aFy: 4, aBx: 15, aBy: -4, lFx: 2, lFy: -10, lBx: -9, lBy: -8 });
+/** 날아가는 끝: 몸이 더 눕고 발끝이 더 뒤로 */
+const AD_LINE2 = E({ hx: 2, hy: -24, tl: 70, hd: -28, aFx: -7, aFy: 9, aBx: 16.5, aBy: -0.5, lFx: -11, lFy: -15, lBx: -14, lBy: -12 });
+/** 실을 따라 미끄러지는 동안 (k 0~1: 곧게 눕힌 몸이 조금씩 더 눕고, 두 발끝이 엇갈려 살짝 흔들린다) */
+const glideAt = (k: number): Pose => {
+  const mix = (a: number, b: number) => a + (b - a) * k;
+  return E({
+    hx: 2, hy: -24, tl: mix(66, 70), hd: mix(-26, -28), aFx: mix(-6, -7), aFy: mix(8, 9), aBx: mix(16, 16.5), aBy: mix(-1, -0.5),
+    lFx: mix(-9, -11), lFy: mix(-15, -15) + 1.2 * Math.sin(k * Math.PI), lBx: mix(-12, -14), lBy: mix(-12, -12) - 1.2 * Math.sin(k * Math.PI),
+  });
+};
+/** 몸을 세우기 시작한다 (날아가는 힘이 남아 아직 비스듬히) */
+const AD_RIGHT = E({ hx: 1.5, hy: -24.3, tl: 50, hd: -18, aFx: 1, aFy: 5, aBx: 12, aBy: -3, lFx: -5, lFy: -13, lBx: -11, lBy: -10 });
+const AD_OPEN = E({ hx: 1, hy: -24.6, tl: 30, hd: -9, aFx: 7, aFy: -1, aBx: 2, aBy: -5, lFx: 2, lFy: -10, lBx: -8, lBy: -7 });
+const AD_OPEN2 = E({ hx: 0.5, hy: -24.8, tl: 15, hd: -3, aFx: 10, aFy: -4, aBx: -5, aBy: -6, lFx: 5, lFy: -8, lBx: -6.5, lBy: -6 });
+
+/**
+ * 공중 대시 (2차 리워크): 몸을 던짐(1~3, 빠르게) → 실을 따라 길게 눕혀 미끄러짐(3~6, 느리게) → 몸을 세움(7~10, 빠르게) → 낙하로.
+ * 12프레임 × 1틱(같은 자세 복사) → 10프레임. sim은 11틱을 프레임 수로 고르게 나눈다 (표시 틱은 뷰어·시트용)
+ */
 export const EUNWOO_AIR_DASH: MotionData = {
   name: 'eunwoo/air_dash',
   label: '백은우 공중 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-  follow: { ribbon: { air: true, stiff: 0.5, gravity: 0.3, keys: [{ at: 0, wind: 0.6 }, { at: 2, wind: 1.1 }, { at: 8, wind: 1.1 }, { at: 11, wind: 0.2 }] }, wind: 1 },
+  dur: [1, 1, 1, 2, 1, 1, 2, 1, 1, 1],
+  follow: { ribbon: { air: true, stiff: 0.5, gravity: 0.3, keys: [{ at: 0, wind: 0.6 }, { at: 1.5, wind: 1.1 }, { at: 6, wind: 1.1 }, { at: 9, wind: 0.2 }] }, wind: 1 },
   keys: [
     { at: 0, pose: F_FLOAT },
+    { at: 1, pose: AD_TILT },
     { at: 2, pose: AD_LINE },
-    { at: 8, pose: AD_LINE, stop: true },
-    { at: 11, pose: F_FLOAT },
+    { at: 3, pose: glideAt(0.35) },
+    { at: 4, pose: glideAt(0.7) },
+    { at: 5, pose: AD_LINE2, stop: true },
+    { at: 6, pose: AD_RIGHT },
+    { at: 7, pose: AD_OPEN },
+    { at: 8, pose: AD_OPEN2 },
+    { at: 9, pose: F_FLOAT },
   ],
 };
 
