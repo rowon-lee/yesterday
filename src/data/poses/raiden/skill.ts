@@ -260,18 +260,20 @@ export const RAIDEN_PACHEON_BURST: MotionData = {
 const RX2_JOLT = S({ hx: -2, hy: -19, tl: 20, hd: 16, aFx: 6, aFy: 8, aBx: 4, aBy: 10, lFx: 8, lBx: -10 });
 const RX2_ARCH = S({ hx: -5, hy: -18, tl: -36, hd: -24, aFx: 15, aFy: -10, aBx: 12, aBy: -13, lFx: 9, lBx: -13 });
 const RX2_ARCH2 = S({ hx: -5.5, hy: -17.5, tl: -40, hd: -28, aFx: 16, aFy: -8, aBx: 13, aBy: -11, lFx: 9, lBx: -14 });
-/** 파천 장면 3: 상대 반응 — 활처럼 젖혀짐 (12프레임 16틱) */
+/** 젖혀진 채 버팀 (가장 젖혀졌다가 조금 돌아옴) */
+const RX2_HANG = S({ hx: -5, hy: -18, tl: -37, hd: -25, aFx: 15.5, aFy: -9, aBx: 12.5, aBy: -12, lFx: 9, lBx: -13.5 });
+/** 파천 장면 3: 상대 반응 — 활처럼 젖혀짐 (5프레임 16틱: 굳은 채 → 터짐 2틱에 가슴이 튀어나옴 → 3틱에 젖혀짐 → 가장 젖혀짐 → 버팀) */
 export const RAIDEN_PACHEON_REACT3: MotionData = {
   name: 'raiden/pacheon_react3',
   label: '파천 상대 반응 3 (등 뒤로 터짐)',
   wide: true,
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2],
+  dur: [2, 1, 2, 3, 8],
   keys: [
     { at: 0, pose: RX1_A },
-    { at: 2, pose: RX2_JOLT },
-    { at: 3, pose: RX2_ARCH },
-    { at: 5, pose: RX2_ARCH2, stop: true },
-    { at: 11, pose: RX2_ARCH },
+    { at: 1, pose: RX2_JOLT },
+    { at: 2, pose: RX2_ARCH },
+    { at: 3, pose: RX2_ARCH2, stop: true },
+    { at: 4, pose: RX2_HANG },
   ],
 };
 
