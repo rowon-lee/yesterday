@@ -171,19 +171,20 @@ export const OSCAR_SUPER_OPEN_S = seq('oscar/super_open_s', '오스카 필살기
   [SP_LIFT, 11, true],
 ]);
 
-/** 장면 3 정적 (20틱): 모든 소리가 멈춘 듯. 칼을 반 치쯤(7px) 뽑는다 */
-export const OSCAR_SUPER_STILL: MotionData = {
-  name: 'oscar/super_still',
-  label: '오스카 필살기 장면 3 (정적)',
-  wide: true,
-  dur: [2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 2, 2],
-  keys: [
-    { at: 0, pose: SP_LIFT },
-    { at: 3, pose: OD({ hy: -21.6, tl: 13, hd: 6, lFx: 7, lBx: -7 }, 1), stop: true },
-    { at: 9, pose: OD({ hx: 0.5, hy: -21, tl: 15, hd: 5, lFx: 8, lBx: -8, tw: 1 }, 7), stop: true },
-    { at: 11, pose: OD({ hx: 0.5, hy: -21, tl: 15, hd: 5, lFx: 8, lBx: -8, tw: 1 }, 7), stop: true },
-  ],
-};
+/** 반 치쯤(7px) 뽑아 든 자세 (장면 3 끝 = 장면 4 처음) */
+const SP_HALF = OD({ hx: 0.5, hy: -21, tl: 15, hd: 5, lFx: 8, lBx: -8, tw: 1 }, 7);
+
+/**
+ * 장면 3 정적 (20틱, 2차 리워크): 모든 소리가 멈춘 듯. 고개를 든 채 → 엄지가 날밑으로, 완전히 멈춤 (5틱) → 엄지가 1px 더 물러남 (1틱) →
+ * 한 번에 칼을 반 치 넘게 뽑음 (1틱, 스미어) → 반 치(7px)에서 멈춤. 5프레임 (사이 프레임 12장 대신)
+ */
+export const OSCAR_SUPER_STILL = seq('oscar/super_still', '오스카 필살기 장면 3 (정적)', [
+  [SP_LIFT, 4, true],
+  [OD({ hy: -21.6, tl: 13, hd: 6, lFx: 7, lBx: -7 }, -1.5), 5, true],
+  [OD({ hy: -21.4, tl: 13.5, hd: 7, lFx: 7, lBx: -7 }, -2.5), 1],
+  [OD({ hx: 0.5, hy: -20.8, tl: 16, hd: 3, lFx: 8, lBx: -8, tw: 1 }, 9), 1],
+  [SP_HALF, 9, true],
+]);
 
 /** 백색 동안 빠져 지나가 상대 등 뒤에 선 자세: 칼을 다 뽑아 낮게 든 채 (등을 돌리고 있다) */
 const SP_PASSED = OD({ hx: 3.5, hy: -17, tl: 30, hd: 6, lFx: 16, lBx: -13, tw: 2 }, 14);
