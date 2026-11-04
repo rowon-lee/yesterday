@@ -2,8 +2,7 @@ import type { MoveId } from '../../data/moves/base';
 import {
   BLOOM_CUTS, BLOOMS, cutAngle, OSCAR_CUTS, PETALS, SKILL1_CUT, SKILL1_MID, superCutCount, superCuts, type Cut,
 } from '../../data/poses/oscar/slashes';
-import { cineScenes, movesOf, type Fighter, type SimEvent, type SimState } from '../../sim';
-import { motionFrames } from '../../sim/frames';
+import { movesOf, sceneTicks, type Fighter, type SimEvent, type SimState } from '../../sim';
 import { nearestShadow, SHADOW_LIFE, SHADOW_MAX, shadowCount, shadowsOf, SKILL2_WARP, superAnchor } from '../../sim/chars/oscar';
 import { GROUND } from '../../stage/citadel';
 import dashBlink from '../../vfx/dash-blink';
@@ -216,11 +215,12 @@ const grounded = (f: Fighter): boolean => f.y === f.floor || f.y === 0;
 function domainClock(s: SimState, i: number, sl: Slot): number {
   const c = s.cine;
   if (c && c.who === i && c.move === 'super') {
-    const sc = cineScenes(s);
+    // 장면 길이는 sim 공격 데이터의 연출 장면 틱
+    const ch = s.fighters[i]!.char;
     let T = c.t;
-    for (let k = 0; k < c.scene; k++) T += motionFrames(sc[k]!.a.motion).total;
+    for (let k = 0; k < c.scene; k++) T += sceneTicks(ch, 'super', k, c.short);
     if (!c.short) return T;
-    const first = motionFrames(sc[0]!.a.motion).total;
+    const first = sceneTicks(ch, 'super', 0, c.short);
     return T < first ? (T * 110) / first : T - first + 110;
   }
   if (sl.endTick >= 0) {

@@ -9,9 +9,11 @@ const char = ci >= 0 ? argv[ci + 1] : 'raiden';
 const rest = argv.filter((_, i) => i !== ci && i !== ci + 1);
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 const sim = await vite.ssrLoadModule('/src/sim/index.ts');
+// 자세 숫자는 그림(렌더 쪽 관절), 시간·몸 이동·상자는 공격 데이터 (3-0a(2))
+const anim = await vite.ssrLoadModule('/src/render/pose.ts');
 const ids = rest.length ? rest : ['atk1', 'atk2', 'atk3', 'atk4', 'launcher', 'sweep', 'dashAttack', 'air1', 'air2', 'air3', 'slam', 'wallKick', 'charge', 'skill1', 'skill2', 'super'];
 const moves = sim.movesOf(char);
-const stanceHip = sim.motionFrames(sim.motionOf(char, 'idle')).joints[0].hip[1];
+const stanceHip = anim.animOf(sim.motionOf(char, 'idle')).joints[0].hip[1];
 const deg = (r) => (r * 180) / Math.PI;
 /** 무기 길이 (그림 px): 에드워드 해머 머리까지 (src/anim/decor/edward.ts HAMMER.reach, 2026-11-02 자루 30px) */
 const WEAPON = { edward: 30 };
@@ -20,8 +22,10 @@ for (const id of ids) {
   const mv = moves[id];
   if (!mv) continue;
   const d = mv.data;
-  const fr = d.active[0] ?? 0;
-  const j = mv.frames.joints[fr];
+  // 첫 판정 틱의 그림 프레임
+  const A = anim.moveAnim(mv);
+  const fr = mv.time.hits.length ? anim.animFrameAt(A, mv.activeStart) : 0;
+  const j = A.joints[fr];
   const end = d.limb?.[1] ?? 'hF';
   const tip = WEAPON[char] && typeof j.wa === 'number' ? [j.hF[0] + Math.cos(j.wa) * WEAPON[char], j.hF[1] + Math.sin(j.wa) * WEAPON[char]] : j[end];
   const footGap = j.fF[0] - j.fB[0];
@@ -42,9 +46,9 @@ for (const id of ids) {
   }
   const box = d.box;
   rows.push({
-    id, motion: d.motion, frames: mv.frames.dur.length, ticks: mv.total, startup: mv.activeStart, active: mv.activeEnd - mv.activeStart, recovery: mv.total - mv.activeEnd,
+    id, motion: d.motion, frames: A.dur.length, ticks: mv.total, startup: mv.activeStart, active: mv.activeEnd - mv.activeStart, recovery: mv.total - mv.activeEnd,
     footGap, hipDrop: +hipDrop.toFixed(1), tilt: +tilt.toFixed(0), armF: +(armF * 100).toFixed(0), armB: +(armB * 100).toFixed(0), shFwd, lineDev: +dev.toFixed(0),
-    moved: (d.advance ?? []).reduce((a, b) => a + b, 0), boxEnd: box ? box.x + box.w : '', damage: d.damage,
+    moved: (mv.time.advance ?? []).reduce((a, [, b]) => a + b, 0), boxEnd: (() => { const h = mv.time.hits[0]?.box; return h ? h[0] + h[2] : box ? box.x + box.w : ''; })(), damage: d.damage,
   });
 }
 console.table(rows);

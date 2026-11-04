@@ -1,9 +1,10 @@
-import { hitBox, hurtBox, type Box } from '../anim/boxes';
+import type { Box } from '../anim/boxes';
 import { cellOf, type Cell } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import type { LookName } from '../anim/skeleton';
 import { isSkin, skinForMotion, SKINS, type SkinId } from '../anim/skins';
 import { drawText } from '../render/font';
+import { dataBoxesAt } from '../render/hitview';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
 import type { Scene } from './scene';
@@ -19,12 +20,16 @@ const PANEL_X = 260;
 
 /**
  * 개발용 모션 뷰어 (?scene=viewer).
- * 키보드: ↑↓ 동작, ←→ 한 프레임, Space 재생/정지, S 속도, H 판정 상자, C 색, F 좌우, K 캐릭터 겉모습 (?skin=raiden)
+ * 주소 ?motion=raiden/jab 으로 처음 동작을 고른다. 키보드: ↑↓ 동작, ←→ 한 프레임, Space 재생/정지, S 속도, H 판정 상자, C 색, F 좌우, K 캐릭터 겉모습 (?skin=raiden)
+ * 판정 상자(H)는 공격 데이터 그대로다 (3-0a(2)): 피격 상자는 피격 상자 시간표, 공격 상자·연검 판정 선은 그 동작을 쓰는 기술의 시간표에서
+ * 지금 틱(그림이 보인 틱)의 값을 그림 위에 겹친다. 아래 시간 줄의 붉은 띠는 판정 구간. 그림을 다시 깎으면 그림과 판정이 어긋나는지 여기서 본다
  * 캐릭터 전용 동작('raiden/…')은 늘 그 캐릭터 겉모습으로 보인다. K는 기본·공통 동작에 입혀 볼 겉모습을 바꾼다.
  */
 export function viewerScene(): Scene {
+  // ?motion=raiden/jab 처럼 처음 볼 동작을 주소로 고를 수 있다
+  const first = MOTIONS.findIndex((m) => m.name === new URLSearchParams(location.search).get('motion'));
   const v = {
-    motion: 0,
+    motion: Math.max(0, first),
     frame: 0,
     /** 이 프레임에서 지난 시간 (1/4틱 단위) */
     sub: 0,
@@ -150,16 +155,22 @@ export function viewerScene(): Scene {
       ctx.fillRect(view.x, VIEW_Y + (cell.fy + 1) * view.zoom, sw, view.zoom);
       ctx.drawImage(sprite(m, v.frame, v.look, v.flip, skinForMotion(m.name, v.skin)), view.x, VIEW_Y, sw, sh);
 
-      if (v.boxes && m.joints) {
-        const j = m.joints[v.frame];
-        strokeBox(ctx, hurtBox(j), COLORS.green, v.flip, cell);
-        const hb = hitBox(j, v.frame, m.hit);
-        if (hb) strokeBox(ctx, hb, COLORS.red, v.flip, cell);
-      }
-
       // 오른쪽 정보
       const total = m.dur.reduce((a, b) => a + b, 0);
       const elapsed = m.dur.slice(0, v.frame).reduce((a, b) => a + b, 0) + Math.floor(v.sub / 4);
+      // 판정 상자: 공격 데이터 (sim이 쓰는 값)를 지금 틱으로
+      const data = dataBoxesAt(m.name, elapsed);
+      if (v.boxes) {
+        // 칸 밖으로 뻗는 상자(번개 범위 등)는 보기 칸 끝에서 자른다 (오른쪽 글씨를 가리지 않게)
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(view.x, VIEW_Y, sw, sh);
+        ctx.clip();
+        if (data.hurt) strokeBox(ctx, data.hurt, COLORS.green, v.flip, cell);
+        if (data.hit) strokeBox(ctx, data.hit, COLORS.red, v.flip, cell);
+        if (data.line) strokeLine(ctx, data.line, COLORS.gold, v.flip, cell);
+        ctx.restore();
+      }
       const lines: Array<[string, string]> = [
         [m.name.toUpperCase(), COLORS.gold],
         ['', ''],
@@ -167,6 +178,8 @@ export function viewerScene(): Scene {
         [`DUR ${m.dur[v.frame]}T`, COLORS.white],
         [`TICK ${elapsed}/${total}`, COLORS.white],
         [`${(total / 60).toFixed(2)} SEC${m.loop ? ' LOOP' : ''}`, COLORS.white],
+        [data.move ? `MOVE ${data.move.toUpperCase()}` : '', COLORS.white],
+        [data.spans.length ? `HIT ${data.spans.map((s) => `${s[0]}-${s[1]}`).join(' ')}T` : '', COLORS.red],
         ['', ''],
         [v.playing ? 'PLAY' : 'STOP', v.playing ? COLORS.green : COLORS.red],
         [`SPEED X${SPEED_LABEL[v.speed].replace('배속', '')}`, COLORS.white],
@@ -174,11 +187,11 @@ export function viewerScene(): Scene {
       lines.forEach(([t, c], i) => t && drawText(ctx, t, PANEL_X, VIEW_Y + i * 8, c));
       if (v.boxes) {
         ctx.fillStyle = COLORS.green;
-        ctx.fillRect(PANEL_X, VIEW_Y + 82, 5, 5);
-        drawText(ctx, 'HURT', PANEL_X + 8, VIEW_Y + 82, COLORS.white);
+        ctx.fillRect(PANEL_X, VIEW_Y + 98, 5, 5);
+        drawText(ctx, 'HURT DATA', PANEL_X + 8, VIEW_Y + 98, COLORS.white);
         ctx.fillStyle = COLORS.red;
-        ctx.fillRect(PANEL_X, VIEW_Y + 90, 5, 5);
-        drawText(ctx, 'HIT', PANEL_X + 8, VIEW_Y + 90, COLORS.white);
+        ctx.fillRect(PANEL_X, VIEW_Y + 106, 5, 5);
+        drawText(ctx, 'HIT DATA', PANEL_X + 8, VIEW_Y + 106, COLORS.white);
       }
 
       // 아래 시간 줄: 프레임마다 표시 틱만큼 폭, 지금 프레임은 금색
@@ -192,6 +205,13 @@ export function viewerScene(): Scene {
         ctx.fillRect(x, barY, w - 1, 6);
         x += w;
       });
+      // 판정 구간 (공격 데이터 틱): 시간 줄 아래 붉은 띠
+      ctx.fillStyle = COLORS.red;
+      for (const [a, b] of data.spans) {
+        const x0 = barX + Math.round((a / total) * barW);
+        const x1 = barX + Math.round((Math.min(b, total) / total) * barW);
+        ctx.fillRect(x0, barY + 7, Math.max(1, x1 - x0), 2);
+      }
       const px = barX + Math.round((elapsed / total) * barW);
       ctx.fillStyle = COLORS.white;
       ctx.fillRect(Math.min(px, barX + barW - 1), barY - 2, 1, 10);
@@ -214,6 +234,22 @@ function sprite(m: (typeof MOTIONS)[number], frame: number, look: LookName, flip
 /** 큰 보기 자리와 배율: 보통 칸은 3배, 큰 칸은 2배 (오른쪽 정보 칸과 겹치지 않게 왼쪽에 붙인다) */
 function viewOf(cell: Cell): { x: number; zoom: number } {
   return cell.w > 64 ? { x: 2, zoom: 2 } : { x: VIEW_X, zoom: ZOOM };
+}
+
+/** 판정 선 (점을 잇는 1px 선, 확대 배율로) */
+function strokeLine(ctx: CanvasRenderingContext2D, pts: ReadonlyArray<readonly [number, number]>, color: string, flip: boolean, cell: Cell) {
+  const view = viewOf(cell);
+  ctx.fillStyle = color;
+  for (let k = 1; k < pts.length; k++) {
+    const [ax, ay] = pts[k - 1]!;
+    const [bx, by] = pts[k]!;
+    const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay), 1) * view.zoom;
+    for (let i = 0; i <= n; i++) {
+      const x = ax + ((bx - ax) * i) / n;
+      const y = ay + ((by - ay) * i) / n;
+      ctx.fillRect(view.x + (cell.fx + (flip ? -x : x)) * view.zoom, VIEW_Y + (cell.fy + y) * view.zoom, 1, 1);
+    }
+  }
 }
 
 function strokeBox(ctx: CanvasRenderingContext2D, b: Box, color: string, flip: boolean, cell: Cell) {

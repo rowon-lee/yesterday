@@ -1,11 +1,11 @@
 import type { CharFx, CharRender } from '.';
-import { fighterPose, movesOf, statsOf, type Fighter, type SimState, cineScenes } from '../../sim';
+import { movesOf, sceneTicks, statsOf, type Fighter, type SimState, cineScenes } from '../../sim';
+import { animFrameAt, fighterPose, moveAnim } from '../pose';
 import { EUNWOO_RULES, EW } from '../../sim/chars/eunwoo';
 import { GROUND as GROUND_Y } from '../../stage/citadel';
 import eunwooButterflies from '../../vfx/eunwoo-butterfly';
 import { lilyAura, lilyMark, lilyShield } from '../../vfx/eunwoo-lily';
 import eunwooMind from '../../vfx/eunwoo-mind';
-import { MOTIONS } from '../../anim/motions';
 import eunwooThread from '../../vfx/eunwoo-thread';
 import eunwooIntro from '../../vfx/eunwoo-intro';
 import eunwooTrail from '../../vfx/eunwoo-trail';
@@ -95,8 +95,6 @@ function tipFlash(c: CharFx, p: P, size: number): void {
   c.glow(p[0], p[1], 20 + 60 * size, COLORS.moonLight, 0.5 + size, 6);
 }
 
-/** 동작 이름 → 표시 틱 합 */
-const motionTotal = new Map(MOTIONS.map((m) => [m.name, m.dur.reduce((a, b) => a + b, 0)]));
 /**
  * 선의 전체 기준 틱 (0~30 발동, 30부터 연출): 지금 연출 장면·틱에서 센다. 짧은 판은 첫 장면(전개)을 30~90에 늘려 맞춘다.
  * 이 사람의 선의 연출이 아니면 -1
@@ -105,7 +103,8 @@ function superTime(s: SimState, i: number): number {
   const c = s.cine;
   if (!c || c.who !== i || c.move !== 'super') return -1;
   const sc = cineScenes(s);
-  const ticks = sc.map((x) => motionTotal.get(x.a.motion) ?? 0);
+  // 장면 길이는 sim 공격 데이터의 연출 장면 틱 (그림 길이가 아니다)
+  const ticks = sc.map((_, k) => sceneTicks(s.fighters[i]!.char, 'super', k, c.short));
   let el = c.t;
   for (let k = 0; k < c.scene; k++) el += ticks[k]!;
   const first = ticks[0]!;
@@ -154,9 +153,11 @@ export const EUNWOO_RENDER: CharRender = {
     lastFrame[i] = key;
     if ((f.mode === 'attack' || f.mode === 'charge') && f.move) {
       const mv = movesOf(f.char)[f.mode === 'charge' ? 'charge' : f.move];
-      const a0 = mv.data.active[0] ?? 99;
-      const a1 = mv.data.active[mv.data.active.length - 1] ?? -99;
-      const rib = pose.motion === mv.frames.name && pose.frame >= a0 - 2 && pose.frame <= a1 + 2 ? ribbonWorld(f) : null;
+      // 판정 틱(공격 데이터)이 그림에서 몇 번째 프레임인지
+      const A = moveAnim(mv);
+      const a0 = mv.time.hits.length ? animFrameAt(A, mv.activeStart) : 99;
+      const a1 = mv.time.hits.length ? animFrameAt(A, mv.activeEnd - 1) : -99;
+      const rib = pose.motion === mv.time.motion && pose.frame >= a0 - 2 && pose.frame <= a1 + 2 ? ribbonWorld(f) : null;
       if (rib && f.move !== 'slam' && f.move !== 'super') {
         let tr = trails[i];
         if (!tr || tr.done()) {
@@ -168,7 +169,7 @@ export const EUNWOO_RENDER: CharRender = {
         if (f.hitstop === 0) tr.feed(rib);
       }
       // 4타: 칼끝이 앞 바닥에 꽂히는 순간 은빛 섬광과 물보라
-      if (changed && f.move === 'atk4' && pose.frame === a1 && pose.motion === mv.frames.name) {
+      if (changed && f.move === 'atk4' && pose.frame === a1 && pose.motion === mv.time.motion) {
         const tip = ribbonTip(f);
         if (tip) {
           tipFlash(c, tip, 0.4);
