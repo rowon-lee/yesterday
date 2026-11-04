@@ -17,22 +17,35 @@ const COVER_HIT = E({ hx: -4.5, hy: -20.5, tl: -13, hd: 12, aFx: 10, aFy: -5, aB
 /** 젖혀진 몸을 되돌려 다시 막는다 */
 const COVER_BRACE = E({ hx: -2.5, hy: -19.5, tl: -2, hd: 6, aFx: 11, aFy: -2, aBx: -9, aBy: 7, lFx: 9, lBx: -10 });
 
-/** 원형 방패 프레임 (가운데 = 손, 지름 37) */
-const DISC = { r: 18, frames: [3, 4, 5, 6, 7, 8, 9, 10, 11] };
+/** 원이 만들어지는 순간: 손을 한 번 더 앞으로 밀어 원을 세운다 (지나치기) */
+const COVER_PUSH = E({ hx: -1.5, hy: -20.5, tl: -1.5, hd: 5, aFx: 12.5, aFy: -4, aBx: -9, aBy: 7, lFx: 9, lBx: -10 });
+/** 되돌아와 자리 잡는다 */
+const COVER_SET = E({ hx: -2.3, hy: -19.8, tl: -5, hd: 6.5, aFx: 10.5, aFy: -2.5, aBx: -9.3, aBy: 7.3, lFx: 9, lBx: -10 });
+/** 원을 돌리며 버티는 동안 숨: 어깨가 조금 오르내린다 */
+const COVER_BREATH = E({ hx: -2, hy: -20.6, tl: -3.5, hd: 5.5, aFx: 11, aFy: -3.6, aBx: -8.8, aBy: 6.6, lFx: 9, lBx: -10 });
 
-/** 방어: 기본자세 → 손을 들며 휘감음 → 4프레임부터 은빛 원 → 그대로 (sim은 마지막 프레임에 머문다). 12프레임 × 1틱 */
+/**
+ * 방어 (2차 리워크): 기본자세 → 손을 들며 휘감음 → 4프레임부터 은빛 원 → 손을 한 번 더 밀어 원을 세웠다(지나치기) 되돌아와 자리 잡고,
+ * 원을 돌리는 동안 숨을 쉰다 (몸이 멈추지 않는다, 3장 백은우). 10프레임 12틱 (sim은 마지막 프레임에 머문다).
+ * 은빛 원은 프레임마다 38°씩 돌고, 막는 동안 렌더가 빛을 돌린다
+ */
 export const EUNWOO_GUARD: MotionData = {
   name: 'eunwoo/guard',
   label: '백은우 방어',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 1, 1, 1, 1, 1, 1, 1, 2, 2],
   keys: [
     { at: 0, pose: E_STANCE },
     { at: 1, pose: RAISE },
     { at: 2, pose: WHIRL },
-    { at: 3, pose: COVER, stop: true },
-    { at: 11, pose: COVER },
+    { at: 3, pose: COVER_PUSH },
+    { at: 4, pose: COVER_SET, stop: true },
+    { at: 5, pose: COVER },
+    { at: 6, pose: COVER_BREATH },
+    { at: 7, pose: COVER },
+    { at: 8, pose: COVER_BREATH },
+    { at: 9, pose: COVER },
   ],
-  follow: { ribbon: { disc: DISC, stiff: 0.5 } },
+  follow: { ribbon: { disc: { r: 18, frames: [3, 4, 5, 6, 7, 8, 9] }, stiff: 0.5 } },
 };
 
 /** 방어 막힘: 몸이 뒤로 젖혀짐 → 되돌려 막기, 원은 내내 앞에. 12프레임 (sim은 막힌 경직 길이에 맞춰 늘인다) */
