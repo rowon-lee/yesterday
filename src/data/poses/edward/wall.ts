@@ -96,24 +96,47 @@ const WR_B = E({ hx: 0, hy: -24, tl: 12, hd: -14, aFx: 5, aFy: 5.5, aBx: -5, aBy
 const WR_GRAB = E({ hx: 0, hy: -24, tl: 4, hd: -20, aFx: 5, aFy: 4, aBx: 4, aBy: -17, lFx: 4, lFy: -8, lBx: 1, lBy: -2, wa: -150 });
 /** 팔로 끌어올리며 무릎을 당긴다 */
 const WR_PULL = E({ hx: 2, hy: -27, tl: 24, hd: -4, aFx: 5, aFy: 5, aBx: 4, aBy: 6, lFx: 6, lFy: -19, lBx: 3, lBy: -15, wa: -152 });
+/** 팔로 한 번에 끌어올려 무릎이 윗면을 넘는다 (해머 머리는 늦게 끌려 처진다) */
+const WR_HAUL = E({ hx: 3, hy: -25, tl: 22, hd: -3, aFx: 5, aFy: 5.5, aBx: 1, aBy: 6.5, lFx: 9, lFy: -14, lBx: -1, lBy: -8, wa: -168 });
 /** 한 발을 윗면에 쿵 올리며 넘어간다 */
 const WR_OVER = E({ hx: 3, hy: -22, tl: 18, hd: -2, aFx: 5, aFy: 6, aBx: -2, aBy: 7, lFx: 9, lFy: -12, lBx: -4, lBy: -4, wa: -150 });
 
-/** 벽 달리기: 1~10프레임 발을 번갈아 묵직하게 딛고 오름, 11~14프레임 모서리를 잡고 넘어감 */
+/** 두 자세의 가운데 (걸음 사이 프레임: 두 발이 모두 벽에서 떨어져 있다) */
+const mid = (a: Pose, b: Pose, wa: number): Pose => {
+  const o: Record<string, number> = {};
+  for (const k of Object.keys(a) as Array<keyof Pose>) o[k] = ((a[k] as number) + ((b[k] ?? a[k]) as number)) / 2;
+  return { ...(o as unknown as Pose), wa };
+};
+/*
+ * 걸음마다 (2차 리워크): 발을 바꿔 딛는 동안 몸이 먼저 올라가고 해머 머리는 아래로 처졌다가 (사이 프레임),
+ * 발을 딛고 버틸 때 늦게 들썩인다
+ */
+const WR_AB = mid(WR_A, WR_B, -163);
+const WR_BA = mid(WR_B, WR_A, -161);
+
+/**
+ * 벽 달리기 (2차 리워크): 1~10프레임 발을 번갈아 묵직하게 딛고 오름 (해머는 걸음보다 늦게 들썩임),
+ * 11~14프레임 모서리를 잡고 한 번에 끌어올려 넘어감(해머 머리는 늦게 끌려 처졌다 튀어 오름). 14프레임 39틱 (꼭대기 넘기 시작 프레임은 모든 캐릭터 공통 WALL_RUN_TOP_FROM 그대로)
+ */
 export const EDWARD_WALL_RUN: MotionData = {
   name: 'edward/wall_run',
   label: '에드워드 벽 달리기',
   dur: [2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3],
   keys: [
     { at: 0, pose: WR_PLANT },
-    { at: 1, pose: WR_A, stop: true },
-    { at: 3, pose: WR_B, stop: true },
-    { at: 5, pose: WR_A, stop: true },
-    { at: 7, pose: WR_B, stop: true },
-    { at: 9, pose: WR_A },
+    { at: 1, pose: { ...WR_A, wa: -150 }, stop: true },
+    { at: 2, pose: WR_AB },
+    { at: 3, pose: { ...WR_B, wa: -146 }, stop: true },
+    { at: 4, pose: WR_BA },
+    { at: 5, pose: { ...WR_A, wa: -148 }, stop: true },
+    { at: 6, pose: WR_AB },
+    { at: 7, pose: { ...WR_B, wa: -146 }, stop: true },
+    { at: 8, pose: WR_BA },
+    { at: 9, pose: { ...WR_A, wa: -148 } },
     { at: 10, pose: WR_GRAB },
     { at: 11, pose: WR_PULL, stop: true },
-    { at: 13, pose: WR_OVER },
+    { at: 12, pose: WR_HAUL },
+    { at: 13, pose: { ...WR_OVER, wa: -144 } },
   ],
 };
 
