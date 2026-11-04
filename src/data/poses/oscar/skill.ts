@@ -336,18 +336,18 @@ export const REACT_OSCAR_CUT: MotionData = {
   ],
 };
 
-/** 반응 6 납도 (30틱): 그대로 섰다가, '탁' 하는 순간 무릎이 꺾이기 시작한다 (끝에 쓰러진다) */
-export const REACT_OSCAR_FALL: MotionData = {
-  name: 'react/oscar_fall',
-  label: '월령수류 반응 6 (무너짐)',
-  wide: true,
-  dur: [3, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 1, 2],
-  keys: [
-    { at: 0, pose: g({ hx: 0, tl: 3, hd: 2, aFx: 4, aFy: 7, aBx: 2, aBy: 8 }) },
-    { at: 10, pose: g({ hx: 0, tl: 3, hd: 3, aFx: 4, aFy: 7, aBx: 2, aBy: 8 }), stop: true },
-    { at: 12, pose: g({ hx: 1, hy: -18, tl: 18, hd: 16, aFx: 6, aFy: 10, aBx: 3, aBy: 11, lFx: 9, lBx: -6 }) },
-  ],
-};
+/**
+ * 반응 6 납도 (30틱, 2차 리워크): 팔을 늘어뜨린 채 그대로 섰다 → 몸이 한 번 흔들림 → '탁' 직전 굳고 (1틱) →
+ * '탁' (26틱) 하는 순간 고개가 뒤로 꺾이며 팔이 튐 → 무릎이 꺾임 → 무너짐 (끝에 쓰러진다). 6프레임 (키 3개를 13장으로 늘이던 것 대신)
+ */
+export const REACT_OSCAR_FALL = seq('react/oscar_fall', '월령수류 반응 6 (무너짐)', [
+  [g({ hx: 0, tl: 3, hd: 2, aFx: 4, aFy: 7, aBx: 2, aBy: 8 }), 14, true],
+  [g({ hx: 0.5, tl: 5, hd: 5, aFx: 4, aFy: 8, aBx: 2, aBy: 9 }), 11, true],
+  [g({ hx: 0, hy: -22.4, tl: 1, hd: -1, aFx: 4, aFy: 7, aBx: 2, aBy: 8 }), 1],
+  [g({ hx: -0.5, hy: -22.6, tl: -4, hd: -10, aFx: 5, aFy: 4, aBx: 3, aBy: 5 }), 1],
+  [g({ hx: 0.5, hy: -20, tl: 9, hd: 8, aFx: 5, aFy: 9, aBx: 2.5, aBy: 10, lFx: 8, lBx: -6.5 }), 1],
+  [g({ hx: 1, hy: -18, tl: 18, hd: 16, aFx: 6, aFy: 10, aBx: 3, aBy: 11, lFx: 9, lBx: -6 }), 2],
+]);
 
 export const OSCAR_SKILL_MOTIONS: readonly MotionData[] = [
   OSCAR_SKILL1, OSCAR_SKILL2, OSCAR_CHARGE, OSCAR_SUPER, OSCAR_SUPER_OPEN, OSCAR_SUPER_ORBIT, OSCAR_SUPER_OPEN_S, OSCAR_SUPER_STILL,
