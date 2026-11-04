@@ -150,11 +150,14 @@ const walk = (i: number): Pose => {
 };
 export const EUNWOO_SUPER_WALK = motion('super_walk', '선의 연출 3 걸어감', spread(20, 70), Array.from({ length: 20 }, (_, i) => K(i, walk(i))), undefined, { ribbon: { stiff: 0.4, gravity: 1.3 }, wind: 0.15, breeze: 0.5 });
 
-/** 장면 4 (40틱): 다가가 상대 어깨에 뒷손을 얹고 멈춘다 (20틱 정적) */
+/** 장면 4 (40틱): 마지막 한 걸음으로 다가가 (손은 아직 내린 채) → 뒷손을 크게 들어 → 어깨 위에서 → 얹으며 살짝 눌렀다가 → 20틱 정적 */
+const TOUCH_STEP = E({ hx: -0.5, hy: -23.2, tl: 4, hd: 3, aFx: 5, aFy: 15, aBx: -1, aBy: 12, lFx: 6, lBx: -4, wa: 90 });
 const TOUCH_A = E({ hx: 0, hy: -23, tl: 6, hd: 4, aFx: 5, aFy: 15, aBx: 8, aBy: 2, lFx: 7, lBx: -5, wa: 90 });
+const TOUCH_REACH = E({ hx: 0.8, hy: -23, tl: 8, hd: 7, tw: -2, aFx: 5, aFy: 15, aBx: 14, aBy: -7, lFx: 8, lBx: -5, wa: 90 });
+const TOUCH_PRESS = E({ hx: 1.2, hy: -22.6, tl: 11, hd: 11, tw: -3, aFx: 5, aFy: 15, aBx: 15.5, aBy: -4, lFx: 8, lBx: -5, wa: 90 });
 const TOUCH_B = E({ hx: 1, hy: -22.8, tl: 10, hd: 10, tw: -3, aFx: 5, aFy: 15, aBx: 15, aBy: -5, lFx: 8, lBx: -5, wa: 90 });
-export const EUNWOO_SUPER_TOUCH = motion('super_touch', '선의 연출 4 어깨에 손', [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4], [
-  K(0, walk(0)), K(3, TOUCH_A), K(5, TOUCH_B, true), K(12, TOUCH_B),
+export const EUNWOO_SUPER_TOUCH = motion('super_touch', '선의 연출 4 어깨에 손', [4, 4, 4, 4, 4, 20], [
+  K(0, walk(0)), K(1, TOUCH_STEP), K(2, TOUCH_A), K(3, TOUCH_REACH), K(4, TOUCH_PRESS), K(5, TOUCH_B),
 ], undefined, { ribbon: { stiff: 0.4, gravity: 1.3 } });
 
 /** 장면 5 (50틱): 손을 얹은 채 상대를 따라 조금 숙이고, 금빛 치유의 빛이 차오른다 */
