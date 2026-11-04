@@ -157,9 +157,9 @@ export const EUNWOO_SUPER_RELEASE = motion('super_release', '선의 연출 6 돌
   K(0, HEAL_B), K(1, REL_LIFT), K(2, REL_STEP), K(3, RELEASE), K(4, REL_SETTLE), K(5, E_STANCE),
 ], undefined, { ribbon: { stiff: 0.5, gravity: 1.1 } });
 
-/** 상대 반응: 시간이 멈춘 듯 선 채로 굳는다 (맞은 순간의 꼿꼿한 자세, 고개만 아주 조금) */
-const FROZEN = { hx: -1, hy: -22, tl: -2, hd: 6, aFx: 3, aFy: 15, aBx: -2, aBy: 15, lFx: 6, lFy: 0, lBx: -6, lBy: 0 };
-export const EUNWOO_SUPER_DAZE = motion('super_daze', '선의 반응 1 멈춤', Array(12).fill(5), [K(0, FROZEN), K(11, { ...FROZEN, hd: 9 })], undefined, {});
+/** 상대 반응: 시간이 멈춘 듯 선 채로 굳는다. 장면 1~4에서 처음부터 다시 재생되므로 한 장 (움직이면 장면이 바뀔 때마다 튄다) */
+const FROZEN = { hx: -1, hy: -22, tl: -2, hd: 7, aFx: 3, aFy: 15, aBx: -2, aBy: 15, lFx: 6, lFy: 0, lBx: -6, lBy: 0 };
+export const EUNWOO_SUPER_DAZE = motion('super_daze', '선의 반응 1 멈춤', [60], [K(0, FROZEN, true), K(1, FROZEN)], undefined, {});
 
 /** 상대 반응 (장면 5): 어깨에 손이 얹힌 채 힘이 빠져 무릎을 꿇고, 물 위에 천천히 주저앉는다 */
 const KN_SLUMP = { hx: -1, hy: -21, tl: 14, hd: 20, aFx: 3, aFy: 15, aBx: -1, aBy: 15, lFx: 6, lFy: 0, lBx: -6, lBy: 0 };
