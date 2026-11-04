@@ -46,53 +46,60 @@ const STANCE_TURNED: Pose = { ...E_STANCE, wa: (E_STANCE.wa ?? 0) - 360 };
 // ---- 1타: 어깨에서 내려 앞으로 가로 휘두르기 (몸 앞 반원 지름 72px) ----
 /** 1타 원호: 어깨 위 뒤에서 넘어와 가슴 앞을 지나 앞 아래로 (시계 방향) */
 const ARC1: HammerArc = { cx: 14, cy: -36, rx: 36, ry: 32, a0: -125, a1: 20 };
-/** 감기 1: 두 손으로 해머를 어깨에서 들어 올린다 */
-const C1_LIFT = A({ hx: -0.5, hy: -22, tl: -6, hd: -5, tw: -1, lFx: 7, lBx: -8, wa: -146 }, [-24, -63]);
-/** 감기 2: 몸을 뒤로 틀며 해머를 어깨 뒤로 크게 넘긴다 */
-const C1_COIL = A({ hx: -2, hy: -21, tl: -10, hd: -6, tw: -3, lFx: 9, lBx: -10.5, wa: -166 }, [-41, -57]);
-/** 감기 끝 (멈춤): 뒷발에 싣고 해머가 등 뒤로 수평에 가깝게 눕는다 */
+/** 감기 1: 두 손으로 해머를 어깨에서 들어 올린다 (머리는 어깨에 처진 채) */
+const C1_LIFT = A({ hx: -0.5, hy: -21.6, tl: -6, hd: -5, tw: -1, lFx: 7, lBx: -8, wa: -150 }, [-26, -61]);
+/** 감기 2: 몸을 뒤로 틀며 해머를 어깨 뒤로 크게 넘긴다 (엉덩이 높이가 출렁 내려앉는다) */
+const C1_COIL = A({ hx: -2, hy: -20.6, tl: -10, hd: -6, tw: -3, lFx: 9, lBx: -10.5, wa: -166 }, [-41, -57]);
+/** 감기 끝 (멈춤 7틱): 뒷발에 싣고 (엉덩이 3px 뒤로) 해머가 등 뒤로 수평에 가깝게 눕는다 */
 const C1_MAX = A({ hx: -3, hy: -20, tl: -13, hd: -6, tw: -4, lFx: 10, lBx: -12, wa: -176 }, [-48, -50]);
-/** 스미어: 허리가 풀리며 팔이 앞으로, 해머 머리는 위에 처져 뒤따른다 */
-const C1_SMEAR = A({ hx: 2, hy: -19, tl: 10, hd: -6, tw: 3, lFx: 14, lBx: -14, wa: -112 }, arcAt(ARC1, -100));
-/** 타격: 팔을 앞으로 뻗어 해머 머리가 가슴 앞을 가로지른다 (머리가 조금 처졌다가 → 팔과 한 줄) */
-const C1_HIT = A({ hx: 3.5, hy: -18, tl: 20, hd: -4, tw: 4.5, lFx: 16, lBx: -15, wa: -36 }, arcAt(ARC1, -35));
+/** 풀림: 허리·어깨가 먼저 돌아 나온다. 손과 해머는 아직 머리 뒤에 남는다 */
+const C1_RELEASE = A({ hx: -0.5, hy: -19.6, tl: -4, hd: -6, tw: -1, lFx: 12, lBx: -13, wa: -168 }, [-46.8, -52.7]);
+/** 스미어: 두 손이 가슴 앞 위로 끌려 나오고, 해머 머리는 머리 위 뒤에 처져 뒤따른다 */
+const C1_SMEAR = A({ hx: 2, hy: -19, tl: 10, hd: -6, tw: 3, lFx: 14, lBx: -14, wa: -138 }, arcAt(ARC1, -125));
+/** 타격: 머리가 손을 따라잡아 가슴 앞을 가로지른다 (팔과 한 줄로) */
+const C1_HIT = A({ hx: 3.5, hy: -18, tl: 20, hd: -4, tw: 4.5, lFx: 16, lBx: -15, wa: -30 }, arcAt(ARC1, -35));
 const C1_HIT2 = A({ hx: 4.5, hy: -17.5, tl: 26, hd: -2, tw: 5, lFx: 16.5, lBx: -15.5, wa: 2 }, arcAt(ARC1, 0));
 /** 지나치기: 머리가 앞 아래로 더 쏠리며 몸이 끌려간다 → 머리가 땅에 닿는다 */
 export const C1_OVER = A({ hx: 5, hy: -16.5, tl: 32, hd: 0, tw: 5, lFx: 17, lBx: -16, wa: 36 }, arcAt(ARC1, 32));
 const C1_OVER2 = A({ hx: 5.5, hy: -15.5, tl: 36, hd: 2, tw: 4.5, lFx: 17, lBx: -16.5, wa: 66 }, [34, -7]);
-/** 여운: 땅에 닿은 해머를 쥔 채 멈춘다 (쏠렸던 머리가 조금 돌아온다) */
+/** 여운: 땅에 닿은 해머를 쥔 채 멈춘다 (쏠렸던 머리가 조금 돌아오고, 몸이 2px 내려앉는다) */
 const C1_HOLD = A({ hx: 5, hy: -16, tl: 34, hd: 0, tw: 4, lFx: 17, lBx: -16, wa: 60 }, [36, -7]);
-const C1_HOLD2 = A({ hx: 4.8, hy: -16.2, tl: 33, hd: -1, tw: 4, lFx: 17, lBx: -16, wa: 62 }, [36, -7]);
-/** 복귀: 해머를 끌어 올려 앞에서 머리 위로 넘겨 어깨에 */
-const C1_BACK1 = G({ hx: 3, hy: -19, tl: 16, hd: -3, tw: 2, aFx: 12, aFy: 2, lFx: 13, lBx: -12, wa: -20 });
-const C1_BACK2 = G({ hx: 1.5, hy: -21, tl: 4, hd: -3, tw: 1, aFx: 7, aFy: -7, lFx: 9.5, lBx: -9, wa: -100 });
-const C1_BACK3 = E({ hx: 0.5, hy: -22.2, tl: -2, hd: -4, aFx: 5, aFy: 5, aBx: -2.5, aBy: 12, lFx: 7.5, lBx: -7.5, wa: -138 });
+const C1_HOLD2 = A({ hx: 4.8, hy: -15, tl: 33, hd: -1, tw: 4, lFx: 17, lBx: -16, wa: 62 }, [36, -7]);
+/** 복귀: 무게가 먼저 뒤로 빠지며 일어난다 (해머 머리는 아직 땅에) → 앞에서 끌어 올려 → 얼굴 앞에 세우고 → 손이 어깨로 오는 동안 머리가 넘어간다 */
+const C1_BACK0 = A({ hx: 2.5, hy: -18.5, tl: 22, hd: -2, tw: 2.5, lFx: 15, lBx: -14, wa: 58 }, [33, -7]);
+const C1_BACK1 = G({ hx: 2, hy: -20, tl: 12, hd: -3, tw: 2, aFx: 12, aFy: 3, lFx: 12.5, lBx: -11.5, wa: -15 });
+const C1_BACK2 = G({ hx: 1, hy: -21.4, tl: 3, hd: -3, tw: 1, aFx: 8, aFy: -6, lFx: 9.5, lBx: -9, wa: -92 });
+const C1_BACK3 = E({ hx: 0.5, hy: -22, tl: -2, hd: -4, aFx: 5.5, aFy: 3, aBx: 1, aBy: 8, lFx: 7.5, lBx: -7.5, wa: -142 });
 
 /**
- * 1타 가로 휘두르기 (128×96): 1~4 감기(어깨에서 들어 등 뒤로 넘김, 4번 멈춤) → 5 스미어(잔상 3개) → 6~7 가슴 앞을 가로지름(판정) →
- * 8~9 지나쳐 머리가 땅에 닿음 → 10~11 쥔 채 멈춤 → 12~14 끌어 올려 어깨로. 14프레임 43틱 (라이덴 잽 23틱의 약 1.9배)
+ * 1타 가로 휘두르기 (128×96, 2차 리워크): 1~4 감기(어깨에서 들어 등 뒤로 넘김, 4번 7틱 멈춤) → 5 허리가 먼저 풀림 → 6 스미어(잔상 3개) →
+ * 7~8 가슴 앞을 가로지름(판정) → 9~10 지나쳐 머리가 땅에 닿음 → 11~12 쥔 채 멈춤 → 13~17 무게가 뒤로 빠진 뒤 끌어 올려 어깨로.
+ * 17프레임 43틱 (공격 데이터 그대로: 발동 16 · 지속 4 · 회복 23)
  */
 export const EDWARD_CHOP: MotionData = {
   name: 'edward/chop',
   label: '에드워드 1타 가로 휘두르기',
   wide: true,
-  smear: { frame: 4, limb: 'aF', stretch: 1.3, ghosts: 3 },
-  dur: [3, 3, 3, 6, 1, 2, 2, 2, 2, 5, 5, 3, 3, 3],
+  smear: { frame: 5, limb: 'aF', stretch: 1.3, ghosts: 3 },
+  dur: [2, 2, 3, 7, 1, 1, 2, 2, 2, 2, 4, 3, 2, 2, 3, 3, 2],
   keys: [
     { at: 0, pose: E_STANCE },
     { at: 1, pose: C1_LIFT },
     { at: 2, pose: C1_COIL },
     { at: 3, pose: C1_MAX, stop: true },
-    { at: 4, pose: C1_SMEAR },
-    { at: 5, pose: C1_HIT },
-    { at: 6, pose: C1_HIT2 },
-    { at: 7, pose: C1_OVER },
-    { at: 8, pose: C1_OVER2, stop: true },
-    { at: 9, pose: C1_HOLD },
-    { at: 10, pose: C1_HOLD2, stop: true },
-    { at: 11, pose: C1_BACK1 },
-    { at: 12, pose: C1_BACK2 },
-    { at: 13, pose: C1_BACK3 },
+    { at: 4, pose: C1_RELEASE },
+    { at: 5, pose: C1_SMEAR },
+    { at: 6, pose: C1_HIT },
+    { at: 7, pose: C1_HIT2 },
+    { at: 8, pose: C1_OVER },
+    { at: 9, pose: C1_OVER2, stop: true },
+    { at: 10, pose: C1_HOLD },
+    { at: 11, pose: C1_HOLD2, stop: true },
+    { at: 12, pose: C1_BACK0 },
+    { at: 13, pose: C1_BACK1 },
+    { at: 14, pose: C1_BACK2 },
+    { at: 15, pose: C1_BACK3 },
+    { at: 16, pose: E_STANCE },
   ],
 };
 
