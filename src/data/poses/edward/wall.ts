@@ -21,18 +21,34 @@ const CL_DRAG = E({ hx: -2, hy: -20.5, tl: 16, hd: 8, aFx: 5.5, aFy: 6.5, aBx: -
 /** 뒷손을 다시 짚고 뒷발을 다시 딛는다 */
 const CL_REGRIP = E({ hx: -2, hy: -22, tl: 12, hd: 5, aFx: 5.5, aFy: 5.5, aBx: -8, aBy: -8, lFx: 5, lFy: -2, lBx: -6, lBy: -13, wa: -154 });
 
-/** 벽 붙기: 1~3프레임 쿵 부딪혀 웅크림(한 번), 4프레임 붙음, 5~13프레임 미끄러지는 동안 되풀이 */
+/** 부딪힌 무게로 몸이 접힌다 (해머 머리는 늦게 어깨에 눌린다) */
+const CL_HIT2 = E({ hx: -1.5, hy: -21.5, tl: 6, hd: 2, aFx: 5.5, aFy: 5, aBx: -8, aBy: -1, lFx: 6.5, lFy: -2, lBx: -6, lBy: -8, wa: -164 });
+/** 미끄러지기 시작한다 */
+const CL_SLIP = E({ hx: -2, hy: -20.8, tl: 15, hd: 7, aFx: 5.5, aFy: 6.2, aBx: -8, aBy: -2, lFx: 6, lFy: -0.5, lBx: -6, lBy: -9, wa: -152 });
+/** 더 내려간다: 뒷손이 벽을 끝까지 긁는다 */
+const CL_DRAG2 = E({ hx: -2, hy: -20, tl: 17, hd: 9, aFx: 5.5, aFy: 6.8, aBx: -8, aBy: 4, lFx: 6, lFy: 0, lBx: -6, lBy: -6, wa: -147 });
+/** 다시 짚은 무게가 실리며 자리 잡는다 (해머 머리가 늦게 튄다) */
+const CL_GRIP_SET = E({ hx: -2, hy: -21.4, tl: 13, hd: 5.5, aFx: 5.5, aFy: 5.8, aBx: -8, aBy: -6.5, lFx: 5.5, lFy: -1.5, lBx: -6, lBy: -12, wa: -158 });
+
+/**
+ * 벽 붙기 (2차 리워크): 1~4프레임 쿵 부딪혀(해머는 늦게 눌림) 웅크리고 붙음(한 번) →
+ * 5~9프레임 미끄러지는 동안 되풀이: 미끄러지기 시작 → 긁으며 내려감 → 더 내려감 → 탁 다시 짚음 → 자리 잡음(해머가 늦게 튐).
+ * 9프레임 36틱 (되풀이 시작 프레임은 모든 캐릭터 공통 WALL_CLING_LOOP_FROM 그대로)
+ */
 export const EDWARD_WALL_CLING: MotionData = {
   name: 'edward/wall_cling',
   label: '에드워드 벽 붙기',
-  dur: [1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [1, 2, 3, 3, 5, 8, 2, 3, 9],
   keys: [
     { at: 0, pose: CL_HIT },
+    { at: 1, pose: CL_HIT2 },
     { at: 2, pose: CL_SQUASH, stop: true },
     { at: 3, pose: CL_HOLD },
-    { at: 6, pose: CL_DRAG },
-    { at: 9, pose: CL_REGRIP },
-    { at: 12, pose: CL_HOLD },
+    { at: 4, pose: CL_SLIP },
+    { at: 5, pose: CL_DRAG },
+    { at: 6, pose: CL_DRAG2, stop: true },
+    { at: 7, pose: { ...CL_REGRIP, wa: -150 } },
+    { at: 8, pose: CL_GRIP_SET },
   ],
 };
 
