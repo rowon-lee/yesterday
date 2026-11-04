@@ -13,15 +13,24 @@ const COVER_HIT = R({ hx: -4, hy: -18, tl: 10, hd: 18, aFx: 7, aFy: -10, aBx: 6,
 /** 버텨 다시 숙인다 (몸을 한 번 흔든다) */
 const COVER_BRACE = R({ hx: -1.5, hy: -16, tl: 25, hd: 13, aFx: 9, aFy: -8, aBx: 8, aBy: -6, lFx: 9, lBx: -10 });
 
-/** 방어: 기본자세 → 4프레임 만에 커버 → 그대로 버팀 (sim은 마지막 프레임에 머문다). 12프레임 × 1틱 */
+/** 들어가기: 어깨가 먼저 떨어지고 턱을 당긴다. 손은 이제 막 올라오기 시작 (재수정 지침 2장 '어깨가 먼저') */
+const GUARD_IN = R({ hx: -1, hy: -18, tl: 18, hd: 11, aFx: 13, aFy: -5, aBx: 8, aBy: -1 });
+/** 웅크려 눌림: 팔이 확 올라붙으며 커버보다 1~2px 더 깊이 숙인다 (지나쳤다가 커버로 자리 잡는다) */
+const COVER_DEEP = R({ hx: -1.5, hy: -16, tl: 25, hd: 15, aFx: 9, aFy: -10, aBx: 8, aBy: -8, lFx: 9, lBx: -10 });
+
+/**
+ * 방어 (2차 리워크): 기본자세 → 어깨·턱 먼저 → 팔이 확 올라붙어 깊이 웅크림 → 커버로 자리 잡고 버팀.
+ * 4프레임 12틱 (sim은 마지막 프레임에 머문다). 막는 자세로 빨리 들어가는 것 하나가 목적이라 버팀은 같은 자세를 늘어놓지 않고 dur로 잡는다
+ */
 export const RAIDEN_GUARD: MotionData = {
   name: 'raiden/guard',
   label: '라이덴 방어',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 1, 2, 8],
   keys: [
     { at: 0, pose: R_STANCE },
+    { at: 1, pose: GUARD_IN },
+    { at: 2, pose: COVER_DEEP },
     { at: 3, pose: COVER, stop: true },
-    { at: 11, pose: COVER },
   ],
 };
 
