@@ -124,12 +124,16 @@ export const OSCAR_ATK4: MotionData = {
 };
 
 // ---- 띄우기 (↑+공격) 위를 올려봄: 고개를 들어 위를 보는 순간 아래에서 위로 세로 선 ----
-export const OSCAR_LAUNCHER = iai('oscar/launcher', '오스카 띄우기 (위를 올려봄)', {
-  ready: OD({ hy: -21.5, tl: 12, hd: 4, lFx: 6, lBx: -6 }, 0),
-  flick: OD({ hx: 0.5, hy: -22.5, tl: 6, hd: -14, lFx: 6, lBx: -6, tw: 1 }, 4),
-  click: OD({ hy: -22.3, tl: 7, hd: -12, lFx: 6, lBx: -6 }, 0),
-  still: OD({ hy: -22.2, tl: 9, hd: -8, lFx: 6, lBx: -6 }, 0),
-}, HEAVY);
+/** 띄우기 (2차 리워크): 기본자세 (2틱) → 고개를 더 깊이 숙이고 손이 날밑으로 물러나 멈춤 (3틱) → 칼날 4px 1틱에 고개를 홱 들어 위를 봄 (세로 선) → '탁' → 올려다본 채 여운 → 고개가 내려옴 → 기본자세. 7프레임 27틱 */
+export const OSCAR_LAUNCHER = cut('oscar/launcher', '오스카 띄우기 (위를 올려봄)', [
+  [O_STANCE, 2],
+  [OD({ hy: -21.2, tl: 15, hd: 19, lFx: 6, lBx: -6 }, -2), 3, true],
+  [OD({ hx: 0.5, hy: -22.6, tl: 6, hd: -16, lFx: 6, lBx: -6, tw: 1 }, 4), 1],
+  [OD({ hy: -22.4, tl: 7, hd: -13, lFx: 6, lBx: -6 }, 0), 2, true],
+  [OD({ hy: -22.2, tl: 8, hd: -9, lFx: 6, lBx: -6 }, 0), 6, true],
+  [OR({ hx: 0, hy: -22.3, tl: 11, hd: 4, lFx: 6, lBx: -6 }), 6],
+  [O_STANCE, 7],
+]);
 
 // ---- 쓸기 (↓+공격) 낮게: 낮게 웅크린 채 칼날이 비치는 순간 바닥에 붙은 가로 선 (물이 갈라진다) ----
 export const OSCAR_SWEEP = iai('oscar/sweep', '오스카 쓸기 (낮게)', {
