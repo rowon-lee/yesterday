@@ -74,22 +74,31 @@ export const RAIDEN_FALL: MotionData = {
   ],
 };
 
-// ---- 착지 (sim은 착지 길이에 맞춰 늘이거나 줄인다: 보통 3틱이면 1·5·9번이 보인다) ----
+// ---- 착지 (sim은 착지 길이에 맞춰 프레임 수로 고르게 나눈다: dur를 보지 않는다. 보통 3틱이면 1·3·5번이 보인다) ----
+// 2차 리워크: 12프레임 × 1틱 → 6프레임. 같은 길이로 나뉘므로 빠르기 차이는 자세 간격으로: 닿자마자 크게 꺾이고, 바닥에서 조금 더 눌렸다가,
+// 한 번에 튀어 오르고, 꼭대기에서 천천히 기본자세로
+/** 무릎이 꺾이기 시작한다 (발이 닿은 바로 다음) */
+const L_HIT = R({ hx: 0, hy: -17, tl: 19, hd: 10, aFx: 11.5, aFy: -3, aBx: 7.5, aBy: 1, lFx: 9, lBx: -9 });
 /** 무릎으로 받는다: 깊게 웅크리고 손이 처진다 */
 const L_SQUASH = R({ hx: 0, hy: -14, tl: 24, hd: 12, aFx: 11, aFy: -1, aBx: 7, aBy: 3, lFx: 9, lBx: -9 });
 /** 받은 힘으로 통 튀어 오른다 (발끝으로, 바운스로 이어짐) */
 const L_BOUNCE = R({ hx: 0, hy: -21.5, tl: 13, hd: 7, aFx: 13, aFy: -5, aBx: 8, aBy: -1, lFx: 8, lFy: -1, lBx: -9, lBy: -1 });
+/** 튀어 오른 끝에서 내려앉기 시작 */
+const L_SETTLE = R({ hx: -0.3, hy: -20, tl: 14, hd: 7.5, aFx: 13, aFy: -4.5, aBx: 8, aBy: -0.5, lFx: 8, lFy: -0.5, lBx: -9, lBy: -0.5 });
 
-/** 착지: 발이 닿음 → 무릎으로 깊게 받음 → 통 튀어 올라 → 기본자세 (대기 바운스로 이어진다). 12프레임 × 1틱 */
+/** 착지: 발이 닿음 → 무릎이 꺾임 → 깊게 받음(멈칫) → 통 튀어 오름 → 내려앉음 → 기본자세 (대기 바운스로 이어진다). 6프레임 */
 export const RAIDEN_LAND: MotionData = {
   name: 'raiden/land',
   label: '라이덴 착지',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  // 표시 틱은 뷰어·시트용 (게임은 착지 길이를 프레임 수로 고르게 나눈다)
+  dur: [2, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: F_READY },
-    { at: 3, pose: L_SQUASH, stop: true },
-    { at: 8, pose: L_BOUNCE, stop: true },
-    { at: 11, pose: R_STANCE },
+    { at: 1, pose: L_HIT },
+    { at: 2, pose: L_SQUASH, stop: true },
+    { at: 3, pose: L_BOUNCE },
+    { at: 4, pose: L_SETTLE },
+    { at: 5, pose: R_STANCE },
   ],
 };
 
