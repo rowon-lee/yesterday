@@ -589,39 +589,55 @@ export const EDWARD_AIR_SWING: MotionData = {
 const ARC_A3: HammerArc = { cx: 14, cy: -36, rx: 32, ry: 32, a0: -110, a1: 50 };
 const A3_UP = A({ ...AIR_BASE, tl: -8, hd: -10, tw: 1, wa: -86 }, [16, -76]);
 const A3_BACKUP = A({ ...AIR_BASE, tl: -20, hd: -10, tw: -2, lFx: 9, lFy: -14, lBx: 1, lBy: -12, wa: -140 }, [-28, -66]);
+/** 감기 끝 (멈춤 7틱): 몸을 뒤로 크게 젖혀 해머를 머리 뒤 멀리 눕힌다 */
 const A3_MAX = A({ ...AIR_BASE, tl: -26, hd: -10, tw: -3, lFx: 10, lFy: -15, lBx: 2, lBy: -13, wa: -158 }, [-36, -58]);
-const A3_SMEAR = A({ ...AIR_BASE, tl: 6, hd: -8, tw: 3, wa: -106 }, arcAt(ARC_A3, -95));
-/** 타격: 몸이 앞으로 한 바퀴 끌려 돌며 해머가 앞 아래로 떨어진다 */
-const A3_HIT = A({ hy: -24, tl: 34, hd: -4, tw: 5, lFx: 1, lFy: -6, lBx: -11, lBy: -4, wa: 0 }, arcAt(ARC_A3, -10));
+/** 풀림: 허리가 먼저 앞으로 접히기 시작한다. 손과 해머는 아직 머리 뒤 */
+const A3_RELEASE = A({ ...AIR_BASE, tl: -14, hd: -9, tw: -1, lFx: 9, lFy: -13, lBx: 0, lBy: -11, wa: -152 }, [-35.7, -61.9]);
+/** 스미어: 두 손이 머리 앞 위로 끌려 나오고, 해머 머리는 머리 위에 처져 뒤따른다 */
+const A3_SMEAR = A({ ...AIR_BASE, tl: 6, hd: -8, tw: 3, wa: -121 }, arcAt(ARC_A3, -110));
+/** 타격: 머리가 손을 따라잡고, 몸이 앞으로 한 바퀴 끌려 돌며 해머가 앞 아래로 떨어진다 */
+const A3_HIT = A({ hy: -24, tl: 34, hd: -4, tw: 5, lFx: 1, lFy: -6, lBx: -11, lBy: -4, wa: -11 }, arcAt(ARC_A3, -10));
 const A3_HIT2 = A({ hy: -24, tl: 50, hd: 0, tw: 5, lFx: -3, lFy: -4, lBx: -13, lBy: -2, wa: 50 }, arcAt(ARC_A3, 35));
 const A3_OVER = A({ hy: -24, tl: 60, hd: 4, tw: 4.5, lFx: -5, lFy: -2, lBx: -14, lBy: 0, wa: 84 }, arcAt(ARC_A3, 70));
 const A3_OVER2 = A({ hy: -24, tl: 64, hd: 6, tw: 4, lFx: -6, lFy: -1, lBx: -14, lBy: 1, wa: 96 }, arcAt(ARC_A3, 84));
+/** 여운: 쏠린 머리가 돌아오고 몸이 조금씩 되감긴다 (32틱까지) */
 const A3_HOLD = A({ hy: -24, tl: 56, hd: 4, tw: 4, lFx: -4, lFy: -3, lBx: -13, lBy: -1, wa: 88 }, arcAt(ARC_A3, 76));
-const A3_BACK = G({ ...AIR_BASE, tl: 30, hd: -2, tw: 2, aFx: 12, aFy: 4, wa: 20 });
-const A3_BACK2 = G({ ...AIR_BASE, tl: 14, hd: -3, tw: 1, aFx: 7, aFy: -7, wa: -100 });
+const A3_HOLD2 = A({ hy: -24, tl: 50, hd: 3, tw: 3.5, lFx: -2, lFy: -4, lBx: -12, lBy: -2, wa: 86 }, arcAt(ARC_A3, 73));
+/** 복귀: 몸이 먼저 바로 서고 (해머는 아직 앞 아래) → 두 손이 앞 위로 들고 → 얼굴 앞으로 세운 뒤 → 해머가 넘어가 어깨에 걸친다 */
+const A3_BACK = G({ ...AIR_BASE, tl: 30, hd: -2, tw: 2, aFx: 12, aFy: 6, wa: 70 });
+const A3_BACK2 = G({ ...AIR_BASE, tl: 18, hd: -3, tw: 1.5, aFx: 10, aFy: -4, wa: 52 });
+const A3_BACK3 = E({ ...AIR_BASE, tl: 10, hd: -3, tw: 1, aFx: 7, aFy: -6, aBx: 6, aBy: -3, wa: -60 });
+const A3_BACK4 = E({ ...AIR_BASE, tl: 7, hd: -2.5, tw: 0.5, aFx: 5.5, aFy: 2, aBx: 1, aBy: 1, wa: -140 });
 
-/** 공중 3타 내려쳐 떨어뜨리기 (128×96): 머리 위로 크게 돌려 감고(2~4) → 스미어(5) → 몸이 앞으로 끌려 돌며 앞 아래로(6~7 판정, 상대를 바닥으로) → 쏠림 → 여운 → 어깨로. 14프레임 42틱 */
+/**
+ * 공중 3타 내려쳐 떨어뜨리기 (128×96, 2차 리워크): 2~3 머리 위로 크게 돌려 감고 → 4 감기 끝(7틱 멈춤) → 5 허리가 먼저 접힘 → 6 스미어 →
+ * 7~8 몸이 앞으로 끌려 돌며 앞 아래로(판정, 상대를 바닥으로) → 9~10 쏠림 → 11~12 여운(32틱까지) → 13~17 몸이 먼저 바로 선 뒤 어깨로.
+ * 17프레임 42틱 (공격 데이터 그대로: 발동 16 · 지속 4 · 회복 22)
+ */
 export const EDWARD_AIR_SPIN: MotionData = {
   name: 'edward/air_spin',
   label: '에드워드 공중 3타 내려쳐 떨어뜨리기',
   wide: true,
-  smear: { frame: 4, limb: 'aF', stretch: 1.3, ghosts: 3 },
-  dur: [2, 3, 4, 6, 1, 2, 2, 2, 2, 4, 4, 3, 3, 4],
+  smear: { frame: 5, limb: 'aF', stretch: 1.3, ghosts: 3 },
+  dur: [1, 2, 4, 7, 1, 1, 2, 2, 2, 2, 4, 4, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: AIR_REST },
     { at: 1, pose: A3_UP },
     { at: 2, pose: A3_BACKUP },
     { at: 3, pose: A3_MAX, stop: true },
-    { at: 4, pose: A3_SMEAR },
-    { at: 5, pose: A3_HIT },
-    { at: 6, pose: A3_HIT2 },
-    { at: 7, pose: A3_OVER },
-    { at: 8, pose: A3_OVER2, stop: true },
-    { at: 9, pose: A3_HOLD },
-    { at: 10, pose: A3_HOLD, stop: true },
-    { at: 11, pose: A3_BACK },
-    { at: 12, pose: A3_BACK2 },
-    { at: 13, pose: AIR_REST },
+    { at: 4, pose: A3_RELEASE },
+    { at: 5, pose: A3_SMEAR },
+    { at: 6, pose: A3_HIT },
+    { at: 7, pose: A3_HIT2 },
+    { at: 8, pose: A3_OVER },
+    { at: 9, pose: A3_OVER2, stop: true },
+    { at: 10, pose: A3_HOLD },
+    { at: 11, pose: A3_HOLD2, stop: true },
+    { at: 12, pose: A3_BACK },
+    { at: 13, pose: A3_BACK2 },
+    { at: 14, pose: A3_BACK3 },
+    { at: 15, pose: A3_BACK4 },
+    { at: 16, pose: AIR_REST },
   ],
 };
 
