@@ -286,33 +286,58 @@ export const EDWARD_SMASH: MotionData = {
 };
 
 // ---- 띄우기: 퍼 올리기 (바닥을 긁고 수직으로 솟구친다, 몸도 함께 솟는다) ----
-const L_LOAD = A({ hx: -1, hy: -15, tl: 28, hd: -8, tw: 1, lFx: 13, lBx: -14, wa: 86 }, [24, -7]);
+/** 두 손이 먼저 해머를 어깨에서 들어 앞으로 (머리는 어깨 뒤에 처진다) */
+const L_LIFT = G({ hx: -0.5, hy: -21, tl: 6, hd: -4, tw: 0.5, aFx: 8, aFy: 2, lFx: 9, lBx: -10, wa: -140 });
+/** 웅크린다: 손은 가슴 앞으로 내려왔지만 해머는 아직 머리 위에 서 있다 (손보다 늦다) */
+const L_LOAD = AH({ hx: -1, hy: -15, tl: 28, hd: -8, tw: 1, lFx: 13, lBx: -14, wa: -100 }, [22, -37]);
+/** 감기 끝 (멈춤 5틱): 더 깊이 웅크리고, 해머 머리가 발 앞 바닥에 쿵 떨어져 바닥을 긁는다 */
 const L_COIL = A({ hx: -1.5, hy: -13.5, tl: 32, hd: -10, tw: 1.5, lFx: 14, lBx: -14, wa: 96 }, [20, -7]);
-const L_SMEAR = A({ hx: 3, hy: -18, tl: 10, hd: -14, tw: 3, lFx: 15, lBx: -13, wa: -10 }, [40, -40]);
-const L_HIT = A({ hx: 4, hy: -23, tl: -2, hd: -18, tw: 4.5, lFx: 12, lFy: -2, lBx: -10, lBy: -1, wa: -72 }, [26, -80]);
-const L_HIT2 = A({ hx: 4, hy: -24, tl: -6, hd: -20, tw: 4.5, lFx: 11, lFy: -3, lBx: -9, lBy: -2, wa: -86 }, [16, -86]);
-const L_HOLD = A({ hx: 3.5, hy: -23, tl: -6, hd: -18, tw: 4, lFx: 11, lFy: -1, lBx: -9, wa: -92 }, [12, -84]);
-const L_BACK1 = G({ hx: 2, hy: -21, tl: -3, hd: -8, tw: 2, aFx: 5, aFy: -10, lFx: 10, lBx: -9, wa: -115 });
-const L_BACK2 = E({ hx: 0.5, hy: -22, tl: -3, hd: -4, aFx: 5, aFy: 4, aBx: -2.5, aBy: 12, lFx: 8, lBx: -8, wa: -140 });
+/** 풀림: 엉덩이가 먼저 솟기 시작한다. 손과 해머 머리는 아직 바닥 */
+const L_RELEASE = A({ hx: 0.5, hy: -15.5, tl: 24, hd: -12, tw: 2.5, lFx: 14.5, lBx: -13.5, wa: 96 }, [20, -7.5]);
+/** 스미어: 두 손이 가슴 앞으로 끌려 올라오고, 해머 머리는 손 아래에 처져 뒤따른다 */
+const L_SMEAR = AH({ hx: 3.5, hy: -20.5, tl: 4, hd: -15, tw: 3.5, lFx: 14, lBx: -12, wa: 70 }, [18, -54]);
+/** 타격: 머리가 손을 앞질러 수직으로 솟구치고, 몸도 발끝까지 펴지며 솟는다 */
+const L_HIT = AH({ hx: 4, hy: -23, tl: -2, hd: -18, tw: 4.5, lFx: 12, lFy: -2, lBx: -10, lBy: -1, wa: -60 }, [14, -56]);
+const L_HIT2 = AH({ hx: 4, hy: -24, tl: -6, hd: -20, tw: 4.5, lFx: 11, lFy: -3, lBx: -9, lBy: -2, wa: -78 }, [10, -58]);
+/** 지나치기: 머리가 머리 위 뒤로 더 넘어가고 몸이 한 번 더 늘어난다 */
+const L_OVER = AH({ hx: 4, hy: -24.5, tl: -8, hd: -20, tw: 4.3, lFx: 11, lFy: -3.5, lBx: -9, lBy: -2.5, wa: -95 }, [8, -60]);
+const L_OVER2 = AH({ hx: 3.8, hy: -24.3, tl: -9, hd: -19, tw: 4, lFx: 11, lFy: -3, lBx: -9, lBy: -2, wa: -102 }, [8, -61]);
+/** 여운: 치켜든 채 머리가 조금 돌아오고, 발뒤꿈치가 내려와 무게가 내려앉는다 */
+const L_HOLD = AH({ hx: 3.5, hy: -23, tl: -6, hd: -18, tw: 4, lFx: 11, lFy: -1, lBx: -9, wa: -98 }, [8, -60]);
+const L_HOLD2 = AH({ hx: 3.2, hy: -21.4, tl: -5, hd: -16, tw: 3.5, lFx: 11, lBx: -9, wa: -98 }, [8, -57]);
+/** 복귀: 손이 어깨로 내려오는 동안 해머가 뒤로 넘어가 어깨에 걸친다 (뒷손은 끝에 주머니로) */
+const L_BACK1 = G({ hx: 2, hy: -21.4, tl: -3, hd: -9, tw: 2, aFx: 5, aFy: -9, lFx: 10, lBx: -9, wa: -112 });
+const L_BACK2 = G({ hx: 1, hy: -22, tl: -3, hd: -6, tw: 1.5, aFx: 5, aFy: -2, lFx: 8.5, lBx: -8.5, wa: -124 });
+const L_BACK3 = E({ hx: 0.5, hy: -21.8, tl: -3, hd: -4, aFx: 5, aFy: 4, aBx: 1, aBy: 8, lFx: 7.5, lBx: -7.5, wa: -158 });
 
-/** 띄우기 퍼 올리기 (128×96): 웅크려 해머를 바닥에 대고(2~3) → 스미어(4) → 수직으로 퍼 올리며 솟구침(5~7 판정) → 여운 → 복귀. 13프레임 */
+/**
+ * 띄우기 퍼 올리기 (128×96, 2차 리워크): 1~2 두 손이 먼저 해머를 들고 → 3 웅크림(해머는 아직 머리 위) → 4 감기 끝(5틱 멈춤, 머리가 발 앞 바닥에 떨어져 긁음) →
+ * 5 엉덩이가 먼저 솟음 → 6 스미어(손이 가슴 앞으로, 머리는 처짐) → 7~8 머리가 손을 앞질러 수직으로 솟구침(판정, 몸도 발끝까지) →
+ * 9~10 머리 위 뒤로 더 넘어감 → 11~12 여운(발뒤꿈치가 내려와 내려앉음) → 13~16 어깨로. 16프레임 36틱 (공격 데이터 그대로: 발동 11 · 지속 4 · 회복 21)
+ */
 export const EDWARD_SCOOP: MotionData = {
   name: 'edward/scoop',
   label: '에드워드 띄우기 퍼 올리기',
   wide: true,
-  smear: { frame: 3, limb: 'aF', stretch: 1.3, ghosts: 3 },
-  dur: [2, 3, 5, 1, 2, 2, 2, 2, 5, 3, 3, 3, 3],
+  smear: { frame: 5, limb: 'aF', stretch: 1.3, ghosts: 3 },
+  dur: [1, 1, 2, 5, 1, 1, 2, 2, 2, 2, 5, 3, 2, 2, 2, 3],
   keys: [
     { at: 0, pose: E_STANCE },
-    { at: 1, pose: L_LOAD },
-    { at: 2, pose: L_COIL, stop: true },
-    { at: 3, pose: L_SMEAR },
-    { at: 4, pose: L_HIT },
-    { at: 5, pose: L_HIT2 },
-    { at: 7, pose: L_HOLD, stop: true },
-    { at: 9, pose: L_BACK1 },
-    { at: 11, pose: L_BACK2 },
-    { at: 12, pose: E_STANCE },
+    { at: 1, pose: L_LIFT },
+    { at: 2, pose: L_LOAD },
+    { at: 3, pose: L_COIL, stop: true },
+    { at: 4, pose: L_RELEASE },
+    { at: 5, pose: L_SMEAR },
+    { at: 6, pose: L_HIT },
+    { at: 7, pose: L_HIT2 },
+    { at: 8, pose: L_OVER },
+    { at: 9, pose: L_OVER2, stop: true },
+    { at: 10, pose: L_HOLD },
+    { at: 11, pose: L_HOLD2, stop: true },
+    { at: 12, pose: L_BACK1 },
+    { at: 13, pose: L_BACK2 },
+    { at: 14, pose: L_BACK3 },
+    { at: 15, pose: E_STANCE },
   ],
 };
 
