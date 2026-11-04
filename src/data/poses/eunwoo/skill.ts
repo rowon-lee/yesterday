@@ -126,13 +126,29 @@ export const EUNWOO_SUPER_DEPLOY_SHORT = motion('super_deploy_s', '선의 연출
 const LOOK = E({ ...GW_LOWER, hd: 2, tl: 0 });
 export const EUNWOO_SUPER_WORLD = still('super_world', '선의 연출 2 세계', 13, 40, DEPLOY_END, LOOK);
 
-/** 장면 3 (70틱): 물 위를 천천히 걸어간다 (네 걸음) */
+/**
+ * 장면 3 (70틱): 물 위를 천천히 네 걸음. 한 걸음 5프레임: 닿음 → 무게를 앞으로 옮김 → 뒤꿈치를 듦 (여기까지 느리게) → 뒷발이 지나감 → 앞으로 내뻗음 (빠르게).
+ * 걸음마다 앞뒤 발이 바뀐다 (k: 걸음 번호, f: 걸음 안의 프레임). 자리는 장면 위치 키가 옮긴다 (0 → 46px)
+ */
+const STEP_SWING: ReadonlyArray<readonly [number, number, number, number]> = [
+  // [뒷발 x, 뒷발 y, 앞발 x, 앞발 y] (걷는 발 = 뒷발이 앞으로 넘어간다), 엉덩이 높이
+  [-6, 0, 6, 0], [-6.5, -0.8, 5.5, 0], [-7, -2.2, 5, 0], [-0.5, -2.8, 4.5, 0], [5.5, -1, 4, 0],
+];
+const STEP_HIP = [0, 0.5, 0.7, 1, 0.6];
 const walk = (i: number): Pose => {
-  const ph = (i / 14) * Math.PI * 4;
-  const s2 = Math.sin(ph);
-  return E({ hx: -1 + 0.5 * Math.abs(Math.cos(ph)), hy: -23 + 0.4 * Math.abs(Math.cos(ph)), tl: 3, hd: 4, aFx: 5 - 1.5 * s2, aFy: 15, aBx: -2 + 2 * s2, aBy: 13, lFx: 3 + 6 * s2, lFy: s2 < 0 ? 2.5 * s2 : 0, lBx: -3 - 6 * s2, lBy: s2 > 0 ? -2.5 * s2 : 0, wa: 90 });
+  const k = Math.floor(i / 5);
+  const f = i % 5;
+  const [sx, sy, px, py] = STEP_SWING[f]!;
+  // 짝수 걸음은 앞발(lF)이 디딘 발이고 뒷발(lB)이 넘어온다, 홀수 걸음은 반대
+  const swingIsB = k % 2 === 0;
+  const lift = STEP_HIP[f]!;
+  const sw = swingIsB ? 1 : -1;
+  return E({
+    hx: -1 + 0.8 * lift, hy: -23 - 0.5 * lift, tl: 3, hd: 4, aFx: 5 - 1.2 * sw * (f / 4), aFy: 15, aBx: -2 + 1.5 * sw * (f / 4), aBy: 13,
+    lFx: swingIsB ? px : sx, lFy: swingIsB ? py : sy, lBx: swingIsB ? sx : px, lBy: swingIsB ? sy : py, wa: 90,
+  });
 };
-export const EUNWOO_SUPER_WALK = motion('super_walk', '선의 연출 3 걸어감', Array(14).fill(5), Array.from({ length: 14 }, (_, i) => K(i, walk(i))), undefined, { ribbon: { stiff: 0.4, gravity: 1.3 }, wind: 0.15 });
+export const EUNWOO_SUPER_WALK = motion('super_walk', '선의 연출 3 걸어감', spread(20, 70), Array.from({ length: 20 }, (_, i) => K(i, walk(i))), undefined, { ribbon: { stiff: 0.4, gravity: 1.3 }, wind: 0.15, breeze: 0.5 });
 
 /** 장면 4 (40틱): 다가가 상대 어깨에 뒷손을 얹고 멈춘다 (20틱 정적) */
 const TOUCH_A = E({ hx: 0, hy: -23, tl: 6, hd: 4, aFx: 5, aFy: 15, aBx: 8, aBy: 2, lFx: 7, lBx: -5, wa: 90 });
