@@ -71,40 +71,30 @@ export const OSCAR_SKILL2 = seq('oscar/skill2', '오스카 스킬 2 (월하윤�
 ]);
 
 // ---- 차지 만검지화 (13-5): 칼자루에 손을 얹고 고개를 숙인 채 몸은 정지. 그동안 앞 허공에 검영 꽃이 하나씩 핀다 ----
-const C_READY = OD({ hy: -21.5, tl: 14, hd: 16, lFx: 7, lBx: -7 }, 0);
-/** 모으는 동안: 고개를 깊이 숙이고 멈춘다 (숨만) */
-const C_STILL = OD({ hy: -21.3, tl: 15, hd: 22, lFx: 7, lBx: -7 }, 0);
-const C_BREATH = OD({ hy: -21.6, tl: 15, hd: 21, lFx: 7, lBx: -7 }, 0);
-/** 떼기 0~2: 칼날이 반쯤 나왔다 닫힌다 (납도 소리 자리) */
-const C_HALF = OD({ hx: 0.5, hy: -21, tl: 16, hd: 14, lFx: 7, lBx: -7, tw: 1 }, 7);
-const C_CLICK = OD({ hy: -21.3, tl: 15, hd: 18, lFx: 7, lBx: -7 }, 0);
-const C_AFTER = OD({ hy: -21.5, tl: 14, hd: 16, lFx: 7, lBx: -7 }, 0);
-
 /**
- * 차지: 0~3 손을 얹고 고개를 숙임(한 번) → 4~7 모으는 동안 되풀이(숨) → 떼면 8번째부터: 칼날이 반쯤 나왔다(1틱) 닫힘(1틱) →
- * 10번째 프레임에 꽃들이 선 다발로 펼쳐짐 (판정 10~12) → 기본자세. 14프레임. sim 차지 규칙: windup 4, loopTo 7, from 8
+ * 차지 (2차 리워크): 앞손이 날밑으로 → 뒷손이 칼집 입구로 → 고개를 숙임 → 깊이 숙여 멈춤 → 자리 잡음 (10틱) →
+ * 모으는 동안 되풀이 (10~26틱, 몸은 정지하고 숨만): 내쉼 → 들이쉼 → 엄지가 날밑을 민다 → 내쉼 →
+ * 떼면 (26틱) 칼날이 반쯤(7px) 나왔다 (1틱, 스미어) → '탁' 닫힘 (27틱) → 깊이 숙인 여운 (28틱부터 꽃들이 선 다발로 펼쳐짐) →
+ * 고개를 듦 → 뒷손이 등 뒤로, 무게가 뒤로 → 기본자세. 16프레임 39틱 (되풀이 구간 경계 10·26틱 그대로)
  */
-export const OSCAR_CHARGE: MotionData = {
-  name: 'oscar/charge',
-  label: '오스카 차지 (만검지화)',
-  wide: true,
-  dur: [2, 2, 3, 3, 4, 4, 4, 4, 1, 1, 1, 2, 5, 3],
-  keys: [
-    { at: 0, pose: O_STANCE },
-    { at: 1, pose: C_READY },
-    { at: 2, pose: C_STILL, stop: true },
-    { at: 3, pose: C_STILL },
-    { at: 4, pose: C_BREATH },
-    { at: 5, pose: C_STILL },
-    { at: 6, pose: C_BREATH },
-    { at: 7, pose: C_STILL },
-    { at: 8, pose: C_HALF },
-    { at: 9, pose: C_CLICK, stop: true },
-    { at: 10, pose: C_CLICK, stop: true },
-    { at: 12, pose: C_AFTER, stop: true },
-    { at: 13, pose: O_STANCE },
-  ],
-};
+export const OSCAR_CHARGE = seq('oscar/charge', '오스카 차지 (만검지화)', [
+  [O_STANCE, 1],
+  [OR({ hy: -21.8, tl: 13.5, hd: 14, lFx: 7, lBx: -6.5 }, -1), 1],
+  [OD({ hy: -21.6, tl: 14, hd: 15, lFx: 7, lBx: -7 }, -1), 1],
+  [OD({ hy: -21.4, tl: 15, hd: 20, lFx: 7, lBx: -7 }, -1.5), 2],
+  [OD({ hy: -21.2, tl: 15.5, hd: 25, lFx: 7, lBx: -7 }, -2), 3, true],
+  [OD({ hy: -21.5, tl: 15, hd: 23, lFx: 7, lBx: -7 }, -2), 2, true],
+  [OD({ hy: -21.1, tl: 16, hd: 25, lFx: 7, lBx: -7 }, -2), 4, true],
+  [OD({ hy: -22, tl: 14, hd: 21, lFx: 7, lBx: -7 }, -2.5), 4, true],
+  [OD({ hy: -22, tl: 14, hd: 21, lFx: 7, lBx: -7 }, -0.5), 4, true],
+  [OD({ hy: -21.4, tl: 15.5, hd: 23, lFx: 7, lBx: -7 }, -2), 4, true],
+  [OD({ hx: 0.5, hy: -21, tl: 16, hd: 14, lFx: 7, lBx: -7, tw: 1 }, 7), 1],
+  [OD({ hy: -21.3, tl: 15, hd: 18, lFx: 7, lBx: -7 }, 0), 1, true],
+  [OD({ hy: -21.3, tl: 15, hd: 23, lFx: 7, lBx: -7 }, 0), 3, true],
+  [OD({ hy: -21.9, tl: 13, hd: 12, lFx: 7, lBx: -7 }, 0), 3],
+  [OR({ hx: 0, hy: -22.4, tl: 12, hd: 10, lFx: 6.5, lBx: -6.5 }), 2],
+  [O_STANCE, 3],
+]);
 
 // ---- 필살기 월령수류 (13-7, 영역 전개형) ----
 /** 눈을 감고 칼자루에 손 (고개를 숙임) */
