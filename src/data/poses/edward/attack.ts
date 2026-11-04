@@ -109,48 +109,56 @@ const ARC2: HammerArc = { cx: 16, cy: -26, rx: 36, ry: 20, a0: 115, a1: -20 };
 /** 감기: 땅에 닿은 해머를 몸 뒤로 끌어 온다 (머리가 바닥을 긁는다) */
 const C2_DRAG = A({ hx: 2, hy: -17, tl: 24, hd: -4, tw: 0, lFx: 15, lBx: -14, wa: 112 }, [10, -7]);
 const C2_COIL = A({ hx: -1.5, hy: -16, tl: 16, hd: -6, tw: -4, lFx: 13, lBx: -14, wa: 150 }, [-24, -9]);
-/** 감기 끝 (멈춤): 낮게 웅크려 해머를 등 뒤 아래에 늘어뜨린다 */
+/** 감기 끝 (멈춤 7틱): 낮게 웅크려 해머를 등 뒤 아래에 늘어뜨린다 */
 const C2_MAX = A({ hx: -2.5, hy: -15, tl: 12, hd: -8, tw: -5, lFx: 13, lBx: -15, wa: 165 }, [-30, -14]);
-/** 스미어: 반 걸음 내딛으며 팔이 앞으로, 해머 머리는 뒤 아래에 처져 바닥을 스친다 */
-const C2_SMEAR = A({ hx: 2, hy: -15, tl: 18, hd: -8, tw: 2, lFx: 16, lBx: -14, wa: 128 }, arcAt(ARC2, 100));
-/** 타격: 낮게 앞을 가로질러 올라온다 (처진 머리가 팔을 따라잡는다) */
-const C2_HIT = A({ hx: 4, hy: -15.5, tl: 20, hd: -8, tw: 5, lFx: 17, lBx: -15, wa: 46 }, arcAt(ARC2, 45));
-const C2_HIT2 = A({ hx: 5, hy: -16.5, tl: 14, hd: -10, tw: 5.5, lFx: 17, lBx: -15.5, wa: 4 }, arcAt(ARC2, 5));
+/** 풀림: 반 걸음 내디디며 허리·어깨가 먼저 돈다. 손과 해머는 아직 몸 뒤 아래 */
+const C2_RELEASE = A({ hx: 0, hy: -15.3, tl: 14, hd: -8, tw: -2, lFx: 15, lBx: -14.5, wa: 160 }, [-29.7, -11.7]);
+/** 스미어: 두 손이 허리 앞으로 끌려 나오고, 해머 머리는 발밑 바닥을 스치며 처져 따라온다 */
+const C2_SMEAR = A({ hx: 2, hy: -15, tl: 18, hd: -8, tw: 2, lFx: 16, lBx: -14, wa: 127 }, arcAt(ARC2, 115));
+/** 타격: 처진 머리가 손을 따라잡아 낮게 앞을 가로질러 올라온다 */
+const C2_HIT = A({ hx: 4, hy: -15.5, tl: 20, hd: -8, tw: 5, lFx: 17, lBx: -15, wa: 42 }, arcAt(ARC2, 45));
+const C2_HIT2 = A({ hx: 5, hy: -16.5, tl: 14, hd: -10, tw: 5.5, lFx: 17, lBx: -15.5, wa: 9 }, arcAt(ARC2, 5));
 /** 지나치기: 머리가 앞 위로 더 쏠린다 (몸이 따라 일어선다) */
 export const C2_OVER = A({ hx: 5, hy: -18, tl: 6, hd: -12, tw: 5, lFx: 17, lBx: -15, wa: -46 }, arcAt(ARC2, -35));
 const C2_OVER2 = A({ hx: 4.5, hy: -19.5, tl: 0, hd: -12, tw: 4.5, lFx: 17, lBx: -15, wa: -80 }, [30, -50]);
-/** 여운: 앞 위로 치켜든 채 멈춘다 (쏠린 머리가 조금 돌아온다) */
+/** 여운: 앞 위로 치켜든 채 멈춘다 (쏠린 머리가 조금 돌아오고, 몸이 2px 내려앉는다) */
 const C2_HOLD = A({ hx: 4.5, hy: -19.5, tl: 2, hd: -11, tw: 4.5, lFx: 17, lBx: -15, wa: -72 }, [33, -48]);
-const C2_HOLD2 = A({ hx: 4.3, hy: -19.6, tl: 2, hd: -11, tw: 4.3, lFx: 17, lBx: -15, wa: -74 }, [33, -48]);
-/** 복귀: 머리 위로 넘겨 어깨에 */
-const C2_BACK1 = G({ hx: 3, hy: -21, tl: 0, hd: -8, tw: 2, aFx: 6, aFy: -10, lFx: 13, lBx: -12, wa: -105 });
-const C2_BACK2 = E({ hx: 1.5, hy: -22, tl: -3, hd: -5, aFx: 5, aFy: 2, aBx: -2.5, aBy: 12, lFx: 10, lBx: -9, wa: -132 });
+const C2_HOLD2 = A({ hx: 4.3, hy: -18.4, tl: 3, hd: -11, tw: 4.3, lFx: 17, lBx: -15, wa: -74 }, [33, -46]);
+/** 복귀: 무게가 먼저 뒤로 빠진다 (해머는 아직 앞 위) → 손이 얼굴 앞으로 → 어깨로 오는 동안 머리가 뒤로 넘어간다 → 어깨에 걸치며 한 번 더 내려앉는다 */
+const C2_BACK0 = A({ hx: 2, hy: -20.5, tl: 0, hd: -9, tw: 2.5, lFx: 14, lBx: -13, wa: -74 }, [29, -50]);
+const C2_BACK1 = G({ hx: 1.5, hy: -21.4, tl: -2, hd: -7, tw: 2, aFx: 7, aFy: -8, lFx: 11, lBx: -10.5, wa: -98 });
+const C2_BACK2 = G({ hx: 1, hy: -22, tl: -3, hd: -5, tw: 1.5, aFx: 6, aFy: -1, lFx: 9, lBx: -9, wa: -125 });
+const C2_BACK3 = E({ hx: 0.5, hy: -21.8, tl: -3, hd: -4, aFx: 5, aFy: 4, aBx: 1, aBy: 8, lFx: 7.5, lBx: -7.5, wa: -153 });
 
 /**
- * 2타 되돌려 휘두르기 (128×96): 1타 지나치기 자세에서 → 2~4 해머를 바닥에 끌어 등 뒤로 감음(4번 멈춤) → 5 스미어(반 걸음 내딛음) →
- * 6~7 낮게 앞을 가로질러 올라옴(판정) → 8~9 앞 위로 쏠림 → 10~11 치켜든 채 멈춤 → 12~14 어깨로. 14프레임 43틱
+ * 2타 되돌려 휘두르기 (128×96, 2차 리워크): 1타 지나치기 자세에서 → 2~4 해머를 바닥에 끌어 등 뒤 아래로 감음(4번 7틱 멈춤) →
+ * 5 반 걸음 내디디며 허리가 먼저 → 6 스미어 → 7~8 낮게 앞을 가로질러 올라옴(판정) → 9~10 앞 위로 쏠림 → 11~12 치켜든 채 멈춤 →
+ * 13~17 무게가 뒤로 빠진 뒤 어깨로. 17프레임 43틱 (공격 데이터 그대로: 발동 16 · 지속 4 · 회복 23)
  */
 export const EDWARD_SWING: MotionData = {
   name: 'edward/swing',
   label: '에드워드 2타 되돌려 휘두르기',
   wide: true,
-  smear: { frame: 4, limb: 'aF', stretch: 1.3, ghosts: 3 },
-  dur: [2, 3, 4, 6, 1, 2, 2, 2, 2, 5, 5, 3, 3, 3],
+  smear: { frame: 5, limb: 'aF', stretch: 1.3, ghosts: 3 },
+  dur: [2, 2, 3, 7, 1, 1, 2, 2, 2, 2, 4, 3, 2, 2, 3, 3, 2],
   keys: [
     { at: 0, pose: C1_OVER },
     { at: 1, pose: C2_DRAG },
     { at: 2, pose: C2_COIL },
     { at: 3, pose: C2_MAX, stop: true },
-    { at: 4, pose: C2_SMEAR },
-    { at: 5, pose: C2_HIT },
-    { at: 6, pose: C2_HIT2 },
-    { at: 7, pose: C2_OVER },
-    { at: 8, pose: C2_OVER2, stop: true },
-    { at: 9, pose: C2_HOLD },
-    { at: 10, pose: C2_HOLD2, stop: true },
-    { at: 11, pose: C2_BACK1 },
-    { at: 12, pose: C2_BACK2 },
-    { at: 13, pose: E_STANCE },
+    { at: 4, pose: C2_RELEASE },
+    { at: 5, pose: C2_SMEAR },
+    { at: 6, pose: C2_HIT },
+    { at: 7, pose: C2_HIT2 },
+    { at: 8, pose: C2_OVER },
+    { at: 9, pose: C2_OVER2, stop: true },
+    { at: 10, pose: C2_HOLD },
+    { at: 11, pose: C2_HOLD2, stop: true },
+    { at: 12, pose: C2_BACK0 },
+    { at: 13, pose: C2_BACK1 },
+    { at: 14, pose: C2_BACK2 },
+    { at: 15, pose: C2_BACK3 },
+    { at: 16, pose: E_STANCE },
   ],
 };
 
