@@ -13,8 +13,9 @@ export type GPt = readonly [number, number];
 
 /**
  * 셀 색 단계 (캐릭터 색표 번호): 0 심 (흰·크림) · 1 주색 · 2 진한 주색 · 3 잉크 (아주 어두운) · 4 고리·테두리 (보색 소량)
+ * · 5 덧색 (백은우 백합 꽃잎 연분홍) · 6 짙은 주색 (백은우 짙은 하늘: 물빛 그늘). 색표에 없는 번호는 0으로 그린다
  */
-export type GTone = 0 | 1 | 2 | 3 | 4;
+export type GTone = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 /** 모든 모양에 붙는 것 */
 interface GBase {
@@ -26,8 +27,17 @@ interface GBase {
   hold?: number;
   /** 흩어지는 틱 (14-2: 꼬리부터 가닥으로 찢어지며 흘러간다. 진행 0.7쯤에서 보이지 않게 된다) */
   fade?: number;
-  /** 나타나는 틱 (기본 0) */
+  /** 나타나는 틱 (기본 0, 진행 시계: 히트스톱 동안은 세지 않는다) */
   delay?: number;
+  /**
+   * 나타나는 틱 (살아 있는 시계: 히트스톱 동안도 센다). 14-9 B 지연 폭발처럼 세상이 멈춘 동안 늦게 터지는 것.
+   * delay와 함께 쓰지 않는다
+   */
+  wait?: number;
+  /** 14-9 N 맥동: 흩어지기 직전 3틱 동안 한 번 더 부풀었다 (최대 +16%) 흩어진다 */
+  pulse?: boolean;
+  /** 14-9 I 시간 엇갈림: 살아 있는 정지 동안 자라는 빠르기 배수 (기본 1, 자라는 상한도 함께 늘어난다) */
+  grow?: number;
 }
 
 /**
@@ -126,6 +136,10 @@ export interface GRing extends GBase {
   gaps?: ReadonlyArray<readonly [number, number]>;
   /** 납작하게 (세로 비, 기본 1) */
   sy?: number;
+  /** 기울기 (도, 가운데 기준, 기본 0) */
+  rot?: number;
+  /** 물결 (백은우 물결 고리): 테두리가 이 진폭(px)으로 느리게 굽이치며 흐른다 (파장 약 32px). 위·아래 테두리가 한 줄로 곧게 이어지지 않는다 */
+  ripple?: number;
   tone?: GTone;
 }
 
@@ -141,6 +155,8 @@ export interface GRays extends GBase {
 export interface GFlash extends GBase {
   kind: 'flash';
   at?: GPt;
+  /** 테두리 색 (기본 4) */
+  rim?: GTone;
   spikes: ReadonlyArray<readonly [number, number, number]>;
 }
 
@@ -169,9 +185,90 @@ export interface GSmoke extends GBase {
   rise: number;
   size: number;
   life: number;
+  /** 처음 1/4 색 → 그 뒤 색 (기본 [2, 3]: 열기 → 연기. 백은우는 물안개 [1, 2]) */
+  tones?: readonly [GTone, GTone];
 }
 
-export type GShape = GWedge | GSwoosh | GBolt | GInk | GRing | GRays | GFlash | GEmbers | GSmoke;
+/**
+ * 리본 띠 (백은우 고유 모양, 14-4 '리본처럼 휘는 넓은 띠'): 점들을 매끄럽게 이은 곡선을 따라 휘는 넓은 띠. 셀 3단 (옅은 하늘 → 은백 → 흰 심).
+ * 두께는 꼬리(점 0) → 머리(마지막 점). 비틀린 자리(twist)는 띠가 좁아지며 뒷면(바깥 단 색)만 보인다.
+ * 앞날을 따라 금색 실 한 가닥(thread, 색 4)이 띠 안쪽에 붙어 지난다 (1px 선이 따로 떠 있지 않게).
+ * 살아 있는 정지 동안 천처럼 물결치고 (꼬리일수록 크게, 머리는 판정 자리에 머문다), 흩어지면 꼬리부터 찢어져 띠를 따라 흘러간다
+ */
+export interface GRibbon extends GBase {
+  kind: 'ribbon';
+  /** 가운데 선이 지나는 점 (꼬리 → 머리) */
+  pts: readonly GPt[];
+  /** 가장 두꺼운 곳의 두께 (px) */
+  w: number;
+  /** 가장 두꺼운 자리 (0 꼬리 → 1 머리, 기본 0.66)와 양 끝으로 가는 모양 (기본 [1.1, 0.6]) */
+  peak?: number;
+  bulge?: readonly [number, number];
+  /** 위쪽(가는 방향 왼쪽)으로 두께를 몰기 (−1~1) */
+  skew?: number;
+  main?: number;
+  core?: number;
+  coreLen?: number;
+  edge?: GTone;
+  /** 비틀림: [자리 u, 남는 두께 비 (0.3~0.6)]… */
+  twist?: ReadonlyArray<readonly [number, number]>;
+  /** 금색 실: [시작 u, 끝 u, 굵기 px, 쪽 (+1 위쪽 날, −1 아래쪽 날)] */
+  thread?: readonly [number, number, number, number];
+  /** 물결: [꼬리 쪽 진폭 px, 파장 px] (기본 [2.5, 46]) */
+  wave?: readonly [number, number];
+  /** 천의 잔물결: 두께가 이 비율로 약 15px마다 굽이친다 (기본 0.06) */
+  ruffle?: number;
+}
+
+/**
+ * 나비·꽃잎 조각 (백은우 14-4 '꼬리에서 흰 나비·꽃잎 조각', 14-9 D 카메라 쪽으로 커지는 조각): 점들(리본 꼬리 등)에서 차례로 떨어져 나와
+ * 날갯짓하거나 맴돌며 흘러가고, 떠오르고, 식으며 (심 → 주색 → 진한 주색) 작아져 사라진다. 살아 있는 시계로 산다
+ */
+export interface GFlutter extends GBase {
+  kind: 'flutter';
+  /** 떨어져 나오는 자리 (차례로) */
+  from: readonly GPt[];
+  n: number;
+  /** 나비 비율 (0~1, 나머지는 꽃잎) */
+  fly?: number;
+  /** 크기 (px: 나비 날개폭, 꽃잎 길이) */
+  size: number;
+  /** 흘러가는 방향 (도)·빠르기 (px/틱)·퍼짐 (도) */
+  dir: number;
+  speed: number;
+  fan: number;
+  /** 떠오르는 빠르기 (px/틱, 위로 +, 기본 0.12) */
+  lift?: number;
+  /** 사는 틱 */
+  life: number;
+  /** 하나씩 나오는 간격 (틱, 기본 1) */
+  every?: number;
+  /** 틱마다 커지는 비 (14-9 D: 카메라 쪽으로 날아오는 조각, 기본 0) */
+  zoom?: number;
+  /** 꽃잎 색 (기본 0 → 1 → 2로 식는다. 5면 연분홍 꽃잎) */
+  tone?: GTone;
+}
+
+/**
+ * 금실 바늘땀 (백은우, 14-9 J 남는 흔적): 길을 따라 짧은 금실 땀이 차례로 꿰매지고, 1~2초 동안 공간에 남아 빛이 한 땀씩 지나간 뒤
+ * 시작 쪽부터 한 땀씩 풀려 사라진다. 땀마다 길이·굵기·기울기가 조금씩 달라 같은 선이 늘어서지 않는다 (가운데가 굵고 양 끝이 뾰족)
+ */
+export interface GStitch extends GBase {
+  kind: 'stitch';
+  /** 길 (시작 → 끝) */
+  pts: readonly GPt[];
+  /** 땀 길이 (px, 평균), 굵기 (px, 가장 굵은 곳), 간격 (px), 길과 이루는 각 (도) */
+  len: number;
+  w: number;
+  gap: number;
+  slant: number;
+  /** 꿰매는 틱 (처음부터 끝까지), 남는 틱 (살아 있는 시계, 꿰맨 뒤) */
+  sew: number;
+  life: number;
+  tone?: GTone;
+}
+
+export type GShape = GWedge | GSwoosh | GBolt | GInk | GRing | GRays | GFlash | GEmbers | GSmoke | GRibbon | GFlutter | GStitch;
 
 /** 화면 전환 (문법 8): 맞힌 틱부터 */
 export interface GScreen {
@@ -179,6 +276,23 @@ export interface GScreen {
   press?: { mode: 'tint' | 'crack'; ticks: number; color: string; scale?: number; crack?: string };
   /** 맞은 사람을 주색 실루엣 + 밝은 테두리로 (틱) */
   silhouette?: number;
+}
+
+/**
+ * 14-9 연출 기법 중 화면·카메라·환경에 거는 것 (맞힌 틱부터, 틱은 살아 있는 시계)
+ */
+export interface GTech {
+  /** A 임팩트 프레임: at틱부터 ticks틱 동안 화면을 두 색으로 (무대는 bg, 캐릭터·이펙트는 ink 실루엣) */
+  impact?: { at?: number; ticks: number; bg: string; ink: string };
+  /** E·K 화면 밀기·흔들기: 공격 방향 기준 (앞 +x, 아래 +y) px만큼 밀었다가 ticks틱에 돌아온다. shake면 그 축으로만 흔든다 */
+  kick?: { at?: number; dx: number; dy: number; ticks: number; shake?: boolean };
+  /** K 줌 펀치: at틱부터 ticks틱 동안 맞은 점을 가운데로 k배 */
+  zoom?: { at?: number; k: number; ticks: number };
+  /** H 환경 반응: 빗줄기가 ticks틱 동안 공중에 멈춘다, 물웅덩이가 솟는다 (맞은 점 기준 x 자리들, 바닥에서) */
+  rain?: { ticks: number };
+  puddle?: { at: readonly number[]; n: number };
+  /** L 색 뒤집기: at틱부터 ticks틱 동안 주색 단계(1·2)가 보색(금빛) 단계로 */
+  flip?: { at: number; ticks: number };
 }
 
 /** 공격 하나의 이펙트 */
@@ -194,4 +308,12 @@ export interface GMove {
   light?: { r: number; t: number };
   /** 이 기술에 쓴 문법 번호 (14-8, 확인용) */
   grammar: readonly number[];
+  /** 14-9 연출 기법: 주 기법 1개 + 보조 기법 (글자, 확인용) */
+  tech?: { main: string; aux: readonly string[] };
+  /** 14-9 화면·카메라·환경 기법 */
+  fx?: GTech;
+  /** 14-9 M 전조: 전조가 시작하는 틱에 (그때 공격자 발밑 기준) 미리 그어지는 모양 */
+  pre?: readonly GShape[];
+  /** 여러 번 맞히는 기술의 두 번째 타부터 맞은 점에 그리는 모양 (없으면 맞은 점 모양은 첫 타에만) */
+  rehit?: readonly GShape[];
 }

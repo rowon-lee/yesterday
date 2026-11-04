@@ -5,7 +5,7 @@
 //   살아 있는 정지: ls(살아 있는 틱)로 번개가 2틱마다 다시 꺾이고, 흰 심이 맥동하고, creep(정지한 틱)만큼 가시·끝이 조금씩 더 뻗는다
 //   흩어짐 p: 꼬리부터 가닥으로 찢어져 공격 방향으로 흘러가고, 두께가 줄고, 바깥 단계 색부터 빠진다
 // 너무 가늘어진 가닥(2.6px 아래)이나 두께에 비해 너무 긴 가닥은 그리지 않는다 (1px 선이 남지 않게).
-import type { GBolt, GFlash, GInk, GPt, GRays, GRing, GSwoosh, GTone, GWedge } from '../../data/vfx/types';
+import type { GBolt, GFlash, GInk, GPt, GRays, GRibbon, GRing, GStitch, GSwoosh, GTone, GWedge } from '../../data/vfx/types';
 
 /** 칠할 것: 색 단계와 고리들. sep = 고리마다 따로 칠한다 (겹쳐도 구멍이 나지 않게), 아니면 짝홀 규칙으로 한 번에 */
 export interface Paint {
@@ -26,10 +26,15 @@ export interface Phase {
   p: number;
   /** 모양마다 다른 씨앗 (다시 꺾임·가닥 자리) */
   seed: number;
+  /** 14-9 I: 자라는 상한 배수 (기본 1, creep도 이 배수로 빨리 센다) */
+  g?: number;
 }
 
 /** 다 펼쳐진 피크 그대로 (미리보기용) */
 export const PEAK: Phase = { a: 1, ls: 2, creep: 0, p: 0, seed: 1 };
+
+/** 살아 있는 정지로 자란 틱 (상한 12틱 × 자라는 배수) */
+const creepOf = (ph: Phase) => Math.min(ph.creep, 12 * (ph.g ?? 1));
 
 const D2R = Math.PI / 180;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -111,6 +116,12 @@ interface BandSpec {
   shards?: number;
   /** 흩어지는 조각의 가장 얇은 두께 (기본 4px) */
   minShard?: number;
+  /** 자리 u·셀 단 번호(0 바깥 단 …)마다 두께 배수 (리본 비틀림: 안쪽 단일수록 더 좁아져 뒷면만 보인다) */
+  mul?: (u: number, level: number) => number;
+  /** 흩어지는 조각의 양 끝을 뭉툭하게 (긴 리본 조각의 가는 끝이 1px 선으로 길게 남지 않게) */
+  blunt?: boolean;
+  /** 흩어지는 조각 길이 상한 (조각 두께의 몇 배, 기본 16) */
+  aspect?: number;
 }
 
 /** 흩어질 때 띠가 찢어지는 조각: 가운데 본조각 + 곁조각 둘 (두께·길이·자리가 서로 달라 같은 굵기 평행선이 되지 않는다) */
@@ -137,7 +148,7 @@ function bandPaints(b: BandSpec, ph: Phase): Paint[] {
   const S = p > 0 ? Math.min(b.shards ?? 3, b.w >= 11 ? 3 : 2) : 1;
   const flip = hash(ph.seed, 1, 21) < 0.5 ? 1 : -1;
   // 머무는 동안 (한 덩어리)은 설계 비율의 1.5배까지, 흩어지는 조각은 두께의 16배까지 (짧고 뭉툭한 조각)
-  const aspectMax = p > 0 ? 16 : Math.max(24, (b.len / Math.max(1, b.w)) * 1.5);
+  const aspectMax = p > 0 ? b.aspect ?? 16 : Math.max(24, (b.len / Math.max(1, b.w)) * 1.5);
   // 조각 윤곽 최소 두께: 머무는 동안 2.6px, 흩어지는 조각 4px (가운데가 3px 넘게 남아 1~2px 선이 되지 않게)
   const minT = p > 0 ? b.minShard ?? 4 : 2.6;
   for (let j = 0; j < S; j++) {
@@ -162,7 +173,9 @@ function bandPaints(b: BandSpec, ph: Phase): Paint[] {
       if (lt * ratio < (lv === outer ? minT : 0.9)) return;
       const uA = u0 + (u1 - u0) * (b.peak - b.peak * lv.l);
       const uB = u0 + (u1 - u0) * (b.peak + (1 - b.peak) * lv.l);
-      const H = (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, b.ba, b.bf);
+      const ba = p > 0 && b.blunt ? Math.min(b.ba, 0.6) : b.ba;
+      const bf = p > 0 && b.blunt ? Math.min(b.bf, 0.6) : b.bf;
+      const H = b.mul ? (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf) * b.mul!(u, li) : (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf);
       perLevel[li]!.push(slice((u) => b.C(u, d), (u) => b.N(u, d), H, b.skew, off - ratio, off + ratio, uA, uB, n));
     });
   }
@@ -188,7 +201,7 @@ export function wedge(s: GWedge, ph: Phase): Paint[] {
   const dx = Math.cos(a);
   const dy = Math.sin(a);
   const back = s.back;
-  const L = s.fwd * (1 + 0.012 * Math.min(ph.creep, 12)) + back;
+  const L = s.fwd * (1 + 0.012 * creepOf(ph)) + back;
   const [ba, bf] = s.bulge ?? [0.8, 0.9];
   return bandPaints({
     C: (u, d) => [s.at[0] + dx * (-back + L * u + d), s.at[1] + dy * (-back + L * u + d)],
@@ -214,7 +227,7 @@ export function swoosh(s: GSwoosh, ph: Phase): Paint[] {
   const dir = s.a1 >= s.a0 ? 1 : -1;
   const a0 = s.a0 * D2R;
   // 살아 있는 정지 동안 머리가 조금씩 더 돈다 (최대 7도)
-  const a1 = (s.a1 + dir * 0.6 * Math.min(ph.creep, 12)) * D2R;
+  const a1 = (s.a1 + dir * 0.6 * creepOf(ph)) * D2R;
   const rr = s.r * Math.max(sx, sy);
   const ang = (u: number, d: number) => a0 + (a1 - a0) * u + (dir * d) / rr;
   const C = (u: number, d: number): GPt => {
@@ -424,7 +437,7 @@ export function ink(s: GInk, ph: Phase): Paint[] {
   const dy = Math.sin(a);
   const nx = dy;
   const ny = -dx;
-  const len0 = s.len * (1 + 0.01 * Math.min(ph.creep, 10));
+  const len0 = s.len * (1 + 0.01 * Math.min(ph.creep, 10 * (ph.g ?? 1)));
   if (ph.p > 0) {
     return bandPaints({
       C: (u, d) => [s.at[0] + dx * (len0 * u + d), s.at[1] + dy * (len0 * u + d)],
@@ -474,8 +487,10 @@ export function ink(s: GInk, ph: Phase): Paint[] {
  */
 export function ring(s: GRing, ph: Phase, at: GPt): Paint[] {
   const p = ph.p;
-  const r = s.r * unfold(ph.ls, 0.8, 0.93) + 0.75 * Math.min(ph.creep, 12) + s.r * 0.14 * p;
+  const r = s.r * unfold(ph.ls, 0.8, 0.93) + 0.75 * creepOf(ph) + s.r * 0.14 * p;
   const sy = s.sy ?? 1;
+  // 기울기 (데이터가 정한다: 백은우 바닥 물결 고리는 −7°, 위·아래 테두리가 같은 줄에서 길게 이어지지 않게)
+  const rot = (s.rot ?? 0) * D2R;
   const thick = (s.thick ?? -150) * D2R;
   // 가장 얇은 곳 3px, 두꺼운 쪽은 4px 이상 (2px 고리가 길게 이어지면 가는 선으로 보인다). 2.6px 아래로 얇아진 곳은 그리지 않는다
   const t0 = 3;
@@ -500,28 +515,35 @@ export function ring(s: GRing, ph: Phase, at: GPt): Paint[] {
   });
   // 마디는 3px 안팎 (마디가 길면 고리 꼭대기·밑이 자로 그은 듯 평평해진다)
   const steps = Math.max(64, Math.ceil(r * 2));
+  // 물결 고리: 파장 약 32px의 느린 굽이 (짧고 뾰족하면 번개처럼 보인다), 살아 있는 시계로 흐른다
+  const rip = (s.ripple ?? 0) * kT;
+  const nRip = Math.max(4, Math.round(r / 5.1));
   const rings: number[][] = [];
   let cur: number[][] | null = null;
   for (let i = 0; i <= steps; i++) {
     const a = (i / steps) * 2 * Math.PI;
     const h = t(a);
     if (inGap(a) || h < 2.6 || i === steps) {
-      if (cur && cur.length > 1) rings.push(closeArc(cur, at, r, sy));
+      if (cur && cur.length > 1) rings.push(closeArc(cur, at, r, sy, rot));
       cur = null;
       continue;
     }
     if (!cur) cur = [];
-    cur.push([a, h / 2]);
+    cur.push(rip ? [a, h / 2, rip * Math.sin(nRip * a - 0.8 * ph.ls)] : [a, h / 2]);
   }
   return [{ tone: s.tone ?? 4, rings, sep: true }];
 }
 /** 고리 한 구간 (바깥 호 → 안쪽 호). 납작한 고리도 두께는 화면 px 그대로 (세로로 눌러 두께까지 얇아지지 않게) */
-function closeArc(seg: number[][], at: GPt, r: number, sy: number): number[] {
+function closeArc(seg: number[][], at: GPt, r: number, sy: number, rot = 0): number[] {
   const out: number[] = [];
-  for (const [a, h] of seg) out.push(at[0] + Math.cos(a!) * (r + h!), at[1] + Math.sin(a!) * (r * sy + h!));
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  const P = (x: number, y: number) => out.push(at[0] + x * c - y * s, at[1] + x * s + y * c);
+  // 물결 (w): 바깥·안쪽 테두리를 화면 px로 함께 민다 (납작한 고리도 위아래로 굽이친다)
+  for (const [a, h, w = 0] of seg) P(Math.cos(a!) * (r + h! + w), Math.sin(a!) * (r * sy + h! + w));
   for (let i = seg.length - 1; i >= 0; i--) {
-    const [a, h] = seg[i]!;
-    out.push(at[0] + Math.cos(a!) * (r - h!), at[1] + Math.sin(a!) * (r * sy - h!));
+    const [a, h, w = 0] = seg[i]!;
+    P(Math.cos(a!) * (r - h! + w), Math.sin(a!) * (r * sy - h! + w));
   }
   return out;
 }
@@ -533,7 +555,7 @@ function closeArc(seg: number[][], at: GPt, r: number, sy: number): number[] {
 export function rays(s: GRays, ph: Phase, at: GPt): Paint[] {
   const p = ph.p;
   const f = unfold(ph.ls, 0.35, 0.75);
-  const reach = Math.min(ph.creep, 8);
+  const reach = Math.min(ph.creep, 8 * (ph.g ?? 1));
   const byTone = new Map<GTone, number[][]>();
   for (const [ang, r0, r1, b, tone] of s.lines) {
     const a = ang * D2R;
@@ -563,7 +585,7 @@ export function rays(s: GRays, ph: Phase, at: GPt): Paint[] {
 export function flash(s: GFlash, ph: Phase, at: GPt): Paint[] {
   const p = ph.p;
   if (p >= 0.9) return [];
-  const lk = (1 + 0.025 * Math.min(ph.creep, 10)) * Math.pow(1 - p, 0.6);
+  const lk = (1 + 0.025 * Math.min(ph.creep, 10 * (ph.g ?? 1))) * Math.pow(1 - p, 0.6);
   const wk = unfold(ph.ls, 0.6, 0.85) * Math.pow(1 - p, 0.4);
   const rimGrow = ph.ls % 2 ? 1.1 : 1.2;
   const kites = (grow: number, add: number): number[][] =>
@@ -581,7 +603,219 @@ export function flash(s: GFlash, ph: Phase, at: GPt): Paint[] {
       ];
     });
   return [
-    { tone: 4, rings: kites(rimGrow, 1.5), sep: true },
+    { tone: s.rim ?? 4, rings: kites(rimGrow, 1.5), sep: true },
     { tone: 0, rings: kites(1, 0), sep: true },
   ];
+}
+
+// ───────────────────────── 백은우 (14-4 '리본처럼 휘는 넓은 띠', 꼬리에서 흰 나비·꽃잎 조각, 금색 실 한 가닥) ─────────────────────────
+
+/** 곡선 표: 촘촘한 점, 점마다 누적 길이, 전체 길이 */
+export interface Spline {
+  P: GPt[];
+  S: number[];
+  len: number;
+}
+const splines = new WeakMap<readonly GPt[], Spline>();
+
+/** 점들을 지나는 매끄러운 곡선 (캐트멀-롬, 양 끝은 같은 점을 한 번 더). 1.5px마다 뽑아 길이 표를 만든다 */
+export function splineOf(pts: readonly GPt[]): Spline {
+  let sp = splines.get(pts);
+  if (sp) return sp;
+  const P: GPt[] = [];
+  const n = pts.length;
+  const at = (i: number) => pts[Math.max(0, Math.min(n - 1, i))]!;
+  for (let i = 0; i + 1 < n; i++) {
+    const p0 = at(i - 1);
+    const p1 = at(i);
+    const p2 = at(i + 1);
+    const p3 = at(i + 2);
+    const steps = Math.max(2, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 1.5));
+    for (let k = 0; k < steps; k++) {
+      const t = k / steps;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const f = (a: number, b: number, c: number, d: number) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      P.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+    }
+  }
+  P.push(pts[n - 1]!);
+  const S = [0];
+  for (let i = 1; i < P.length; i++) S.push(S[i - 1]! + Math.hypot(P[i]![0] - P[i - 1]![0], P[i]![1] - P[i - 1]![1]));
+  sp = { P, S, len: S[S.length - 1]! || 1 };
+  splines.set(pts, sp);
+  return sp;
+}
+
+/** 곡선 위 길이 q 자리의 점과 진행 방향 (양 끝 밖은 끝 방향으로 곧게 늘인다) */
+export function splineAt(sp: Spline, q: number): { x: number; y: number; tx: number; ty: number } {
+  const { P, S, len } = sp;
+  const last = P.length - 1;
+  if (q <= 0 || q >= len) {
+    const [i0, i1] = q <= 0 ? [0, Math.min(last, 2)] : [Math.max(0, last - 2), last];
+    const dx = P[i1]![0] - P[i0]![0];
+    const dy = P[i1]![1] - P[i0]![1];
+    const l = Math.hypot(dx, dy) || 1;
+    const base = q <= 0 ? P[0]! : P[last]!;
+    const over = q <= 0 ? q : q - len;
+    return { x: base[0] + (dx / l) * over, y: base[1] + (dy / l) * over, tx: dx / l, ty: dy / l };
+  }
+  let lo = 0;
+  let hi = last;
+  while (hi - lo > 1) {
+    const m = (lo + hi) >> 1;
+    if (S[m]! <= q) lo = m;
+    else hi = m;
+  }
+  const t = (q - S[lo]!) / Math.max(1e-6, S[hi]! - S[lo]!);
+  const a = P[lo]!;
+  const b = P[hi]!;
+  // 방향은 이웃 몇 점에 걸쳐 (꺾인 곳에서 법선이 튀지 않게)
+  const j0 = Math.max(0, lo - 2);
+  const j1 = Math.min(last, hi + 2);
+  const dx = P[j1]![0] - P[j0]![0];
+  const dy = P[j1]![1] - P[j0]![1];
+  const l = Math.hypot(dx, dy) || 1;
+  return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, tx: dx / l, ty: dy / l };
+}
+
+/**
+ * 리본 띠. 머무는 동안 천처럼 물결친다 (꼬리 쪽일수록 크게, 7틱 주기로 흐른다) — 같은 그림으로 멈추지 않는다.
+ * 비틀린 자리는 바깥 단만 좁게 남아 뒷면이 보이고, 금색 실은 앞날 안쪽을 따라 지나며 흰 빛이 한 점 미끄러진다.
+ * 흩어지면 띠 공통 규칙 (꼬리부터 조각으로 찢어져 띠를 따라 흘러간다)
+ */
+export function ribbon(s: GRibbon, ph: Phase): Paint[] {
+  const sp = splineOf(s.pts);
+  // 살아 있는 정지 동안 머리가 조금씩 더 뻗는다 (최대 +12% × 자라는 배수)
+  const L = sp.len * (1 + 0.01 * creepOf(ph));
+  const [amp, lam] = s.wave ?? [2.5, 46];
+  const om = 0.9;
+  const wav = (u: number, q: number) => amp * Math.pow(Math.max(0, 1 - u), 1.3) * Math.sin((2 * Math.PI * q) / lam - om * ph.ls) * ph.a;
+  const C = (u: number, d: number): GPt => {
+    const q = u * L + d;
+    const k = splineAt(sp, q);
+    const w = wav(u, q);
+    return [k.x + k.ty * w, k.y - k.tx * w];
+  };
+  const N = (u: number, d: number): GPt => {
+    const k = splineAt(sp, u * L + d);
+    return [k.ty, -k.tx];
+  };
+  // 비틀림은 한 덩어리로 머무는 동안만 (흩어지는 조각에 가는 허리가 생겨 1px 선이 되지 않게)
+  const twists = ph.p > 0 ? [] : s.twist ?? [];
+  // 천의 잔물결: 두께가 ±6%로 약 15px마다 굽이치며 흐른다 (테두리가 한 줄에서 곧게 이어지지 않게, 살아 있는 천)
+  const ruf = s.ruffle ?? 0.06;
+  const mul = (u: number, li: number) => {
+    let m = 1 + ruf * Math.sin((2 * Math.PI * u * L) / 15 - 0.9 * ph.ls);
+    for (const [ut, keep] of twists) {
+      const k = clamp(1 - Math.abs(u - ut) / 0.07, 0, 1);
+      const sm = k * k * (3 - 2 * k);
+      // 안쪽 단일수록 더 좁아진다: 비틀린 자리에는 바깥 단(뒷면 색)만 남는다
+      m *= 1 - (1 - Math.pow(keep, 1 + 1.3 * li)) * sm;
+    }
+    return m;
+  };
+  const [ba, bf] = s.bulge ?? [1.1, 0.6];
+  const peak = s.peak ?? 0.66;
+  // 리본 조각은 6px 넘게 굵고 두께의 10배까지만 길다 (긴 리본이 흩어지며 가늘고 긴 가닥이 남지 않게)
+  const out = bandPaints({ C, N, w: s.w, len: L, peak, ba, bf, skew: s.skew ?? 0, levels: celLevels(s, ph), drift: clamp(0.25 * L, 10, 44), mul, blunt: true, minShard: 6, aspect: 10 }, ph);
+  // 금색 실 한 가닥 (앞날 안쪽): 흩어지기 시작하면 (바깥 단보다 먼저) 빠진다
+  const th = s.thread;
+  if (th && ph.p < 0.22) {
+    const [u0, u1, tw, side] = th;
+    const thick = s.w * ph.a * Math.pow(1 - ph.p, 0.8);
+    const skew = s.skew ?? 0;
+    const up: number[] = [];
+    const dn: number[] = [];
+    const glintU = u0 + (u1 - u0) * (((ph.ls * 0.13) % 1.3) - 0.15);
+    const hiUp: number[] = [];
+    const hiDn: number[] = [];
+    const n = Math.max(8, Math.ceil(((u1 - u0) * L) / 3));
+    for (let i = 0; i <= n; i++) {
+      const u = u0 + ((u1 - u0) * i) / n;
+      const [x, y] = C(u, 0);
+      const [nx, ny] = N(u, 0);
+      const h = thick * profile(u, peak, ba, bf) * mul(u, 0);
+      const edge = side >= 0 ? (h * (1 + skew)) / 2 : (-h * (1 - skew)) / 2;
+      // 실 굵기: 가운데가 굵고 양 끝으로 가늘어진다, 띠 두께의 40%를 넘지 않는다
+      const t = Math.min(h * 0.4, tw * Math.pow(Math.sin((Math.PI * i) / n), 0.6));
+      const inner = edge - (side >= 0 ? 1 : -1) * t;
+      up.push(x + nx * edge, y + ny * edge);
+      dn.push(x + nx * inner, y + ny * inner);
+      if (Math.abs(u - glintU) < 0.05 && t >= 1.2) {
+        hiUp.push(x + nx * edge, y + ny * edge);
+        hiDn.push(x + nx * inner, y + ny * inner);
+      }
+    }
+    const ring = up.slice();
+    for (let i = dn.length - 2; i >= 0; i -= 2) ring.push(dn[i]!, dn[i + 1]!);
+    out.push({ tone: 4, rings: [ring] });
+    if (hiUp.length >= 4) {
+      const g = hiUp.slice();
+      for (let i = hiDn.length - 2; i >= 0; i -= 2) g.push(hiDn[i]!, hiDn[i + 1]!);
+      out.push({ tone: 0, rings: [g] });
+    }
+  }
+  return out;
+}
+
+/** 꽃잎 하나 (양 끝이 뾰족한 잎 모양 6각형): 가운데 (x, y), 방향 (라디안), 길이, 폭 */
+export function petal(x: number, y: number, ang: number, len: number, wid: number): number[] {
+  const c = Math.cos(ang);
+  const s2 = Math.sin(ang);
+  const pts: Array<[number, number]> = [[-0.5, 0], [-0.18, 0.5], [0.22, 0.42], [0.5, 0], [0.22, -0.42], [-0.18, -0.5]];
+  const r: number[] = [];
+  for (const [u, v] of pts) r.push(x + c * u * len - s2 * v * wid, y + s2 * u * len + c * v * wid);
+  return r;
+}
+
+/**
+ * 나비 한 마리: 몸 (x, y), 몸 방향 (라디안: 머리 쪽), 날개폭, 날갯짓 (1 다 편 날개 → 0.35 접은 날개).
+ * 위 날개 둘(크다)과 아래 날개 둘(작다)을 몸 양쪽에. 고리 넷을 돌려준다
+ */
+export function butterfly(x: number, y: number, ang: number, span: number, flap: number): number[][] {
+  const c = Math.cos(ang);
+  const s2 = Math.sin(ang);
+  const P = (u: number, v: number) => [x + c * u - s2 * v, y + s2 * u + c * v];
+  const half = (span / 2) * flap;
+  const out: number[][] = [];
+  for (const side of [-1, 1]) {
+    // 위 날개: 몸 앞쪽에서 바깥 앞으로 크게
+    out.push([...P(0.6, 0), ...P(span * 0.32, side * half * 0.75), ...P(span * 0.08, side * half), ...P(-0.6, side * 0.8)]);
+    // 아래 날개: 몸 뒤쪽에서 바깥 뒤로 작게
+    out.push([...P(-0.4, 0), ...P(-span * 0.06, side * half * 0.7), ...P(-span * 0.3, side * half * 0.45), ...P(-span * 0.18, side * 0.6)]);
+  }
+  return out;
+}
+
+/**
+ * 금실 바늘땀 (14-9 J). ls = 나타난 뒤 살아 있는 틱. 꿰매기 (sew틱 동안 시작 → 끝) → 남기 (life틱, 흰 빛이 한 땀씩 지나간다)
+ * → 풀리기 (12틱, 시작 쪽부터 한 땀씩). 땀마다 길이·굵기·기울기가 해시로 조금씩 다르다
+ */
+export function stitch(s: GStitch, ls: number, seed: number): Paint[] {
+  const sp = splineOf(s.pts);
+  const count = Math.max(1, Math.floor(sp.len / s.gap));
+  const tone = s.tone ?? 4;
+  const main: number[][] = [];
+  const hi: number[][] = [];
+  const sewn = Math.min(count, Math.ceil(((ls + 1) / Math.max(1, s.sew)) * count));
+  const undo = ls - s.sew - s.life;
+  const gone = undo > 0 ? Math.floor((undo / 12) * (count + 1)) : 0;
+  const glint = Math.floor(((ls - s.sew) * 0.5) % (count + 6));
+  for (let i = gone; i < sewn; i++) {
+    const q = (i + 0.5) * (sp.len / count) + (hash(seed, i, 61) - 0.5) * s.gap * 0.3;
+    const k = splineAt(sp, q);
+    const len = s.len * (0.55 + 0.85 * hash(seed, i, 62)) * (i === gone && undo > 0 ? 0.6 : 1);
+    const w = s.w * (0.7 + 0.45 * hash(seed, i, 63));
+    // 땀마다 기울기를 번갈아 (바늘이 들어갔다 나온 자리), 같은 방향 평행선이 늘어서지 않게
+    const a = Math.atan2(k.ty, k.tx) + (((i % 2 ? s.slant : -s.slant * 0.7) + (hash(seed, i, 64) - 0.5) * 30) * Math.PI) / 180;
+    // 갓 꿰맨 땀은 1틱 동안 짧다 (꿰매지는 맛)
+    const fresh = i === sewn - 1 && sewn < count ? 0.6 : 1;
+    const r = petal(k.x, k.y, a, len * fresh, w);
+    (i === glint && undo <= 0 ? hi : main).push(r);
+  }
+  const out: Paint[] = [];
+  if (main.length) out.push({ tone, rings: main, sep: true });
+  if (hi.length) out.push({ tone: 0, rings: hi, sep: true });
+  return out;
 }

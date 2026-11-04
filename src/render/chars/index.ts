@@ -63,6 +63,8 @@ export interface CharRender {
   attackStart?(c: CharFx, s: SimState, f: Fighter, i: number, id: MoveId): void;
   /** 공격 판정이 시작하는 틱: 궤적 이펙트 (동작연출지침서 5장·7장). 없으면 기본 궤적 띠 */
   strike?(c: CharFx, s: SimState, f: Fighter, i: number, id: MoveId): void;
+  /** 길티기어식 이펙트 기술 (render/chars/gg-table)의 판정이 시작하는 틱에 함께 그리는 캐릭터 고유 덧그림 (백은우 와이어) */
+  ggStrike?(c: CharFx, s: SimState, f: Fighter, i: number, id: MoveId): void;
   /** 틱마다 (특성·스킬 지속 이펙트, 필살기 연출 장면) */
   tick?(c: CharFx, s: SimState, f: Fighter, i: number): void;
   /** 이번 틱 sim 사건 하나 (i = 이 캐릭터인 사람 번호. e.who가 누구인지는 스스로 본다) */

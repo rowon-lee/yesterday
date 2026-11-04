@@ -51,6 +51,11 @@ export default {
     q: Q, stopAt: AFTER_INTRO, p1: 3120, p2: 3180, settle: 30,
     steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['ArrowDown', 'KeyJ'], 1], [[], 70]],
   },
+  // 벽 박차기: 왼쪽 맵 끝 벽(x 56)으로 뛰어 붙었다가 공격 → 박차고 앞아래로 내리꽂힌다 (2P 라이덴은 앞에 서 있다)
+  eunwoo_wallkick: {
+    q: Q, stopAt: AFTER_INTRO, p1: 100, p2: 196, settle: 20,
+    steps: [[[], 6], [['ArrowLeft', 'KeyK'], 1], [['ArrowLeft'], 18], [['ArrowLeft', 'KeyJ'], 1], [[], 60]],
+  },
   // 쓸기 → 물러났다 대시 공격
   eunwoo_low: {
     q: Q, stopAt: AFTER_INTRO, p1: 3120, p2: 3185, settle: 30,

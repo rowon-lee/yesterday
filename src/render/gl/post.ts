@@ -4,7 +4,7 @@ import { COLORS, COMMON, POST_FAMILIES, POST_LADDER, type PostRampName } from '.
 import { SCREEN_W } from '../screen';
 import { DIST, FAR, MARGIN, NEAR, RT_H, RT_W, type Placed } from './core';
 import { LIGHT_N, loadedLights } from './lights';
-import { fxGlowScale, press, pressAt, SHEAR_MAX, shearFrame, tint } from '../screenfx';
+import { fxGlowScale, impact, impactAt, press, pressAt, SHEAR_MAX, shearFrame, tint, zoomAt, zoomPunch } from '../screenfx';
 
 /** 이펙트 빛 번짐 세기 (애니 이펙트 둘레 무대에 더하는 빛) */
 const FX_GLOW = 2.6;
@@ -525,6 +525,10 @@ uniform float fxGlowK;
 /** 배경 누르기 (render/screenfx press, 14-1 ⑥): rgb = 물들일 색 (선형), a = 세기. 방식 0 어둡게·물들이기, 1 반전, 2 흰 화면, 3 어둡게 + 색 더하기 (tint) */
 uniform vec4 press;
 uniform float pressMode;
+/** 임팩트 프레임 (render/screenfx impact, 14-9 A): 켜지면 무대는 impactBg, 캐릭터·이펙트 칸은 impactInk (sRGB) */
+uniform float impactOn;
+uniform vec3 impactBg;
+uniform vec3 impactInk;
 varying vec2 vUv;
 ${VIEW_DEPTH_GLSL}
 ${BAYER_GLSL}
@@ -550,6 +554,11 @@ void main() {
   // 앞겹(카메라 앞을 스치는 기둥·전선, 깊이 +1000)이 가린 칸: 표시 그림에는 캐릭터·이펙트가 있어도 화면에는 앞겹이 보인다 → 무대 칸으로
   // (가린 물체 색이 캐릭터·이펙트 모양대로 따로 보정되어 떠 보이지 않게)
   if (mk > 0.5 && viewDepth(depthTex, vUv) < ${(DIST - 300).toFixed(1)}) mk = 0.0;
+  // 임팩트 프레임: 두 색만 (무대 = 밝은 한 색, 캐릭터·이펙트 = 잉크 실루엣). 표시 칸으로 적어 팔레트 단계가 공통 색표로 맞춘다
+  if (impactOn > 0.5) {
+    gl_FragColor = vec4(mk > 0.5 ? impactInk : impactBg, 32.0 / 255.0);
+    return;
+  }
   // 애니 이펙트 칸 (vfx/gg, 표시 그림 알파 1): 색 보정·빛 번짐·가장자리 어둡게 없이 그린 색 그대로 (고채도 4색 띠를 지킨다).
   // 색은 표시 그림에서 읽는다 (화면 그림의 그 칸에는 이펙트 판 뒤에 그린 앞 안개·앞 비가 얹혀 있을 수 있다)
   if (mk * mt.a > 0.5) {
@@ -807,10 +816,14 @@ uniform float margin;
 uniform int count;
 uniform vec4 lineA[${SHEAR_MAX}];
 uniform vec4 lineB[${SHEAR_MAX}];
+/** 줌 펀치 (render/screenfx zoomPunch, 14-9 K): 배율과 가운데 (화면 px, y 아래로 +). 칸 단위로 옮겨 찍는다 */
+uniform float zoom;
+uniform vec2 zoomC;
 varying vec2 vUv;
 void main() {
   vec2 frag = floor(vUv * size);
   vec2 p = vec2(frag.x - margin + 0.5, size.y - 1.0 - frag.y - margin + 0.5);
+  if (abs(zoom - 1.0) > 0.001) p = floor(zoomC + (p - zoomC) / zoom) + 0.5;
   vec2 off = vec2(0.0);
   for (int i = 0; i < ${SHEAR_MAX}; i++) {
     if (i >= count) break;
@@ -977,6 +990,9 @@ export class Post {
       fxGlowK: { value: 0 },
       press: { value: new THREE.Vector4(0, 0, 0, 0) },
       pressMode: { value: 0 },
+      impactOn: { value: 0 },
+      impactBg: { value: new THREE.Vector3(1, 1, 1) },
+      impactInk: { value: new THREE.Vector3(0, 0, 0) },
     });
     this.palette = mat(PALETTE_FRAG, {
       graded: { value: this.graded.texture },
@@ -1004,6 +1020,8 @@ export class Post {
       count: { value: 0 },
       lineA: { value: Array.from({ length: SHEAR_MAX }, () => new THREE.Vector4()) },
       lineB: { value: Array.from({ length: SHEAR_MAX }, () => new THREE.Vector4()) },
+      zoom: { value: 1 },
+      zoomC: { value: new THREE.Vector2() },
     });
     this.haloGeo = new THREE.InstancedBufferGeometry();
     this.haloGeo.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], 3));
@@ -1155,6 +1173,12 @@ export class Post {
       u.press.value.set(pc.r, pc.g, pc.b, pk);
       u.pressMode.value = press.mode === 'invert' ? 1 : press.mode === 'white' ? 2 : 0;
     } else u.press.value.w = 0;
+    // 임팩트 프레임 (14-9 A)
+    if (impactAt(time)) {
+      u.impactOn.value = 1;
+      (u.impactBg.value as THREE.Vector3).set(...srgb(impact.bg));
+      (u.impactInk.value as THREE.Vector3).set(...srgb(impact.ink));
+    } else u.impactOn.value = 0;
     // 4. 안개 속 빛 무리 (빛 번짐 뒤: 두 번 번지지 않게)
     this.drawHalos(renderer, camera, 0.1 * L.halo * tint.halo, L.haloSize);
     // 5. 합치기·색 보정 (칸마다 구간 분위기, 알파에 팔레트 표 번호·캐릭터 표시)
@@ -1179,8 +1203,11 @@ export class Post {
     this.pass(renderer, this.palette, this.final);
     // 선 따라 어긋남 (render/screenfx): final → graded로 옮겨 찍고 다시 final로 (확인 도구가 final을 읽는다)
     const cuts = shearFrame(time, placed.ix, placed.iy);
-    if (cuts.length) {
+    const zk = zoomAt(time);
+    if (cuts.length || zk !== 1) {
       const su = this.shear.uniforms;
+      su.zoom.value = zk;
+      (su.zoomC.value as THREE.Vector2).set(zoomPunch.x - placed.ix, zoomPunch.y - placed.iy);
       su.count.value = cuts.length;
       cuts.forEach((c, i) => {
         su.lineA.value[i].set(c.ax, c.ay, c.dx, c.dy);

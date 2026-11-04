@@ -17,9 +17,12 @@ import ggEffect from '../vfx/gg';
 import pressBackground from '../vfx/gg/press';
 import ggBarrier from '../vfx/gg/barrier';
 import ggPrelude from '../vfx/gg/prelude';
-import type { GMove } from '../data/vfx/types';
-import { RAIDEN_GG, RAIDEN_GG_BARRIER, RAIDEN_GG_CHARGE, RAIDEN_GG_SUPER } from '../data/vfx/raiden';
+import type { GMove, GShape, GTech } from '../data/vfx/types';
+import { RAIDEN_GG, RAIDEN_GG_BARRIER, RAIDEN_GG_SUPER } from '../data/vfx/raiden';
+import { EUNWOO_GG_DRAFTS } from '../data/vfx/eunwoo';
 import { RAIDEN_GG_RAMP } from './chars/raiden-gg';
+import { draftOf, GG_CHARS, type GGChar } from './chars/gg-table';
+import type { LookName } from '../anim/skeleton';
 import { raidenChargeArmor, raidenChargeCone, raidenCurse, raidenSteam, type Body as ChargeBody } from '../vfx/raiden-charge';
 import { hwagwasanBarrier, hwagwasanDome, hwagwasanDrag } from '../vfx/raiden-hwagwasan';
 import { pacheonAshFall, pacheonContact, pacheonCrack, pacheonEmbers, pacheonSurge } from '../vfx/raiden-pacheon';
@@ -39,7 +42,7 @@ import { keepAtlas } from './gl/plaza';
 import { fxColor, fxHex, fxRamp, FX_PX, type VfxLayer } from './vfx';
 import { lights } from './light';
 import { rendersOf, type CharFx } from './chars';
-import { clearScreenFx } from './screenfx';
+import { clearScreenFx, impact as impactFrame, rainHold, zoomPunch } from './screenfx';
 import { COLORS } from './palette';
 
 /**
@@ -115,7 +118,7 @@ const SWINGS: Partial<Record<string, { size: number; squash: number; tilt: numbe
  */
 interface CineCue {
   t: number;
-  kind: 'jab' | 'upper' | 'hammer' | 'slam' | 'pcPress' | 'pcSurge' | 'pcFlash' | 'pcPrelude' | 'pcBurst' | 'pcAshPre' | 'pcFly' | 'pcAfter';
+  kind: 'jab' | 'upper' | 'hammer' | 'slam' | 'pcPress' | 'pcSurge' | 'pcFlash' | 'pcPrelude' | 'pcBurst' | 'pcAshPre' | 'pcFly' | 'pcAfter' | 'ewRipple' | 'ewTouch' | 'ewRelease';
 }
 const CINE_CUES: Record<string, CineCue[]> = {
   'base/super_rush': [3, 9, 15, 21, 27, 33].map((t) => ({ t, kind: 'jab' as const })),
@@ -129,6 +132,12 @@ const CINE_CUES: Record<string, CineCue[]> = {
   'raiden/pacheon_burst': [{ t: 2, kind: 'pcBurst' }, { t: 12, kind: 'pcAshPre' }],
   'raiden/pacheon_fly': [{ t: 0, kind: 'pcFly' }],
   'raiden/pacheon_after': [{ t: 0, kind: 'pcAfter' }],
+  // 백은우 선의 (11-5 콘티, 14-8 문법, 14-9 D): 전개 물결 고리가 수면에 누운 큰 타원으로 퍼진다 (30~90, 짧은 판 30~60) →
+  // 어깨에 손 (손이 닿는 틱, 장면 30%) → 해제 (290: 세계가 흰 나비 떼로 부서진다)
+  'eunwoo/super_deploy': [{ t: 2, kind: 'ewRipple' }, { t: 22, kind: 'ewRipple' }, { t: 42, kind: 'ewRipple' }],
+  'eunwoo/super_deploy_s': [{ t: 2, kind: 'ewRipple' }, { t: 16, kind: 'ewRipple' }],
+  'eunwoo/super_touch': [{ t: 12, kind: 'ewTouch' }],
+  'eunwoo/super_release': [{ t: 0, kind: 'ewRelease' }],
 };
 
 /** 라이덴 전조 틱 (동작연출지침서 14-2: 맞는 틱 −4 ~ −1) */
@@ -514,6 +523,10 @@ export class FightVfx {
   private flashOff = [false, false];
   /** 맞은 사람을 주색 실루엣 + 밝은 테두리로 그릴 마지막 틱 (14-8 ⑧) */
   private struckUntil = [-1, -1];
+  /** 맞은 사람 실루엣 색 묶음 (때린 캐릭터 색, 14-8 ⑧) */
+  private struckLooks: LookName[] = ['struck', 'struck'];
+  /** 이번 공격에서 맞은 점 모양을 이미 그린 공격 번호 (여러 번 맞히는 기술은 두 번째 타부터 rehit만) */
+  private ggHitSerial = [-1, -1];
   /** 확인 도구용: 애니 이펙트를 낸 기록 (틱, 기술, 피크 숫자, 맞힘) — 14-6 숫자 표 */
   readonly animeLog: Array<{ tick: number; move: string; swing?: Record<string, unknown>; impact?: Record<string, unknown>; at?: Record<string, number> }> = [];
   /** 투전승불: 모으는 동안의 전류 윤곽 (사람마다), 그 단계, 떼면서 낸 원뿔 방전 (빛을 낸다) */
@@ -550,6 +563,7 @@ export class FightVfx {
     this.since = [99, 99];
     this.blink = [0, 0];
     this.flashOff = [false, false];
+    this.ggHitSerial = [-1, -1];
     this.struckUntil = [-1, -1];
     this.techReady = [false, false];
     this.prevMeter = s.fighters.map((f) => f.meter);
@@ -586,7 +600,7 @@ export class FightVfx {
       const y = wy * FX_PX;
       // 라이덴 지상 1~4타: 맞힘 빛은 작고 짧게 (12~20px, 2~3틱. 사용자 피드백 2026-11-02)
       // 라이덴 길티기어식 이펙트 기술 (data/vfx): 맞은 점 빛은 raidenGGHit가 설계값으로
-      const ggHit = e.type === 'hit' && hitter?.char === 'raiden' && e.move ? this.ggOf(hitter, e.move) : undefined;
+      const ggHit = e.type === 'hit' && hitter && GG_CHARS[hitter.char] && e.move ? this.ggOf(hitter, e.move) : undefined;
       if (ggHit) void 0;
       else if (strikeHit) this.glow(wx, wy, strikeHit.hitR, COLORS.raidenLight, 0.9, strikeHit.hitT);
       else if (e.type === 'hit') this.glow(wx, wy, e.heavy ? 90 : 56, e.move === 'super' ? (s.fighters[e.who]?.char === 'raiden' ? COLORS.raidenDark : COLORS.fxWhite) : s.fighters[e.who]?.char === 'raiden' ? COLORS.raidenLight : (s.fighters[e.who] && rendersOf(s.fighters[e.who].char).light) || COLORS.fxOrange, e.heavy ? 1 : 0.8, e.heavy ? 18 : 10);
@@ -652,7 +666,7 @@ export class FightVfx {
         // 필살기 끝 타격: 흙먼지 폭발 (라이덴 파천은 검붉은 계열 하나: 주황 폭발·화면 번쩍임 없이, 잿더미는 넷째 장면에서 이미 났다)
         // (불꽃을 스스로 그리는 캐릭터는 폭발도 쓰지 않는다: 오스카 월령수류는 선을 따라 도시가 무너진다)
         if (e.move === 'super' && att?.char === 'raiden') this.fx.flash = 0;
-        else if (e.move === 'super' && !(att && rendersOf(att.char).ownSpark)) {
+        else if (e.move === 'super' && !(att && (rendersOf(att.char).ownSpark || att.char === 'eunwoo'))) {
           this.layer.add(explosion({ x: feet(def)[0], ground: GROUND_Y * FX_PX, size: 0.5, surface: fxColor('street'), seed: this.seed++, shake: shake(0.3) }));
         }
       } else if (e.type === 'blink' && att && e.to !== undefined) {
@@ -771,7 +785,9 @@ export class FightVfx {
         this.layer.add(impact({ kind: 'hit', x, y, angle: out > 0 ? 0 : Math.PI, size: 0.22, ramp: fxRamp(COOL), seed: this.seed++ }));
         this.debris.burst('brick', wx, wy, out, 3);
       } else if (e.type === 'char' && att?.char === 'raiden') this.raidenEvent(s, e.text ?? '', e.x, e.y, e.combo ?? 1, att);
+      else if (e.type === 'char' && att?.char === 'eunwoo') this.eunwooEvent(s, e.text ?? '', e.x, e.y, e.to, e.combo, att);
       else if (e.type === 'cine' && e.text === 'whiff' && att?.char === 'raiden') this.pacheonWhiff(att);
+      else if (e.type === 'cine' && e.text === 'start' && e.move === 'super' && att?.char === 'eunwoo' && def) this.eunwooSuperStart(s, att, def);
     }
 
     s.fighters.forEach((f, i) => {
@@ -834,15 +850,28 @@ export class FightVfx {
           // 길티기어식 이펙트 기술(14-8)은 전신 전격 없이 이펙트 모양만 (몸에 1px 번개 선을 두르지 않는다)
           else if (f.char === 'raiden' && !RAIDEN_STRIKE[f.move] && f.move !== 'charge' && f.move !== 'super' && !RAIDEN_GG[f.move]) this.raidenAura(f, i, mv);
           rendersOf(f.char).attackStart?.(this.cfx, s, f, i, f.move);
+          // 백은우 응답 (14-9 M, 시안에 전조가 있을 때): 순간이동(5틱째) 전 4틱 동안 은빛 조각이 팔을 타고 손끝으로, 손끝으로 공기가 빨려 든다
+          if (f.char === 'eunwoo' && f.move === 'skill1' && EUNWOO_GG_DRAFTS.skill1[draftOf('skill1') - 1]?.prelude) {
+            const fighter = f;
+            this.raidenPrelude(f, 'skill1', mv, 4, () => {
+              const h = fighterPose(fighter).joints.hF;
+              return [fighter.x / 256 + fighter.facing * h[0], GROUND_Y + fighter.y / 256 + h[1]];
+            });
+          }
         }
         this.prevMoveId[i] = f.move;
         if (f.char === 'raiden') this.auraLevel[i] = RAIDEN_STRIKE[f.move] || RAIDEN_GG[f.move] || f.move === 'charge' || f.move === 'super' ? 0 : auraLevelOf(mv, f.t);
         const swing = mv.data.reach || mv.data.box ? undefined : SWINGS[f.move];
         const starts = f.t >= mv.activeStart && this.prevMoveT[i] < mv.activeStart;
         // 라이덴 전조 (14-2 −4~−1): 판정이 시작하기 4틱 전부터 팔(다리)을 타는 전류 + 맞을 자리로 빨려 드는 선 (차지는 모으는 동안, 파천은 연출 장면이 따로)
-        if (f.char === 'raiden' && f.move !== 'charge' && f.move !== 'super' && this.ggOf(f, f.move)) {
+        if (GG_CHARS[f.char] && f.move !== 'charge' && f.move !== 'super' && this.ggOf(f, f.move)) {
           const pre = Math.max(0, mv.activeStart - PRELUDE);
-          if (f.t >= pre && f.t < mv.activeStart && (fresh || this.prevMoveT[i] < pre)) this.raidenPrelude(f, f.move, mv, mv.activeStart - f.t);
+          if (f.t >= pre && f.t < mv.activeStart && (fresh || this.prevMoveT[i] < pre)) {
+            this.raidenPrelude(f, f.move, mv, mv.activeStart - f.t);
+            // 14-9 M: 전조가 시작하는 틱에 미리 그어지는 모양 (대시 공격 금실)
+            const gm = this.ggOf(f, f.move)!;
+            if (gm.pre?.length) this.ggSpawn(f, gm.pre, [f.x / 256, GROUND_Y + f.y / 256], f.facing, gm);
+          }
         }
         // 라이덴 적뢰 (동작연출지침서 7-1장): 궤적 상자가 있는 기술은 타격 프레임에 번개가 범위를 통째로 채운다 (헛쳐도)
         if (mv.data.box && f.char === 'raiden' && starts) {
@@ -853,6 +882,11 @@ export class FightVfx {
           else this.rangeBolt(f, i, f.move, mv);
         }
         else if (mv.data.reach && starts) this.boltSweep(f, f.move, mv);
+        // 길티기어식 이펙트가 있는 다른 캐릭터 (백은우, 14-8): 판정이 시작하는 틱에 공격자 발밑 기준 모양 + 캐릭터 고유 덧그림 (와이어)
+        else if (f.char !== 'raiden' && starts && f.move !== 'super' && this.ggOf(f, f.move)) {
+          this.raidenGG(f, i, f.move);
+          rendersOf(f.char).ggStrike?.(this.cfx, s, f, i, f.move);
+        }
         // 다른 캐릭터(지금은 기본 스틱맨): 주먹·발 끝이 지난 길을 따라 대표 색 궤적 띠 (지침서 5장)
         else if (f.char !== 'raiden' && starts) {
           const strike = rendersOf(f.char).strike;
@@ -1039,8 +1073,51 @@ export class FightVfx {
 
   /** 라이덴 길티기어식 이펙트 설계 (data/vfx/raiden): 투전승불은 모은 단계마다 */
   private ggOf(f: Fighter, id: string): GMove | undefined {
-    if (id === 'charge') return RAIDEN_GG_CHARGE[Math.max(1, Math.min(4, f.chargeLv)) - 1];
-    return RAIDEN_GG[id];
+    return GG_CHARS[f.char]?.move(id, f.chargeLv);
+  }
+
+  /** 길티기어식 이펙트 하나 띄우기 (그 캐릭터 색표, 14-9 L 색 뒤집기 포함). 공격자 히트스톱 동안 진행 시계가 멈춘다 */
+  private ggSpawn(f: Fighter, shapes: readonly GShape[], origin: readonly [number, number], facing: number, mv?: { fx?: GTech }, floor?: number): void {
+    const g = GG_CHARS[f.char];
+    if (!g || !shapes.length) return;
+    const fighter = f;
+    const fl = mv?.fx?.flip;
+    this.layer.add(ggEffect({
+      shapes, ramp: g.ramp, origin: [origin[0], origin[1]], facing, held: () => fighter.hitstop > 0, seed: this.seed++,
+      floor: floor ?? GROUND_Y + f.floor / 256, flip: fl && g.flip ? { at: fl.at, ticks: fl.ticks, ramp: g.flip } : undefined,
+    }));
+  }
+
+  /**
+   * 14-9 화면·카메라·환경 기법 (맞힌 틱부터, at틱 뒤): A 임팩트 프레임, E·K 화면 밀기·흔들기 (공격 방향 기준), K 줌 펀치 (맞은 점 가운데),
+   * H 빗줄기 멈춤·물웅덩이가 솟음. L 색 뒤집기는 ggSpawn이 이펙트 색표로
+   */
+  private ggTech(tech: GTech | undefined, at: readonly [number, number], facing: number, floorY: number): void {
+    if (!tech) return;
+    const run = (d: number | undefined, fn: () => void) => {
+      if (!d || d <= 0) fn();
+      else this.later.push({ at: this.now + d, run: fn });
+    };
+    const im = tech.impact;
+    if (im) run(im.at, () => {
+      impactFrame.at = this.now;
+      impactFrame.life = im.ticks;
+      impactFrame.bg = im.bg;
+      impactFrame.ink = im.ink;
+    });
+    const k = tech.kick;
+    if (k) run(k.at, () => this.fx.kick(k.dx * facing, k.dy, k.ticks, k.shake));
+    const z = tech.zoom;
+    if (z) run(z.at, () => {
+      zoomPunch.at = this.now;
+      zoomPunch.life = z.ticks;
+      zoomPunch.k = z.k;
+      zoomPunch.x = at[0];
+      zoomPunch.y = at[1];
+    });
+    if (tech.rain) rainHold.until = Math.max(rainHold.until, this.now + tech.rain.ticks);
+    const pd = tech.puddle;
+    if (pd) for (const dx of pd.at) this.debris.burst('water', at[0] + facing * dx, floorY - 1, dx >= 0 ? facing : -facing, pd.n);
   }
 
   /**
@@ -1051,11 +1128,16 @@ export class FightVfx {
     const fighter = f;
     const names = PRELUDE_CHAINS[mv.data.limb?.[1] ?? ''] ?? [['shF', 'eF', 'hF'], ['shB', 'eB', 'hB']];
     const box = mv.data.box;
+    const g = GG_CHARS[f.char];
+    const glint = g?.prelude === 'glint';
     this.layer.add(ggPrelude({
       chains: () => {
-        const j = fighterPose(fighter).joints as unknown as Record<string, readonly [number, number]>;
+        const j = fighterPose(fighter).joints as unknown as Record<string, readonly [number, number]> & { fx?: { rib?: ReadonlyArray<readonly [number, number]> } };
         const ox = fighter.x / 256;
         const oy = GROUND_Y + fighter.y / 256;
+        // 백은우: 손 → 연검 끝 (그 틱의 리본 점). 리본이 없는 프레임이면 칼 든 팔
+        const rib = glint ? j.fx?.rib : undefined;
+        if (rib && rib.length > 2) return [rib.map((q) => [ox + fighter.facing * q[0], oy + q[1]] as const)];
         return names.map((c) => c.filter((n) => j[n]).map((n) => [ox + fighter.facing * j[n]![0], oy + j[n]![1]] as const));
       },
       target: target ?? (() => {
@@ -1066,11 +1148,12 @@ export class FightVfx {
         return [ox + fighter.facing * tx, oy + ty];
       }),
       facing: () => fighter.facing,
-      ramp: RAIDEN_GG_RAMP,
+      ramp: g?.ramp ?? RAIDEN_GG_RAMP,
       seed: this.seed++,
       ticks: Math.max(1, Math.min(PRELUDE, ticks)),
       loop,
       lines: id === 'atk1' || id === 'air1' ? 2 : 3,
+      style: g?.prelude ?? 'bolt',
     }));
   }
 
@@ -1084,8 +1167,10 @@ export class FightVfx {
     const ax = f.x / 256;
     const ay = GROUND_Y + f.y / 256;
     const shapes = mv.shapes.filter((s) => (s.anchor ?? 'self') === 'self');
-    if (shapes.length) this.layer.add(ggEffect({ shapes, ramp: RAIDEN_GG_RAMP, origin: [ax, ay], facing: f.facing, held: () => fighter.hitstop > 0, seed: this.seed++, floor: GROUND_Y + f.floor / 256 }));
-    if (id === 'skill2') {
+    void fighter;
+    this.ggSpawn(f, shapes, [ax, ay], f.facing, mv);
+    if (f.char !== 'raiden') void 0;
+    else if (id === 'skill2') {
       // 화과산 날숨: 발치 물 튐, 짧은 흔들림, 반구 빛 (9-3)
       const floor = GROUND_Y + f.floor / 256;
       if (f.y >= f.floor) {
@@ -1100,7 +1185,7 @@ export class FightVfx {
       this.glow(ax + f.facing * 50, ay - 33, 30 + 14 * lv, COLORS.raidenFxRose, 0.9, 4 + lv);
     }
     // 쓸기: 쓰는 발 끝을 따라 젖은 바닥의 물이 튄다 (물보라)
-    if (id === 'sweep' && f.y >= 0) {
+    if (id === 'sweep' && f.y >= 0 && f.char === 'raiden') {
       const box = movesOf(f.char).sweep.data.box!;
       const floorY = GROUND_Y + f.floor / 256;
       for (let k = 0; k < 4; k++) this.debris.burst('water', ax + f.facing * (box.x + (box.w * (k + 1)) / 5), floorY - 1, f.facing, 4);
@@ -1125,12 +1210,18 @@ export class FightVfx {
     const want = ay + (mv.hitY ?? (box ? box.y + box.h / 2 : -30));
     const hy = Math.max(feetY - 46, Math.min(feetY - 8, want));
     const hx = def.x / 256 - att.facing * 3;
-    const fighter = att;
-    const shapes = mv.shapes.filter((sh) => sh.anchor === 'hit');
-    if (shapes.length) this.layer.add(ggEffect({ shapes, ramp: RAIDEN_GG_RAMP, origin: [hx, hy], facing: att.facing, held: () => fighter.hitstop > 0, seed: this.seed++, floor: GROUND_Y + def.floor / 256 }));
-    this.screenOf(s, def, mv);
+    const g = GG_CHARS[att.char]!;
+    const who = s.fighters.indexOf(att);
+    // 여러 번 맞히는 기술 (벽 박차기·내려찍기): 맞은 점 큰 모양·화면 기법은 첫 타에만, 그 뒤는 rehit만 (라이덴은 지금처럼 타마다)
+    const first = att.char === 'raiden' || this.ggHitSerial[who] !== this.attackSerial[who];
+    this.ggHitSerial[who] = this.attackSerial[who];
+    const shapes = first ? mv.shapes.filter((sh) => sh.anchor === 'hit') : (mv.rehit ?? []);
+    this.ggSpawn(att, shapes, [hx, hy], att.facing, mv, GROUND_Y + def.floor / 256);
+    if (!first) return;
+    this.screenOf(s, def, mv, g);
+    this.ggTech(mv.fx, [hx, hy], att.facing, GROUND_Y + def.floor / 256);
     // 빛은 히트스톱 동안 그대로, 그 뒤 모양보다 늦게 사그라든다 (14-2 잔향: 15~25틱)
-    if (mv.light) this.glow(hx, hy, mv.light.r, COLORS.raidenFxRose, 0.9, mv.light.t, data.hitstop + 2);
+    if (mv.light) this.glow(hx, hy, mv.light.r, g.light, 0.9, mv.light.t, data.hitstop + 2);
     // 확인 도구용 자리: 공격자 발밑·몸통(엉덩이·목)·머리, 상대 몸 가운데, 맞은 점 (월드 px)
     const jt = fighterPose(att).joints;
     const J = (q: readonly [number, number]) => [ax + att.facing * q[0], ay + q[1]];
@@ -1142,11 +1233,14 @@ export class FightVfx {
   }
 
   /** 화면 전환 (14-8 ⑧): 배경 누르기 (어둡게 / 한 색 + 균열), 맞은 사람을 주색 실루엣 + 밝은 테두리로 */
-  private screenOf(s: SimState, def: Fighter, mv: GMove): void {
+  private screenOf(s: SimState, def: Fighter, mv: GMove, g: GGChar = GG_CHARS.raiden!): void {
     const p = mv.screen?.press;
-    if (p) pressBackground({ tick: s.tick, ticks: p.ticks, k: 1, color: p.color, mode: p.mode, scale: p.scale, crack: p.crack, dark: COLORS.raidenFxDark, hi: COLORS.raidenFxRose });
+    if (p) pressBackground({ tick: s.tick, ticks: p.ticks, k: 1, color: p.color, mode: p.mode, scale: p.scale, crack: p.crack, dark: g.press.dark, hi: g.press.hi });
     const k = s.fighters.indexOf(def);
-    if (mv.screen?.silhouette && k >= 0) this.struckUntil[k] = s.tick + mv.screen.silhouette - 1;
+    if (mv.screen?.silhouette && k >= 0) {
+      this.struckUntil[k] = s.tick + mv.screen.silhouette - 1;
+      this.struckLooks[k] = g.look;
+    }
   }
 
   /**
@@ -1855,6 +1949,8 @@ export class FightVfx {
         }));
       }
       this.layer.add(pacheonAshFall({ x0: ax - 140, x1: ax + att.facing * 260, top: ay - 150, floor: ay, life: 90, ramp: fxRamp(['ashLight', 'ash', 'ashDark']), seed: this.seed++ }));
+    } else if (kind === 'ewRipple' || kind === 'ewTouch' || kind === 'ewRelease') {
+      this.eunwooSuperCue(s, kind, att, def);
     } else {
       // 바닥에 꽂힘: 흙먼지 폭발과 큰 흔들림
       this.layer.add(explosion({ x, ground: (GROUND_Y + def.y / 256) * FX_PX, size: 0.55, surface: fxColor('street'), seed: this.seed++ }));
@@ -1865,9 +1961,93 @@ export class FightVfx {
     }
   }
 
+  /**
+   * 백은우 스킬 (14-8 문법, 14-9 기법, 시안은 EUNWOO_GG_DRAFTS): 응답 = 떠난 자리 → 나타난 자리 금실 바늘땀 (J) + 나타난 자리 모양,
+   * 아직 여기 있어 = 몸 가운데 심장 박동 고리 (N) + 나비. 사건 자리는 sim 단위 (x·to: 1/256px, y·combo: 1/256px)
+   */
+  private eunwooEvent(_s: SimState, text: string, x: number, y: number, to: number | undefined, toY: number | undefined, att: Fighter): void {
+    if (text === 'teleport') {
+      const sk = EUNWOO_GG_DRAFTS.skill1[draftOf('skill1') - 1]!;
+      const ax = x / 256;
+      const ay = GROUND_Y + y / 256 - 24;
+      const bx = (to ?? x) / 256;
+      const by = GROUND_Y + (toY ?? y) / 256 - 24;
+      const dir = bx >= ax ? 1 : -1;
+      // 금실 바늘땀: 떠난 자리 → 나타난 자리, 가운데가 살짝 처진 곡선 (월드 자리 그대로, 보는 쪽 +1)
+      if (sk.stitch) {
+        const st = sk.stitch;
+        const mx = (ax + bx) / 2;
+        const my = (ay + by) / 2 + Math.min(14, Math.abs(bx - ax) * 0.08);
+        this.ggSpawn(att, [{ kind: 'stitch', pts: [[ax, ay], [mx, my], [bx, by]], len: st.len, w: st.w, gap: st.gap, slant: st.slant, sew: st.sew, life: st.life, pulse: sk.tech.aux.includes('N') }], [0, 0], 1);
+      }
+      if (sk.from?.length) this.ggSpawn(att, sk.from, [ax, ay + 24], dir);
+      this.ggSpawn(att, sk.shapes, [bx, by], dir, sk);
+      this.ggTech(sk.fx, [bx, by], dir, GROUND_Y + att.floor / 256);
+      if (sk.light) this.glow(bx, by, sk.light.r, COLORS.eunwooFxSilver, 0.85, sk.light.t, 2);
+      this.animeLog.push({ tick: this.now, move: 'skill1', impact: { press: 0, silhouette: 0, grade: 'skill' }, at: { ax, ay: ay + 24, facing: dir, dx: bx, px: bx, py: by } });
+    } else if (text === 'butterfly') {
+      const sk = EUNWOO_GG_DRAFTS.skill2[draftOf('skill2') - 1]!;
+      const j = fighterPose(att).joints;
+      const cx = att.x / 256 + att.facing * (j.hip[0] + j.neck[0]) / 2;
+      const cy = GROUND_Y + att.y / 256 + (j.hip[1] + j.neck[1]) / 2;
+      this.ggSpawn(att, sk.shapes, [cx, cy], att.facing, sk);
+      this.ggTech(sk.fx, [cx, cy], att.facing, GROUND_Y + att.floor / 256);
+      if (sk.light) this.glow(cx, cy, sk.light.r, COLORS.lilyLight, 0.85, sk.light.t, 6);
+      this.animeLog.push({ tick: this.now, move: 'skill2', impact: { press: 0, silhouette: 0, grade: 'skill' }, at: { ax: att.x / 256, ay: GROUND_Y + att.y / 256, facing: att.facing, dx: cx, px: cx, py: cy } });
+    }
+  }
+
+  /**
+   * 백은우 선의 판정 물결이 닿은 틱 (sim 연출 시작 사건, 11-5 '발동'): 은우 발밑에서 수면에 누운 큰 타원 물결 (14-9 D),
+   * 맞은 점 반짝임·잉크 쐐기, 배경 누르기, 빗줄기 멈춤 (14-9 H, 시안마다)
+   */
+  private eunwooSuperStart(s: SimState, att: Fighter, def: Fighter): void {
+    const mv = EUNWOO_GG_DRAFTS.super[draftOf('super') - 1]!.hit;
+    const ax = att.x / 256;
+    const ay = GROUND_Y + att.y / 256;
+    const feetY = GROUND_Y + def.y / 256;
+    const hy = Math.max(feetY - 46, Math.min(feetY - 8, ay + (mv.hitY ?? -24)));
+    const hx = def.x / 256 - att.facing * 3;
+    this.ggSpawn(att, mv.shapes.filter((sh) => (sh.anchor ?? 'self') === 'self'), [ax, ay], att.facing, mv);
+    this.ggSpawn(att, mv.shapes.filter((sh) => sh.anchor === 'hit'), [hx, hy], att.facing, mv, GROUND_Y + def.floor / 256);
+    this.screenOf(s, def, mv, GG_CHARS.eunwoo!);
+    this.ggTech(mv.fx, [hx, hy], att.facing, GROUND_Y + def.floor / 256);
+    if (mv.light) this.glow(hx, hy, mv.light.r, COLORS.eunwooFxSilver, 0.9, mv.light.t, 4);
+  }
+
+  /** 백은우 선의 연출 신호 (CINE_CUES): 전개 물결 (은우 발밑), 어깨에 손 (닿은 자리), 해제 (상대 자리 둘레, 화면 기법) */
+  private eunwooSuperCue(s: SimState, kind: 'ewRipple' | 'ewTouch' | 'ewRelease', att: Fighter, def: Fighter): void {
+    const sp = EUNWOO_GG_DRAFTS.super[draftOf('super') - 1]!;
+    const fx0 = att.x / 256;
+    const fy0 = GROUND_Y + att.y / 256;
+    if (kind === 'ewRipple') {
+      this.ggSpawn(att, sp.ripple, [fx0, fy0], att.facing);
+      this.glow(fx0, fy0 - 10, 120, COLORS.eunwooFxSilver, 0.6, 20);
+    } else if (kind === 'ewTouch') {
+      const h = fighterPose(att).joints.hB;
+      const tx = fx0 + att.facing * h[0];
+      const ty = fy0 + h[1];
+      this.ggSpawn(att, sp.touch, [tx, ty], att.facing);
+      this.glow(tx, ty, 60, COLORS.eunwooFxGold, 0.8, 20, 6);
+    } else {
+      const dx = def.x / 256;
+      const dy = GROUND_Y + def.y / 256;
+      this.ggSpawn(att, sp.release.shapes, [dx, dy], att.facing, sp.release);
+      this.ggTech(sp.release.fx, [dx, dy - 26], att.facing, GROUND_Y + def.floor / 256);
+      const pr = sp.release.press;
+      if (pr) pressBackground({ tick: s.tick, ticks: pr.ticks, k: 1, color: pr.color, mode: pr.mode, scale: pr.scale, crack: pr.crack, dark: COLORS.eunwooFxInk, hi: COLORS.eunwooFxSilver });
+      this.glow(dx, dy - 40, 200, COLORS.eunwooFxCore, 0.9, 25, 4);
+      this.animeLog.push({ tick: s.tick, move: 'superRelease', impact: { press: pr?.ticks ?? 0, silhouette: 0, grade: 'super' }, at: { ax: fx0, ay: fy0, facing: att.facing, dx, px: dx, py: dy - 26 } });
+    }
+  }
+
   /** 맞은 쪽을 주색 실루엣 + 밝은 테두리로 그릴 틱인가 (14-8 ⑧ 카운터 느낌, 하얀 번쩍임보다 먼저) */
   struck(i: number): boolean {
     return this.now <= this.struckUntil[i]!;
+  }
+  /** 맞은 사람 실루엣 색 묶음 (때린 캐릭터 색) */
+  struckLook(i: number): LookName {
+    return this.struckLooks[i]!;
   }
 
   /** 맞은 쪽을 하얗게 그릴 틱인가 */
