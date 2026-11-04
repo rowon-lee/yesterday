@@ -102,26 +102,31 @@ export const RAIDEN_LAND: MotionData = {
   ],
 };
 
-// ---- 지상 대시 (sim: 12틱, 2~7틱째 앞으로 빠르게) ----
+// ---- 지상 대시 (sim: 12틱, 2~7틱째 앞으로 빠르게. 프레임은 12틱을 프레임 수로 고르게 나눈다) ----
+// 2차 리워크: 12프레임 × 1틱(4~7번 같은 자세) → 6프레임 × 2틱. 같은 자세를 늘어놓지 않고 파고든 뒤 뒷발을 끌며 일어선다
+/** 박차기 시작: 엉덩이가 먼저 떨어지며 몸이 앞으로 기운다 (뒷발로 바닥을 민다) */
+const D_DIP = R({ hx: 1.5, hy: -16, tl: 28, hd: -2, aFx: 12, aFy: -2, aBx: 8, aBy: 2, lFx: 11, lBx: -12, lBy: 0 });
 /** 낮게 파고든다: 엉덩이를 6px 낮추고 몸을 깊이 숙이되 고개는 들어 상대를 보고, 가드는 얼굴 앞. 앞발은 멀리, 뒷다리는 뒤로 쭉 */
 const D_DIVE = R({ hx: 3, hy: -13, tl: 36, hd: -10, aFx: 12, aFy: 0, aBx: 8, aBy: 3, lFx: 16, lBx: -16, lBy: 0 });
+/** 미끄러지는 중: 뒷발이 바닥을 긁으며 끌려온다 (몸은 낮은 채) */
+const D_DRAG = R({ hx: 3, hy: -13.5, tl: 34, hd: -9, aFx: 12, aFy: -0.5, aBx: 8, aBy: 2.5, lFx: 15.5, lBx: -13, lBy: -1 });
 /** 미끄러지듯 나아가는 끝: 뒷발을 끌어당기며 몸을 일으킨다 */
 const D_GLIDE = R({ hx: 2, hy: -15, tl: 30, hd: -6, aFx: 12, aFy: -1, aBx: 8, aBy: 2, lFx: 14, lBx: -10, lBy: -2 });
 /** 다시 가드 자세로 서며 한 번 내려앉는다 */
 const D_SETTLE = R({ hx: 0, hy: -17, tl: 20, hd: 6, aFx: 12, aFy: -3, aBx: 8, aBy: 1, lFx: 9, lBx: -9 });
 
-/** 지상 대시: 기본자세 → 2~3프레임 낮게 파고듦 → 미끄러지듯 나아감 → 내려앉으며 가드. 12프레임 × 1틱 (검붉은 잔상은 렌더) */
+/** 지상 대시: 엉덩이 먼저 떨어짐 → 낮게 파고듦 → 뒷발을 끌며 미끄러짐 → 일어섬 → 내려앉으며 가드. 6프레임 × 2틱 (검붉은 잔상은 렌더) */
 export const RAIDEN_DASH: MotionData = {
   name: 'raiden/dash',
   label: '라이덴 지상 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [2, 2, 2, 2, 2, 2],
   keys: [
-    { at: 0, pose: R_STANCE },
-    { at: 2, pose: D_DIVE },
-    { at: 6, pose: D_DIVE, stop: true },
-    { at: 8, pose: D_GLIDE },
-    { at: 10, pose: D_SETTLE },
-    { at: 11, pose: R_STANCE },
+    { at: 0, pose: D_DIP },
+    { at: 1, pose: D_DIVE, stop: true },
+    { at: 2, pose: D_DRAG },
+    { at: 3, pose: D_GLIDE },
+    { at: 4, pose: D_SETTLE },
+    { at: 5, pose: R_STANCE },
   ],
 };
 
