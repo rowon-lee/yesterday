@@ -214,21 +214,25 @@ export const RAIDEN_PACHEON_SURGE: MotionData = {
     { at: 2, pose: PS_PUSH2 },
   ],
 };
-/** 파천 장면 2: 상대 반응 — 경련 (12프레임 24틱, 렌더는 이 동안 상대를 어둡게 비친다) */
+/** 경련 사이: 움츠러든 몸이 한 번 더 떤다 */
+const RX1_D = S({ hx: -1.5, hy: -18.5, tl: 26, hd: 12, aFx: 4, aFy: 8.5, aBx: 2, aBy: 10.5, lFx: 8, lBx: -10.5 });
+/** 파천 장면 2: 상대 반응 — 경련 (10프레임 24틱, 번쩍임 6·16틱에 크게 젖혀진다. 렌더는 이 동안 상대를 어둡게 비친다) */
 export const RAIDEN_PACHEON_REACT2: MotionData = {
   name: 'raiden/pacheon_react2',
   label: '파천 상대 반응 2 (몸 안의 전격에 경련)',
   wide: true,
-  dur: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+  dur: [3, 2, 1, 3, 2, 2, 3, 2, 2, 4],
   keys: [
     { at: 0, pose: RX1_A },
-    { at: 2, pose: RX1_B },
-    { at: 3, pose: RX1_C },
-    { at: 5, pose: RX1_B },
-    { at: 6, pose: RX1_A },
-    { at: 8, pose: RX1_B },
-    { at: 9, pose: RX1_C },
-    { at: 11, pose: RX1_A },
+    { at: 1, pose: RX1_C },
+    { at: 2, pose: RX1_D },
+    { at: 3, pose: RX1_B, stop: true },
+    { at: 4, pose: RX1_C },
+    { at: 5, pose: RX1_A },
+    { at: 6, pose: RX1_D },
+    { at: 7, pose: RX1_B, stop: true },
+    { at: 8, pose: RX1_C },
+    { at: 9, pose: RX1_A },
   ],
 };
 
