@@ -190,7 +190,7 @@ export const EDWARD_WALL_KICK: MotionData = {
 // ---- 벽 낙법 (벽꽝: 뒤쪽 정면에 박히는 순간. 정면을 박차고 뒤로 공중제비를 돌아 튕겨 나간다) ----
 /** 정면에 부딪힌 순간: 몸이 젖혀지고 해머를 쥔 팔이 어깨 위로 들린다 */
 const WT_HIT = E({ hx: -6, hy: -22, tl: -20, hd: -16, aFx: 4, aFy: -8, aBx: -9, aBy: -14, lFx: 10, lFy: 0, lBx: -7, lBy: 0, wa: -125 });
-/** 무릎을 끌어당기며 해머를 등 뒤로 눕혀 끌어안는다 */
+/** 무릎을 끌어당기며 해머를 등 뒤로 눕혀 끌어안는다 (낙법에서는 머리가 늦게 따라와 박찰 때 눕는다) */
 const WT_PULL = E({ hx: -3, hy: -25, tl: -10, hd: 4, aFx: 6, aFy: 3, aBx: 3, aBy: 4, lFx: 7, lFy: -16, lBx: 2, lBy: -14, wa: -190 });
 /** 두 발로 정면을 박찬다 */
 const WT_PUSH = E({ hx: -2, hy: -27, tl: -14, hd: -8, aFx: 6, aFy: -2, aBx: -6, aBy: -12, lFx: 3, lFy: 0, lBx: -3, lBy: 1, wa: -194 });
@@ -198,12 +198,13 @@ const WT_PUSH = E({ hx: -2, hy: -27, tl: -14, hd: -8, aFx: 6, aFy: -2, aBx: -6, 
  * 뒤로 공중제비: 해머를 등 뒤로 눕혀 끌어안고 웅크린 몸을 엉덩이를 중심으로 통째로 돌린다 (해머도 몸과 같이 돈다: 몸 기준 뒤쪽).
  * 몸통 기울기 -60° → -150° → -240° → -320°
  */
-const tuck = (tl: number, lF: [number, number], lB: [number, number], aF: [number, number]): Pose =>
-  E({ hx: -1, hy: -30, tl, hd: -8, aFx: aF[0], aFy: aF[1], aBx: aF[0] - 1, aBy: aF[1] + 3, lFx: lF[0], lFy: lF[1], lBx: lB[0], lBy: lB[1], wa: -180 + tl });
-const WT_FLIP1 = tuck(-60, [9, -34], [10, -27], [4, -6]);
-const WT_FLIP2 = tuck(-150, [-7, -38], [0, -39], [-6, -4]);
-const WT_FLIP3 = tuck(-240, [-11, -22], [-12, -29], [-4, 6]);
-const WT_FLIP4 = tuck(-320, [3, -17], [-4, -17], [5, 5]);
+const tuck = (tl: number, lF: [number, number], lB: [number, number], aF: [number, number], lag = 0): Pose =>
+  E({ hx: -1, hy: -30, tl, hd: -8, aFx: aF[0], aFy: aF[1], aBx: aF[0] - 1, aBy: aF[1] + 3, lFx: lF[0], lFy: lF[1], lBx: lB[0], lBy: lB[1], wa: -180 + tl + lag });
+/* 해머는 몸보다 늦게 돈다 (2차 리워크): 몸이 돌기 시작해도 머리는 뒤에 남았다가 따라잡고, 다 돌 무렵 한 번 지나친다 (lag: 무기 각도가 몸보다 덜 돈 만큼) */
+const WT_FLIP1 = tuck(-60, [9, -34], [10, -27], [4, -6], 40);
+const WT_FLIP2 = tuck(-150, [-7, -38], [0, -39], [-6, -4], 30);
+const WT_FLIP3 = tuck(-240, [-11, -22], [-12, -29], [-4, 6], 40);
+const WT_FLIP4 = tuck(-320, [3, -17], [-4, -17], [5, 5], -8);
 /** 한 바퀴를 다 돌며 몸을 편다 (-372° = -12°) */
 const WT_OPEN = E({ hx: 0, hy: -25, tl: -372, hd: 6, aFx: 7, aFy: -2, aBx: -9, aBy: -8, lFx: 7, lFy: -7, lBx: -6, lBy: -3, wa: -150 - 360 });
 /** 낙하 자세 (한 바퀴 돈 각도로 적는다) */
@@ -216,7 +217,7 @@ export const EDWARD_WALL_TECH: MotionData = {
   dur: [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3],
   keys: [
     { at: 0, pose: WT_HIT },
-    { at: 1, pose: WT_PULL },
+    { at: 1, pose: { ...WT_PULL, wa: -150 } },
     { at: 2, pose: WT_PUSH },
     { at: 3, pose: WT_FLIP1 },
     { at: 5, pose: WT_FLIP2 },
