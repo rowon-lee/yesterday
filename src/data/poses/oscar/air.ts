@@ -123,16 +123,21 @@ export const OSCAR_DASH: MotionData = {
 /** 공중에서 몸을 앞으로 눕혀 그림자처럼 미끄러진다: 칼자루를 쥔 채, 두 다리는 모아 뒤로 */
 const AD_GLIDE = OR({ hx: 2, hy: -24, tl: 52, hd: -8, lFx: -3, lFy: -6, lBx: -9, lBy: -9 });
 
-/** 공중 대시: 몸을 눕혀 미끄러짐 (2~8프레임) → 몸을 세우며 낙하 준비. 12프레임 × 1틱 */
+/**
+ * 공중 대시 (2차 리워크): 꼭대기 → 그림자 속으로 몸을 숙여 들어감 → 몸을 눕혀 미끄러짐 → 다리가 더 끌리며 길게 늘어짐 →
+ * 몸을 일으켜 나옴 → 낙하 준비. 6프레임 (sim은 공중 대시 길이를 프레임 수로 고르게 나눈다. 같은 자세 7장 대신 프레임마다 다른 자세)
+ */
 export const OSCAR_AIR_DASH: MotionData = {
   name: 'oscar/air_dash',
   label: '오스카 공중 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 1, 3, 3, 2, 2],
   keys: [
     { at: 0, pose: J_TOP },
-    { at: 1, pose: AD_GLIDE },
-    { at: 7, pose: AD_GLIDE, stop: true },
-    { at: 11, pose: F_OPEN },
+    { at: 1, pose: OR({ hx: 1, hy: -24.5, tl: 30, hd: 4, lFx: 1, lFy: -7, lBx: -5, lBy: -8 }) },
+    { at: 2, pose: AD_GLIDE },
+    { at: 3, pose: OR({ hx: 2.5, hy: -23.8, tl: 55, hd: -10, lFx: -5, lFy: -5, lBx: -11.5, lBy: -8 }) },
+    { at: 4, pose: OR({ hx: 1.5, hy: -24.5, tl: 30, hd: 6, lFx: 2, lFy: -5, lBx: -5, lBy: -4 }) },
+    { at: 5, pose: F_OPEN },
   ],
 };
 
