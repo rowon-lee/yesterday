@@ -216,20 +216,19 @@ export const OSCAR_SUPER_CUT = seq('oscar/super_cut', '오스카 필살기 장�
   [SP_TURN, 13, true],
 ]);
 
-/** 장면 6 납도 (30틱): 등을 돌린 채 천천히 칼집에 밀어 넣고 '탁' (마지막 두 프레임 멈춤). 이 순간 조각들이 한꺼번에 무너진다 (연출 끝) */
-export const OSCAR_SUPER_SHEATHE: MotionData = {
-  name: 'oscar/super_sheathe',
-  label: '오스카 필살기 장면 6 (납도)',
-  wide: true,
-  dur: [3, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 1, 2],
-  keys: [
-    { at: 0, pose: SP_TURN },
-    { at: 3, pose: OD({ hx: 2, hy: -19, tl: 21, hd: 12, lFx: 13, lBx: -11 }, 9), stop: true },
-    { at: 8, pose: OD({ hx: 1, hy: -20.5, tl: 16, hd: 15, lFx: 10, lBx: -9 }, 2) },
-    { at: 10, pose: OD({ hx: 1, hy: -21, tl: 16, hd: 18, lFx: 9, lBx: -8 }, 0), stop: true },
-    { at: 12, pose: OD({ hx: 1, hy: -21, tl: 16, hd: 18, lFx: 9, lBx: -8 }, 0), stop: true },
-  ],
-};
+/**
+ * 장면 6 납도 (30틱, 2차 리워크): 등을 돌린 채 천천히 칼집에 밀어 넣는다 (몸을 세우며 13 → 12 → 10 → 8 → 6px) → 반쯤 남긴 채 멈춤 →
+ * 1틱 긴장 → 남은 칼날이 한 번에 미끄러져 들어가 '탁' (26틱). 이 순간 조각들이 한꺼번에 무너진다 (연출 끝). 7프레임 (사이 프레임 13장 대신)
+ */
+export const OSCAR_SUPER_SHEATHE = seq('oscar/super_sheathe', '오스카 필살기 장면 6 (납도)', [
+  [SP_TURN, 3],
+  [OD({ hx: 2.6, hy: -18.2, tl: 25, hd: 11, lFx: 15, lBx: -12.5 }, 12), 4],
+  [OD({ hx: 2.2, hy: -18.8, tl: 22.5, hd: 12, lFx: 13.5, lBx: -11.5 }, 10), 5, true],
+  [OD({ hx: 1.8, hy: -19.4, tl: 20, hd: 13, lFx: 12, lBx: -10.5 }, 8), 6],
+  [OD({ hx: 1.5, hy: -19.9, tl: 18, hd: 14, lFx: 11, lBx: -9.5 }, 6), 7, true],
+  [OD({ hx: 1.5, hy: -19.8, tl: 18.5, hd: 15, lFx: 11, lBx: -9.5 }, 5.5), 1],
+  [OD({ hx: 1, hy: -21, tl: 16, hd: 18, lFx: 9, lBx: -8 }, 0), 4, true],
+]);
 
 // ---- 필살기 상대 반응 (누가 맞든 같다. 이름이 'react/'라 맞는 사람의 겉모습으로 그린다) ----
 /** 일반 서 있는 자세 (상대 반응의 바탕): 가드를 반쯤 올린 채 */
