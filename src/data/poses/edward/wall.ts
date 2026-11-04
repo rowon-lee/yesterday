@@ -57,20 +57,30 @@ export const EDWARD_WALL_CLING: MotionData = {
 const WJ_KICK = E({ hx: 3, hy: -20, tl: 34, hd: -14, aFx: 5, aFy: 4, aBx: -9, aBy: 2, lFx: -9, lFy: -9, lBx: -12, lBy: -3, wa: -128 });
 /** 튕겨 나간다: 몸이 솟고 해머가 등 뒤로 기운다, 다리는 뒤에 끌린다 */
 const WJ_LAUNCH = E({ hx: 2, hy: -24, tl: 20, hd: -12, aFx: 5, aFy: 3, aBx: -7, aBy: -2, lFx: -6, lFy: -7, lBx: -10, lBy: -3, wa: -140 });
+/** 박차는 힘에 몸이 먼저 튀어 나간다 (해머는 아직 어깨 위에 누운 채) */
+const WJ_KICK2 = E({ hx: 2.5, hy: -22, tl: 27, hd: -13, aFx: 5, aFy: 3.5, aBx: -8, aBy: 0, lFx: -7.5, lFy: -8, lBx: -11, lBy: -3, wa: -128 });
+/** 솟는 동안 해머 머리가 뒤로 끌린다 */
+const WJ_LAUNCH2 = E({ hx: 1.5, hy: -24.5, tl: 17, hd: -10, aFx: 5, aFy: 3.5, aBx: -6.5, aBy: -1, lFx: -4, lFy: -9, lBx: -8, lBy: -5, wa: -160 });
 /** 무릎을 끌어당기며 해머를 어깨로 되돌린다 */
 const WJ_TUCK = E({ hy: -25, tl: 10, hd: -2, aFx: 5, aFy: 4, aBx: -5, aBy: 4, lFx: 7, lFy: -13, lBx: -1, lBy: -11, wa: -140 });
 /** 낙하 자세로 이어진다 */
 const WJ_FALL = E({ hy: -24, tl: 3, hd: -2, aFx: 5, aFy: 5.5, aBx: -7, aBy: 2, lFx: 7, lFy: -5, lBx: -5, lBy: -4, wa: -150 });
 
-/** 벽 점프: 두 발로 벽을 차고(1~2프레임) → 해머를 치켜들며 솟고 → 무릎을 당겼다가 → 낙하 자세. 14프레임 */
+/**
+ * 벽 점프: 두 발로 벽을 차고(1~2프레임) → 해머를 치켜들며 솟고 → 무릎을 당겼다가 → 낙하 자세. 14프레임.
+ * 해머 머리는 몸보다 늦다 (2차 리워크): 박차고 튀어 나가는 동안 뒤로 끌렸다가, 무릎을 당길 때 앞으로 지나치고, 낙하 자세에서 자리 잡는다
+ */
 export const EDWARD_WALL_JUMP: MotionData = {
   name: 'edward/wall_jump',
   label: '에드워드 벽 점프',
   dur: [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: WJ_KICK },
-    { at: 2, pose: WJ_LAUNCH },
-    { at: 6, pose: WJ_TUCK, stop: true },
+    { at: 1, pose: WJ_KICK2 },
+    { at: 2, pose: { ...WJ_LAUNCH, wa: -146 } },
+    { at: 3, pose: WJ_LAUNCH2 },
+    { at: 6, pose: { ...WJ_TUCK, wa: -150 } },
+    { at: 7, pose: { ...WJ_TUCK, hy: -24.6, tl: 8, wa: -128 }, stop: true },
     { at: 13, pose: WJ_FALL },
   ],
 };
