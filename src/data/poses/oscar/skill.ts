@@ -282,18 +282,19 @@ export const REACT_OSCAR_ORBIT = seq('react/oscar_orbit', '월령수류 반응 2
   [BRACE, 14, true],
 ]);
 
-/** 짧은 판 반응 1 (40틱) */
-export const REACT_OSCAR_OPEN_S: MotionData = {
-  name: 'react/oscar_open_s',
-  label: '월령수류 짧은 판 반응 1',
-  wide: true,
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2],
-  keys: [
-    { at: 0, pose: g({}) },
-    { at: 5, pose: LOOK_UP, stop: true },
-    { at: 13, pose: BRACE, stop: true },
-  ],
-};
+/**
+ * 짧은 판 반응 1 (40틱, 2차 리워크): 서 있다 → 고개가 움찔 숙었다가 (1틱) → 바뀌는 하늘을 홱 올려다봄 (2틱, 지나쳤다 돌아옴) →
+ * 굳음 → 고개가 내려오기 시작하다 (1틱) → 둘레의 검영에 움츠림 (2틱) → 버팀. 7프레임 (키 3개를 14장으로 늘이던 것 대신)
+ */
+export const REACT_OSCAR_OPEN_S = seq('react/oscar_open_s', '월령수류 짧은 판 반응 1', [
+  [g({}), 8, true],
+  [g({ hd: 6, tl: 5 }), 1],
+  [g({ hd: -20, tl: -4, aFx: 6, aFy: -8 }), 2],
+  [LOOK_UP, 12, true],
+  [g({ hd: -10, tl: -1, aFx: 6, aFy: -8 }), 1],
+  [g({ hy: -20.5, hd: 1, tl: 5, aFx: 8, aFy: -11, aBx: 6.5, aBy: -8 }), 2],
+  [BRACE, 14, true],
+]);
 
 /** 반응 3 정적 (20틱): 숨을 멈춘 듯 굳는다 */
 export const REACT_OSCAR_STILL: MotionData = {
