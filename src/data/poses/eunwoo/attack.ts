@@ -50,9 +50,9 @@ const whip = (hit: number, o: { load?: number; snap?: number; relax?: number; cu
  */
 
 // ---- 1타: 손목 채찍 (가볍게 한 걸음, 칼날이 수평으로 앞으로 뻗고 끝이 꺾인다. 리치 60) ----
-const A1_LOAD = E({ hx: -2, hy: -22, tl: 0, hd: 4, tw: -2, aFx: 2, aFy: 11, aBx: -5, aBy: 13, lFx: 8, lBx: -6, wa: 110 });
-/** 감기 끝 (멈칫): 손을 엉덩이 뒤로 당겨 손목을 젖힌다 (칼날은 뒤아래로 늘어진다) */
-const A1_COIL = E({ hx: -2.5, hy: -21.5, tl: -2, hd: 4, tw: -3, aFx: -2, aFy: 8, aBx: -4, aBy: 12, lFx: 9, lBx: -7, wa: 160 });
+const A1_LOAD = E({ hx: -2, hy: -22, tl: 0, hd: 4, tw: -2, aFx: 2, aFy: 9, aBx: -5, aBy: 13, lFx: 8, lBx: -6, wa: 150 });
+/** 감기 끝 (멈칫): 손을 엉덩이 뒤로 당겨 손목을 젖힌다. 칼날은 뒤위로 젖혀 둔다 (2차 리워크: 튕기면 칼끝이 위로 넘어와 앞으로 뻗는 호) */
+const A1_COIL = E({ hx: -2.5, hy: -21.5, tl: -2, hd: 4, tw: -3, aFx: -2, aFy: 4, aBx: -4, aBy: 12, lFx: 9, lBx: -7, wa: 215 });
 /** 가볍게 한 걸음 내디디며 손목을 앞으로 튕긴다 (스미어) */
 const A1_SNAP = E({ hx: 1.5, hy: -20, tl: 12, hd: -2, tw: 3, aFx: 12, aFy: 0, aBx: -8, aBy: 9, lFx: 14, lBx: -9, wa: 40 });
 /** 타격: 손을 가슴 앞으로 뻗어 칼날을 수평으로 쏘아 보낸다 (뒷팔은 뒤로 뻗어 균형) */
