@@ -46,35 +46,29 @@ export const OSCAR_SKILL1 = seq('oscar/skill1', '오스카 스킬 1 (월하참�
 ]);
 
 // ---- 스킬 2 월하윤회궤 (13-4): 0~4 고른 검영이 맥동 → 4~8 앞 허공에 세로 틈이 열리고 들어간다 → 8~10 사라짐 (9틱째 옮김) → 10~16 검영 자리 틈에서 걸어 나온다 ----
-const S2_READY = OD({ hy: -21.5, tl: 13, hd: 10, lFx: 6, lBx: -6 }, 1);
-/** 틈으로 한 걸음 들어선다 */
-const S2_IN1 = OR({ hx: 3, hy: -21.6, tl: 14, hd: 12, lFx: 10, lBx: -2, lBy: -1 });
-const S2_IN2 = OR({ hx: 6, hy: -21.8, tl: 15, hd: 13, lFx: 12, lBx: 2, lBy: -1 });
-/** 검영 자리의 틈에서 나온다: 몸이 틈(조금 뒤) 속에 있다가 앞으로 걸어 나온다 */
-const S2_OUT1 = OR({ hx: -5, hy: -21.6, tl: 14, hd: 12, lFx: -1, lBx: -11, lBy: -1 });
-const S2_OUT2 = OR({ hx: -2, hy: -21.8, tl: 13, hd: 12, lFx: 6, lFy: -1, lBx: -9 });
-const S2_LAND = OR({ hx: 0, hy: -21.8, tl: 13, hd: 12, lFx: 6, lBx: -6 });
-
-/** 스킬 2: 손을 얹음 → 틈으로 두 걸음 (4~8틱) → 사라짐 (8~10틱, 9틱째 옮김) → 틈에서 걸어 나옴 (10~16틱) → 기본자세. 14프레임 24틱 */
-export const OSCAR_SKILL2: MotionData = {
-  name: 'oscar/skill2',
-  label: '오스카 스킬 2 (월하윤회궤)',
-  wide: true,
-  dur: [1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 3],
-  keys: [
-    { at: 0, pose: O_STANCE },
-    { at: 1, pose: S2_READY, stop: true },
-    { at: 2, pose: S2_READY, stop: true },
-    { at: 3, pose: S2_IN1 },
-    { at: 4, pose: S2_IN2, stop: true },
-    { at: 5, pose: S2_IN2, stop: true },
-    { at: 6, pose: S2_OUT1, stop: true },
-    { at: 7, pose: S2_OUT1, stop: true },
-    { at: 8, pose: S2_OUT2 },
-    { at: 10, pose: S2_LAND, stop: true },
-    { at: 13, pose: O_STANCE },
-  ],
-};
+/**
+ * 스킬 2 (2차 리워크): 손이 칼자루로, 고른 검영을 바라보며 멈춤 (0~4 검영이 맥동) → 틈으로 두 걸음 (4~8, 디딜 때마다 내려앉음) →
+ * 틈 속으로 (8틱) → 옮겨 간 틈 속 (9틱, 8~10은 렌더가 감춘다) → 검영 자리의 틈에서 걸어 나옴 (10~16) → 뒷손이 등 뒤로 → 기본자세. 17프레임 24틱
+ */
+export const OSCAR_SKILL2 = seq('oscar/skill2', '오스카 스킬 2 (월하윤회궤)', [
+  [O_STANCE, 1],
+  [OD({ hy: -21.8, tl: 12, hd: 6, lFx: 6, lBx: -6 }, -1), 1, true],
+  [OD({ hx: -0.5, hy: -21.4, tl: 13, hd: 9, lFx: 6, lBx: -6.5 }, -2), 2, true],
+  [OD({ hx: 1.5, hy: -22.4, tl: 13, hd: 10, lFx: 8, lFy: -2, lBx: -6 }, -1), 1],
+  [OD({ hx: 3, hy: -21.4, tl: 14, hd: 12, lFx: 10, lBx: -3, lBy: -1 }, -1), 1],
+  [OD({ hx: 4.5, hy: -22.4, tl: 14, hd: 12, lFx: 10, lBx: 3, lBy: -2.5 }, -1), 1],
+  [OD({ hx: 6, hy: -21.6, tl: 15, hd: 13, lFx: 12, lBx: 2, lBy: -1 }, -1), 1],
+  [OD({ hx: 7.5, hy: -21.4, tl: 17, hd: 15, lFx: 13, lBx: 5, lBy: -1.5 }, -1), 1],
+  [OD({ hx: -6.5, hy: -21.3, tl: 17, hd: 15, lFx: -3, lBx: -10, lBy: -1 }, -1), 1, true],
+  [OD({ hx: -5, hy: -21.8, tl: 14, hd: 12, lFx: -1, lBx: -11, lBy: -1 }, -1), 1],
+  [OD({ hx: -3.5, hy: -22.4, tl: 13.5, hd: 12, lFx: 2, lFy: -2, lBx: -11 }, -1), 1],
+  [OD({ hx: -2, hy: -21.5, tl: 13, hd: 12, lFx: 6, lBx: -9 }, -1), 2],
+  [OD({ hx: -1, hy: -22.3, tl: 13, hd: 12, lFx: 6, lBx: -7, lBy: -2 }, -1), 1],
+  [OD({ hx: 0, hy: -21.4, tl: 13.5, hd: 14, lFx: 6, lBx: -6 }, -1), 2, true],
+  [OD({ hy: -22.2, tl: 12, hd: 6, lFx: 6, lBx: -6 }, 0), 2],
+  [OR({ hy: -22.3, tl: 12.5, hd: 9 }), 2],
+  [O_STANCE, 3],
+]);
 
 // ---- 차지 만검지화 (13-5): 칼자루에 손을 얹고 고개를 숙인 채 몸은 정지. 그동안 앞 허공에 검영 꽃이 하나씩 핀다 ----
 const C_READY = OD({ hy: -21.5, tl: 14, hd: 16, lFx: 7, lBx: -7 }, 0);
