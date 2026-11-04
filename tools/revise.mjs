@@ -5,6 +5,7 @@
 //   <이름>-compare-half.gif  같은 것 0.5배속
 //   <이름>-path.png          끝점 경로 (공격은 치는 손발 끝, 나머지는 가장 많이 움직인 관절): 회색 = 전, 노랑 = 지금, 점 옆 숫자 = 프레임
 //   <이름>-sil.png           단색 실루엣 띠 (위 = 전, 아래 = 지금. 주황 = 판정 틱의 프레임, 빨강 = 첫 판정 프레임과 대기 그림자)
+//   --lineup이면 <out>/lineup.png 하나 더: 네 캐릭터의 같은 공격(1~4타·띄우기·차지·스킬·필살기) 첫 판정 틱 그림을 나란히 (5장)
 // 그리고 out/revise.json: 프레임 수·틱·그림과 판정 데이터의 차이 (그림 관절로 만든 상자 vs 공격 데이터, 8px 넘으면 표에 적는다: 4장)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -13,11 +14,12 @@ import { encodeGif } from './gif.mjs';
 import { encodePng } from './png.mjs';
 
 const argv = process.argv.slice(2);
-const opt = { before: '', out: 'previews/rework' };
+const opt = { before: '', out: 'previews/rework', lineup: false };
 const names = [];
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--before') opt.before = argv[++i];
   else if (argv[i] === '--out') opt.out = argv[++i];
+  else if (argv[i] === '--lineup') opt.lineup = true;
   else names.push(argv[i]);
 }
 if (!opt.before || !names.length) {
@@ -358,3 +360,30 @@ for (const name of names) {
 }
 mkdirSync('out', { recursive: true });
 writeFileSync('out/revise.json', JSON.stringify(report, null, 1));
+
+// 5) 네 캐릭터 같은 공격의 첫 판정 틱 그림 (지금 그림, 색 그대로). 줄 = 공격, 칸 = 캐릭터
+if (opt.lineup) {
+  const CHARS = ['raiden', 'eunwoo', 'edward', 'oscar'];
+  const ROWS = [['atk1', '1'], ['atk2', '2'], ['atk3', '3'], ['atk4', '4'], ['launcher', 'UP'], ['charge', 'CHARGE'], ['skill1', 'S1'], ['skill2', 'S2'], ['super', 'SUPER']];
+  const LW = 34;
+  const cv = canvas(LW + CHARS.length * (SLOT.w + 1), 10 + ROWS.length * (SLOT.h + 10), BG);
+  CHARS.forEach((c, k) => text(cv, c, LW + k * (SLOT.w + 1) + 2, 2, GOLD));
+  ROWS.forEach(([id, label], r) => {
+    const y0 = 10 + r * (SLOT.h + 10);
+    text(cv, label, 2, y0 + 10, GOLD);
+    CHARS.forEach((c, k) => {
+      const x0 = LW + k * (SLOT.w + 1);
+      rect(cv, x0, y0 + 8, SLOT.w, SLOT.h, CELL);
+      rect(cv, x0, y0 + 8 + SLOT.fy + 1, SLOT.w, 1, GROUND);
+      const mv = NEW.sim.movesOf(c)[id];
+      if (!mv || !mv.time.hits.length) return;
+      const R = render(NEW, mv.time.motion);
+      if (!R) return;
+      const f = frameAt(R.cum, mv.activeStart);
+      blit(cv, R.frames[f], x0, y0 + 8);
+      text(cv, `${mv.time.motion.slice(mv.time.motion.indexOf('/') + 1).replace(/_/g, '-')} ${f + 1}F T${mv.activeStart}`, x0 + 2, y0 + 1, GREY);
+    });
+  });
+  writeFileSync(`${opt.out}/lineup.png`, png(scaled(cv, 2)));
+  console.log(`→ ${opt.out}/lineup.png`);
+}
