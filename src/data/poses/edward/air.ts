@@ -92,16 +92,32 @@ const L_SQUASH = E({ hx: 0, hy: -12, tl: 26, hd: 6, aFx: 6, aFy: 7, aBx: -6, aBy
 /** 버티며 일어난다 */
 const L_RISE = E({ hx: 0, hy: -19.5, tl: 8, hd: 0, aFx: 5, aFy: 6.5, aBx: -4, aBy: 11, lFx: 8, lBx: -9, wa: -152 });
 
-/** 착지: 발이 닿음 → 쿵 깊게 받음 → 버티며 일어나 기본자세. 12프레임 × 1틱 (바닥 울림은 렌더) */
+/** 발이 닿아 무릎이 꺾이기 시작한다 (해머는 아직 그대로) */
+const L_TOUCH = E({ hx: 0, hy: -18, tl: 14, hd: 3, aFx: 5.5, aFy: 6.5, aBx: -7, aBy: 4, lFx: 10.5, lBx: -11, wa: -151 });
+/** 해머 머리가 늦게 어깨를 내리누르며 2px 더 눌린다 */
+const L_SQUASH2 = E({ hx: 0, hy: -10.8, tl: 28, hd: 7, aFx: 6, aFy: 7.4, aBx: -6, aBy: 8.5, lFx: 10.5, lBx: -11.5, wa: -168 });
+/** 밀어 일어난다 */
+const L_PUSH = E({ hx: 0, hy: -15.5, tl: 16, hd: 2, aFx: 5.5, aFy: 7, aBx: -5, aBy: 10, lFx: 9, lBx: -10, wa: -160 });
+/** 서며 자리 잡는다 (해머 머리가 늦게 한 번 튀어 오른다) */
+const L_SETTLE = E({ hx: 0, hy: -21.8, tl: -1, hd: -2, aFx: 4.8, aFy: 6.2, aBx: -3, aBy: 12.5, lFx: 7, lBx: -7.5, wa: -143 });
+
+/**
+ * 착지 (2차 리워크): 발이 닿음 → 무릎이 꺾임 → 쿵 깊게 받음 → 해머가 늦게 어깨를 눌러 2px 더 → 밀어 일어남 → 일어섬 →
+ * 자리 잡음(해머가 늦게 튐) → 기본자세. 8프레임 (sim이 착지 길이를 프레임 수로 고르게 나눈다: 표시 틱은 뷰어·시트용, 바닥 울림은 렌더)
+ */
 export const EDWARD_LAND: MotionData = {
   name: 'edward/land',
   label: '에드워드 착지',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 1, 1, 3, 2, 2, 1, 1],
   keys: [
     { at: 0, pose: F_READY },
-    { at: 3, pose: L_SQUASH, stop: true },
-    { at: 7, pose: L_RISE },
-    { at: 11, pose: E_STANCE },
+    { at: 1, pose: L_TOUCH },
+    { at: 2, pose: { ...L_SQUASH, wa: -155 } },
+    { at: 3, pose: L_SQUASH2, stop: true },
+    { at: 4, pose: L_PUSH },
+    { at: 5, pose: { ...L_RISE, wa: -153 } },
+    { at: 6, pose: L_SETTLE },
+    { at: 7, pose: E_STANCE },
   ],
 };
 
