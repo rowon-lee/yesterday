@@ -1,12 +1,8 @@
+import type { Box } from '../data/moves/types';
 import type { JointName, Joints } from './pose';
 
-/** 상자. 발밑 기준점 상대 좌표, 오른쪽을 보는 기준 */
-export interface Box {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+/** 상자. 발밑 기준점 상대 좌표, 오른쪽을 보는 기준 (data/moves/types.ts) */
+export type { Box };
 
 /** 공격 판정: 이 프레임들에서 limb[0]→limb[1] 구간 끝쪽 (팔꿈치→주먹, 무릎→발) */
 export interface HitSpec {

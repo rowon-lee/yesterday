@@ -1,4 +1,4 @@
-import { motionFrames, motionOf, statsOf } from './frames';
+import { motionOf, statsOf, timelineOf } from './frames';
 import type { CharId } from '../data/characters';
 import { faceOpponent, physics, readButtons, setMode, settle, updateFighter, isAirborne } from './fighter';
 import { resolveHits, splatLands, zanTouch } from './combat';
@@ -64,7 +64,7 @@ export function createState(seed: number, opts: MatchOptions = {}): SimState {
 /** 이번 라운드 시작 연출 길이 (틱): 첫 라운드는 두 사람 등장 동작 중 긴 쪽과 INTRO_TICKS 중 긴 쪽 */
 function introTicks(s: SimState): number {
   if (s.round !== 1) return INTRO_TICKS;
-  return Math.max(INTRO_TICKS, ...s.fighters.map((f) => motionFrames(motionOf(f.char, 'intro')).total));
+  return Math.max(INTRO_TICKS, ...s.fighters.map((f) => timelineOf(motionOf(f.char, 'intro')).total));
 }
 
 function resetRound(s: SimState): void {
@@ -73,7 +73,7 @@ function resetRound(s: SimState): void {
     const keep = { wins: f.wins, meter: f.meter, cines: f.cines };
     Object.assign(f, newFighter(mid + (i === 0 ? -START_GAP : START_GAP), i === 0 ? 1 : -1, f.char), keep);
     // 경기 첫 라운드: 시작 연출 동안 등장 동작 (끝나면 대기)
-    if (s.round === 1) setMode(f, 'intro', motionFrames(motionOf(f.char, 'intro')).total);
+    if (s.round === 1) setMode(f, 'intro', timelineOf(motionOf(f.char, 'intro')).total);
     hooksOf(f.char).reset?.(s, f);
   });
   s.phase = 'intro';

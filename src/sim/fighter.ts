@@ -1,5 +1,5 @@
 import { AIR_CHAIN, CHARGE_FROM, GROUND_CHAIN, type MoveId } from '../data/moves/base';
-import { advanceOf, motionFrames, motionOf, MOVES, movesOf, statsOf } from './frames';
+import { advanceOf, motionOf, MOVES, movesOf, statsOf, timelineOf } from './frames';
 import {
   IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, type PlayerInput,
 } from './input';
@@ -427,8 +427,8 @@ function attackControl(s: SimState, f: Fighter, input: PlayerInput): boolean {
       return true;
     }
   }
-  // 연타: 판정이 나오기 시작한 뒤 누르면 다음 타를 예약하고, 판정이 끝나면 넘어간다
-  if (!f.queued && f.t >= mv.activeStart && has(f, B_ATTACK)) {
+  // 연타: 캔슬 구간(공격 데이터 chain)이 시작된 뒤 누르면 다음 타를 예약하고, 구간 끝 틱에 넘어간다
+  if (!f.queued && f.t >= mv.chainFrom && has(f, B_ATTACK)) {
     const chain = air ? AIR_CHAIN : GROUND_CHAIN;
     const idx = chain.indexOf(mv.id);
     if (idx >= 0) {
@@ -443,7 +443,7 @@ function attackControl(s: SimState, f: Fighter, input: PlayerInput): boolean {
       }
     }
   }
-  if (f.queued && f.t >= mv.activeEnd) {
+  if (f.queued && f.t >= mv.chainAt) {
     startMove(s, f, f.queued);
     return true;
   }
@@ -461,7 +461,7 @@ function tryCharge(s: SimState, f: Fighter): boolean {
   if (!f.chargeArm || f.atkHold < CHARGE_HOLD || isAirborne(f)) return false;
   if (f.mode === 'attack') {
     const mv = movesOf(f.char)[f.move!];
-    if (f.queued || f.t < mv.activeEnd) return false;
+    if (f.queued || f.t < mv.chainAt) return false;
   } else if (f.mode !== 'idle' && f.mode !== 'land') return false;
   setMode(f, 'charge');
   f.vx = 0;
@@ -498,14 +498,14 @@ function chargeControl(s: SimState, f: Fighter, input: PlayerInput, controllable
   }
   // 뗐다 (queued는 모으는 동안 '떼서 나갈 차례'라는 표시로 쓴다)
   if (!(input & IN_ATTACK) || f.t >= c.levels[c.levels.length - 1].at + c.auto) f.queued = 'charge';
-  if (f.queued && f.t >= ch.frames.cum[c.windup - 1]) {
+  if (f.queued && f.t >= ch.time.charge!.loop[0]) {
     const level = f.chargeLv;
     startMove(s, f, 'charge');
     f.chargeLv = level;
     // 최고 단계 투전승불 같은 강한 차지는 끝난 뒤 탈진한다
     f.exhaust = c.levels[Math.max(0, level - 1)]?.exhaust ?? 0;
-    // 동작 그림의 치는 부분부터
-    f.t = ch.frames.cum[c.from - 1];
+    // 치는 틱부터 (공격 데이터 charge.release)
+    f.t = ch.time.charge!.release;
     s.events.push({ type: 'charge', who: s.fighters.indexOf(f), x: f.x, y: f.y, text: 'release', combo: level });
   }
 }
@@ -605,8 +605,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
       } else if (mv.blink) blinkControl(s, f, mv);
       else if (mv.dive) diveControl(s, f, mv);
       else if (mv.step) {
-        const fr = frameOf(mv, f.t);
-        if (fr >= mv.step.from && fr <= mv.step.to) f.vx = f.facing * mv.step.speed;
+        if (f.t >= mv.step.from && f.t < mv.step.to) f.vx = f.facing * mv.step.speed;
         else if (!isAirborne(f)) f.vx = friction(f.vx);
       } else if (!isAirborne(f)) f.vx = friction(f.vx);
       if (f.t >= mv.total) {
@@ -709,7 +708,7 @@ export function updateFighter(s: SimState, f: Fighter, rawInput: PlayerInput, co
  * 상대 반대쪽 위로 날아가고, 그동안 무적이다. 콤보는 끊기고, 공중 낙법처럼 2단 점프·공중 대시는 쓸 수 없다.
  */
 function wallTech(s: SimState, f: Fighter): void {
-  setMode(f, 'walltech', motionFrames(motionOf(f.char, 'wall_tech')).total);
+  setMode(f, 'walltech', timelineOf(motionOf(f.char, 'wall_tech')).total);
   f.vx = -f.facing * WALL_TECH_VX;
   f.vy = WALL_TECH_VY;
   f.y = Math.min(f.y, -1);
@@ -723,18 +722,17 @@ function wallTech(s: SimState, f: Fighter): void {
 }
 
 /**
- * 순간이동 기술 (라이덴 스킬 1 잔흔): blink 프레임이 시작하는 틱에 앞으로 순간이동한다 (blinkMove).
- * 공중이면 마지막 판정 프레임까지 그 높이에 멈춰 떠 있다 (weightless). 땅에서는 내디딤(step)대로
+ * 순간이동 기술 (라이덴 스킬 1 잔흔): 공격 데이터 blink 틱에 앞으로 순간이동한다 (blinkMove).
+ * 공중이면 판정이 끝날 때까지 그 높이에 멈춰 떠 있다 (weightless). 땅에서는 내디딤(step)대로
  */
 function blinkControl(s: SimState, f: Fighter, mv: (typeof MOVES)[MoveId]): void {
   if (f.t === mv.blink!.tick) blinkMove(s, f, mv);
-  const fr = frameOf(mv, f.t);
-  if (isAirborne(f) && fr <= mv.data.active[mv.data.active.length - 1]) {
+  if (isAirborne(f) && f.t < mv.activeEnd) {
     f.vx = 0;
     f.vy = 0;
     return;
   }
-  if (mv.step && fr >= mv.step.from && fr <= mv.step.to) f.vx = f.facing * mv.step.speed;
+  if (mv.step && f.t >= mv.step.from && f.t < mv.step.to) f.vx = f.facing * mv.step.speed;
   else if (!isAirborne(f)) f.vx = friction(f.vx);
 }
 
@@ -763,29 +761,28 @@ function blinkMove(s: SimState, f: Fighter, mv: (typeof MOVES)[MoveId]): void {
 }
 
 /**
- * 벽 박차기 공격 (기획서 '벽 기동과 구조물'): dive.from 프레임 전까지는 벽에 머물러 웅크리고, from~to 프레임 동안
- * 바라보는 쪽 아래 대각선으로 곧게 날아간다 (중력 없음). 맞히거나 막히면 히트스톱이 끝난 뒤 남은 판정 프레임을
+ * 벽 박차기 공격 (기획서 '벽 기동과 구조물'): 공격 데이터 dive.from 틱 전까지는 벽에 머물러 웅크리고, [from, to) 틱 동안
+ * 바라보는 쪽 아래 대각선으로 곧게 날아간다 (중력 없음). 맞히거나 막히면 히트스톱이 끝난 뒤 남은 날아가는 틱을
  * 건너뛰고 뒤로 튕겨 오르며 회복 프레임으로 이어진다 (그 사이 점프로 끊으면 2단 점프로 쫓아간다: attackControl).
  */
 function diveControl(s: SimState, f: Fighter, mv: (typeof MOVES)[MoveId]): void {
   const d = mv.dive!;
-  const fr = frameOf(mv, f.t);
   if (f.moveHit) {
-    if (fr <= d.to) {
-      f.t = mv.frames.cum[d.to];
+    if (f.t < d.to) {
+      f.t = d.to;
       f.vx = -f.facing * mv.rebound!.vx;
       f.vy = mv.rebound!.vy;
     }
     return;
   }
-  if (fr < d.from) {
+  if (f.t < d.from) {
     f.vx = 0;
     f.vy = 0;
     return;
   }
-  if (fr > d.to) return;
+  if (f.t >= d.to) return;
   // 박차고 나가는 틱: 벽에서 먼지·부스러기 (렌더)
-  if (f.t === mv.frames.cum[d.from - 1]) s.events.push({ type: 'wallkick', who: s.fighters.indexOf(f), x: px(f.wallX), y: f.y - px(12) });
+  if (f.t === d.from) s.events.push({ type: 'wallkick', who: s.fighters.indexOf(f), x: px(f.wallX), y: f.y - px(12) });
   f.vx = f.facing * d.vx;
   f.vy = d.vy;
 }
@@ -798,15 +795,9 @@ function weightless(f: Fighter): boolean {
   if (f.mode === 'airdash' || f.mode === 'wallcling' || f.mode === 'wallrun') return true;
   if (f.mode !== 'attack' || f.moveHit || !f.move) return false;
   const mv = movesOf(f.char)[f.move];
-  // 순간이동 기술은 공중에서 마지막 판정 프레임까지 떠 있다
-  if (mv.blink) return frameOf(mv, f.t) <= mv.data.active[mv.data.active.length - 1];
-  return mv.dive !== undefined && frameOf(mv, f.t) <= mv.dive.to;
-}
-
-export function frameOf(mv: (typeof MOVES)[MoveId], t: number): number {
-  const cum = mv.frames.cum;
-  for (let i = 0; i < cum.length; i++) if (t < cum[i]) return i;
-  return cum.length - 1;
+  // 순간이동 기술은 공중에서 판정이 끝날 때까지 떠 있다
+  if (mv.blink) return f.t < mv.activeEnd;
+  return mv.dive !== undefined && f.t < mv.dive.to;
 }
 
 /**

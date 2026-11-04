@@ -1,17 +1,16 @@
 import type { JointName } from '../../anim/pose';
 
 /**
- * 기술 하나. 발동·지속·후딜레이는 그 동작 그림의 프레임별 표시 틱(dur)과 판정 프레임(active)으로 정해진다.
- * 거리는 px, 속도는 px/틱, 시간은 틱. 피해는 체력 1000 기준.
+ * 기술 하나의 수치 (피해·경직·밀림·날리기·연출…). 거리는 px, 속도는 px/틱, 시간은 틱. 피해는 체력 1000 기준.
+ * **시간·판정·캔슬·몸 이동은 여기 없다**: 캐릭터 × 기술마다 data/moves/time.ts (틱 단위 발동·지속·회복, 판정 상자, 캔슬 구간,
+ * 몸 이동·내디딤·벽 박차기·순간이동·차지 구간)와 data/moves/hurt.ts (피격 상자 시간표)에 따로 둔다 (3-0a(2)). 그림과 상관없다.
  */
 export interface MoveData {
-  /** 그림 이름 (src/data/poses/) */
+  /** 그림 이름 (src/data/poses/). 렌더가 그린다 (sim의 시간은 data/moves/time.ts) */
   motion: string;
-  /** 공격 판정이 있는 프레임 번호 (0부터) */
-  active: readonly number[];
-  /** 판정 구간: 팔꿈치→주먹, 무릎→발. 없으면 몸 둘레 전체 (밀쳐내기류) */
+  /** 이펙트가 시작하는 팔다리 구간 (렌더 전용: 번개·궤적이 이 관절에서 뻗는다). 판정과는 상관없다 */
   limb?: readonly [JointName, JointName];
-  /** 번개 사거리 (px): 판정 구간 끝에서 그 방향으로 이만큼 더 닿는다 (라이덴: 타격마다 뻗는 붉은 전격) */
+  /** 번개 사거리 (px, 렌더 전용: 번개 휩쓸기 길이). 판정과는 상관없다 */
   reach?: number;
   damage: number;
   /** 막았을 때 깎이는 방어 내구도 */
@@ -29,33 +28,14 @@ export interface MoveData {
   spike?: boolean;
   /** 화면 흔들림·번쩍임을 주는 강한 타격 */
   heavy?: boolean;
-  /** 이 프레임 동안 앞으로 이동 */
-  step?: { from: number; to: number; speed: number };
   /**
-   * 몸 이동 (동작연출지침서 4장): 프레임마다 앞으로 움직이는 거리 (px, 길이 = 프레임 수, 뒤로는 음수).
-   * 그 프레임의 표시 틱 동안 고르게 나눠 움직인다 (1/256px 정수, 땅·공중 모두). 있으면 step은 쓰지 않는다
-   */
-  advance?: readonly number[];
-  /**
-   * 궤적 상자 (동작연출지침서 4장·7-1장): 판정 프레임 동안 팔다리 구간 판정에 더하는 상자 (발밑 기준, 오른쪽 보는 기준 px).
-   * 라이덴은 번개가 이 상자를 그대로 채운다 (번개 범위 = 판정 범위). shape는 번개·궤적 모양 (렌더가 읽는다)
+   * 궤적·번개 모양 (렌더 전용, 동작연출지침서 4장·7-1장): 번개·궤적 이펙트가 채우는 상자와 모양 (발밑 기준, 오른쪽 보는 기준 px).
+   * 판정 상자는 data/moves/time.ts에 따로 있다 (처음에는 이 상자를 합쳐 옮겼다. 하나를 바꾸면 다른 쪽도 맞춘다)
    */
   box?: TrailBox;
   /**
-   * 판정은 궤적 상자만 (팔다리 구간을 더하지 않는다). 몸 관절이 아닌 곳에서 나는 공격: 오스카 검격(생겨난 검격 자리),
-   * 에드워드 해머 머리처럼 무기 끝 범위를 상자로 정한 기술 (캐릭터 기획서·CLAUDE.md 판정 예외)
-   */
-  boxOnly?: boolean;
-  /**
-   * 판정 선 (휘는 무기: 백은우 연검, 사용자 피드백 2026-11-02 11-0): 판정 프레임마다 그 프레임 무기 위의 점 6~8개를 이은 선
-   * (발밑 기준, 오른쪽 보는 기준 px). 그 프레임에 선이 있으면 상자 대신 이 선이 상대 피격 상자를 지나야 맞는다.
-   * 공격 상자(moveHitBox)는 선을 감싼 상자 (부서지는 물건·판정 표시). 값은 동작 그림의 리본에서 뽑아 적어 둔다
-   * (tools/ribbon-lines.mjs → data/moves/lines.ts, simtest가 그림과 같은지 확인한다)
-   */
-  line?: Readonly<Record<number, ReadonlyArray<readonly [number, number]>>>;
-  /**
-   * 판정을 캐릭터 고유 규칙이 직접 낸다 (sim/chars가 strikeBox로): 공통 판정(궤적 상자 겹침)과 물건 깎기를 하지 않는다.
-   * 궤적 상자(box)는 사거리 계산(CPU)용으로만 쓴다. 오스카 베기 선 (두께 6px의 긴 선, 선보다 늦게 맞는다)
+   * 판정을 캐릭터 고유 규칙이 직접 낸다 (sim/chars가 strikeBox로): 공통 판정(공격 상자 겹침)과 물건 깎기를 하지 않는다.
+   * 시간표의 상자는 사거리 계산(CPU)용으로만 쓴다. 오스카 베기 선 (두께 6px의 긴 선, 선보다 늦게 맞는다)
    */
   selfHit?: boolean;
   /** 맞히면 점프로 끊고 쫓아갈 수 있다 */
@@ -77,31 +57,16 @@ export interface MoveData {
    * 컷인 그림은 render/cutin.ts가 이 데이터로 그린다
    */
   cutin?: string | CutinData;
-  /**
-   * 벽 박차기: from 프레임 전까지는 벽에 머물고, from~to 프레임 동안 바라보는 쪽 아래 대각선으로 곧게 날아간다
-   * (중력 없음, px/틱). 맞히거나 막히면 멈춘다
-   */
-  dive?: { from: number; to: number; vx: number; vy: number };
-  /**
-   * 순간이동 (라이덴 스킬 1 잔흔): at 프레임이 시작하는 틱에 바라보는 쪽으로 최대 dist px 순간이동한다.
-   * 상대가 앞에 있고 그 사이면 상대 바로 앞(가운데끼리 gap px)에서 멈춘다. 떠난 자리부터 나타난 자리까지 잔상이 남는다 (rules ZAN_*).
-   * 공중에서 쓰면 마지막 판정 프레임까지 그 높이에 멈춰 떠 있다
-   */
-  blink?: { at: number; dist: number; gap: number };
-  /** 맞히거나 막히면 (히트스톱이 끝난 뒤) 때린 쪽이 뒤로 튕겨 오르고 판정 뒤 회복 프레임으로 넘어간다 (px/틱) */
+  /** 벽 박차기: 맞히거나 막히면 (히트스톱이 끝난 뒤) 때린 쪽이 뒤로 튕겨 오르고 날아가는 구간 뒤로 넘어간다 (px/틱). 날아가는 구간은 시간표 dive */
   rebound?: { vx: number; vy: number };
   /** 헛치고 땅·발판에 닿으면 굳는 틱 (없으면 공중 공격 착지 굳음) */
   landLag?: number;
   /**
-   * 차지 (공격 길게 눌렀다 떼기, 기획서 '누르기와 길게 누르기'). 동작 그림 앞쪽은 모으는 그림이다:
-   * windup 프레임 전까지는 한 번(끌어 모음), windup~loopTo 프레임은 누르고 있는 동안 되풀이, 떼면 from 프레임부터 친다.
+   * 차지 (공격 길게 눌렀다 떼기, 기획서 '누르기와 길게 누르기'). 모으는 동안 되풀이하는 구간과 떼면 치기 시작하는 틱은 시간표 charge.
    * levels: 모으기를 시작하고 at틱이 지나면 그 단계. 단계마다 피해·방어 깎기·날리기를 바꾼다 (나머지는 기술 데이터 그대로).
    * auto: 마지막 단계에서 이만큼 더 쥐고 있으면 저절로 나간다
    */
   charge?: {
-    windup: number;
-    loopTo: number;
-    from: number;
     auto: number;
     levels: ReadonlyArray<ChargeLevel>;
   };
@@ -198,15 +163,13 @@ export interface ChargeLevel {
   launch?: { vx: number; vy: number };
   /** 땅에서 밀려나는 속도 (px/틱, 없으면 기술의 push). launch가 없는 단계에 쓴다 */
   push?: number;
-  /** 이 단계의 프레임별 몸 이동 (없으면 기술의 advance). 단계마다 더 깊이 디디는 차지 (라이덴 투전승불) */
-  advance?: readonly number[];
   /** 벽 쪽으로 날림 (벽꽝) */
   wall?: boolean;
   /** 맞히면 점프로 끊고 쫓아갈 수 있다 */
   jumpCancel?: boolean;
   /** 이 단계로 치면 기술이 끝난 뒤 이만큼 탈진한다 (아무것도 못 함, 패널티) */
   exhaust?: number;
-  /** 이 단계의 궤적 상자 (없으면 기술의 box). 단계가 오를수록 번개가 길어지는 차지 (라이덴 투전승불) */
+  /** 이 단계의 궤적·번개 모양 (렌더 전용, 없으면 기술의 box). 판정 상자는 시간표 hits[].levels */
   box?: TrailBox;
 }
 
@@ -214,44 +177,42 @@ const LIGHT = { guardDamage: 10, hitstun: 16, blockstun: 12, hitstop: 7, push: 1
 
 /** 기본 스틱맨의 기술. 스킬 1·2·필살기는 캐릭터를 얹기 전까지 쓸 임시 기술이다. */
 export const BASE_MOVES = {
-  atk1: { motion: 'base/atk1', active: [4, 5], limb: ['eF', 'hF'], damage: 40, ...LIGHT },
-  atk2: { motion: 'base/atk2', active: [4, 5], limb: ['eB', 'hB'], damage: 45, ...LIGHT, step: { from: 2, to: 4, speed: 2.0 } },
+  atk1: { motion: 'base/atk1', limb: ['eF', 'hF'], damage: 40, ...LIGHT },
+  atk2: { motion: 'base/atk2', limb: ['eB', 'hB'], damage: 45, ...LIGHT, },
   atk3: {
-    motion: 'base/atk3', active: [5, 6], limb: ['kF', 'fF'], damage: 55, ...LIGHT, hitstun: 19, hitstop: 8, push: 1.5,
-    step: { from: 2, to: 5, speed: 2.2 },
+    motion: 'base/atk3', limb: ['kF', 'fF'], damage: 55, ...LIGHT, hitstun: 19, hitstop: 8, push: 1.5,
   },
   atk4: {
-    motion: 'base/atk4', active: [6, 7], limb: ['eF', 'hF'], damage: 80, guardDamage: 22,
-    hitstun: 26, blockstun: 16, hitstop: 11, push: 4.2, heavy: true, step: { from: 4, to: 7, speed: 3.2 },
+    motion: 'base/atk4', limb: ['eF', 'hF'], damage: 80, guardDamage: 22,
+    hitstun: 26, blockstun: 16, hitstop: 11, push: 4.2, heavy: true,
     launch: { vx: 8.0, vy: -4.5 }, wall: true,
   },
   launcher: {
-    motion: 'base/launcher', active: [4, 5, 6], limb: ['eF', 'hF'], damage: 60, guardDamage: 16,
+    motion: 'base/launcher', limb: ['eF', 'hF'], damage: 60, guardDamage: 16,
     hitstun: 30, blockstun: 14, hitstop: 9, push: 1.5, launch: { vx: 0.6, vy: -11.2 }, jumpCancel: true,
-    step: { from: 2, to: 5, speed: 2.2 },
   },
   sweep: {
-    motion: 'base/sweep', active: [4, 5, 6], limb: ['kF', 'fF'], damage: 60, guardDamage: 16,
-    hitstun: 20, blockstun: 14, hitstop: 9, push: 2.0, knockdown: true, step: { from: 2, to: 5, speed: 1.8 },
+    motion: 'base/sweep', limb: ['kF', 'fF'], damage: 60, guardDamage: 16,
+    hitstun: 20, blockstun: 14, hitstop: 9, push: 2.0, knockdown: true,
   },
   /**
    * 대시 공격: 앞으로 대시하는 중 공격 (뒤로 대시하는 중이면 평타). 미끄러지는 힘을 실어 몸을 낮추고 앞팔을 낮게 내지른다.
    * 맞으면 땅에 선 채 경직 (띄우기·차지로 이어진다), 막히면 빈틈이 크다
    */
   dashAttack: {
-    motion: 'base/dash_attack', active: [5, 6], limb: ['eF', 'hF'], damage: 65, guardDamage: 18,
-    hitstun: 26, blockstun: 12, hitstop: 9, push: 2.4, step: { from: 0, to: 5, speed: 6.0 },
+    motion: 'base/dash_attack', limb: ['eF', 'hF'], damage: 65, guardDamage: 18,
+    hitstun: 26, blockstun: 12, hitstop: 9, push: 2.4,
   },
   /**
    * 차지 (기본형): 공격을 길게 누르면 평타 뒤에 모으기로 넘어가고, 떼면 앞으로 내디디며 크게 내지른다. 기력은 쓰지 않는다.
    * 1단계(바로)는 비스듬히 띄워 점프로 쫓아 공중 콤보, 2단계(0.5초)는 더 세고 높이, 3단계(1초)는 막혀도 방어를 깨고 맞으면 벽 쪽으로 날린다
    */
   charge: {
-    motion: 'base/charge', active: [10, 11], limb: ['eF', 'hF'], damage: 70, guardDamage: 30,
-    hitstun: 30, blockstun: 9, hitstop: 12, push: 3.0, heavy: true, step: { from: 8, to: 10, speed: 5.0 },
+    motion: 'base/charge', limb: ['eF', 'hF'], damage: 70, guardDamage: 30,
+    hitstun: 30, blockstun: 9, hitstop: 12, push: 3.0, heavy: true,
     launch: { vx: 1.0, vy: -11.2 }, jumpCancel: true,
     charge: {
-      windup: 4, loopTo: 7, from: 8, auto: 60,
+      auto: 60,
       levels: [
         { at: 0, damage: 70, guardDamage: 30, launch: { vx: 1.0, vy: -11.2 }, jumpCancel: true },
         { at: 30, damage: 100, guardDamage: 50, launch: { vx: 1.8, vy: -11.8 }, jumpCancel: true },
@@ -260,40 +221,40 @@ export const BASE_MOVES = {
     },
   },
   air1: {
-    motion: 'base/air1', active: [3, 4], limb: ['eF', 'hF'], damage: 35, guardDamage: 10,
+    motion: 'base/air1', limb: ['eF', 'hF'], damage: 35, guardDamage: 10,
     hitstun: 22, blockstun: 12, hitstop: 7, push: 1.0, launch: { vx: 0.9, vy: -4.0 }, air: true, jumpCancel: true, airFollow: 0.6,
   },
   air2: {
-    motion: 'base/air2', active: [3, 4], limb: ['kF', 'fF'], damage: 40, guardDamage: 10,
+    motion: 'base/air2', limb: ['kF', 'fF'], damage: 40, guardDamage: 10,
     hitstun: 22, blockstun: 12, hitstop: 7, push: 1.0, launch: { vx: 0.9, vy: -4.0 }, air: true, jumpCancel: true, airFollow: 0.6,
   },
   air3: {
-    motion: 'base/air3', active: [4, 5], limb: ['kF', 'fF'], damage: 55, guardDamage: 14,
+    motion: 'base/air3', limb: ['kF', 'fF'], damage: 55, guardDamage: 14,
     hitstun: 26, blockstun: 14, hitstop: 9, push: 1.8, launch: { vx: 6.0, vy: -3.5 }, air: true, airFollow: 1.4,
   },
   slam: {
-    motion: 'base/slam', active: [5, 6, 7], limb: ['eF', 'hF'], damage: 70, guardDamage: 18,
+    motion: 'base/slam', limb: ['eF', 'hF'], damage: 70, guardDamage: 18,
     hitstun: 30, blockstun: 16, hitstop: 11, push: 1.4, spike: true, heavy: true, air: true,
   },
   /** 벽 박차기 공격: 벽에 붙은 채 공격. 벽을 박차고 아래 대각선으로 날아가며 앞발로 찬다 */
   wallKick: {
-    motion: 'base/wall_kick', active: [3, 4, 5, 6, 7, 8], limb: ['kF', 'fF'], damage: 65, guardDamage: 16,
+    motion: 'base/wall_kick', limb: ['kF', 'fF'], damage: 65, guardDamage: 16,
     hitstun: 24, blockstun: 14, hitstop: 9, push: 2.0, launch: { vx: 4.5, vy: -4.0 }, air: true, jumpCancel: true,
-    dive: { from: 2, to: 8, vx: 5.6, vy: 4.0 }, rebound: { vx: 1.6, vy: -4.6 }, landLag: 12,
+    rebound: { vx: 1.6, vy: -4.6 }, landLag: 12,
   },
   skill1: {
-    motion: 'base/skill1', active: [4, 5, 6, 7, 8], limb: ['eF', 'hF'], damage: 90, guardDamage: 25,
+    motion: 'base/skill1', limb: ['eF', 'hF'], damage: 90, guardDamage: 25,
     hitstun: 28, blockstun: 16, hitstop: 10, push: 3.2, launch: { vx: 7.0, vy: -6.0 },
-    step: { from: 2, to: 8, speed: 9.0 }, meterCost: 1, alsoAir: true, heavy: true,
+    meterCost: 1, alsoAir: true, heavy: true,
   },
   skill2: {
-    motion: 'base/skill2', active: [5, 6], damage: 50, guardDamage: 30,
+    motion: 'base/skill2', damage: 50, guardDamage: 30,
     hitstun: 24, blockstun: 20, hitstop: 10, push: 6.0, launch: { vx: 9.0, vy: -4.5 }, wall: true, meterCost: 1, fromGuard: true, heavy: true,
   },
   super: {
-    motion: 'base/super', active: [6, 7, 8], limb: ['eF', 'hF'], damage: 280, guardDamage: 60,
+    motion: 'base/super', limb: ['eF', 'hF'], damage: 280, guardDamage: 60,
     hitstun: 40, blockstun: 24, hitstop: 12, push: 3.6, launch: { vx: 11.0, vy: -8.0 },
-    step: { from: 4, to: 8, speed: 5.0 }, meterCost: 3, heavy: true, wall: true, cutin: 'SUPER',
+    meterCost: 3, heavy: true, wall: true, cutin: 'SUPER',
     // 임시 필살기 연출: 난타 → 어퍼로 띄우기 → 내려찍기 (약 2.1초, 각 장면 14프레임)
     cinematic: {
       whiff: 40,

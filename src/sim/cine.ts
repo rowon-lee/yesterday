@@ -1,7 +1,7 @@
 import type { MoveId } from '../data/moves/base';
 import { cinematicFinish } from './combat';
 import { setMode } from './fighter';
-import { motionFrames, movesOf } from './frames';
+import { movesOf } from './frames';
 import { hooksOf } from './chars';
 import type { CharId } from '../data/characters';
 import { floorBelow } from './platforms';
@@ -57,9 +57,10 @@ export function stepCine(s: SimState): void {
   place(s);
 }
 
-/** 장면 하나의 길이 (발동자 동작의 표시 틱 합) */
+/** 장면 하나의 길이 (틱, 공격 데이터 시간표의 scenes·short) */
 export function sceneTicks(ch: CharId, move: MoveId, scene: number, short = false): number {
-  return motionFrames(scenesOf(ch, move, short)[scene].a.motion).total;
+  const T = movesOf(ch)[move].time;
+  return (short && T.short ? T.short : T.scenes!)[scene]!;
 }
 
 /** 이번 연출의 장면들: 짧은 판이면 short (없으면 scenes) */
