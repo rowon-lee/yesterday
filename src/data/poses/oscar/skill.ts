@@ -105,23 +105,30 @@ const SP_LIFT = OD({ hy: -22, tl: 11, hd: 6, lFx: 6, lBx: -6 }, 0);
 /** 엄지로 날밑을 민다 (칼날 2px): 이 순간 화면 전체에 판정 */
 const SP_PUSH = OD({ hy: -22, tl: 11, hd: 4, lFx: 6, lBx: -6, tw: 1 }, 2);
 
-/** 발동: 눈을 감고 칼자루에 손 → 오래 멈춤 (느린 발동) → 고개를 듦 → 엄지로 날밑을 미는 순간 화면 전체 판정 (24틱, 7·8번째 프레임). 14프레임 48틱 */
-export const OSCAR_SUPER: MotionData = {
-  name: 'oscar/super',
-  label: '오스카 필살기 (월령수류) 발동',
-  wide: true,
-  dur: [2, 4, 4, 4, 4, 4, 2, 2, 2, 4, 4, 4, 4, 4],
-  keys: [
-    { at: 0, pose: O_STANCE },
-    { at: 1, pose: SP_CLOSE, stop: true },
-    { at: 5, pose: SP_BREATH, stop: true },
-    { at: 6, pose: SP_LIFT },
-    { at: 7, pose: SP_PUSH, stop: true },
-    { at: 8, pose: SP_PUSH, stop: true },
-    { at: 10, pose: OD({ hy: -21.8, tl: 12, hd: 10, lFx: 6, lBx: -6 }, 0), stop: true },
-    { at: 13, pose: O_STANCE },
-  ],
-};
+/**
+ * 발동 (2차 리워크): 앞손이 날밑으로 → 눈을 감고 고개를 숙이며 뒷손이 칼집으로 → 들이쉼 · 멈춤 · 내쉼 (느린 발동) →
+ * 고개가 한 번 더 숙었다가 (1틱) → 고개를 들고 눈을 뜸 → 앞발을 반 치 내디디며 등을 편다 (멈춤) → 엄지가 날밑에서 3px 물러남 (1틱, 감기) →
+ * 엄지로 날밑을 미는 순간 (24틱, 칼날 2px) 화면 전체 판정 → 숨을 멈춘 채 어깨가 오름 → (빗나가면) '탁' → 고개를 숙임 → 무게가 뒤로 빠지며 뒷손이 등 뒤로 → 기본자세.
+ * 16프레임 48틱
+ */
+export const OSCAR_SUPER = seq('oscar/super', '오스카 필살기 (월령수류) 발동', [
+  [O_STANCE, 2],
+  [OR({ hy: -21.9, tl: 13, hd: 15 }, -1), 2],
+  [SP_CLOSE, 2, true],
+  [SP_BREATH, 4, true],
+  [OD({ hy: -22.2, tl: 12, hd: 19, lFx: 6, lBx: -6 }, -1), 4, true],
+  [OD({ hy: -21.6, tl: 13.5, hd: 21, lFx: 6, lBx: -6 }, -1), 4, true],
+  [OD({ hy: -21.3, tl: 15, hd: 31, lFx: 6, lBx: -6 }, -1), 1],
+  [SP_LIFT, 2],
+  [OD({ hx: 0.5, hy: -21.6, tl: 8, hd: 2, lFx: 8.5, lBx: -6.5 }, -1.5), 2, true],
+  [OD({ hx: 0.5, hy: -21.4, tl: 9, hd: 4, lFx: 8.5, lBx: -6.5 }, -3), 1],
+  [OD({ hx: 0.5, hy: -22, tl: 5, hd: -2, lFx: 8.5, lBx: -6.5, tw: 1 }, 2), 2],
+  [OD({ hx: 0.5, hy: -22.5, tl: 4, hd: -3, lFx: 8.5, lBx: -6.5, tw: 1 }, 2), 2, true],
+  [OD({ hx: 0.5, hy: -21.8, tl: 8, hd: 6, lFx: 8.5, lBx: -6.5 }, 0), 2, true],
+  [OD({ hx: 0.5, hy: -21.6, tl: 12, hd: 15, lFx: 8, lBx: -6.5 }, 0), 4],
+  [OR({ hx: 0, hy: -22.4, tl: 11, hd: 8, lFx: 7, lBx: -6 }), 4],
+  [O_STANCE, 10],
+]);
 
 /** 장면 1 전개 (70틱): 눈을 감은 채 꼼짝하지 않는다. 숨 두 번. 그동안 구름이 갈라지고 핏빛 달이 떠오르고 물이 차오른다 */
 export const OSCAR_SUPER_OPEN: MotionData = {
