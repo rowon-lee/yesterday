@@ -51,8 +51,8 @@ export const EDWARD_IDLE: MotionData = {
 
 // ---- 걷기 (2026-11-02 피드백 12-4): 보폭 24px의 느린 걸음, 한 바퀴(두 걸음) 약 70틱 ----
 /*
- * 한 바퀴 = 두 걸음, 14프레임. 발 하나는 8프레임 동안 바닥을 딛고(몸이 나아간 만큼 뒤로 밀려 미끄러지지 않는다)
- * 6프레임 동안 들려 앞으로 나간다. 내딛는 발은 무릎을 펴 발뒤꿈치부터 닿는다. 디디는 순간 엉덩이가 2px 내려앉고 (묵직하게),
+ * 한 바퀴 = 두 걸음, 14프레임. 발 하나는 10프레임 동안 바닥을 딛고(몸이 나아간 만큼 뒤로 밀려 미끄러지지 않는다)
+ * 4프레임 만에 들려 앞으로 나간다 (2차 리워크: 오래 디디고 무겁게 한 번에 옮긴다, 두 발이 함께 딛는 때가 길다). 내딛는 발은 무릎을 펴 발뒤꿈치부터 닿는다. 디디는 순간 엉덩이가 2px 내려앉고 (묵직하게),
  * 어깨와 해머는 걸음과 반대 방향으로 흔들린다 (앞발이 나가면 앞어깨가 뒤로). 뒷손은 주머니에 넣은 채다.
  */
 /** 앞 걷기 한 바퀴 거리 (px, 그림): 한 걸음 24px. 능력치 runCycle (포즈는 배율로 나눠 적는다) */
@@ -60,7 +60,7 @@ export const E_WALK_F = 48;
 /** 뒤 걷기 한 바퀴 거리 (px, 그림): 한 걸음 16px. 능력치 runBackCycle */
 export const E_WALK_B = 32;
 const FRAMES = 14;
-const STANCE = 8;
+const STANCE = 10;
 
 /** 발 하나의 자리 (발밑 기준, 포즈 단위): 바퀴 속 위치 k (0~13)에서. dir 1 앞으로 걸음, -1 뒤로 걸음 */
 function foot(k: number, d: number, dir: number, lift: number, center: number): [number, number] {
@@ -83,6 +83,8 @@ function walk(dist: number, dir: number, o: { low: number; high: number; tl: num
     const up = Math.sin((Math.PI * k) / (FRAMES / 2)) ** 2;
     // 어깨·해머: 걸음과 반대로 흔들린다 (앞발이 앞이면 앞어깨가 뒤로), 몸통보다 한 박자 늦게
     const sw = Math.cos((2 * Math.PI * (k - 1)) / FRAMES);
+    // 해머 머리는 어깨보다 두 박자 더 늦게 흔들린다 (무게, 2차 리워크)
+    const swH = Math.cos((2 * Math.PI * (k - 3)) / FRAMES);
     const pose: Pose = E({
       hx: o.hx,
       hy: -(o.low + (o.high - o.low) * up),
@@ -91,7 +93,7 @@ function walk(dist: number, dir: number, o: { low: number; high: number; tl: num
       tw: 1.5 - o.sway * sw,
       aFx: 4.5,
       aFy: 6.5 + 0.6 * (1 - up),
-      wa: -148 + 5 * sw,
+      wa: -148 + 5 * swH,
       lFx: fx,
       lFy: fy,
       lBx: bx,
