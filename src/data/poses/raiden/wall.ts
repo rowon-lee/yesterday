@@ -137,39 +137,51 @@ export const RAIDEN_WALL_TECH: MotionData = {
 
 // ---- 벽 박차기 공격 (벽은 뒤. 벽을 걷어차고 바라보는 쪽 아래 대각선으로 날아가며 앞발 뒤꿈치로 내리찍듯 찬다) ----
 /*
- * 기술 수치(판정 4~9프레임, 무릎→발 구간, 3~9프레임 동안 날아감)는 기본 스틱맨 벽 박차기 공격 그대로라
- * 프레임 수(13)와 표시 틱도 같게 만든다. 라이덴답게 가드를 올린 채, 뒷다리는 몸 밑에 접고 앞발 뒤꿈치로 내리찍는다.
+ * 2차 리워크: 기술 수치(판정 6~22틱, 4~22틱 동안 날아감)는 공격 데이터 그대로, 그림만 다시 깎았다.
+ * 라이덴답게 감기는 2프레임으로 짧게(앞무릎을 가슴까지 당겨 뒤로 감음), 뒤꿈치가 1틱 스미어로 뻗어 6틱에 닿고,
+ * 한 번 더 밀고 들어갔다가(지나치기) 2~3px 돌아와 찬 자세로 날아간다. 뒷다리는 뒤·위로 끌어 뒷발 → 엉덩이 → 앞발이 한 대각선.
+ * 두 손은 처음부터 끝까지 얼굴 앞 가드.
  */
 /** 붙은 채 앞무릎을 높이 접어 찰 준비, 뒷발바닥은 벽에, 가드를 올리고 아래 앞쪽 상대를 본다 */
 const WK_COIL = R({ hx: -3, hy: -21, tl: 18, hd: 18, aFx: 10, aFy: -4, aBx: -8, aBy: -2, lFx: 4, lFy: -11, lBx: -7, lBy: -12 });
-/** 더 깊이 웅크린다 (멈칫) */
-const WK_SQUASH = R({ hx: -3, hy: -19, tl: 22, hd: 20, aFx: 10, aFy: -2, aBx: -8, aBy: 0, lFx: 3, lFy: -12, lBx: -7, lBy: -11 });
-/** 뒷발로 벽을 걷어차 튀어 나간다: 뒷다리를 벽 쪽으로 쭉, 앞무릎은 높이 접고, 뒷손도 가드로 */
+/** 감기 끝 (멈칫): 더 깊이 웅크려 앞무릎을 가슴까지 당기고, 엉덩이를 벽 쪽으로 붙인다 */
+const WK_SQUASH = R({ hx: -4, hy: -19, tl: 24, hd: 20, aFx: 9, aFy: -3, aBx: -8, aBy: 0, lFx: 1, lFy: -14, lBx: -7, lBy: -11 });
+/** 뒷발로 벽을 걷어차 튀어 나간다: 뒷다리를 벽 쪽으로 쭉, 앞무릎은 아직 접은 채, 뒷손도 가드로 */
 const WK_PUSH = R({ hx: 3, hy: -21, tl: 6, hd: 12, aFx: 11, aFy: -5, aBx: 7, aBy: -2, lFx: 8, lFy: -14, lBx: -13, lBy: -9 });
-/** 앞발 뒤꿈치로 아래 대각선을 내리찍듯 쭉 뻗는다: 몸은 조금 뒤로, 뒷다리는 몸 밑에 접고, 두 손은 가드 */
-const WK_KICK = R({ hx: -1, hy: -19, tl: -8, hd: 14, aFx: 10, aFy: -7, aBx: 7, aBy: -3, lFx: 17, lFy: -3, lBx: -4, lBy: -14 });
-/** 찬 자세 그대로 날아간다 */
-const WK_DIVE = R({ hx: -1, hy: -19, tl: -10, hd: 15, aFx: 10, aFy: -8, aBx: 7, aBy: -4, lFx: 18, lFy: -2, lBx: -4, lBy: -13 });
-/** 날아가는 끝: 앞발을 조금 접기 시작한다 */
-const WK_DIVE_END = R({ hx: -1, hy: -20, tl: -6, hd: 12, aFx: 10, aFy: -7, aBx: 7, aBy: -3, lFx: 15, lFy: -6, lBx: -4, lBy: -13 });
-/** 다리를 거두며 몸을 세운다 */
-const WK_RETRACT = R({ hx: 0, hy: -22, tl: 8, hd: 8, aFx: 11, aFy: -6, aBx: 8, aBy: -2, lFx: 9, lFy: -10, lBx: -5, lBy: -8 });
+/** 뻗는 중 (1틱 스미어): 몸을 젖히며 접은 무릎을 펴 뒤꿈치를 내리꽂는다 */
+const WK_SNAP = R({ hx: 1, hy: -20, tl: -2, hd: 13, aFx: 10, aFy: -6, aBx: 7, aBy: -3, lFx: 14, lFy: -8, lBx: -9, lBy: -16 });
+/** 타격: 앞발 뒤꿈치로 아래 대각선을 내리찍는다. 몸은 조금 뒤로, 뒷다리는 뒤·위로 끌려 한 대각선, 두 손은 가드 */
+const WK_KICK = R({ hx: -1, hy: -19, tl: -8, hd: 14, aFx: 10, aFy: -7, aBx: 7, aBy: -3, lFx: 17, lFy: -3, lBx: -9, lBy: -26 });
+/** 지나치기: 엉덩이째 한 번 더 밀고 들어가 뒤꿈치가 4~5px 더 나간다 */
+const WK_DRIVE = R({ hx: 2, hy: -18, tl: -12, hd: 16, aFx: 10, aFy: -8, aBx: 7, aBy: -4, lFx: 21, lFy: 0, lBx: -7, lBy: -25 });
+/** 찬 자세 그대로 날아간다 (2~3px 돌아와 자리 잡음) */
+const WK_DIVE = R({ hx: 0, hy: -19, tl: -10, hd: 15, aFx: 10, aFy: -8, aBx: 7, aBy: -4, lFx: 18, lFy: -2, lBx: -8, lBy: -24 });
+/** 날아가는 끝 (멈칫): 앞발을 조금 접기 시작하고 뒷다리가 내려온다 */
+const WK_DIVE_END = R({ hx: -1, hy: -20, tl: -6, hd: 12, aFx: 10, aFy: -7, aBx: 7, aBy: -3, lFx: 15, lFy: -6, lBx: -5, lBy: -16 });
+/** 다리를 거두며 몸을 세운다 (회복 첫 프레임: 무게가 뒤로 빠진다) */
+const WK_RETRACT = R({ hx: -1, hy: -22, tl: 8, hd: 8, aFx: 11, aFy: -6, aBx: 8, aBy: -2, lFx: 9, lFy: -10, lBx: -5, lBy: -8 });
 
-/** 벽 박차기 공격: 1~2프레임 웅크림 → 3프레임 걷어차고 나감 → 4~9프레임 뒤꿈치로 내리찍으며 날아감(판정) → 10~13프레임 다리를 거두고 낙하로. 13프레임 */
+/**
+ * 벽 박차기 공격: 1~2 감기(웅크림, 멈칫) → 3 걷어차고 나감 → 4 스미어 → 5 타격(6틱) → 6 지나치기 → 7~8 찬 채 날아감(판정 22틱까지)
+ * → 9~11 다리를 거두고 낙하로 (처음 빠르고 끝으로 느리게). 11프레임 32틱
+ */
 export const RAIDEN_WALL_KICK: MotionData = {
   name: 'raiden/wall_kick',
   label: '라이덴 벽 박차기 공격',
-  dur: [2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 3, 3],
+  dur: [2, 2, 1, 1, 2, 3, 6, 5, 3, 3, 4],
   keys: [
     { at: 0, pose: WK_COIL },
     { at: 1, pose: WK_SQUASH, stop: true },
     { at: 2, pose: WK_PUSH },
-    { at: 3, pose: WK_KICK },
-    { at: 5, pose: WK_DIVE },
-    { at: 8, pose: WK_DIVE_END, stop: true },
-    { at: 9, pose: WK_RETRACT },
-    { at: 12, pose: WJ_OPEN },
+    { at: 3, pose: WK_SNAP },
+    { at: 4, pose: WK_KICK },
+    { at: 5, pose: WK_DRIVE, stop: true },
+    { at: 6, pose: WK_DIVE },
+    { at: 7, pose: WK_DIVE_END, stop: true },
+    { at: 8, pose: WK_RETRACT },
+    { at: 10, pose: WJ_OPEN },
   ],
+  smear: { frame: 3, limb: 'lF', stretch: 1.25 },
 };
 
 export const RAIDEN_WALL_MOTIONS: readonly MotionData[] = [RAIDEN_WALL_CLING, RAIDEN_WALL_JUMP, RAIDEN_WALL_RUN, RAIDEN_WALL_KICK, RAIDEN_WALL_TECH];
