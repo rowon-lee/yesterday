@@ -68,14 +68,18 @@ const ease = (s: number) => s * s * (3 - 2 * s);
  * 떠 있는 동안은 뒤꿈치를 차올렸다가(뒤쪽에서 높이) 다음 디딜 자리로 뻗는다.
  * dir 1: 앞으로 (닿은 발이 뒤로 감), -1: 뒤로 물러남 (닿은 발이 앞으로 감)
  */
-function foot(q: number, c: number, cycle: number, from: number, lift: number, dir: 1 | -1): [number, number] {
+function foot(q: number, c: number, cycle: number, from: number, lift: number, dir: 1 | -1, swing: readonly [number, number] = dir > 0 ? [0.15, 0.85] : [0, 1]): [number, number] {
   const run = c * cycle;
   const to = from - dir * run;
   if (q < c) return [from - dir * q * cycle, 0];
   const s = (q - c) / (1 - c);
-  const lag = dir > 0 ? ease(Math.max(0, (s - 0.15) / 0.85)) : ease(s);
+  // 공중에서 발이 다음 디딜 자리로 옮겨 가는 구간 [시작, 길이] (떠 있는 동안 0~1)
+  const lag = ease(Math.max(0, Math.min(1, (s - swing[0]) / swing[1])));
   return [to + (from - to) * lag, -lift * Math.pow(Math.sin(Math.PI * s), 0.8)];
 }
+
+/** 2차 리워크 종종걸음: 발이 뜬 뒤 뒤에서 잠깐 머물렀다가(뒤꿈치를 차올림) 한 번에 앞으로 채여 나가고, 디딜 자리 위에서 내려앉는다 */
+const SNAP_F: readonly [number, number] = [0.35, 0.3];
 
 /**
  * 앞 걷기 i번째 프레임: 엉덩이를 높이 두고(발끝으로) 몸을 조금 숙여 종종걸음. 연검 쥔 앞손은 엉덩이 뒤로 낮게 빼서
@@ -84,8 +88,8 @@ function foot(q: number, c: number, cycle: number, from: number, lift: number, d
 function runFrame(i: number): Pose {
   const p = i / N;
   const c = 0.3;
-  const [fx, fy] = foot(p % 1, c, E_RUN_CYCLE, 9, 7, 1);
-  const [bx, by] = foot((p + 0.5) % 1, c, E_RUN_CYCLE, 9, 7, 1);
+  const [fx, fy] = foot(p % 1, c, E_RUN_CYCLE, 9, 7, 1, SNAP_F);
+  const [bx, by] = foot((p + 0.5) % 1, c, E_RUN_CYCLE, 9, 7, 1, SNAP_F);
   const bob = Math.cos(2 * TAU * (p - c / 2));
   const sw = Math.cos(TAU * p);
   return {
