@@ -8,31 +8,44 @@ import { E, E_SCALE, E_STANCE } from './stance';
  */
 
 // ---- 대기 (2026-11-02 피드백 12-4): 가슴을 펴고 턱을 든 당당한 자세, 해머는 오른쪽(앞) 어깨, 왼손(뒷손)은 바지 주머니 ----
-// 아주 느린 숨 (한 바퀴 120틱), 숨 끝에 해머 자루로 어깨를 한 번 툭 (들었다 떨어뜨린다)
-/** 들숨: 가슴이 부풀고 턱이 더 든다 */
-const ID_IN = E({ hx: 0.2, hy: -23.1, tl: -5.5, hd: -6, aFx: 4.6, aFy: 5.8, wa: -149 });
+// 아주 느린 숨 (한 바퀴 120틱), 숨 끝에 해머 자루로 어깨를 한 번 툭 (들었다 떨어뜨린다).
+// 어깨 위 해머는 몸보다 한 박자 늦게 따라간다 (가슴이 부푼 다음 프레임에 머리가 들리고, 어깨가 내려앉은 다음 프레임에 머리가 내려앉는다)
+/** 들숨: 가슴이 부풀기 시작한다 (해머는 아직 그대로) */
+const ID_IN1 = E({ hx: 0.1, hy: -23, tl: -5, hd: -5, aFx: 4.5, aFy: 6, wa: -148 });
+/** 다 들이쉼: 가슴을 펴고 턱을 든다 */
+const ID_IN2 = E({ hx: 0.2, hy: -23.6, tl: -6.2, hd: -6.5, aFx: 4.6, aFy: 5.4, wa: -146 });
+/** 해머 머리가 늦게 들린다 */
+const ID_IN3 = E({ hx: 0.2, hy: -23.5, tl: -5.9, hd: -7.2, aFx: 4.6, aFy: 5.3, wa: -142 });
 /** 날숨: 어깨가 내려앉는다 */
-const ID_OUT = E({ hx: 0.3, hy: -22.2, tl: -3.5, hd: -3.5, aFx: 4.5, aFy: 6.8, wa: -147 });
-/** 해머로 어깨 툭: 앞손이 자루를 조금 들어 해머 머리가 어깨에서 뜬다 */
-const ID_TAP_UP = E({ hx: 0.3, hy: -22.4, tl: -4, hd: -4, aFx: 5, aFy: 4.6, wa: -136 });
-/** 툭 떨어져 어깨에 걸친다 (조금 더 내려앉았다 돌아온다) */
-const ID_TAP_DOWN = E({ hx: 0.2, hy: -22.3, tl: -4, hd: -4.5, aFx: 4.6, aFy: 6.9, wa: -152 });
+const ID_OUT1 = E({ hx: 0.25, hy: -22.6, tl: -4.2, hd: -5, aFx: 4.5, aFy: 6.4, wa: -143 });
+const ID_OUT2 = E({ hx: 0.3, hy: -21.9, tl: -3.2, hd: -3.4, aFx: 4.5, aFy: 7, wa: -147 });
+/** 해머 머리가 늦게 내려앉는다 */
+const ID_OUT3 = E({ hx: 0.3, hy: -22, tl: -3.3, hd: -3.1, aFx: 4.5, aFy: 7.1, wa: -152 });
+/** 해머로 어깨 툭: 앞손이 자루를 들어 올린다 (해머는 손과 함께 통째로 뜬다) */
+const ID_TAP_UP = E({ hx: 0.3, hy: -22.4, tl: -4, hd: -4, aFx: 5, aFy: 4.2, wa: -149 });
+/** 손이 먼저 내려오고 몸이 받아 내려앉는다. 해머 머리는 아직 허공에 들린 채 (손보다 늦다) */
+const ID_TAP_DOWN = E({ hx: 0.2, hy: -21.7, tl: -3.5, hd: -4.5, aFx: 4.6, aFy: 7, wa: -137 });
+/** 해머 머리가 늦게 떨어져 어깨에 쿵 걸친다 (한 번 더 눌렸다 돌아온다) */
+const ID_TAP_BOUNCE = E({ hx: 0.1, hy: -22.2, tl: -3.8, hd: -4.2, aFx: 4.5, aFy: 6.7, wa: -156 });
 
-/** 대기: 숨 한 번 (들숨 → 멈춤 → 날숨) → 해머로 어깨 툭. 14프레임 120틱 */
+/** 대기 (2차 리워크): 들숨(가슴 → 늦게 해머) → 날숨(어깨 → 늦게 해머) → 해머로 어깨 툭(손 → 늦게 해머 머리) → 자리 잡음. 10프레임 120틱 (같은 자세를 늘어놓지 않고 dur로 쉰다) */
 export const EDWARD_IDLE: MotionData = {
   name: 'edward/idle',
   label: '에드워드 대기',
   loop: true,
-  dur: [10, 10, 10, 10, 8, 8, 8, 10, 10, 8, 6, 6, 8, 8],
+  dur: [16, 14, 16, 8, 12, 16, 10, 6, 4, 18],
   keys: [
     { at: 0, pose: E_STANCE },
-    { at: 3, pose: ID_IN, stop: true },
-    { at: 5, pose: ID_IN },
-    { at: 8, pose: ID_OUT, stop: true },
-    { at: 10, pose: ID_TAP_UP },
-    { at: 11, pose: ID_TAP_DOWN, stop: true },
-    { at: 12, pose: E_STANCE },
-    { at: 14, pose: E_STANCE },
+    { at: 1, pose: ID_IN1 },
+    { at: 2, pose: ID_IN2, stop: true },
+    { at: 3, pose: ID_IN3 },
+    { at: 4, pose: ID_OUT1 },
+    { at: 5, pose: ID_OUT2, stop: true },
+    { at: 6, pose: ID_OUT3 },
+    { at: 7, pose: ID_TAP_UP },
+    { at: 8, pose: ID_TAP_DOWN, stop: true },
+    { at: 9, pose: ID_TAP_BOUNCE },
+    { at: 10, pose: E_STANCE },
   ],
 };
 
