@@ -34,16 +34,29 @@ export const RAIDEN_GUARD: MotionData = {
   ],
 };
 
-/** 방어 막힘: 밀려 젖혀짐 → 버텨 다시 숙임 → 커버. 12프레임 (sim은 막힌 경직 길이에 맞춰 늘인다) */
+/** 막힌 힘에 한 번 더 밀려 가장 젖혀진다 (발은 버틴 채) */
+const COVER_PUSHED = R({ hx: -5, hy: -18.5, tl: 6, hd: 20, aFx: 6.5, aFy: -10.5, aBx: 5.5, aBy: -8.5, lFx: 9, lBx: -11.5 });
+/** 버텨 몸을 다시 앞으로 실으며 숙인다 */
+const COVER_REBOUND = R({ hx: -2.5, hy: -17, tl: 18, hd: 15, aFx: 8.5, aFy: -9, aBx: 7.5, aBy: -7, lFx: 9, lBx: -10.5 });
+/** 자리 잡는 중 (버틴 자세에서 커버로 천천히) */
+const COVER_EASE = R({ hx: -1.2, hy: -16.5, tl: 23.5, hd: 13.5, aFx: 9, aFy: -8.5, aBx: 8, aBy: -6.5, lFx: 9, lBx: -10 });
+
+/**
+ * 방어 막힘 (2차 리워크): 밀려 젖혀짐 → 한 번 더 밀림(가장 뒤) → 버텨 앞으로 실음 → 숙여 버팀(멈칫) → 커버로 자리 잡음.
+ * 6프레임. sim은 막힌 경직 길이를 프레임 수로 고르게 나누므로(dur를 보지 않는다) 같은 자세를 늘어놓지 않고 프레임마다 다른 자세로
+ */
 export const RAIDEN_GUARD_HIT: MotionData = {
   name: 'raiden/guard_hit',
   label: '라이덴 방어 막힘',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  // 표시 틱은 뷰어·시트용
+  dur: [2, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: COVER_HIT },
-    { at: 2, pose: COVER_HIT, stop: true },
-    { at: 6, pose: COVER_BRACE, stop: true },
-    { at: 11, pose: COVER },
+    { at: 1, pose: COVER_PUSHED, stop: true },
+    { at: 2, pose: COVER_REBOUND },
+    { at: 3, pose: COVER_BRACE, stop: true },
+    { at: 4, pose: COVER_EASE },
+    { at: 5, pose: COVER },
   ],
 };
 
