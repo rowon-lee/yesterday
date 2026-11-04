@@ -49,22 +49,28 @@ export const RAIDEN_JUMP2: MotionData = {
   ],
 };
 
-// ---- 낙하 (프레임은 떨어지는 속도로 고른다: sim은 1/4px/틱마다 한 프레임) ----
-/** 내려오며 다리를 펴기 시작한다 */
+// ---- 낙하 (프레임은 떨어지는 속도로 고른다: sim은 1/4px/틱마다 한 틱 = dur 합 36이 가장 빠른 낙하) ----
+// 2차 리워크: 12프레임 × 3 → 5프레임. 막 떨어지기 시작할 땐 웅크린 채 조금, 빨라지면 다리가 한 번에 펴지고, 착지 준비에서 멈춘다
+/** 웅크린 무릎이 조금 풀린다 */
+const F_EASE = R({ hx: 0, hy: -25.5, tl: 15, hd: 7, aFx: 11, aFy: -4.5, aBx: 8, aBy: -1, lFx: 7.2, lFy: -12.3, lBx: -1.6, lBy: -10.3 });
+/** 내려오며 다리를 편다 */
 const F_OPEN = R({ hx: 0, hy: -25, tl: 14, hd: 7, aFx: 11, aFy: -5, aBx: 8, aBy: -1, lFx: 9, lFy: -7, lBx: -6, lBy: -5 });
+/** 발이 바닥을 찾아 내려간다 */
+const F_REACH = R({ hx: 0, hy: -24.3, tl: 13.3, hd: 7, aFx: 11.7, aFy: -5, aBx: 8, aBy: -1, lFx: 9, lFy: -2.8, lBx: -8.5, lBy: -1.8 });
 /** 빨리 떨어질 때: 두 발을 앞뒤로 벌려 내리고 무릎을 살짝 굽혀 착지를 준비, 가드는 그대로 */
 const F_READY = R({ hx: 0, hy: -24, tl: 13, hd: 7, aFx: 12, aFy: -5, aBx: 8, aBy: -1, lFx: 9, lFy: -2, lBx: -9, lBy: -1 });
 
-/** 낙하: 웅크림(꼭대기) → 다리를 펴며 → 발을 앞뒤로 벌려 착지 준비. 12프레임 */
+/** 낙하: 웅크림(꼭대기) → 무릎이 풀림 → 다리를 한 번에 폄 → 발이 바닥을 찾음 → 착지 준비(멈춤). 5프레임 (dur = 떨어지는 빠르기 구간) */
 export const RAIDEN_FALL: MotionData = {
   name: 'raiden/fall',
   label: '라이덴 낙하',
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [6, 6, 6, 6, 12],
   keys: [
     { at: 0, pose: J_TUCK },
-    { at: 5, pose: F_OPEN },
-    { at: 10, pose: F_READY, stop: true },
-    { at: 11, pose: F_READY },
+    { at: 1, pose: F_EASE },
+    { at: 2, pose: F_OPEN },
+    { at: 3, pose: F_REACH },
+    { at: 4, pose: F_READY, stop: true },
   ],
 };
 
