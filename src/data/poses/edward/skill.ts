@@ -17,30 +17,59 @@ const A = (o: Partial<Pose>, at: readonly [number, number]): Pose => aim(E(o), a
 const G = (o: Partial<Pose>): Pose => grip2(E(o));
 
 // ---- 스킬 1 재현:나 ----
+/** 손이 먼저 해머를 어깨에서 든다 (머리는 어깨 뒤에 처진다) */
+const R_LIFT0 = E({ hx: 0, hy: -21.8, tl: -4, hd: -5, aFx: 5.5, aFy: 4, aBx: -3, aBy: 11, lFx: 7.5, lBx: -8.5, wa: -140 });
 /** 해머를 어깨에서 들어 머리 위로 (손은 가슴 앞) */
 const R_LIFT = E({ hx: 0, hy: -21.5, tl: -4, hd: -6, aFx: 6, aFy: 3, aBx: -3, aBy: 10, lFx: 8, lBx: -9, wa: -100 });
-/** 해머 머리를 발 앞 바닥에 쿵 세운다 (손잡이가 똑바로), 몸을 조금 숙여 누른다 */
+/** 두 손이 먼저 허리 앞으로 내려와 손잡이를 잡고, 머리는 늦게 머리 위에 서 있다 */
+const R_SWING = grip2(E({ hx: 0.8, hy: -20.6, tl: 7, hd: 1, aFx: 12, aFy: 9, lFx: 8.5, lBx: -9.5, wa: -70 }), 2.5);
+/** 해머 머리를 발 앞 바닥에 쿵 세운다 (손잡이가 똑바로), 몸을 조금 숙여 누르며 2px 내려앉는다 */
 const R_PLANT = grip2(E({ hx: 1, hy: -20, tl: 10, hd: 4, aFx: 13, aFy: 10, lFx: 9, lBx: -10, wa: 90 }), 2.5);
-/** 가슴을 펴고 턱을 든다: 두 손을 손잡이 끝에 포갠 채 (푸른 장막이 덮는다) */
+/** 손잡이가 무게에 앞으로 한 번 기울었다 돌아온다 */
+const R_ROCK = grip2(E({ hx: 1.2, hy: -19.8, tl: 11, hd: 5, aFx: 13.5, aFy: 10.5, lFx: 9, lBx: -10, wa: 82 }), 2.5);
+/** 두 손을 손잡이 끝에 포개며 몸을 세운다 */
+const R_HANDS = grip2(E({ hx: 0.5, hy: -21, tl: 4, hd: -2, aFx: 12.5, aFy: 11.5, lFx: 8.5, lBx: -9.5, wa: 91 }), 2.5);
+/** 숨을 들이쉬며 가슴을 편다 → 가슴을 펴고 턱을 든다 (푸른 장막이 덮는다) */
+const R_INHALE = grip2(E({ hx: 0.2, hy: -22.3, tl: -2, hd: -8, aFx: 12.5, aFy: 11.8, lFx: 8, lBx: -9, wa: 90 }), 2.5);
 const R_SWELL = grip2(E({ hx: 0, hy: -23, tl: -6, hd: -14, aFx: 12.5, aFy: 12, lFx: 8, lBx: -9, wa: 90 }), 2.5);
 const R_SWELL2 = grip2(E({ hx: 0, hy: -23.3, tl: -7, hd: -15, aFx: 12.5, aFy: 12.2, lFx: 8, lBx: -9, wa: 90 }), 2.5);
-/** 해머를 뽑아 어깨로 되돌린다 */
+/** 한 번 내쉰다 */
+const R_EXHALE = grip2(E({ hx: 0, hy: -22.4, tl: -4.5, hd: -11, aFx: 12.5, aFy: 11.6, lFx: 8, lBx: -9, wa: 90 }), 2.5);
+/** 손이 먼저 해머를 뽑아 든다 (머리는 아직 아래) */
+const R_PULL = E({ hx: 0.5, hy: -21.5, tl: 2, hd: -4, aFx: 10, aFy: 4, aBx: -3, aBy: 10, lFx: 8, lBx: -9, wa: 75 });
+/** 해머를 들어 올리며 어깨로 (머리가 늦게 넘어온다) */
 const R_BACK = E({ hx: 0.5, hy: -22, tl: -2, hd: -4, aFx: 8, aFy: 2, aBx: -3, aBy: 11, lFx: 7, lBx: -8, wa: -60 });
+/** 어깨에 걸치며 머리가 한 번 더 내려앉았다 자리 잡는다 */
+const R_BACK2 = E({ hx: 0.3, hy: -21.6, tl: -3, hd: -4, aFx: 5, aFy: 5.5, aBx: -2.5, aBy: 12.5, lFx: 7, lBx: -7.5, wa: -157 });
+const R_SETTLE = E({ hx: 0.1, hy: -22.3, tl: -3.8, hd: -4, aFx: 4.6, aFy: 6.4, aBx: -2.5, aBy: 12.8, lFx: 6.8, lBx: -7.2, wa: -145 });
 
-/** 스킬 1 재현:나 (128×96): 해머를 들어(2~3) → 바닥에 쿵 세우고(4~5) → 가슴을 펴 장막을 두른다(6~10) → 어깨로(11~13). 13프레임 */
+/**
+ * 스킬 1 재현:나 (128×96, 2차 리워크): 손이 먼저 해머를 들어(2~3) → 머리가 늦게 넘어와(4) 바닥에 쿵 세우며 내려앉고(5) → 손잡이가 한 번 기울었다(6) →
+ * 두 손을 포개며 서서(7) 숨을 들이쉬어 가슴을 펴고 턱을 든다(8~10, 장막이 덮는다) → 내쉬고(11) → 손이 먼저 뽑아 들고(12) 머리가 늦게 넘어와 어깨로(13~16).
+ * 16프레임 34틱 (이펙트는 시작 틱에 그대로)
+ */
 export const EDWARD_REENACT: MotionData = {
   name: 'edward/reenact',
   label: '에드워드 스킬 1 재현:나',
   wide: true,
-  dur: [2, 2, 2, 2, 3, 3, 3, 4, 4, 3, 2, 2, 2],
+  dur: [1, 2, 2, 1, 3, 2, 2, 3, 3, 4, 3, 2, 2, 2, 1, 1],
   keys: [
     { at: 0, pose: E_STANCE },
+    { at: 1, pose: R_LIFT0 },
     { at: 2, pose: R_LIFT },
-    { at: 3, pose: R_PLANT, stop: true },
-    { at: 5, pose: R_SWELL },
-    { at: 8, pose: R_SWELL2, stop: true },
-    { at: 10, pose: R_BACK },
-    { at: 12, pose: { ...E_STANCE, wa: -150 } },
+    { at: 3, pose: R_SWING },
+    { at: 4, pose: R_PLANT, stop: true },
+    { at: 5, pose: R_ROCK },
+    { at: 6, pose: R_HANDS },
+    { at: 7, pose: R_INHALE },
+    { at: 8, pose: R_SWELL },
+    { at: 9, pose: R_SWELL2, stop: true },
+    { at: 10, pose: R_EXHALE },
+    { at: 11, pose: R_PULL },
+    { at: 12, pose: R_BACK },
+    { at: 13, pose: R_BACK2 },
+    { at: 14, pose: R_SETTLE },
+    { at: 15, pose: E_STANCE },
   ],
 };
 
