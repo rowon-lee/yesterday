@@ -169,11 +169,12 @@ export const EUNWOO_SUPER_KNEEL = motion('super_kneel', '선의 반응 2 주저�
   K(0, { ...FROZEN, hd: 9 }), K(3, KN_SLUMP), K(7, KN_KNEEL, true), K(10, KN_SIT, true), K(11, KN_SIT),
 ], undefined, {});
 
-/** 상대 반응 (장면 6): 물 위에 앉은 채 고개를 떨군다 */
+/** 상대 반응 (장면 6): 물 위에 앉은 채 → 고개가 떨어지고 → 어깨까지 힘이 빠져 늘어진다 (숨 한 번) */
+const REST_DROP = { ...KN_SIT, hx: -3.2, hy: -5.8, tl: 1, hd: 33, aFx: 7.5, aFy: 7.5, aBx: 3.5, aBy: 8.5 };
 const REST_B = { ...KN_SIT, hx: -3.5, hy: -5.5, tl: -4, hd: 36, aFx: 8, aFy: 7, aBx: 4, aBy: 8 };
-export const EUNWOO_SUPER_REST = motion('super_rest', '선의 반응 3 쉼', [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4], [
-  K(0, KN_SIT), K(5, { ...KN_SIT, hd: 32 }, true), K(12, REST_B),
-], undefined, {});
+export const EUNWOO_SUPER_REST = motion('super_rest', '선의 반응 3 쉼', [8, 12, 20], [
+  K(0, KN_SIT), K(1, REST_DROP), K(2, REST_B),
+], undefined, { breeze: 1.2 });
 
 export const EUNWOO_SKILL_MOTIONS: readonly MotionData[] = [
   EUNWOO_ANSWER, EUNWOO_STILL_HERE, EUNWOO_BATTO, EUNWOO_GOODWILL,
