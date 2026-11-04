@@ -9,8 +9,9 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 
 | 명령 | 하는 일 | 결과 |
 | --- | --- | --- |
-| `npm run sheets` | `src/anim/motions.ts`의 모든 동작을 가로 띠(4배, 프레임 번호)로 출력. 12~14프레임 규칙 검사 | `out/sheets/<캐릭터>/<동작>.png`, 같은 이름 `.md`에 프레임별 표시 틱 표 |
+| `npm run sheets` | `src/anim/motions.ts`의 모든 동작을 가로 띠(4배, 프레임 번호)로 출력. 프레임 수는 동작마다 자유(표시 틱이 1 이상 정수인지만 검사), `--selftest`는 3·12·24프레임 가짜 동작으로 도구 확인 | `out/sheets/<캐릭터>/<동작>.png`, 같은 이름 `.md`에 프레임별 표시 틱 표 |
 | `npm run sheets -- --approve raiden/jab` | 위와 같고, 승인 요청용 GIF(4배, 실제 속도 한 장 + 프레임 번호가 보이는 느린 판 한 장)를 `previews/`에 | `previews/raiden/jab.gif`, `jab-slow.gif` |
+| `npm run motioncheck` | 모든 동작의 문제 신호 자동 검사(애니메이션 재수정 지침 0장)와 등급 | `docs/motions/점검표.md`, `previews/motions/silhouette-<묶음>.png` |
 | `npm run shot` | 장면을 PC·휴대폰 크기로 캡처. 오류·정수배·틱 속도·키 입력 확인 | `out/shots/<장면>-<화면>.png` |
 | `npm run shot -- blank --tick 300 --view pc-1280x720` | 장면·멈출 틱·화면 크기 지정 | |
 | `npm run shot -- "fight?p1=cpu" --tick 3000 --fast` | 주소 옵션을 붙인 장면, 멈출 틱까지 바로 돌려서 찍기 | |
