@@ -148,10 +148,13 @@ export const EUNWOO_SUPER_HEAL = motion('super_heal', '선의 연출 5 백합', 
   K(0, TOUCH_B), K(5, HEAL_A), K(11, HEAL_B),
 ], undefined, { ribbon: { stiff: 0.4, gravity: 1.3 } });
 
-/** 장면 6 (40틱): 한 걸음 물러나 손을 거두고 칼을 쥔 채 선다 (세계가 나비로 부서진다) */
+/** 장면 6 (40틱): 손이 어깨에서 떨어지고 → 한 번에 거두며 몸을 세우고 → 한 걸음 물러나 (자리 50 → 38) → 칼을 쥔 채 서서 → 기본자세 (세계가 나비로 부서진다) */
+const REL_LIFT = E({ hx: 0.8, hy: -22.6, tl: 12, hd: 13, tw: -1.8, aFx: 5, aFy: 15, aBx: 13, aBy: 4, lFx: 8, lBx: -5, wa: 90 });
+const REL_STEP = E({ hx: -1, hy: -23.3, tl: 4, hd: 10, aFx: 5.5, aFy: 14.5, aBx: 1, aBy: 10, lFx: 9, lFy: -2.5, lBx: -6, wa: 90 });
 const RELEASE = E({ hx: -1.5, hy: -23, tl: 2, hd: 8, aFx: 6, aFy: 14, aBx: -4, aBy: 14, lFx: 6, lBx: -6, wa: 90 });
-export const EUNWOO_SUPER_RELEASE = motion('super_release', '선의 연출 6 돌아옴', [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4], [
-  K(0, HEAL_B), K(4, RELEASE, true), K(12, E_STANCE),
+const REL_SETTLE = E({ hx: -1.5, hy: -23.2, tl: 1.5, hd: 7, aFx: 6.5, aFy: 13.8, aBx: -5, aBy: 14, lFx: 6.3, lBx: -5, wa: 85 });
+export const EUNWOO_SUPER_RELEASE = motion('super_release', '선의 연출 6 돌아옴', [4, 4, 6, 7, 7, 12], [
+  K(0, HEAL_B), K(1, REL_LIFT), K(2, REL_STEP), K(3, RELEASE), K(4, REL_SETTLE), K(5, E_STANCE),
 ], undefined, { ribbon: { stiff: 0.5, gravity: 1.1 } });
 
 /** 상대 반응: 시간이 멈춘 듯 선 채로 굳는다 (맞은 순간의 꼿꼿한 자세, 고개만 아주 조금) */
