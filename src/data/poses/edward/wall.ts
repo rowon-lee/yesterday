@@ -1,6 +1,6 @@
 import type { MotionData } from '../../../anim/motion';
 import type { Pose } from '../../../anim/pose';
-import { E, grip2 } from './stance';
+import { aim, E, grip2 } from './stance';
 
 /*
  * 에드워드 벽 기동 (캐릭터 기획서 '움직임': 벽은 묵직하게 딛는다). 오른쪽을 보는 기준.
@@ -143,37 +143,47 @@ export const EDWARD_WALL_RUN: MotionData = {
 // ---- 벽 박차기 공격 (128×96. 벽은 뒤쪽): 벽을 박차고 아래 대각선으로 날아가며 해머를 내리친다 ----
 /** 붙은 채 해머를 두 손으로 등 뒤로 감는다 (뒷발은 벽을 딛는다) */
 const WK_COIL = grip2(E({ hx: -3, hy: -21, tl: 16, hd: 14, aFx: 2, aFy: -9, lFx: 3, lFy: -8, lBx: -6, lBy: -12, wa: -175 }));
-/** 더 깊이 웅크린다 (멈칫) */
-const WK_SQUASH = grip2(E({ hx: -3, hy: -19, tl: 22, hd: 16, aFx: 1, aFy: -8, lFx: 2, lFy: -9, lBx: -6, lBy: -11, wa: -185 }));
-/** 벽을 박차 튀어 나가며 해머가 머리 위를 지나 앞으로 넘어온다 */
-const WK_PUSH = grip2(E({ hx: 3, hy: -21, tl: 10, hd: 4, aFx: 7, aFy: -14, lFx: 7, lFy: -12, lBx: -12, lBy: -9, wa: -70 }));
+/** 감기 끝 (멈칫): 더 깊이 웅크리며 해머를 등 뒤 아래로 한 번 더 끌어당긴다 (머리가 벽 쪽으로 처진다) */
+const WK_SQUASH = grip2(E({ hx: -3, hy: -18.5, tl: 24, hd: 16, aFx: -1, aFy: -6, lFx: 2, lFy: -9, lBx: -6, lBy: -11, wa: -203 }));
+/** 벽을 박차 튀어 나가며 두 손이 머리 위로 올라가고, 해머 머리는 머리 뒤 위로 크게 치켜 올라간다 (내리치기 직전의 감기) */
+const WK_PUSH = aim(E({ hx: 3, hy: -21, tl: 10, hd: 4, lFx: 7, lFy: -12, lBx: -12, lBy: -9, wa: -150 }), -16, -72);
+/** 두 손이 먼저 앞으로 끌려 내려오고, 해머 머리는 아직 머리 위에 처져 있다 */
+const WK_SWING = aim(E({ hx: 2, hy: -20.5, tl: 18, hd: -2, lFx: 5.5, lFy: -10, lBx: -11, lBy: -7.5, wa: -100 }), 13, -77);
 /** 내리친다: 두 팔을 앞아래로 뻗고 해머 머리가 앞 아래에 (몸은 앞으로 숙이고 다리는 뒤로) */
 const WK_SMASH = grip2(E({ hx: 1, hy: -20, tl: 26, hd: -6, aFx: 14, aFy: 9, lFx: 4, lFy: -8, lBx: -10, lBy: -6, wa: 48 }));
+/** 지나치기: 머리가 앞 아래로 한 번 더 쏠린다 */
+const WK_OVER = grip2(E({ hx: 1.5, hy: -19.8, tl: 28, hd: -6, aFx: 15.5, aFy: 10, lFx: 3.5, lFy: -8.5, lBx: -10.5, lBy: -6, wa: 54 }));
 /** 내리친 자세 그대로 날아간다 */
-const WK_DIVE = grip2(E({ hx: 1, hy: -20, tl: 28, hd: -6, aFx: 14.5, aFy: 9.5, lFx: 3, lFy: -9, lBx: -11, lBy: -6, wa: 52 }));
+const WK_DIVE = grip2(E({ hx: 1, hy: -20, tl: 28, hd: -6, aFx: 14.5, aFy: 9.5, lFx: 3, lFy: -9, lBx: -11, lBy: -6, wa: 58 }));
 /** 날아가는 끝: 해머가 조금 들린다 */
 const WK_DIVE_END = grip2(E({ hx: 0, hy: -21, tl: 20, hd: -4, aFx: 13, aFy: 6, lFx: 5, lFy: -8, lBx: -9, lBy: -6, wa: 40 }));
-/** 해머를 거두며 몸을 세운다 */
-const WK_RETRACT: Pose = E({ hx: 0, hy: -23, tl: 6, hd: -2, aFx: 7, aFy: 1, aBx: -6, aBy: 3, lFx: 7, lFy: -8, lBx: -5, lBy: -6, wa: -120 });
+/** 손이 먼저 해머를 거두며 몸을 세운다 (해머 머리는 아직 앞 아래) */
+const WK_RETRACT: Pose = E({ hx: 0, hy: -23, tl: 6, hd: -2, aFx: 7, aFy: 1, aBx: -6, aBy: 3, lFx: 7, lFy: -8, lBx: -5, lBy: -6, wa: 10 });
+/** 해머 머리가 늦게 어깨 쪽으로 넘어온다 */
+const WK_RETRACT2: Pose = E({ hx: 0, hy: -23.5, tl: 4, hd: -2, aFx: 6, aFy: 3, aBx: -6, aBy: 3, lFx: 7, lFy: -8, lBx: -5, lBy: -6, wa: -125 });
 
 /**
- * 벽 박차기 공격 (128×96): 1~2프레임 붙은 채 해머를 등 뒤로 감음(벽에 머묾) → 3프레임 박차고 나가며 해머가 머리 위로 넘어옴 →
- * 4~9프레임 해머를 앞아래로 내리친 채 날아감(판정: 해머 머리 앞 상자) → 10~13프레임 해머를 거두고 낙하 자세로
+ * 벽 박차기 공격 (128×96, 2차 리워크): 1~2프레임 붙은 채 해머를 등 뒤 아래로 끌어당겨 감음(벽에 머묾) → 3프레임 박차고 나가며 해머를 머리 뒤 위로 치켜듦 →
+ * 4프레임 손이 먼저 앞으로 내려오고 머리는 처짐 → 5~10프레임 해머를 앞아래로 내리친 채 날아감(7틱부터 판정, 6번은 머리가 한 번 더 쏠림) →
+ * 11~14프레임 손이 먼저 거두고 머리가 늦게 넘어와 낙하 자세로. 14프레임 33틱 (공격 데이터 그대로: 박차기 5틱, 판정 7~23틱)
  */
 export const EDWARD_WALL_KICK: MotionData = {
   name: 'edward/wall_kick',
   label: '에드워드 벽 박차기 공격',
   wide: true,
-  dur: [2, 3, 2, 2, 3, 3, 3, 3, 2, 2, 2, 3, 3],
+  dur: [2, 3, 1, 1, 2, 3, 3, 3, 3, 2, 2, 2, 3, 3],
   keys: [
     { at: 0, pose: WK_COIL },
     { at: 1, pose: WK_SQUASH, stop: true },
     { at: 2, pose: WK_PUSH },
-    { at: 3, pose: WK_SMASH },
-    { at: 5, pose: WK_DIVE },
-    { at: 8, pose: WK_DIVE_END, stop: true },
-    { at: 9, pose: WK_RETRACT },
-    { at: 12, pose: WJ_FALL },
+    { at: 3, pose: WK_SWING },
+    { at: 4, pose: WK_SMASH },
+    { at: 5, pose: WK_OVER },
+    { at: 6, pose: WK_DIVE },
+    { at: 9, pose: WK_DIVE_END, stop: true },
+    { at: 10, pose: WK_RETRACT },
+    { at: 11, pose: WK_RETRACT2 },
+    { at: 13, pose: WJ_FALL },
   ],
 };
 
