@@ -547,9 +547,13 @@ void main() {
   vec3 c = texture2D(hdr, vUv).rgb;
   vec4 mt = hasMask > 0.5 ? texture2D(maskTex, vUv) : vec4(0.0);
   float mk = step(1e-6, dot(mt.rgb, vec3(1.0)));
-  // 애니 이펙트 칸 (vfx/anime, 표시 그림 알파 1): 색 보정·빛 번짐·가장자리 어둡게 없이 그린 색 그대로 (고채도 4색 띠를 지킨다)
+  // 앞겹(카메라 앞을 스치는 기둥·전선, 깊이 +1000)이 가린 칸: 표시 그림에는 캐릭터·이펙트가 있어도 화면에는 앞겹이 보인다 → 무대 칸으로
+  // (가린 물체 색이 캐릭터·이펙트 모양대로 따로 보정되어 떠 보이지 않게)
+  if (mk > 0.5 && viewDepth(depthTex, vUv) < ${(DIST - 300).toFixed(1)}) mk = 0.0;
+  // 애니 이펙트 칸 (vfx/gg, 표시 그림 알파 1): 색 보정·빛 번짐·가장자리 어둡게 없이 그린 색 그대로 (고채도 4색 띠를 지킨다).
+  // 색은 표시 그림에서 읽는다 (화면 그림의 그 칸에는 이펙트 판 뒤에 그린 앞 안개·앞 비가 얹혀 있을 수 있다)
   if (mk * mt.a > 0.5) {
-    vec3 e = clamp(c * 2.0, 0.0, 1.0);
+    vec3 e = clamp(mt.rgb, 0.0, 1.0);
     gl_FragColor = vec4(mix(e * 12.92, 1.055 * pow(e, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, e)), 32.0 / 255.0);
     return;
   }
@@ -644,8 +648,34 @@ uniform float curveLimit;
 /** 배경 누르기 tint (render/screenfx press, 방식 tint): rgb = 더할 색 (sRGB), a = 세기. 팔레트로 줄인 무대 칸 색을 scale배로 낮추고 색을 더한다 */
 uniform vec4 pressTint;
 uniform float pressScale;
+/** 배경 누르기 crack (14-8 ⑧): a = 세기, rgb = 한 색. 어두운 단·밝은 단·균열 색 (sRGB) */
+uniform vec4 pressCrack;
+uniform vec3 crackDark;
+uniform vec3 crackHi;
+uniform vec3 crackLine;
 varying vec2 vUv;
 ${BAYER_GLSL}
+vec2 crackHash(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return fract(sin(p) * 43758.5453);
+}
+/** 월드에 붙은 균열 그물: 가장 가까운 두 씨앗까지 거리 차 (px, 작을수록 금 위) */
+float crackDist(vec2 w) {
+  const float S = 26.0;
+  vec2 g = floor(w / S);
+  vec2 f = w / S - g;
+  float d1 = 9.0;
+  float d2 = 9.0;
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 o = vec2(float(x), float(y));
+      vec2 r = o + 0.1 + crackHash(g + o) * 0.8 - f;
+      float d = dot(r, r);
+      if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+    }
+  }
+  return (sqrt(d2) - sqrt(d1)) * S;
+}
 vec2 lutUv(vec3 c, float row, float rows) {
   vec3 q = floor(clamp(c, 0.0, 1.0) * 31.0 + 0.5);
   return vec2((q.b * 32.0 + q.r + 0.5) / 1024.0, (row * 32.0 + q.g + 0.5) / (32.0 * rows));
@@ -689,8 +719,15 @@ void main() {
 #endif
   vec3 o = texelFetch(rampTex, ivec2(int(stp), int(r)), 0).rgb;
   if (isMask > 0.5) o = texture2D(maskLut, lutUv(c, 0.0, 1.0)).rgb;
-  // 무대만 어둡게 + 색 (팔레트 색마다 한 색으로 바뀌므로 새 그러데이션이 생기지 않는다: 2틱 동안 팔레트를 바꿔 끼운 것)
+  // 무대만 어둡게 + 색 (팔레트 색마다 한 색으로 바뀌므로 새 그러데이션이 생기지 않는다: 몇 틱 동안 팔레트를 바꿔 끼운 것)
   else if (pressTint.a > 0.0) o = mix(o, o * pressScale + pressTint.rgb, pressTint.a);
+  // 한 색 + 균열 (14-8 ⑧): 밝기 세 단으로 칠하고 금을 긋는다 (금은 월드에 붙어 카메라가 흔들려도 같은 자리)
+  else if (pressCrack.a > 0.0) {
+    float l = dot(o, vec3(0.299, 0.587, 0.114));
+    vec3 fill = l < 0.1 ? crackDark : l < 0.34 ? pressCrack.rgb : crackHi;
+    if (crackDist(gl_FragCoord.xy + ditherOrigin) < 1.6) fill = crackLine;
+    o = mix(o, fill, step(0.5, pressCrack.a));
+  }
   gl_FragColor = vec4(o, 1.0);
 }
 `;
@@ -953,6 +990,10 @@ export class Post {
       curveLimit: { value: 4 },
       pressTint: { value: new THREE.Vector4(0, 0, 0, 0) },
       pressScale: { value: 1 },
+      pressCrack: { value: new THREE.Vector4(0, 0, 0, 0) },
+      crackDark: { value: new THREE.Vector3() },
+      crackHi: { value: new THREE.Vector3() },
+      crackLine: { value: new THREE.Vector3() },
     });
     this.palette.defines = { DETAIL: '' };
     this.blit = mat(BLIT_FRAG, { src: { value: this.final.texture } });
@@ -1089,13 +1130,25 @@ export class Post {
     } else u.fxGlowK.value = 0;
     // 배경 누르기 (render/screenfx press)
     const pk = pressAt(time);
-    const pt = this.palette.uniforms.pressTint.value as THREE.Vector4;
+    const pu = this.palette.uniforms;
+    const pt = pu.pressTint.value as THREE.Vector4;
+    const pc = pu.pressCrack.value as THREE.Vector4;
     pt.w = 0;
+    pc.w = 0;
+    const srgb = (h: string): [number, number, number] => {
+      const v = parseInt(h.slice(1), 16);
+      return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
+    };
     if (pk > 0 && press.mode === 'tint') {
       // 팔레트 단계에서 (sRGB 그대로)
-      const v = parseInt(press.color.slice(1), 16);
-      pt.set(((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255, pk);
-      this.palette.uniforms.pressScale.value = press.scale;
+      pt.set(...srgb(press.color), pk);
+      pu.pressScale.value = press.scale;
+      u.press.value.w = 0;
+    } else if (pk > 0 && press.mode === 'crack') {
+      pc.set(...srgb(press.color), pk);
+      (pu.crackDark.value as THREE.Vector3).set(...srgb(press.dark));
+      (pu.crackHi.value as THREE.Vector3).set(...srgb(press.hi));
+      (pu.crackLine.value as THREE.Vector3).set(...srgb(press.crack));
       u.press.value.w = 0;
     } else if (pk > 0) {
       const pc = this.tintColor.set(press.color);

@@ -1,13 +1,11 @@
 // 이펙트 확인 (동작연출지침서 14-6). 한 장면을 이전 버전과 지금 버전으로 같은 입력으로 찍어 PR에 붙일 자료를 만든다.
-//   npm run fxcheck -- raiden_combo --moves atk1,atk2,atk3,atk4 --look src/render/chars/raiden-anime.ts:RAIDEN_LOOK --out previews/fx/raiden
+//   npm run fxcheck -- raiden_combo --moves atk1,atk2,atk3,atk4 --out previews/fx/raiden
 //     → <out>/<장면>-vs-ref.png        1) 피크 프레임과 레퍼런스(docs/refs/이펙트_레퍼런스_애니격투.png)를 나란히 (2배)
 //       <out>/<장면>-numbers.md        2) 피크 숫자 표 (14-3 기준과 견줌: 이 화면은 480×270이라 지침서 값 × 1.5)
 //       <out>/<장면>-gray.png          3) 피크 프레임 흑백 (이펙트 속 캐릭터 실루엣이 읽히는지)
 //       <out>/<장면>-before-after.gif  4) 같은 장면 이전(왼쪽)·지금(오른쪽) (1배, 실제 빠르기)
 //       <out>/<장면>-after-slow.gif       지금 버전만 느리게 (2배, 1/3 빠르기: 14-2 시간표를 본다)
 //       <out>/<장면>-peaks.png, -peaks-before.png  기술마다 피크 프레임 (지금·이전, 2배)
-//   npm run fxcheck -- --swatch --look src/render/chars/raiden-anime.ts:RAIDEN_LOOK --name raiden --out previews/fx/raiden
-//     → <out>/<name>-swatch.png  14-4 색표 견본 (4색 띠 + 그 색으로 그린 띠 하나, 4배)
 // 이전 버전 = --base (기본 origin/main). --no-base면 지금 버전만.
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -186,118 +184,11 @@ const [lookFile, lookExp] = (opt.look || ':').split(':');
 const look = opt.look ? (await vite.ssrLoadModule(`/${lookFile}`))[lookExp] : null;
 const toHex = (rgb) => `#${rgb.map((x) => x.toString(16).padStart(2, '0')).join('')}`;
 
-// ---------------------------------------------------------------- 색 견본 (14-4)
+// 색 견본·부품 시트 (--swatch)는 길티기어식 이펙트(14-8)로 바뀌며 없앴다: 라이덴 이펙트 확인은 tools/ggcheck.mjs
 if (opt.swatch) {
-  const exp = lookExp;
-  const A = await vite.ssrLoadModule('/src/vfx/anime/index.ts');
-  const steps = [['CORE', look.ramp.core], ['MAIN', look.ramp.main], ['DEEP', look.ramp.deep], ['RIM', look.ramp.rim]];
-  const nameOf = (rgb) => Object.entries(pal.COLORS).find(([, v]) => typeof v === 'string' && v.toLowerCase() === `#${rgb.map((x) => x.toString(16).padStart(2, '0')).join('')}`)?.[0] ?? '';
-  // 1배 그림 240×120: 위 4색 칸 (60×44), 아래 그 색으로 그린 띠 (일반 등급 잽 모양)
-  const W = 240;
-  const H = 128;
-  const base = img(W, H);
-  for (let i = 0; i < W * H; i++) base.d.set([14, 16, 30], i * 3);
-  steps.forEach(([label, c], k) => {
-    const rgb = hexOf(c);
-    for (let y = 8; y < 44; y++) for (let x = 8 + k * 58; x < 8 + k * 58 + 52; x++) base.d.set(rgb, (y * W + x) * 3);
-    text(base, label, 8 + k * 58, 47, 1, [200, 200, 210]);
-    text(base, `#${rgb.map((x) => x.toString(16).padStart(2, '0')).join('')}`, 8 + k * 58, 54, 1, [150, 150, 165]);
-  });
-  // 띠: 공용 부품으로 그린다 (판정 상자 = 머리)
-  const fr = { w: W, h: H, ox: 0, oy: 0, color: new Uint32Array(W * H), light: new Uint32Array(W * H), mark: new Uint8Array(W * H), box: [W, H, -1, -1] };
-  const list = [];
-  A.animeSwing((fx) => list.push(fx), look, { grade: 'normal', path: 'line', len: 150, width: 26 }, { x: 33, y: -40, w: 50, h: 12 }, { x: 100, y: 134, floor: 140, facing: 1 }, 7);
-  for (const fx of list) fx.draw(fr, 'back');
-  for (let i = 0; i < W * H; i++) {
-    const c = fr.color[i];
-    if (c >>> 24 && Math.floor(i / W) > 64) base.d.set(hexOf(c), i * 3);
-  }
-  const out = img(W * 4, H * 4);
-  blit(out, base, 0, 0, 4);
-  const name = opt.name || exp.toLowerCase();
-  save(`${opt.out}/${name}-swatch.png`, out);
-
-  // 부품 시트: 공용 부품을 하나씩 (이 캐릭터 색표로). 칸 200×110, 2배
-  const CW = 200;
-  const CH = 110;
-  const cells = [];
-  const cell = (label, draw) => {
-    const c = img(CW, CH);
-    for (let i = 0; i < CW * CH; i++) c.d.set([14, 16, 30], i * 3);
-    const fr2 = { w: CW, h: CH, ox: 0, oy: 0, color: new Uint32Array(CW * CH), light: new Uint32Array(CW * CH), mark: new Uint8Array(CW * CH), box: [CW, CH, -1, -1] };
-    draw(fr2);
-    for (let i = 0; i < CW * CH; i++) if (fr2.color[i] >>> 24) c.d.set(hexOf(fr2.color[i]), i * 3);
-    text(c, label, 4, 4, 1, [210, 210, 220]);
-    cells.push(c);
-  };
-  const SW = await vite.ssrLoadModule('/src/vfx/anime/sweep.ts');
-  const BD = await vite.ssrLoadModule('/src/vfx/anime/bands.ts');
-  const box = { x: 33, y: -40, w: 50, h: 12 };
-  const who = { x: 70, y: 98, floor: 104, facing: 1 };
-  const rangeFn = (X, Y) => { const lx = X - who.x; const ly = Y - who.y; return lx >= box.x && lx <= box.x + box.w && ly >= box.y && ly <= box.y + box.h; };
-  const path = [[who.x + box.x + box.w - 150, who.y - 34], [who.x + box.x + box.w, who.y - 34]];
-  const sweepOnly = SW.sweep({ path, width: 26, taper: 0.55, range: rangeFn });
-  const paint = (fr2, fn) => {
-    for (let c = 0; c < sweepOnly.n; c++) {
-      const j = sweepOnly.at[c];
-      const X = sweepOnly.x0 + (j % sweepOnly.w);
-      const Y = sweepOnly.y0 + Math.floor(j / sweepOnly.w);
-      const col = fn(c);
-      if (col === null || X < 0 || Y < 0 || X >= CW || Y >= CH) continue;
-      fr2.color[Y * CW + X] = col >>> 0;
-    }
-  };
-  cell('1 SWEEP', (fr2) => paint(fr2, (c) => (Math.abs(sweepOnly.v[c]) <= sweepOnly.hw[sweepOnly.s[c]] ? look.ramp.deep : null)));
-  cell('2 BANDS', (fr2) => paint(fr2, (c) => {
-    const k = sweepOnly.s[c];
-    const E = sweepOnly.hw[k];
-    const av = Math.abs(sweepOnly.v[c]);
-    if (av > E) return null;
-    const st = BD.stepOf(sweepOnly.rd[c], av, E, 2, 2, 0);
-    return BD.colorOf(look.ramp, st);
-  }));
-  // 띠 (주먹 → 앞끝: 앞끝에서 번개 가닥으로 흩어진다)
-  const bandMove = { grade: 'normal', path: 'line', len: 120, width: 24, profile: [[0, 0.45], [0.25, 0.9], [0.45, 1], [0.75, 0.85], [1, 0.5]], strands: 5, scatter: 0.32, spread: 16, reach: 26, strandW: 3, fly: 4, branches: 0 };
-  const bandAt = (fr2, t, mvx = bandMove) => {
-    const l2 = [];
-    A.animeSwing((fx) => l2.push(fx), look, mvx, { x: 10, y: -40, w: 40, h: 12 }, { x: 20, y: 98, floor: 104, facing: 1 }, 7, [10, -34]);
-    const band = l2[0];
-    band.update(t / 60);
-    band.draw(fr2, 'back');
-  };
-  cell('3 TEAR 0', (fr2) => bandAt(fr2, 0));
-  cell('3 TEAR 5', (fr2) => bandAt(fr2, 5));
-  cell('4 SPEED', (fr2) => {
-    const sl = A.speedLines({ x: 110, y: 60, dir: 0, count: 14, ticks: 6, len: [60, 300], spread: 40, reach: 160, colors: [look.ramp.core, look.ramp.main, look.ramp.rim], seed: 3 });
-    sl.update(1 / 60);
-    sl.draw(fr2, 'back');
-  });
-  cell('5 SPIKES', (fr2) => {
-    const sp = A.spikes({ x: 60, y: 70, dir: 0, count: 6, len: [36, 72], fan: [-0.9, 0.5], base: 3, white: look.ramp.core, rim: look.ramp.rim, seed: 5 });
-    sp.draw(fr2, 'front');
-  });
-  cell('7 EMBERS', (fr2) => {
-    const pts = [];
-    for (let k = 0; k <= 8; k++) pts.push([30 + k * 17, 60]);
-    const em = A.embers({ from: pts, count: 26, dir: 0, colors: [look.ramp.core, look.ramp.main, look.ramp.rim, look.ramp.deep], kind: look.ember, born: [0, 3], life: [8, 14], seed: 11 });
-    em.update(5 / 60);
-    em.draw(fr2, 'back');
-  });
-  // 번개 줄기 모양값: 띠 안팎 전류 가지, 번개 반원 (미들킥)
-  cell('BRANCH', (fr2) => bandAt(fr2, 0, { ...bandMove, branches: 4, branchLen: 26, branchW: 3 }));
-  cell('ARC', (fr2) => {
-    const arc = A.arcBolt({ center: [60, -36], r: 26, a0: (80 * Math.PI) / 180, a1: (-85 * Math.PI) / 180, bolts: 3, forks: 4, width: 4, ramp: look.ramp, grade: 'normal', range: (x, y) => x >= 60 && x <= 90 && y >= -64 && y <= -8, offset: [20, 98], layer: 'back', seed: 3 });
-    arc.draw(fr2, 'back');
-  });
-  const PC = 4;
-  const sheet = img(PC * (CW + 2) - 2, Math.ceil(cells.length / PC) * (CH + 2) - 2, 40);
-  cells.forEach((c, k) => blit(sheet, c, (k % PC) * (CW + 2), Math.floor(k / PC) * (CH + 2), 1));
-  const big = img(sheet.w * 2, sheet.h * 2);
-  blit(big, sheet, 0, 0, 2);
-  save(`${opt.out}/${name}-parts.png`, big);
-  console.log('    색:', steps.map(([l, c]) => `${l} ${nameOf(hexOf(c))}`).join(' · '));
+  console.log('--swatch는 없어졌다: node tools/ggcheck.mjs를 쓴다');
   await vite.close();
-  process.exit(0);
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------- 장면 찍기

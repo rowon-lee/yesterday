@@ -59,6 +59,11 @@ export const LOOKS = {
   ghostW: { outline: 'white', shadow: 'white', base: 'white', light: 'white' },
   /** 맞은 순간 하얗게 번쩍임 */
   flash: { outline: 'ink', shadow: 'white', base: 'white', light: 'white' },
+  /**
+   * 강타에 맞은 순간 1~3틱: 주색 실루엣 + 밝은 테두리 (동작연출지침서 14-8 ⑧ '카운터 느낌').
+   * 밝은 빛기둥 앞에서 읽히게 어두운 실루엣 (레퍼런스 3처럼): 검붉은 몸·아주 어두운 그늘·진한 주색 빛 받는 쪽·흰 테두리. 지금은 라이덴 강타만 쓴다
+   */
+  struck: { outline: 'raidenFxCore', shadow: 'ink', base: 'raidenFxDark', light: 'raidenFxScarlet' },
   /** 차지를 모으는 동안 몸이 빛남: 한 단계씩 밝게 (렌더가 단계마다 맥박치듯 바꿔 끼운다) */
   glow1: { outline: 'ink', shadow: 'gold', base: 'goldLight', light: 'white' },
   glow2: { outline: 'ink', shadow: 'sky', base: 'skyLight', light: 'white' },

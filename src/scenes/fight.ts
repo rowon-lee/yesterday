@@ -359,20 +359,22 @@ export function fightScene(app?: App): Scene {
     const order = [...s.fighters].sort((a, b) => Number(a.mode === 'attack') - Number(b.mode === 'attack'));
     g.actors.update(s.fighters.map((f, i) => {
       const pose = fighterPose(f);
-      const white = fightVfx.white(i);
+      // 강타에 맞은 1~3틱: 주색 실루엣 + 밝은 테두리 (14-8 ⑧), 아니면 하얀 번쩍임
+      const struck = fightVfx.struck(i);
+      const white = !struck && fightVfx.white(i);
       const glow = chargeGlow(f);
       const jitter = f.hitstop > 0 && SHAKEN.has(f.mode) ? (s.tick % 2 ? 1 : -1) : 0;
       return {
         motion: motionByName.get(pose.motion)!,
         frame: pose.frame,
-        look: white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
+        look: struck ? 'struck' : white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
         skin: skins[i],
         flip: f.facing < 0,
         x: f.x / 256 + jitter,
         // 라이덴 등장: 번개 속에서 나타나 위에서 떨어진다 (렌더 전용 높이)
         h: -f.y / 256 + raidenIntroLift(f),
         floor: -floorBelow(s, f.x, f.y) / 256,
-        rim: !white,
+        rim: !white && !struck,
         // 대시 중 순간이동 구간은 깜빡인다. 순간이동 기술(라이덴 잔흔)은 사라지는 틱에 한 번 보이지 않는다
         visible: !((f.mode === 'dash' || f.mode === 'airdash') && f.invuln > 0 && s.tick % 2) && !blinkingNow(f) && !raidenIntroHidden(f) && !rendersOf(f.char).hidden?.(s, f, i) && !fightVfx.hides(i),
         order: order.indexOf(f),

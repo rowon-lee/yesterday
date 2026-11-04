@@ -1,70 +1,182 @@
-// YESTERDAY 이펙트 실루엣 데이터 형식 (숫자 데이터만, 렌더 전용 그림의 설계도).
-// 사용자 결정 (2026-11-04): 이펙트를 난수로 흩뿌리지 않는다. 공격마다 키 실루엣(피크·찢어짐·흩어짐)을
-// 다각형 점으로 디자인하고, 키 사이는 같은 번호의 점끼리 보간한다. 그리는 것은 vfx/silhouette.
+// YESTERDAY 이펙트 문법 데이터 형식 (숫자 데이터만). 그리는 것은 vfx/gg.
+// 기준: 동작연출지침서 14-8 '길티기어식 이펙트' 여덟 가지 (2026-11-04). 레퍼런스 그림을 베끼지 않고 문법만 옮긴다.
+// 공격 하나의 이펙트는 큰 모양 몇 개의 숫자(기준점, 축 방향, 길이, 두께 곡선, 꺾임, 잉크 쐐기, 고리…)로 정한다.
+// 난수는 불씨 위치·속도 같은 작은 변화에만 쓴다 (14-7).
 //
-// 좌표: 공격자 발밑 기준, 오른쪽 보는 기준 px. x는 공격 방향 앞이 +, y는 아래가 + (위가 −, 바닥 = 0).
-// 판정이 시작하는 틱의 공격자 자리에 놓이고, 왼쪽을 보면 좌우를 뒤집는다.
+// 좌표: 오른쪽 보기 기준 px. x는 공격 방향 앞이 +, y는 아래가 + (위가 −). 각도는 도, 0 = 앞, −90 = 위, 90 = 아래.
+// 기준(anchor): 'self' = 공격자 발밑 (판정이 시작하는 틱 자리), 'hit' = 맞은 점 (맞은 틱에만 나온다).
+// 화면은 480×270이라 14-8의 320×180 기준 크기에 1.5를 곱해 적는다.
+
+export type GPt = readonly [number, number];
 
 /**
- * 점 목록 (평평하게: x0, y0, x1, y1, …).
- * - fill: 다각형 고리. 점은 칸 모서리 (칸 i는 i ~ i+1을 덮는다). 칸 가운데가 안에 들면 칠한다 (짝홀 규칙: 고리 안의 고리는 구멍)
- * - line: 1px 꺾은선. 점은 칸 번호 (칸 i). 점 하나면 한 칸
+ * 셀 색 단계 (캐릭터 색표 번호): 0 심 (흰·크림) · 1 주색 · 2 진한 주색 · 3 잉크 (아주 어두운) · 4 고리·테두리 (보색 소량)
  */
-export type VRing = readonly number[];
+export type GTone = 0 | 1 | 2 | 3 | 4;
 
-/** 키 이름: 피크 (0틱에 가장 크게) · 찢어짐 (앞끝부터 가닥으로) · 흩어짐 (조각만 남음) */
-export type VKeyName = 'peak' | 'tear' | 'scatter';
-
-/** 실루엣 한 조각 (한 색) */
-export interface VPart {
-  /** 이름 (설계 그림·확인 표에 적는다) */
-  id: string;
-  /** 색 단계: 캐릭터 색표(render/chars의 실루엣 색표)의 번호 */
-  step: number;
-  /** fill = 칠한 다각형 · line = 1px 선 */
-  kind: 'fill' | 'line';
-  /** 캐릭터 뒤 (기본) · 앞. 앞 겹은 맞는 쪽만 덮고 공격자 몸통은 덮지 않는다 (14-5) */
+/** 모든 모양에 붙는 것 */
+interface GBase {
+  /** 기준: 공격자 발밑 (기본) · 맞은 점 */
+  anchor?: 'self' | 'hit';
+  /** 캐릭터 뒤 (기본) · 앞. 앞 겹에는 섬광·불씨만 (14-7 '맞는 사람은 덩어리 앞에') */
   layer?: 'back' | 'front';
-  /** 키마다 고리(꺾은선) 목록. 키 사이에 보간하려면 두 키의 고리 수와 고리마다 점 수가 같아야 한다. 어떤 키에 없으면 그 키부터 그리지 않는다 */
-  keys: Partial<Record<VKeyName, readonly VRing[]>>;
-}
-
-/** 키 하나: 그 모양이 되는 틱과 그대로 머무는 틱 수 */
-export interface VKey {
-  name: VKeyName;
-  /** 판정이 시작하는 틱 = 0 */
-  at: number;
-  /** 이 모양 그대로 머무는 틱 수 (기본 0) */
+  /** 최대 크기로 머무는 틱 (히트스톱 동안은 따로 머문다) */
   hold?: number;
+  /** 그 뒤 두께부터 얇아져 사라지는 틱 (14-8 시간: 4~10) */
+  fade?: number;
+  /** 나타나는 틱 (기본 0) */
+  delay?: number;
 }
 
-/** 배경 누르기 (동작연출지침서 14-1 ⑥): 맞힌 틱부터 ticks틱 */
-export interface VPress {
-  ticks: number;
-  /** dark: 이펙트 색으로 납작하게 (공통 색표로 뭉침) · tint: 밝기를 scale배로 낮추고 color를 더한다 (무대 무늬는 그대로) */
-  mode: 'dark' | 'tint';
-  /** 세기 0~1 */
-  k: number;
-  /** dark: 물들일 색 · tint: 더할 색 ('#rrggbb') */
-  color: string;
-  /** tint: 밝기 배수 */
-  scale?: number;
+/**
+ * 빛 쐐기·빛기둥 (문법 1·4): 축을 따라 가운데가 두껍고 양 끝이 뾰족한 납작한 면. 셀 3단 (진한 주색 → 주색 → 심).
+ * 빛기둥은 길게 (화면 밖까지), 쐐기는 짧게
+ */
+export interface GWedge extends GBase {
+  kind: 'wedge';
+  /** 축 위 기준점과 축 방향 (도) */
+  at: GPt;
+  angle: number;
+  /** 기준점에서 앞쪽·뒤쪽 길이 */
+  fwd: number;
+  back: number;
+  /** 가장 두꺼운 곳의 두께 (px, 전체) */
+  w: number;
+  /** 가장 두꺼운 자리 (0 뒤끝 → 1 앞끝, 기본 0.4) */
+  peak?: number;
+  /** 뒤·앞 끝으로 가는 모양 (1 곧게, 1보다 작으면 볼록하게 두툼, 크면 오목하게 바늘) */
+  bulge?: readonly [number, number];
+  /** 축 위쪽(화면 위)으로 두께를 몰기 (−1~1) */
+  skew?: number;
+  /** 주색·심 두께 비 (전체 두께 대비, 기본 0.66·0.3)와 심 길이 비 (기본 0.78) */
+  main?: number;
+  core?: number;
+  coreLen?: number;
+  /** 바깥 단 색 (기본 2 진한 주색) */
+  edge?: GTone;
 }
 
-/** 공격 하나의 이펙트 실루엣 설계 */
-export interface VDesign {
-  /** 키 (at 순서). 마지막 키는 end 틱까지 머문다 */
-  keys: readonly VKey[];
-  end: number;
-  /** 그리는 순서대로 (뒤에 적은 것이 위에 칠해진다) */
-  parts: readonly VPart[];
-  /** 눈이 먼저 가는 중심 (맞은 자리, 실제 광원 자리) */
-  center: readonly [number, number];
-  /** 덩어리 가운데 (두 번째 광원 자리) */
-  mass?: readonly [number, number];
-  press?: VPress;
-  /** 이펙트 빛 번짐 배수 (기본 1): 덩어리가 아주 크면 번짐이 무대를 덮지 않게 줄인다 */
-  glow?: number;
-  /** 실제 광원 세기 배수 (기본 1) */
-  light?: number;
+/** 스우시 띠 (문법 1): 원호를 따라 휘는 굵은 띠. 두께는 꼬리에서 머리로 (u 0 → 1) */
+export interface GSwoosh extends GBase {
+  kind: 'swoosh';
+  /** 원 가운데·반지름·시작각 → 끝각 (도) */
+  c: GPt;
+  r: number;
+  a0: number;
+  a1: number;
+  w: number;
+  peak?: number;
+  bulge?: readonly [number, number];
+  /** 바깥(앞날)으로 두께를 몰기 (−1~1) */
+  skew?: number;
+  main?: number;
+  core?: number;
+  coreLen?: number;
+  edge?: GTone;
+  /** 반지름 비 (가로·세로, 바닥에 납작하게: 기본 1·1) */
+  sx?: number;
+  sy?: number;
+  /** 납작한 원 기울기 (도, 가운데 기준. 꼭대기가 수평으로 길게 눕지 않게) */
+  rot?: number;
+}
+
+/**
+ * 굵은 번개 (문법 6): 꺾인 긴 마디 3~5개, 날카로운 모서리, 바깥에 어두운 테두리 1px.
+ * 점을 직접 주거나 (pts), 원호를 따라 꺾임을 준다 (arc)
+ */
+export interface GBolt extends GBase {
+  kind: 'bolt';
+  pts?: readonly GPt[];
+  /** 원호를 따라: 가운데·반지름·시작각·끝각 (도), 꺾임 [자리 u, 바깥으로 px]… (u는 0~1 사이 마디 자리) */
+  arc?: { c: GPt; r: number; a0: number; a1: number; kinks: ReadonlyArray<readonly [number, number]>; sx?: number; sy?: number };
+  /** 시작·끝 굵기 (px, 테두리 빼고). wPeak가 있으면 자리 peak (0~1)에서 가장 굵다 */
+  w0: number;
+  w1: number;
+  wPeak?: number;
+  peak?: number;
+  /** 가지 번개: [마디 자리 u, 각도 (마디 방향 기준 도), 길이] */
+  forks?: ReadonlyArray<readonly [number, number, number]>;
+}
+
+/** 잉크 쐐기 (문법 3): 밝은 모양 옆의 끝이 뾰족한 아주 어두운 쐐기. 한쪽 날에 톱니 */
+export interface GInk extends GBase {
+  kind: 'ink';
+  at: GPt;
+  angle: number;
+  len: number;
+  /** 뿌리 두께 (px) */
+  w: number;
+  /** 톱니: [자리 u, 깊이 px]… (한쪽 날) */
+  notch?: ReadonlyArray<readonly [number, number]>;
+  /** 둘레 1px 테두리 색 (기본 없음 −1: 밤 배경으로 삐져나온 곳에서 1px 선이 된다. 잉크는 밝은 모양을 가로질러 그 위에서만 보이게 놓는다) */
+  rim?: GTone | -1;
+}
+
+/** 큰 원 고리 (문법 5): 맞은 점 둘레 얇은 테. 지름은 화면 높이의 60~90% */
+export interface GRing extends GBase {
+  kind: 'ring';
+  at?: GPt;
+  r: number;
+  /** 가장 두꺼운 곳 두께 (px)와 그 방향 (도). 반대쪽은 1px */
+  w: number;
+  thick?: number;
+  /** 끊긴 곳 [시작각, 끝각]… */
+  gaps?: ReadonlyArray<readonly [number, number]>;
+  /** 납작하게 (세로 비, 기본 1) */
+  sy?: number;
+  tone?: GTone;
+}
+
+/** 방사 속도선 (문법 5): 고리 안쪽에서 맞은 점으로 모이는 가는 선. 바깥이 굵고 안쪽 끝이 뾰족 */
+export interface GRays extends GBase {
+  kind: 'rays';
+  at?: GPt;
+  /** 선마다 [각도, 바깥 반지름, 안쪽 반지름, 뿌리 굵기, 색]… (부채꼴, 같은 길이·같은 간격 금지) */
+  lines: ReadonlyArray<readonly [number, number, number, number, GTone]>;
+}
+
+/** 섬광 (문법 5): 맞은 점의 날카로운 별. 가시마다 [각도, 길이, 뿌리 반폭] */
+export interface GFlash extends GBase {
+  kind: 'flash';
+  at?: GPt;
+  spikes: ReadonlyArray<readonly [number, number, number]>;
+}
+
+/** 불씨 (문법 7): 1~2px 점을 맞은 점 둘레에 흩뿌린다 (자리·속도만 시드 난수) */
+export interface GEmbers extends GBase {
+  kind: 'embers';
+  at?: GPt;
+  n: number;
+  /** 처음 퍼진 반지름, 날아가는 빠르기 (px/틱), 주로 날아가는 방향 (도)과 퍼짐 (도) */
+  spread: number;
+  speed: number;
+  dir: number;
+  fan: number;
+  /** 사는 틱 */
+  life: number;
+}
+
+export type GShape = GWedge | GSwoosh | GBolt | GInk | GRing | GRays | GFlash | GEmbers;
+
+/** 화면 전환 (문법 8): 맞힌 틱부터 */
+export interface GScreen {
+  /** 배경 누르기: 어둡게 (밝기 scale배 + 색) · 한 색 + 균열 */
+  press?: { mode: 'tint' | 'crack'; ticks: number; color: string; scale?: number; crack?: string };
+  /** 맞은 사람을 주색 실루엣 + 밝은 테두리로 (틱) */
+  silhouette?: number;
+}
+
+/** 공격 하나의 이펙트 */
+export interface GMove {
+  /** 등급 (14-3) */
+  grade: 'normal' | 'strong' | 'skill' | 'super';
+  /** 모양 (그리는 순서대로: 뒤에 적은 것이 위) */
+  shapes: readonly GShape[];
+  /** 맞은 점 높이 (공격자 발밑 기준 y). 없으면 판정 상자 가운데. 맞은 사람 몸 안으로 자른다 */
+  hitY?: number;
+  screen?: GScreen;
+  /** 맞은 점 빛 (실제 광원): 반지름 px, 틱 */
+  light?: { r: number; t: number };
+  /** 이 기술에 쓴 문법 번호 (14-8, 확인용) */
+  grammar: readonly number[];
 }

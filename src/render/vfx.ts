@@ -63,7 +63,7 @@ export class VfxLayer {
   private list: VfxInstance[] = [];
   private color = new Uint32Array(SCREEN_W * SCREEN_H);
   private light = new Uint32Array(SCREEN_W * SCREEN_H);
-  /** 애니 이펙트 칸 표시 (vfx/anime이 칠한 칸 = 1): 알파 254로 내보내 후처리가 색 보정 없이 그대로 보여 주고 강하게 번지게 한다 */
+  /** 애니 이펙트 칸 표시 (vfx/gg가 칠한 칸 = 1): 알파 254로 내보내 후처리가 색 보정 없이 그대로 보여 주고 강하게 번지게 한다 */
   private mark = new Uint8Array(SCREEN_W * SCREEN_H);
   private out: ImageData | null = null;
   private canvas: HTMLCanvasElement | null = null;

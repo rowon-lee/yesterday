@@ -73,4 +73,22 @@ export default {
     prep: 's.fighters[0].kongo = -4; s.fighters[1].kongo = -4;',
     steps: [[[], 6], [['KeyJ'], 98], [[], 60]],
   },
+  // 띄우기(↑+공격, 어퍼컷) → 점프로 쫓아 공중 잽 → 공중 크로스 → 공중 돌려차기 (moveclip raiden_air와 같은 입력)
+  raiden_air: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
+    prep: 's.fighters[0].kongo = -4; s.fighters[1].kongo = -4;',
+    steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], ...Array.from({ length: 10 }, () => [[['KeyJ'], 1], [[], 3]]).flat(), [[], 50]],
+  },
+  // 띄우기 → 쫓아 점프 → 내려찍기(↓+공격, 도끼차기) (moveclip raiden_slam과 같은 입력)
+  raiden_slam: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
+    prep: 's.fighters[0].kongo = -4; s.fighters[1].kongo = -4;',
+    steps: [[[], 6], [['ArrowUp', 'KeyJ'], 1], [[], 14], [['KeyK', 'ArrowRight'], 1], [['ArrowRight'], 8], [['ArrowDown', 'KeyJ'], 1], [[], 70]],
+  },
+  // 쓸기(↓+공격) → 상대가 일어나면 물러났다가 대시 공격(플라잉 니) (moveclip raiden_low와 같은 입력)
+  raiden_low: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3188, settle: 30,
+    prep: 's.fighters[0].kongo = -4; s.fighters[1].kongo = -4;',
+    steps: [[[], 6], [['ArrowDown', 'KeyJ'], 1], [[], 100], [['ArrowLeft'], 20], [[], 6], [['KeyL'], 1], [[], 3], [['KeyJ'], 1], [[], 50]],
+  },
 };

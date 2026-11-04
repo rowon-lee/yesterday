@@ -155,7 +155,7 @@ export class GlView {
     shared.uFlatPass.value = 1;
     r.render(root, this.camera);
     shared.uFlatPass.value = 0;
-    // 이펙트 빛 번짐 원본: 이번 프레임에 애니 이펙트(vfx/anime)가 칠한 칸이 있으면 평면 층에서 그 칸만 따로 그린다
+    // 이펙트 빛 번짐 원본: 이번 프레임에 애니 이펙트(vfx/gg)가 칠한 칸이 있으면 평면 층에서 그 칸만 따로 그린다
     const marked = fxMarked.n;
     fxMarked.n = 0;
     if (marked > 0) {
