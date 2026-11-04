@@ -54,44 +54,40 @@ export const RAIDEN_JAB: MotionData = {
 
 // ---- 2타: 크로스 (지침서 7장: 뒷발을 비틀며 몸통을 돌려 뒷손 스트레이트, 더 긴 직선 + 전류 가지) ----
 // 타격 프레임 기준값: 발 간격 34px, 엉덩이 5px 낮게, 몸통 34°, 뒷팔 끝까지, 뒷어깨 5~6px 앞(tw −5.5), 뒷발→엉덩이→뒷어깨→주먹 한 줄
-/** 감기 1: 앞어깨를 앞으로 내밀어 뒷어깨를 뒤로 감고, 뒷주먹을 뺨으로 당긴다 (앞손은 길잡이로 조금 내민다) */
-const CR_LOAD = R({ hx: -1, hy: -17.5, tl: 12, hd: 9, tw: 1.5, aFx: 12, aFy: -6, aBx: 6, aBy: -2, lFx: 9, lBx: -10 });
-/** 감기 끝 (멈칫): 뒷발에 실어 낮게, 뒷어깨를 끝까지 뒤로 (뒷주먹은 귀 옆) */
-const CR_COIL = R({ hx: -2.5, hy: -16, tl: 8, hd: 12, tw: 3, aFx: 12.5, aFy: -7.5, aBx: 4, aBy: -4, lFx: 10, lBx: -12 });
+// 2차 리워크: 판정 4~7틱·몸 이동은 그대로. 12 → 9프레임. 잽과 같은 박자로, 뒷주먹은 귀 옆에서 조금 낮게 나와 솟아 닿고, 곧장 턱으로 돌아온다
+/** 감기 끝 (멈칫): 엉덩이를 뒷발 쪽으로 4px 빼고, 앞어깨를 내밀어 뒷어깨가 엉덩이보다 4~5px 뒤에 오게 (2장 ①②. 뒷주먹은 귀 옆, 앞손은 길잡이) */
+const CR_COIL = R({ hx: -4.5, hy: -16, tl: 0, hd: 13, tw: 8, aFx: 12.5, aFy: -7.5, aBx: 4, aBy: -4, lFx: 10, lBx: -12 });
 /** 스미어: 뒷발 뒤꿈치를 들어 비틀며 허리가 돌고 뒷팔이 쏘아져 나간다 (그림은 뒷팔 1.4배), 앞손은 턱으로 */
-const CR_SMEAR = R({ hx: 2, hy: -15, tl: 26, hd: 9, tw: -3.5, aFx: 7, aFy: -3, aBx: 15, aBy: -7.5, lFx: 16, lBx: -14, lBy: -1 });
+const CR_SMEAR = R({ hx: 2, hy: -15, tl: 26, hd: 9, tw: -3.5, aFx: 7, aFy: -3, aBx: 13.5, aBy: -1.5, lFx: 16, lBx: -14, lBy: -1 });
 /** 타격: 뒷어깨가 앞장서 뒷손을 끝까지 곧게, 앞손은 턱, 뒷다리는 뒤로 길게 */
 const CR_HIT = R({ hx: 4.5, hy: -14, tl: 34, hd: 9, tw: -5.5, aFx: 6.5, aFy: -2, aBx: 15.8, aBy: -8.2, lFx: 19, lBx: -15, lBy: -1 });
-const CR_HIT2 = R({ hx: 5, hy: -13.8, tl: 35, hd: 9, tw: -6, aFx: 6.5, aFy: -2, aBx: 16.4, aBy: -8.4, lFx: 19, lBx: -15.5, lBy: -1 });
-/** 지나치기: 허리가 한 박 더 돌아 몸이 앞으로 쏠린다 */
-const CR_OVER = R({ hx: 5.5, hy: -13.5, tl: 38, hd: 9, tw: -6.5, aFx: 6.5, aFy: -1.5, aBx: 16.6, aBy: -7.8, lFx: 19, lBx: -16, lBy: -1.5 });
-/** 여운 */
-const CR_HOLD = R({ hx: 5, hy: -14, tl: 36, hd: 9, tw: -5.5, aFx: 6.5, aFy: -2, aBx: 16, aBy: -7.5, lFx: 19, lBx: -15, lBy: -1 });
-/** 복귀: 허리를 되돌리며 뒷손을 거두고 뒷발을 당긴다 */
-const CR_BACK1 = R({ hx: 3, hy: -16, tl: 26, hd: 9, tw: -2, aFx: 10, aFy: -4, aBx: 10, aBy: -3, lFx: 15, lBx: -11 });
-const CR_BACK2 = R({ hx: 1, hy: -18, tl: 18, hd: 8, tw: -0.5, aFx: 12, aFy: -4.5, aBx: 8.5, aBy: -0.5, lFx: 11, lBx: -9 });
+/** 지나치기: 허리가 한 박 더 돌아 몸이 앞으로 쏠리고 주먹이 더 나간다 */
+const CR_OVER = R({ hx: 6, hy: -13.5, tl: 39, hd: 9, tw: -7, aFx: 6.5, aFy: -1.5, aBx: 16.6, aBy: -7.8, lFx: 19, lBx: -16, lBy: -1.5 });
+/** 되돌아옴 (멈칫): 팔꿈치가 접히며 주먹이 2~3px 돌아온다 */
+const CR_REBOUND = R({ hx: 5, hy: -14, tl: 35.5, hd: 9, tw: -5.5, aFx: 6.5, aFy: -2, aBx: 14, aBy: -7, lFx: 19, lBx: -15, lBy: -1 });
+/** 회복 첫 프레임: 허리를 되돌리며 뒷손이 곧장 턱으로, 무게가 뒤로 빠지기 시작한다 */
+const CR_SNAP = R({ hx: 3, hy: -15, tl: 29, hd: 9, tw: -2.5, aFx: 9.5, aFy: -3.5, aBx: 9, aBy: -3, lFx: 17, lBx: -13 });
+/** 앞발을 들어 당기며 몸을 세운다 */
+const CR_BACK = R({ hx: 1, hy: -17.5, tl: 20, hd: 8, tw: -0.5, aFx: 12, aFy: -4.5, aBx: 8.5, aBy: -0.5, lFx: 11, lFy: -1.5, lBx: -9.5 });
 
-/** 2타 크로스 (128×96): 감기(2~3프레임) → 스미어(4) → 뒷손을 끝까지(5~6프레임 판정) → 지나치기 → 여운 → 복귀. 12프레임 23틱 */
+/** 2타 크로스 (128×96): 감기(2, 멈칫) → 스미어(3) → 뒷손을 끝까지(4~5프레임 판정, 5 지나치기) → 되돌아옴 → 손이 곧장 턱 → 복귀. 9프레임 19틱 */
 export const RAIDEN_CROSS: MotionData = {
   name: 'raiden/cross',
   label: '라이덴 2타 크로스',
   wide: true,
-  smear: { frame: 3, limb: 'aB', stretch: 1.4 },
-  // 박자: 잽에 붙여 빠르게 (감기 3틱 + 스미어 1틱)
-  dur: [1, 1, 1, 1, 2, 1, 1, 3, 2, 2, 2, 2],
+  smear: { frame: 2, limb: 'aB', stretch: 1.4 },
+  // 박자: 잽에 붙여 빠르게 (감기 3틱 + 스미어 1틱). 되돌아온 자세는 11틱까지 (잽과 같은 이유)
+  dur: [1, 2, 1, 2, 1, 4, 2, 3, 3],
   keys: [
     { at: 0, pose: R_STANCE },
-    { at: 1, pose: CR_LOAD },
-    { at: 2, pose: CR_COIL, stop: true },
-    { at: 3, pose: CR_SMEAR },
-    { at: 4, pose: CR_HIT },
-    { at: 5, pose: CR_HIT2 },
-    { at: 6, pose: CR_OVER },
-    { at: 7, pose: CR_OVER, stop: true },
-    { at: 8, pose: CR_HOLD },
-    { at: 9, pose: CR_BACK1 },
-    { at: 10, pose: CR_BACK2 },
-    { at: 11, pose: R_STANCE },
+    { at: 1, pose: CR_COIL, stop: true },
+    { at: 2, pose: CR_SMEAR },
+    { at: 3, pose: CR_HIT },
+    { at: 4, pose: CR_OVER },
+    { at: 5, pose: CR_REBOUND, stop: true },
+    { at: 6, pose: CR_SNAP },
+    { at: 7, pose: CR_BACK },
+    { at: 8, pose: R_STANCE },
   ],
 };
 
