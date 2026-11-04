@@ -34,18 +34,29 @@ const CL_DRAG = R({ hx: -2, hy: -21, tl: 17, hd: 12, aFx: 11, aFy: -3, aBx: -9, 
 /** 뒷발로 벽을 다시 걷어차 꽂으며 살짝 치켜 오른다 */
 const CL_STOMP = R({ hx: -2, hy: -23, tl: 13, hd: 9, aFx: 11, aFy: -5, aBx: -9, aBy: -6, lFx: 5, lFy: -3, lBx: -7, lBy: -13 });
 
-/** 벽 붙기: 1~4프레임 붙는 순간(한 번), 5~13프레임 미끄러지며 뒷발로 벽을 다시 걷어차 꽂기를 되풀이. 13프레임 */
+/** 미끄러지기 시작한다: 뒷발이 벽을 놓치며 조금씩 내려간다 */
+const CL_SLIP = R({ hx: -2, hy: -21.5, tl: 16, hd: 11, aFx: 11, aFy: -3.5, aBx: -9, aBy: -1, lFx: 5.5, lFy: -1.5, lBx: -7, lBy: -9 });
+/** 걷어찬 반동이 가라앉으며 다시 붙은 자세로 */
+const CL_SETTLE = R({ hx: -2, hy: -22.5, tl: 14, hd: 9.5, aFx: 11, aFy: -4.5, aBx: -9, aBy: -4.5, lFx: 5, lFy: -2.5, lBx: -7, lBy: -12 });
+
+/**
+ * 벽 붙기 (2차 리워크): 1~4프레임 붙는 순간(한 번: 부딪힘 → 웅크림 멈칫 → 붙은 자세), 5~8프레임 되풀이 —
+ * 천천히 미끄러지기 시작해(8틱) → 뒷발이 벽을 긁는 가장 낮은 자리(2틱) → 뒷발로 벽을 확 걷어차 꽂고(멈칫) → 반동이 가라앉아 → 붙은 자세로 버팀.
+ * 9프레임 35틱 (5번째부터 되풀이: 공통 규칙 WALL_CLING_LOOP_FROM). 같은 자세를 늘어놓던 사이 프레임(5=6, 7=8)은 dur로
+ */
 export const RAIDEN_WALL_CLING: MotionData = {
   name: 'raiden/wall_cling',
   label: '라이덴 벽 붙기',
-  dur: [1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [1, 2, 2, 3, 8, 2, 5, 4, 8],
   keys: [
     { at: 0, pose: CL_HIT },
     { at: 2, pose: CL_SQUASH, stop: true },
     { at: 3, pose: CL_HOLD },
-    { at: 6, pose: CL_DRAG },
-    { at: 9, pose: CL_STOMP, stop: true },
-    { at: 12, pose: CL_HOLD },
+    { at: 4, pose: CL_SLIP },
+    { at: 5, pose: CL_DRAG },
+    { at: 6, pose: CL_STOMP, stop: true },
+    { at: 7, pose: CL_SETTLE },
+    { at: 8, pose: CL_HOLD },
   ],
 };
 
