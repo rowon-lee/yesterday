@@ -11,7 +11,7 @@ export interface MotionData {
   name: string;
   /** 뷰어에 보이는 이름 */
   label: string;
-  /** 프레임별 표시 틱 수. 길이가 곧 프레임 수 (12~14) */
+  /** 프레임별 표시 틱 수. 길이가 곧 프레임 수 (동작의 목적에 맞게 정한다: 동작연출지침서 3장) */
   dur: readonly number[];
   /** 끝나면 처음으로 돌아가는 동작 */
   loop?: boolean;
@@ -58,7 +58,7 @@ export interface DrawOptions {
   skin?: SkinId;
 }
 
-/** 한 동작. 모든 동작은 12~14프레임, 속도는 프레임별 표시 틱(dur)으로 조절한다. */
+/** 한 동작. 프레임 수는 동작의 목적에 맞게 정하고(12~14 규칙은 2026-11-02 폐기), 속도는 프레임별 표시 틱(dur)으로 조절한다. */
 export interface Motion {
   name: string;
   label: string;
@@ -75,8 +75,6 @@ export interface Motion {
   sheet?(look: LookName, flip: boolean, skin?: SkinId): HTMLCanvasElement;
 }
 
-export const MIN_FRAMES = 12;
-export const MAX_FRAMES = 14;
 export const DEFAULT_CELL = 64;
 /** 발밑 기준점 (보통 칸 64 기준, SMALL_CELL과 같다). 서 있을 때 발바닥 맨 아랫줄이 이 줄이다. 칸마다 다르면 cellOf(m)를 쓴다 */
 export const FOOT_X = 32;
