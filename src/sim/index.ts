@@ -3,10 +3,10 @@ export * from './state';
 export * from './hash';
 export * from './cpu';
 export { boxesOf } from './combat';
-export { fighterPose } from './pose';
-export { MOVES, STATS, CHAR_IDS, isChar, motionFrames, motionOf, movesOf, statsOf, frameFitted, type SimStats } from './frames';
+export { fighterSpan, pickPose, type PoseTiming } from './pose';
+export { MOVES, STATS, CHAR_IDS, isChar, timelineOf, motionOf, movesOf, statsOf, frameAtTick, frameFitted, moveHitBox, moveHitLine, type Move, type SimStats, type Timeline, type Timing } from './frames';
 export type { CharId } from '../data/characters';
-export { cineScenes, cineTicks } from './cine';
+export { cineScenes, cineTicks, sceneTicks } from './cine';
 export * as RULES from './rules';
 export {
   BIG, BREAKABLES, CHUNKS, CITY_RULES, GRIDS, chunkStage, CONTAINER_TOP, rubbleOf, SURFACES, tramAt, tramLying, tramRestX, WALLS,

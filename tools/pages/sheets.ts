@@ -1,12 +1,10 @@
 // npm run sheets가 헤드리스 브라우저로 여는 페이지. 동작마다 띠를 그려 PNG 데이터로 넘긴다.
 // ?gif 이면 승인용 GIF에 쓸 프레임(1배 RGBA)도 넘긴다: 실제 속도용(작은 프레임 번호)과 느린 판용(번호·표시 틱·판정 상자)
-import { hitBox } from '../../src/anim/boxes';
 import type { Motion } from '../../src/anim/motion';
 import { cellOf } from '../../src/anim/motion';
 import { MOTIONS } from '../../src/anim/motions';
 import { checkMotion, drawStrip, scaleCanvas } from '../../src/anim/sheet';
-import { BASE_MOVES, type MoveData, type MoveId } from '../../src/data/moves/base';
-import { CHARACTERS } from '../../src/data/characters';
+import { dataBoxesAt } from '../../src/render/hitview';
 import { drawText, GLYPH_H, textWidth } from '../../src/render/font';
 import { SELFTEST_MOTIONS } from './selftest';
 import { isSkin, skinForMotion, type SkinId } from '../../src/anim/skins';
@@ -24,15 +22,18 @@ const look = (params.get('look') ?? 'p1') as LookName;
 let list: Motion[] = params.has('selftest') ? SELFTEST_MOTIONS : MOTIONS;
 if (only.length) list = list.filter((m) => only.includes(m.name));
 
-/** 이 동작 그림을 쓰는 기술 (판정 프레임·판정 구간을 느린 판에 표시) */
-const moveOf = new Map<string, MoveData>();
-for (const d of Object.values(BASE_MOVES) as MoveData[]) moveOf.set(d.motion, d);
-// 캐릭터 기술: 기본 기술에 캐릭터가 바꾼 것을 덮어쓴 수치 (판정 프레임 표시)
-for (const c of Object.values(CHARACTERS) as { moves?: Partial<Record<MoveId, Partial<MoveData>>> }[]) {
-  for (const [id, own] of Object.entries(c.moves ?? {})) {
-    const d = { ...BASE_MOVES[id as MoveId], ...own } as MoveData;
-    moveOf.set(d.motion, d);
+/**
+ * 그림 프레임 i가 보이는 틱 동안의 공격 상자들 (공격 데이터 그대로, 3-0a(2)): 그 틱들에 판정 구간이 있으면 상자를 모은다.
+ * 그림 박자와 판정 틱이 어긋나면 상자가 다른 프레임에 붙어 보인다 (그림을 다시 깎을 때 확인)
+ */
+function hitsInFrame(m: Motion, i: number): Array<{ x: number; y: number; w: number; h: number }> {
+  const c0 = m.dur.slice(0, i).reduce((a, b) => a + b, 0);
+  const out: Array<{ x: number; y: number; w: number; h: number }> = [];
+  for (let t = c0; t < c0 + m.dur[i]!; t++) {
+    const b = dataBoxesAt(m.name, t).hit;
+    if (b && !out.some((o) => o.x === b.x && o.y === b.y && o.w === b.w && o.h === b.h)) out.push(b);
   }
+  return out;
 }
 
 const LABEL_H = GLYPH_H + 3;
@@ -51,8 +52,9 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
   ctx.fillRect(0, LABEL_H, cw, ch);
   ctx.fillStyle = '#2a1f44';
   ctx.fillRect(0, LABEL_H + footY + 1, cw, 1);
-  const mv = moveOf.get(m.name);
-  const active = mv?.active.includes(i) ?? false;
+  // 판정 (공격 데이터): 이 프레임이 보이는 틱 동안의 공격 상자
+  const boxes = hitsInFrame(m, i);
+  const active = boxes.length > 0;
   const n = m.dur.length;
   drawText(ctx, `${i + 1}/${n}`, 1, 1, active && slow ? '#ff6a4a' : '#ffd25e');
   if (slow) {
@@ -65,27 +67,11 @@ function gifFrame(m: Motion, i: number, slow: boolean): string {
   ctx.rect(0, LABEL_H, cw, ch);
   ctx.clip();
   m.draw(ctx, i, 0, LABEL_H, { skin: skinForMotion(m.name, skin), look });
-  // 느린 판: 판정 프레임이면 공격 상자 (팔꿈치→주먹 / 무릎→발 구간 끝쪽 + 궤적 상자). 칸 밖으로 나가는 부분은 칸 끝에서 잘린다
-  if (slow && active && mv?.limb && m.joints) {
-    let b = hitBox(m.joints[i], i, { frames: mv.active, limb: mv.limb, reach: mv.reach });
-    const t = mv.box;
-    if (b && t) {
-      const x0 = Math.min(b.x, t.x);
-      const y0 = Math.min(b.y, t.y);
-      b = { x: x0, y: y0, w: Math.max(b.x + b.w, t.x + t.w) - x0, h: Math.max(b.y + b.h, t.y + t.h) - y0 };
-    }
-    if (b) {
-      ctx.strokeStyle = '#ff6a4a';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(footX + b.x + 0.5, LABEL_H + footY + b.y + 0.5, b.w - 1, b.h - 1);
-    }
-  }
-  // 궤적 상자만 판정인 기술 (boxOnly: 에드워드 해머 머리 등)
-  if (slow && active && mv?.boxOnly && mv.box) {
-    const t = mv.box;
+  // 느린 판: 공격 상자 (공격 데이터 data/moves/time.ts 그대로). 칸 밖으로 나가는 부분은 칸 끝에서 잘린다
+  if (slow) {
     ctx.strokeStyle = '#ff6a4a';
     ctx.lineWidth = 1;
-    ctx.strokeRect(footX + t.x + 0.5, LABEL_H + footY + t.y + 0.5, t.w - 1, t.h - 1);
+    for (const b of boxes) ctx.strokeRect(footX + b.x + 0.5, LABEL_H + footY + b.y + 0.5, b.w - 1, b.h - 1);
   }
   ctx.restore();
   const data = ctx.getImageData(0, 0, c.width, c.height).data;

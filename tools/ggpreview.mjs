@@ -17,6 +17,8 @@ const vite = await createServer({ server: { middlewareMode: true }, appType: 'cu
 const GG = (await vite.ssrLoadModule('/src/vfx/gg/index.ts')).default;
 const { RAIDEN_GG } = await vite.ssrLoadModule('/src/data/vfx/raiden.ts');
 const F = await vite.ssrLoadModule('/src/sim/frames.ts');
+// 그림 박자·관절은 렌더 쪽 (3-0a(2): 판정은 공격 데이터, 그림은 render/pose)
+const RP = await vite.ssrLoadModule('/src/render/pose.ts');
 await vite.close();
 const M = F.movesOf('raiden');
 
@@ -69,7 +71,8 @@ function render(id, tick) {
       }
     }
   };
-  const j = data.frames.joints[data.data.active?.[0] ?? 0];
+  // 판정이 시작하는 틱의 그림 프레임 관절
+  const j = RP.moveAnim(data).joints[RP.activeFrames(data)[0] ?? 0];
   if (j) {
     const P = (p) => [OX + p[0], OY + p[1]];
     const ink = [10, 7, 18];

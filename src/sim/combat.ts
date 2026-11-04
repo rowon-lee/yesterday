@@ -1,4 +1,4 @@
-import { hurtBox, type Box } from '../anim/boxes';
+import type { Box } from '../data/moves/types';
 import type { MoveId } from '../data/moves/base';
 import { movesOf, moveHitBox, moveHitLine } from './frames';
 import { damageCity, wallBehind, wallSplat } from './city';
@@ -9,7 +9,7 @@ import { startCine } from './cine';
 import { smashProps } from './props';
 import { isAirborne, setMode } from './fighter';
 import { wallLeft } from './platforms';
-import { fighterPose } from './pose';
+import { fighterHurt } from './pose';
 import {
   AIR_HIT_DEFAULT, BLOCK_HITSTOP_CUT, CRUSH_TICKS, FLASH_TICKS, KONGO_MAX, KONGO_PUSH, KONGO_TICKS, METER_BLOCK, METER_BLOCKED, METER_HIT, METER_HURT,
   METER_MAX, px, SCALE_MIN, SCALE_STEP, SPIKE_VY, STUN_DECAY_FROM, STUN_DECAY_MIN, STUN_DECAY_STEP, WALL_R, WALL_TECH_TICKS,
@@ -67,14 +67,13 @@ function lineReaches(f: Fighter, hu: WBox): boolean {
   return lineHits(line.map(([x, y]) => [f.x + px(f.facing * x), f.y + px(y)] as const), { x0: hu.x0 - p, y0: hu.y0 - p, x1: hu.x1 + p, y1: hu.y1 + p });
 }
 
-/** 피격 상자: 지금 프레임의 몸 관절을 감싼 상자. 무적이면 null */
+/** 피격 상자: 지금 상태의 피격 상자 시간표 구간 (data/moves/hurt.ts, 그림은 읽지 않는다). 무적이면 null */
 export function hurtOf(f: Fighter): WBox | null {
   // 다운은 내내 무적. 기상은 무적 틱(앞 20틱)이 지나면 다시 맞는다 (공통 동작 사양서)
   if (f.invuln > 0 || f.mode === 'knockdown' || f.mode === 'ko' || f.mode === 'wallsplat' || f.mode === 'cine') return null;
-  return toWorld(f, hurtBox(fighterPose(f).joints));
+  return toWorld(f, fighterHurt(f));
 }
 
-/** 공격 상자: 기술의 판정 프레임에서 팔꿈치→주먹 / 무릎→발 구간. 이미 냈으면 null */
 /** 지금 기술의 판정 상자 (이미 맞혔어도). 부서지는 물건 판정용 */
 export function activeHitOf(f: Fighter): WBox | null {
   if (f.mode !== 'attack' || !f.move) return null;
@@ -95,7 +94,7 @@ export function hitOf(f: Fighter): WBox | null {
 
 /** 상자 두 개 다 (렌더의 판정 표시용) */
 export function boxesOf(f: Fighter): { hurt: WBox | null; hit: WBox | null } {
-  // 판정 표시(디버그): 이미 맞혔어도 판정 프레임 동안의 상자를 보인다 (번개 범위와 겹쳐 확인하려고)
+  // 판정 표시(디버그): 이미 맞혔어도 판정 구간 동안의 상자를 보인다 (번개 범위와 겹쳐 확인하려고)
   return { hurt: hurtOf(f), hit: activeHitOf(f) };
 }
 

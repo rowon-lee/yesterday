@@ -195,6 +195,22 @@ const SCENES = {
       ...Array.from({ length: 9 }, () => [[['KeyJ'], 1], [[], 3]]).flat(), [[], 8], [['KeyU'], 1], [[], 60],
     ],
   },
+  // 라이덴 스킬 2 화과산(I): 붙은 상대에게 들숨 → 날숨에 몸 둘레 스파크로 밀어냄 (2차 리워크 이펙트 확인)
+  raiden_skill2: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3186, settle: 30,
+    prep: 's.fighters[0].meter = 100;',
+    steps: [[[], 6], [['KeyI'], 1], [[], 50]],
+  },
+  // 라이덴 필살기 파천(O): 진각 바닥 금 → 붕권 → 연출 다섯 장면 (2차 리워크 이펙트 확인)
+  raiden_super: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3150, p2: 3196, settle: 70, meter: true,
+    steps: [[[], 8], [['KeyO'], 1], [[], 236]],
+  },
+  // 라이덴 필살기 파천 빗나감: 큰 빈틈 (회복 그림 확인)
+  raiden_super_whiff: {
+    q: 'scene=fight&p2=idle&p1char=raiden', p1: 3000, p2: 3260, settle: 70, meter: true,
+    steps: [[[], 8], [['KeyO'], 1], [[], 130]],
+  },
   // 라이덴 1타 잽 (동작연출지침서): 70px 떨어진 상대에게 잽 한 번 → 적뢰가 범위를 채움 (boxes=1이면 판정 상자도)
   raiden_jab: {
     q: 'scene=fight&p2=idle&p1char=raiden', p1: 3120, p2: 3190, settle: 30,

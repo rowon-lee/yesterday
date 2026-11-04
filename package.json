@@ -16,6 +16,8 @@
     "balance": "node tools/balance.mjs",
     "fxcheck": "node tools/fxcheck.mjs",
     "motioncheck": "node tools/motioncheck.mjs",
+    "hitboxes": "node tools/hitboxes.mjs",
+    "hitcompare": "node tools/hitcompare.mjs",
     "ggcheck": "node tools/ggcheck.mjs"
   },
   "devDependencies": {

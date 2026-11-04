@@ -3,7 +3,8 @@ import type { MoveId } from '../../data/moves/base';
 import { arcAt, EDWARD_ARCS, type HammerArc } from '../../data/poses/edward/attack';
 import { EDWARD_INTRO_T } from '../../data/poses/edward/show';
 import { CHARGE_ARC } from '../../data/poses/edward/skill';
-import { BREAKABLES, fighterPose, movesOf, type Fighter } from '../../sim';
+import { BREAKABLES, movesOf, type Fighter } from '../../sim';
+import { advanceBefore, animFrameAt, fighterPose, moveAnim } from '../pose';
 import { EX, SHELL_MAX, SHELL_QUIET } from '../../sim/chars/edward';
 import { GROUND as GROUND_Y } from '../../stage/citadel';
 import explosion from '../../vfx/explosion';
@@ -69,12 +70,12 @@ const world = (f: Fighter, x: number, y: number): [number, number] => [(f.x / 25
  */
 function headPath(f: Fighter, id: MoveId): Array<[number, number]> {
   const mv = movesOf(f.char)[id];
-  const d = mv.data;
-  const J = mv.frames.joints;
-  const a0 = d.active[0] ?? 0;
-  const a1 = d.active[d.active.length - 1] ?? a0;
-  const adv = d.advance ?? [];
-  const upto = (k: number) => adv.slice(0, k + 1).reduce((a, b) => a + b, 0);
+  const A = moveAnim(mv);
+  const J = A.joints;
+  // 판정 틱(공격 데이터)이 그림에서 몇 번째 프레임인지, 그림 프레임 k가 끝날 때까지 나아간 거리
+  const a0 = mv.time.hits.length ? animFrameAt(A, mv.activeStart) : 0;
+  const a1 = mv.time.hits.length ? animFrameAt(A, mv.activeEnd - 1) : a0;
+  const upto = (k: number) => advanceBefore(mv, A.cum[k]!);
   const out: Array<[number, number]> = [];
   for (let k = Math.max(0, a0 - 1); k <= a1; k++) {
     const j = J[k]!;
@@ -164,7 +165,7 @@ export const EDWARD_RENDER: CharRender = {
       c.glow(hx / FX_PX, hy / FX_PX, 60, COLORS.veilLight, 0.8, 10);
     } else if (id === 'super') {
       // 잡는 손에 푸른 빛이 번쩍
-      const j = movesOf(f.char).super.frames.joints[5]!;
+      const j = moveAnim(movesOf(f.char).super).joints[5]!;
       const [hx, hy] = world(f, j.hB[0], j.hB[1]);
       c.layer.add(glint({ x: hx, y: hy, size: 0.8, ramp: fxRamp(VEIL) }));
     }
@@ -204,7 +205,7 @@ export const EDWARD_RENDER: CharRender = {
       if (e.text === 'start') {
         // 모으기 시작: 해머 머리가 바닥을 긁는다 (홈·청동빛 불꽃), 팔·등에 푸른 장막 윤곽이 단계마다 짙어진다
         const fighter = f;
-        const windup = movesOf(f.char).charge.frames.cum[movesOf(f.char).charge.data.charge!.windup - 1]!;
+        const windup = movesOf(f.char).charge.time.charge!.loop[0];
         c.layer.add(scrape({
           head: () => {
             if (fighter.mode !== 'charge' || fighter.t >= windup) return null;
@@ -379,7 +380,7 @@ export const EDWARD_RENDER: CharRender = {
     if (f.mode === 'attack' && f.move) {
       const touch = GROUND_TOUCH[f.move];
       const mv = movesOf(f.char)[f.move];
-      if (touch && f.t === mv.frames.cum[touch[0] - 1]) {
+      if (touch && f.t === moveAnim(mv).cum[touch[0] - 1]) {
         const g = (GROUND_Y + f.floor / 256) * FX_PX;
         const x = fx + f.facing * touch[1] * FX_PX;
         splash(c, x, g, f.facing, touch[2]);

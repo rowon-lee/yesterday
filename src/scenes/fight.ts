@@ -13,11 +13,12 @@ import { SCREEN_H, SCREEN_W } from '../render/screen';
 import { drawPlatforms } from '../render/platforms';
 import { GROUND as GROUND_Y, MAP_H } from '../stage/citadel';
 import {
-  boxesOf, cineScenes, cpuInput, createCpu, createState, fighterPose, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
+  boxesOf, cineScenes, cpuInput, createCpu, createState, floorBelow, IN_ATTACK, IN_DASH, IN_DOWN, IN_JUMP, IN_LEFT, IN_RIGHT, isAirborne,
   IN_SKILL1, IN_SKILL2, IN_SUPER, IN_UP, isChar, movesOf, RULES, statsOf, step, type CharId, type CpuState, type Fighter, type Mode, type PlayerInput,
   type SimState,
 } from '../sim';
 import type { LookName } from '../anim/skeleton';
+import { fighterPose } from '../render/pose';
 import { isSkin, type SkinId } from '../anim/skins';
 import { gl } from '../render/gl';
 import { lights as lights2d } from '../render/light';

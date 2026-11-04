@@ -49,77 +49,65 @@ export const RAIDEN: CharacterData = {
     // 히트스톱 4·5·6·10틱. 궤적 상자 = 번개 범위 (렌더 vfx/raiden-strike가 같은 상자를 읽어 그린다)
     // 1타 잽: 앞발 내딛고 앞손. 주먹(5번 프레임 x 33)에서 앞으로 곧은 줄기 40px, 가지 1
     atk1: {
-      motion: 'raiden/jab', active: [4, 5], limb: ['eF', 'hF'], damage: 23, push: 1.8, hitstop: 4, reach: undefined, step: undefined,
-      advance: [0, 0, 2, 4, 3, 1, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/jab', limb: ['eF', 'hF'], damage: 23, push: 1.8, hitstop: 4, reach: undefined,
       box: { x: 33, y: -40, w: 43, h: 10, shape: 'line' },
     },
     // 2타 크로스: 뒷발 비틀며 뒷손. 주먹(x 34)에서 곧은 줄기 52px, 가지 3
     atk2: {
-      motion: 'raiden/cross', active: [4, 5], limb: ['eB', 'hB'], damage: 26, push: 1.65, hitstop: 5, reach: undefined, step: undefined,
-      advance: [0, 0, 2, 4, 3, 1, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/cross', limb: ['eB', 'hB'], damage: 26, push: 1.65, hitstop: 5, reach: undefined,
       box: { x: 34, y: -41, w: 54, h: 12, shape: 'line' },
     },
     // 3타 미들킥: 뒷다리 반원. 허리 높이 몸 앞쪽에만 반원 (지름 56px: 가운데 x 21·y −30, 반지름 28 → 아래에서 앞을 돌아 위로)
     atk3: {
-      motion: 'raiden/middle_kick', active: [4, 5], limb: ['kB', 'fB'], damage: 34, push: 2.5, hitstop: 6, reach: undefined, step: undefined,
-      advance: [0, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/middle_kick', limb: ['kB', 'fB'], damage: 34, push: 2.5, hitstop: 6, reach: undefined,
       box: { x: 21, y: -58, w: 28, h: 56, shape: 'arc' },
     },
     // 4타 슈퍼맨 펀치: 튀어 올라 전신 일직선. 주먹(x 42·y −46)에서 바닥으로 꽂혀 바닥 가까이 앞으로 80px 달리는 줄기, 끝에서 갈래.
     // 맞으면 멀리 날아가 벽꽝
     atk4: {
-      motion: 'raiden/superman_punch', active: [5, 6], limb: ['eB', 'hB'], damage: 45, push: 4.2, hitstop: 10, reach: undefined, step: undefined,
-      advance: [0, 2, 2, 4, 6, 6, 4, 2, 1, 1, 0, 0, 0, 0],
+      motion: 'raiden/superman_punch', limb: ['eB', 'hB'], damage: 45, push: 4.2, hitstop: 10, reach: undefined,
       box: { x: 24, y: -20, w: 98, h: 20, shape: 'ground' },
       launch: { vx: 10, vy: -5 },
     },
     // 띄우기 어퍼컷 (지침서 7장): 몸이 함께 솟구치며 뒷주먹을 머리 위까지. 아래에서 위로 세로 번개
     launcher: {
-      motion: 'raiden/uppercut', active: [4, 5, 6], limb: ['eB', 'hB'], reach: undefined, step: undefined,
-      advance: [0, 1, 2, 8, 5, 2, 0, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/uppercut', limb: ['eB', 'hB'], reach: undefined,
       box: { x: 8, y: -98, w: 30, h: 84, shape: 'rise' },
     },
     // 쓸기 다리 걸기 (지침서 7장): 낮게 엎드려 뒷다리로 바닥을 쓸어 넘어뜨린다. 바닥을 쓰는 반원 번개 + 물 튐
     sweep: {
-      motion: 'raiden/leg_sweep', active: [4, 5, 6], limb: ['kB', 'fB'], reach: undefined, step: undefined,
-      advance: [0, 2, 2, 6, 6, 2, 0, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/leg_sweep', limb: ['kB', 'fB'], reach: undefined,
       box: { x: -2, y: -16, w: 60, h: 16, shape: 'ground' },
     },
     // 대시 공격 플라잉 니 (지침서 7장): 달려와 뛰어들며 앞무릎 (엉덩이→무릎). 몸 뒤로 끌리는 번개 꼬리. 54px 들어간다
     dashAttack: {
-      motion: 'raiden/flying_knee', active: [4, 5, 6], limb: ['hip', 'kF'], reach: undefined, step: undefined,
-      advance: [6, 6, 8, 10, 8, 6, 4, 2, 0, 2, 2, 0, 0],
+      motion: 'raiden/flying_knee', limb: ['hip', 'kF'], reach: undefined,
       box: { x: -4, y: -48, w: 48, h: 30, shape: 'tail' },
     },
     // 공중 1타 잽 → 2타 크로스 (지침서 7장 '1~2는 직선'): 앞 아래로 비스듬히 뻗는 직선 번개
     air1: {
-      motion: 'raiden/air_jab', active: [4, 5], limb: ['eF', 'hF'], reach: undefined,
-      advance: [0, 0, -1, 3, 3, 1, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/air_jab', limb: ['eF', 'hF'], reach: undefined,
       box: { x: 26, y: -42, w: 40, h: 22, shape: 'line' },
     },
     air2: {
-      motion: 'raiden/air_cross', active: [4, 5], limb: ['eB', 'hB'], reach: undefined,
-      advance: [0, 0, -1, 3, 4, 1, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/air_cross', limb: ['eB', 'hB'], reach: undefined,
       box: { x: 26, y: -42, w: 46, h: 22, shape: 'line' },
     },
     // 공중 3타 돌려차기 (지침서 7장 '3은 원'): 뒷다리가 한 바퀴 원을 그리며 휘돌아 찬다. 비스듬히 날린다
     air3: {
-      motion: 'raiden/air_roundhouse', active: [4, 5, 6], limb: ['kB', 'fB'], reach: undefined,
-      advance: [0, 0, 1, 2, 3, 1, 0, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/air_roundhouse', limb: ['kB', 'fB'], reach: undefined,
       box: { x: -4, y: -64, w: 58, h: 56, shape: 'circle' },
     },
     // 내려찍기 도끼차기 (지침서 7장): 앞다리를 머리 위로 곧게 들었다가 앞으로 내리꽂는다. 위에서 아래 반원 + 바닥 방전
     slam: {
-      motion: 'raiden/axe_kick', active: [4, 5, 6], limb: ['kF', 'fF'], reach: undefined,
-      advance: [0, 0, 0, 2, 3, 2, 1, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/axe_kick', limb: ['kF', 'fF'], reach: undefined,
       box: { x: -2, y: -78, w: 50, h: 76, shape: 'fall' },
     },
     wallKick: { motion: 'raiden/wall_kick', reach: 12 },
     // 스킬 1 잔흔: 붉은 잔상을 남기며 앞으로 순간이동(3프레임 시작 틱, 최대 150px, 상대가 앞에 있으면 가운데끼리 18px 앞, 잔상이 바로 상대에 닿는다)해
     // 나타나자마자 뒷다리 하이킥 (뒷무릎→발, 머리 높이 반원 번개). 공중에서도 쓴다 (그 높이에 떠서 찬다). 피해·띄우기·기력은 기본 스킬 1 그대로
     skill1: {
-      motion: 'raiden/zanhen', active: [5, 6], limb: ['kB', 'fB'], reach: undefined,
-      step: { from: 3, to: 6, speed: 1.5 }, blink: { at: 2, dist: 150, gap: 18 },
+      motion: 'raiden/zanhen', limb: ['kB', 'fB'], reach: undefined,
       box: { x: 4, y: -68, w: 56, h: 44, shape: 'arc' },
     },
     // 스킬 2 화과산 (캐릭터 기획서): 숨을 내쉬며 몸 둘레로 스파크를 터뜨려 붙은 상대를 크게 밀어낸다 (앞뒤 모두, 뒤에 있으면 뒤로).
@@ -128,15 +116,14 @@ export const RAIDEN: CharacterData = {
     // 사용자 피드백 2026-11-02 (9-3): 0~6틱 들숨(웅크리며 몸 윤곽에 전류) → 7~10틱 날숨: 바닥에 붙은 반구 스파크 반지름 40px = 판정,
     // 히트스톱 3 → 10~30틱 동안 상대가 64~80px 밀려난다 (밀림 16px/틱), 12틱부터 라이덴 앞 40px에 전류 방벽 (sim/chars/raiden.ts)
     skill2: {
-      motion: 'raiden/hwagwasan', active: [4, 5, 6], limb: undefined, boxOnly: true,
+      motion: 'raiden/hwagwasan', limb: undefined,
       box: { x: -40, y: -40, w: 80, h: 40, shape: 'dome' },
       damage: 39, push: 16, hitstop: 3, launch: undefined, wall: false,
     },
     // 필살기 파천 (캐릭터 기획서): 검붉은 전격을 두른 붕권. 맞으면 연출: 상대 몸통에 주먹을 댄 채 멈춤 → 몸 안의 전격이 등 뒤로
     // 터져 나감 (뒤쪽 땅과 건물이 일직선으로 잿더미, sim/chars/raiden.ts) → 상대가 날아감 (벽 쪽으로). 빗나가면 풍압만 앞으로 날아가고 40틱 굳는다
     super: {
-      motion: 'raiden/pacheon', active: [5, 6, 7], limb: ['eB', 'hB'], step: undefined,
-      advance: [0, 0, 0, 4, 6, 6, 2, 0, 0, 0, 0, 0, 0, 0],
+      motion: 'raiden/pacheon', limb: ['eB', 'hB'],
       box: { x: 16, y: -48, w: 48, h: 24, shape: 'line' },
       damage: 234,
       // 컷인 (사용자 피드백 2026-11-02 9-4·10): 검붉은 사선 띠에 큰 한자 破天과 작은 파천, 정지 20틱 동안 배경은 거의 검게
@@ -171,29 +158,28 @@ export const RAIDEN: CharacterData = {
     // 떼면 뒷주먹 붕권: 몸 이동 12/16/20/24, 리치 56/64/72/80 (몸 가운데에서 원뿔 끝까지), 원뿔 28/36/44/52px (= 판정, 8틱에 사라짐).
     // 상대: 1 약하게 짧게 밀림, 2 중간 밀림, 3 세게 멀리 (벽 쪽), 4 막아도 방어가 깨지고 아주 멀리 (벽 쪽). 4단계 뒤 탈진 40틱
     charge: {
-      motion: 'raiden/charge', active: [9, 10], limb: ['eB', 'hB'], step: undefined, reach: undefined, boxOnly: true,
-      advance: [0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 3, 1, 0, 0],
+      motion: 'raiden/charge', limb: ['eB', 'hB'], reach: undefined,
       box: { x: 28, y: -42, w: 28, h: 18, shape: 'cone' },
       launch: undefined, jumpCancel: false,
       charge: {
-        windup: 4, loopTo: 7, from: 8, auto: 50,
+        auto: 50,
         levels: [
           {
             at: 20, damage: 55, guardDamage: 30, push: 2.4,
-            advance: [0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 3, 1, 0, 0], box: { x: 28, y: -42, w: 28, h: 18, shape: 'cone' },
+            box: { x: 28, y: -42, w: 28, h: 18, shape: 'cone' },
           },
           {
             at: 45, damage: 70, guardDamage: 45, push: 4.4,
-            advance: [0, 0, 0, 0, 0, 0, 0, 0, 6, 5, 3, 2, 0, 0], box: { x: 28, y: -44, w: 36, h: 22, shape: 'cone' },
+            box: { x: 28, y: -44, w: 36, h: 22, shape: 'cone' },
           },
           {
             at: 75, damage: 90, guardDamage: 70, launch: { vx: 6.5, vy: -5.0 }, wall: true,
-            advance: [0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 4, 2, 0, 0], box: { x: 28, y: -46, w: 44, h: 26, shape: 'cone' },
+            box: { x: 28, y: -46, w: 44, h: 26, shape: 'cone' },
           },
           // 4단계: 방어 깎기 100 = 방어 게이지 전부 (막아도 가드 크러시), 끝난 뒤 40틱 탈진 (기획서 '최고 단계로 쓰면 짧게 탈진')
           {
             at: 110, damage: 117, guardDamage: 100, launch: { vx: 11.0, vy: -5.0 }, wall: true, exhaust: 40,
-            advance: [0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 5, 2, 0, 0], box: { x: 28, y: -48, w: 52, h: 30, shape: 'cone' },
+            box: { x: 28, y: -48, w: 52, h: 30, shape: 'cone' },
           },
         ],
       },
