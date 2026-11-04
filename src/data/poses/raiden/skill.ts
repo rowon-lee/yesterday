@@ -333,16 +333,21 @@ export const RAIDEN_PACHEON_AFTER: MotionData = {
     { at: 4, pose: R_STANCE },
   ],
 };
-/** 파천 장면 5: 상대 반응 — 멀리서 떨어진다 (12프레임 20틱) */
+/** 떨어지며 몸이 돌기 시작한다 · 머리부터 기울어 떨어진다 · 힘이 빠져 팔다리가 늘어진다 */
+const RX5_TURN = S({ hx: -2, hy: -21.5, tl: -90, hd: -2, aFx: 15, aFy: 10, aBx: 12, aBy: 9, lFx: 18, lFy: -7, lBx: 15, lBy: -5 });
+const RX5_DROP = S({ hx: -2.5, hy: -22, tl: -97, hd: 4, aFx: 13, aFy: 14, aBx: 9, aBy: 13, lFx: 16, lFy: -3, lBx: 13, lBy: -2 });
+const RX5_LIMP = S({ hx: -3, hy: -23, tl: -104, hd: 12, aFx: 9, aFy: 14, aBx: 3, aBy: 12, lFx: 13, lFy: -2, lBx: 11, lBy: -1 });
+/** 파천 장면 5: 상대 반응 — 멀리서 떨어진다 (4프레임 20틱: 날던 자세에서 몸이 돌며 떨어지는 동안 점점 빨라진다) */
 export const RAIDEN_PACHEON_REACT5: MotionData = {
   name: 'raiden/pacheon_react5',
   label: '파천 상대 반응 5 (멀리 떨어짐)',
   wide: true,
-  dur: [2, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2],
+  dur: [8, 6, 3, 3],
   keys: [
-    { at: 0, pose: RX3_FLY },
-    { at: 6, pose: RX3_FLY2 },
-    { at: 11, pose: RX3_FLY },
+    { at: 0, pose: RX3_FLY3 },
+    { at: 1, pose: RX5_TURN },
+    { at: 2, pose: RX5_DROP },
+    { at: 3, pose: RX5_LIMP },
   ],
 };
 
