@@ -148,27 +148,27 @@ export const RAIDEN_MIDDLE_KICK: MotionData = {
 // 타격 프레임: 뒷발 → 엉덩이 → 뒷어깨 → 주먹이 한 줄 (몸통 52°, 몸 전체가 비스듬한 창 하나)
 /** 앞발로 크게 내디디며 뒷무릎을 들기 시작한다 */
 const SM_STEP = R({ hx: 2, hy: -17.5, tl: 18, hd: 8, aFx: 11, aFy: -6, aBx: 6, aBy: -3, lFx: 14, lBx: -9, lBy: -2 });
-/** 감기 끝 (멈칫): 차는 척 뒷무릎을 앞으로 높이, 뒷주먹은 귀 뒤로 크게 당기고 앞손을 길잡이로 내민다 */
-const SM_CHAMBER = R({ hx: 2.5, hy: -20, tl: 4, hd: 12, tw: 3, aFx: 13, aFy: -6, aBx: -2, aBy: -8, lFx: 12, lBx: 5.5, lBy: -16 });
-/** 박참: 앞발로 바닥을 차고 솟으며 뒷다리를 뒤로 휘두른다 */
-const SM_HOP = R({ hx: 6, hy: -25, tl: 30, hd: 4, tw: -1, aFx: 12, aFy: -3, aBx: 0, aBy: -7, lFx: 13, lFy: -2, lBx: -10, lBy: -12 });
-/** 스미어: 날아들며 뒷팔이 쏘아져 나간다 (그림은 뒷팔 1.45배) */
-const SM_SMEAR = R({ hx: 8, hy: -26, tl: 46, hd: 2, tw: -4.5, aFx: 5, aFy: 2, aBx: 15, aBy: -9, lFx: 14, lFy: -9, lBx: -14, lBy: -12 });
+/** 감기 끝 (멈칫): 차는 척 뒷무릎을 앞으로 높이, 뒷주먹은 귀 뒤로 크게 당기고 앞손을 길잡이로 내민다. 뒷어깨가 엉덩이보다 4px 뒤 (2장 ①) */
+const SM_CHAMBER = R({ hx: 2.5, hy: -20, tl: 0, hd: 13, tw: 7, aFx: 13, aFy: -6, aBx: -2, aBy: -8, lFx: 12, lBx: 5.5, lBy: -16 });
+/** 박참: 앞발로 바닥을 차고 솟으며 뒷다리를 뒤로 휘두른다. 뒷주먹은 귀 뒤에서 머리 위로 넘어오기 시작 */
+const SM_HOP = R({ hx: 6, hy: -25, tl: 30, hd: 4, tw: -1, aFx: 12, aFy: -3, aBx: 2, aBy: -12, lFx: 13, lFy: -2, lBx: -10, lBy: -12 });
+/** 스미어: 날아들며 뒷팔이 머리 높이에서 앞으로 내리꽂히듯 쏘아져 나간다 (그림은 뒷팔 1.45배) */
+const SM_SMEAR = R({ hx: 8, hy: -26, tl: 46, hd: 2, tw: -4.5, aFx: 5, aFy: 2, aBx: 14, aBy: -12.5, lFx: 14, lFy: -9, lBx: -14, lBy: -12 });
 /** 타격: 공중에서 뒷손을 끝까지, 뒷다리는 뒤로 길게, 앞다리는 접어 몸 밑에. 앞주먹은 가슴 */
 const SM_HIT = R({ hx: 9, hy: -26, tl: 52, hd: 0, tw: -6, aFx: 4, aFy: 3, aBx: 15, aBy: -10.5, lFx: 15, lFy: -11, lBx: -12.5, lBy: -10 });
-const SM_HIT2 = R({ hx: 10, hy: -26, tl: 53, hd: 0, tw: -6, aFx: 4, aFy: 3, aBx: 15.5, aBy: -10.2, lFx: 16, lFy: -11, lBx: -12, lBy: -10 });
-/** 지나치기: 몸이 앞으로 쏠리며 내려오기 시작한다 */
-const SM_OVER = R({ hx: 11, hy: -24.5, tl: 56, hd: 2, tw: -6.5, aFx: 4, aFy: 3, aBx: 15.5, aBy: -9, lFx: 18, lFy: -7, lBx: -11, lBy: -7 });
-/** 여운: 뻗은 채 앞발로 내려선다 */
+/** 지나치기: 몸이 앞으로 쏠리며 주먹이 한 박 더 앞 아래로 파고들고, 내려오기 시작한다 */
+const SM_OVER = R({ hx: 12, hy: -25, tl: 57, hd: 2, tw: -7, aFx: 4, aFy: 3, aBx: 15.8, aBy: -8.5, lFx: 18, lFy: -7, lBx: -11, lBy: -7 });
+/** 여운 (멈칫): 뻗은 채 앞발로 내려선다 (주먹은 2~3px 돌아온다) */
 const SM_HOLD = R({ hx: 11, hy: -19, tl: 48, hd: 4, tw: -5.5, aFx: 5, aFy: 2, aBx: 15.5, aBy: -8, lFx: 20, lFy: 0, lBx: -7, lBy: -5 });
-/** 착지: 앞무릎으로 받으며 뒷발을 끌어 딛는다 */
-const SM_LAND = R({ hx: 9, hy: -15.5, tl: 32, hd: 8, tw: -3, aFx: 7, aFy: -2, aBx: 13, aBy: -6, lFx: 19, lBx: -4, lBy: -2 });
+/** 착지: 앞무릎으로 받으며 뒷발을 끌어 딛는다 (회복 첫 프레임: 무게가 뒤로, 뒷손은 곧장 턱으로) */
+const SM_LAND = R({ hx: 9, hy: -15.5, tl: 32, hd: 8, tw: -3, aFx: 8, aFy: -3, aBx: 10, aBy: -4, lFx: 19, lBx: -4, lBy: -2 });
 const SM_REC = R({ hx: 6, hy: -16.5, tl: 24, hd: 9, tw: -1, aFx: 11, aFy: -4, aBx: 9, aBy: -2, lFx: 16, lBx: -5 });
-const SM_BACK = R({ hx: 3, hy: -18, tl: 18, hd: 8, aFx: 12, aFy: -4, aBx: 8, aBy: -0.5, lFx: 12, lBx: -7 });
+const SM_BACK = R({ hx: 3, hy: -18, tl: 18, hd: 8, aFx: 12, aFy: -4, aBx: 8, aBy: -0.5, lFx: 12, lFy: -1.5, lBx: -7 });
 
 /**
- * 4타 슈퍼맨 펀치 (128×96): 내디딤(2) → 차는 척 뒷무릎(3, 멈칫) → 박차고 솟음(4) → 스미어(5) → 공중에서 뒷손 끝까지(6~7프레임 판정)
- * → 지나치기 → 내려서며 여운 → 착지·복귀. 14프레임 28틱
+ * 4타 슈퍼맨 펀치 (128×96): 내디딤(2) → 차는 척 뒷무릎(3, 멈칫) → 박차고 솟음(4) → 스미어(5) → 공중에서 뒷손 끝까지(6~7프레임 판정, 7 지나치기)
+ * → 내려서며 여운(8, 멈칫) → 착지·복귀(9~12). 12프레임 32틱.
+ * 2차 리워크: 판정 11~14틱·몸 이동은 그대로. 거의 같던 타격 둘째 장을 빼고 지나치기를 판정 안으로, 뒷주먹은 귀 뒤 → 머리 위 → 앞 아래로 넘어오는 호
  */
 export const RAIDEN_SUPERMAN_PUNCH: MotionData = {
   name: 'raiden/superman_punch',
@@ -176,7 +176,7 @@ export const RAIDEN_SUPERMAN_PUNCH: MotionData = {
   wide: true,
   smear: { frame: 4, limb: 'aB', stretch: 1.45 },
   // 박자: 4타 앞 감기가 가장 길다 (내디딤 2·차는 척 3·멈칫 3·박참 2 + 스미어 1 = 11틱)
-  dur: [2, 3, 3, 2, 1, 2, 1, 2, 4, 3, 3, 2, 2, 2],
+  dur: [2, 3, 3, 2, 1, 2, 2, 5, 3, 3, 3, 3],
   keys: [
     { at: 0, pose: R_STANCE },
     { at: 1, pose: SM_STEP },
@@ -184,13 +184,12 @@ export const RAIDEN_SUPERMAN_PUNCH: MotionData = {
     { at: 3, pose: SM_HOP },
     { at: 4, pose: SM_SMEAR },
     { at: 5, pose: SM_HIT },
-    { at: 6, pose: SM_HIT2 },
-    { at: 7, pose: SM_OVER },
-    { at: 8, pose: SM_HOLD, stop: true },
-    { at: 9, pose: SM_LAND },
-    { at: 10, pose: SM_REC },
-    { at: 12, pose: SM_BACK },
-    { at: 13, pose: R_STANCE },
+    { at: 6, pose: SM_OVER },
+    { at: 7, pose: SM_HOLD, stop: true },
+    { at: 8, pose: SM_LAND },
+    { at: 9, pose: SM_REC },
+    { at: 10, pose: SM_BACK },
+    { at: 11, pose: R_STANCE },
   ],
 };
 
