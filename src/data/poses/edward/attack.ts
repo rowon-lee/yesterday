@@ -642,45 +642,62 @@ export const EDWARD_AIR_SPIN: MotionData = {
 };
 
 // ---- 내려찍기 (공중): 해머를 머리 위로 들고 수직으로 떨어져 착지 지점을 내려찍는다 (반원 충격파 반지름 48px: sim/chars/edward.ts) ----
-/** 머리 위로 치켜든다 (공중에 잠깐 멈춘다) */
-const S_LIFT = A({ ...AIR_BASE, tl: -8, hd: -12, tw: 1, wa: -100 }, [2, -82]);
-const S_MAX = A({ hy: -24, tl: -14, hd: -12, tw: 0, lFx: 5, lFy: -6, lBx: -5, lBy: -5, wa: -112 }, [-8, -82]);
-/** 떨어진다: 두 다리를 아래로 뻗고 해머는 머리 위 (떨어지는 동안 이 자세) */
-const S_DROP = A({ hy: -26, tl: -6, hd: -8, tw: 1, lFx: 4, lFy: 0, lBx: -5, lBy: 0, wa: -96 }, [6, -84]);
-const S_DROP2 = A({ hy: -26, tl: -4, hd: -6, tw: 1, lFx: 5, lFy: 0, lBx: -5, lBy: 0, wa: -88 }, [10, -84]);
-/** 착지 순간: 해머를 발 앞 바닥에 내리꽂는다 (스미어) */
-const S_SMEAR = A({ hx: 3, hy: -17, tl: 20, hd: -6, tw: 3, lFx: 14, lBx: -13, wa: -10 }, [44, -48]);
+/** 두 손이 먼저 해머를 들어 올린다 (머리는 어깨 뒤에 처진다) */
+const S_LIFT = AH({ ...AIR_BASE, tl: -6, hd: -10, tw: 1, wa: -125 }, [7, -52]);
+/** 머리 위로 치켜든다 */
+const S_LIFT2 = AH({ ...AIR_BASE, tl: -10, hd: -12, tw: 0.5, wa: -105 }, [4, -58]);
+/** 감기 끝 (멈춤 5틱): 공중에 멈춰 몸을 젖히고 해머를 머리 뒤로 젖힌다 */
+const S_MAX = A({ hy: -24, tl: -16, hd: -12, tw: 0, lFx: 5, lFy: -6, lBx: -5, lBy: -5, wa: -118 }, [-10, -82]);
+/** 공중에 매달린 채 무릎을 모아 힘을 싣는다 */
+const S_HANG = A({ hy: -24.5, tl: -13, hd: -11, tw: 0, lFx: 6, lFy: -9, lBx: -4, lBy: -8, wa: -116 }, [-9, -87]);
+/** 떨어진다 (15틱): 두 다리가 먼저 아래로 뻗고, 해머는 떨어지는 바람에 뒤로 젖혀진다 */
+const S_DROP = A({ hy: -26, tl: -8, hd: -8, tw: 1, lFx: 4, lFy: 0, lBx: -5, lBy: 0, wa: -124 }, [-6, -82]);
+/** 떨어지는 동안 이 자세 (땅에 닿을 때까지 머문다): 해머가 다시 머리 위로 서서 내리칠 준비 */
+const S_DROP2 = A({ hy: -26, tl: -3, hd: -6, tw: 1, lFx: 5, lFy: 0, lBx: -5, lBy: 0, wa: -88 }, [10, -84]);
+/** 착지 순간 (스미어): 무릎이 먼저 꺾여 받고 손이 앞으로 내려오는데, 해머 머리는 아직 앞 위에 처져 있다 */
+const S_SMEAR = AH({ hx: 4, hy: -14, tl: 32, hd: -2, tw: 4, lFx: 15, lBx: -14, wa: -50 }, [22, -38]);
+/** 해머 머리가 따라 내려와 발 앞 바닥에 쿵 박힌다 */
 const S_IMPACT = A({ hx: 5, hy: -12.5, tl: 42, hd: 4, tw: 4.5, lFx: 16, lBx: -15, wa: 72 }, [36, -6]);
 const S_IMPACT2 = A({ hx: 5.2, hy: -12, tl: 44, hd: 6, tw: 4.5, lFx: 16, lBx: -15, wa: 80 }, [37, -6]);
+/** 여운: 바닥에 박힌 해머를 쥔 채 버티고, 2px 내려앉는다 */
 const S_HOLD = A({ hx: 5, hy: -12.5, tl: 42, hd: 5, tw: 4.5, lFx: 16, lBx: -15, wa: 76 }, [36.5, -6]);
-const S_BACK = G({ hx: 3, hy: -17, tl: 20, hd: -2, tw: 2, aFx: 12, aFy: 4, lFx: 13, lBx: -12, wa: 10 });
-const S_BACK2 = G({ hx: 1.5, hy: -20.5, tl: 6, hd: -3, tw: 1, aFx: 8, aFy: -8, lFx: 10, lBx: -9, wa: -95 });
+const S_HOLD2 = A({ hx: 4.8, hy: -11.2, tl: 43, hd: 4, tw: 4.3, lFx: 16, lBx: -15, wa: 77 }, [36.5, -6]);
+/** 복귀: 무게가 먼저 뒤로 빠진다 (해머는 아직 바닥에) → 뽑아 끌어 올리고 → 손이 얼굴 앞으로 (해머는 아직 앞을 향하고 뒷손이 놓는다) → 해머가 넘어가 어깨에 걸친다 */
+const S_BACK0 = A({ hx: 3.5, hy: -14, tl: 34, hd: 1, tw: 3, lFx: 15, lBx: -14, wa: 74 }, [34, -6]);
+const S_BACK = G({ hx: 3, hy: -17, tl: 20, hd: -2, tw: 2, aFx: 12, aFy: 4, lFx: 13, lBx: -12, wa: 40 });
+const S_BACK2 = E({ hx: 1.5, hy: -20.5, tl: 6, hd: -3, tw: 1, aFx: 8, aFy: -8, aBx: 5, aBy: 2, lFx: 10, lBx: -9, wa: 10 });
+const S_BACK3 = E({ hx: 0.5, hy: -21.8, tl: -2, hd: -4, aFx: 5, aFy: 4, aBx: 1, aBy: 8, lFx: 7.5, lBx: -7.5, wa: -150 });
 
 /**
- * 내려찍기 (128×96): 1~4 해머를 머리 위로 치켜들고 공중에 멈춤(4번 멈춤) → 5~6 수직으로 떨어짐(판정, 땅에 닿을 때까지 6번에 머문다) →
- * 7 착지하며 내리꽂음(스미어, 반원 충격파) → 8~10 바닥에 박힘 → 11~14 뽑아 어깨로. 착지부터는 땅 위에서 이어진다 (sim/chars/edward.ts). 14프레임
+ * 내려찍기 (128×96, 2차 리워크): 2~3 손이 먼저 해머를 머리 위로 치켜들고 → 4 공중에 멈춰 젖힘(5틱 멈춤) → 5 무릎을 모아 매달림 →
+ * 6~7 다리가 먼저 아래로 뻗고 해머는 젖혀졌다 다시 섬(15틱부터 판정, 땅에 닿을 때까지 7번에 머문다) → 8 착지하며 내리꽂음(20틱, 스미어, 반원 충격파) →
+ * 9~10 바닥에 박힘 → 11~12 버티며 내려앉음(35틱까지) → 13~17 무게가 먼저 뒤로 빠진 뒤 뽑아 어깨로.
+ * 착지부터는 땅 위에서 이어진다 (sim/chars/edward.ts). 17프레임 44틱 (공격 데이터 그대로: slamDrop 15 · slamHold 20 · slamLand 20)
  */
 export const EDWARD_AIR_SLAM: MotionData = {
   name: 'edward/air_slam',
   label: '에드워드 내려찍기',
   wide: true,
-  smear: { frame: 6, limb: 'aF', stretch: 1.3, ghosts: 3 },
-  dur: [2, 3, 4, 6, 2, 3, 1, 2, 3, 6, 3, 3, 3, 3],
+  smear: { frame: 7, limb: 'aF', stretch: 1.3, ghosts: 3 },
+  dur: [1, 2, 3, 5, 4, 2, 3, 1, 2, 3, 4, 5, 2, 2, 2, 2, 1],
   keys: [
     { at: 0, pose: AIR_REST },
     { at: 1, pose: S_LIFT },
-    { at: 2, pose: S_MAX },
+    { at: 2, pose: S_LIFT2 },
     { at: 3, pose: S_MAX, stop: true },
-    { at: 4, pose: S_DROP },
-    { at: 5, pose: S_DROP2, stop: true },
-    { at: 6, pose: S_SMEAR },
-    { at: 7, pose: S_IMPACT },
-    { at: 8, pose: S_IMPACT2, stop: true },
-    { at: 9, pose: S_HOLD },
-    { at: 10, pose: S_HOLD, stop: true },
-    { at: 11, pose: S_BACK },
-    { at: 12, pose: S_BACK2 },
-    { at: 13, pose: E_STANCE },
+    { at: 4, pose: S_HANG },
+    { at: 5, pose: S_DROP },
+    { at: 6, pose: S_DROP2, stop: true },
+    { at: 7, pose: S_SMEAR },
+    { at: 8, pose: S_IMPACT },
+    { at: 9, pose: S_IMPACT2, stop: true },
+    { at: 10, pose: S_HOLD },
+    { at: 11, pose: S_HOLD2, stop: true },
+    { at: 12, pose: S_BACK0 },
+    { at: 13, pose: S_BACK },
+    { at: 14, pose: S_BACK2 },
+    { at: 15, pose: S_BACK3 },
+    { at: 16, pose: E_STANCE },
   ],
 };
 
