@@ -288,21 +288,21 @@ export const REACT_OSCAR_STILL = seq('react/oscar_still', '월령수류 반응 3
   [g({ hy: -21.2, hd: -2, tl: 3, aFx: 8, aFy: -10, aBx: 6, aBy: -7 }), 6, true],
 ]);
 
-/** 반응 4 백색 (20틱): 무수한 베기에 몸이 이리저리 떨린다 */
-export const REACT_OSCAR_WHITE: MotionData = {
-  name: 'react/oscar_white',
-  label: '월령수류 반응 4 (베임)',
-  wide: true,
-  dur: [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3],
-  keys: [
-    { at: 0, pose: g({ hy: -21, aFx: 8, aFy: -9, aBx: 6, aBy: -6 }) },
-    { at: 2, pose: g({ hx: -2, tl: -8, hd: -10, aFx: 2, aFy: -12, aBx: -4, aBy: -10 }) },
-    { at: 4, pose: g({ hx: 1, tl: 12, hd: 14, aFx: 6, aFy: 2, aBx: 2, aBy: 4 }) },
-    { at: 6, pose: g({ hx: -2, tl: -10, hd: -12, aFx: 0, aFy: -12, aBx: -6, aBy: -9 }) },
-    { at: 8, pose: g({ hx: 0, tl: 8, hd: 10, aFx: 5, aFy: 3, aBx: 1, aBy: 5 }) },
-    { at: 12, pose: g({ hx: 0, tl: 2, hd: 0, aFx: 4, aFy: 6, aBx: 2, aBy: 7 }), stop: true },
-  ],
-};
+/**
+ * 반응 4 백색 (20틱, 2차 리워크): 무수한 베기에 몸이 이리저리 떨린다 — 크게 튀었다가 (1틱 사이) 잘게 떨리는 것을 네 번 →
+ * 팔을 늘어뜨리고 멎음. 9프레임 (고르게 튀던 13장 대신)
+ */
+export const REACT_OSCAR_WHITE = seq('react/oscar_white', '월령수류 반응 4 (베임)', [
+  [g({ hy: -21, aFx: 8, aFy: -9, aBx: 6, aBy: -6 }), 1],
+  [g({ hx: -2, tl: -8, hd: -10, aFx: 2, aFy: -12, aBx: -4, aBy: -10 }), 2],
+  [g({ hx: -1.5, tl: -6, hd: -7, aFx: 3, aFy: -11, aBx: -3, aBy: -9 }), 1],
+  [g({ hx: 1, tl: 12, hd: 14, aFx: 6, aFy: 2, aBx: 2, aBy: 4 }), 2],
+  [g({ hx: 0.5, tl: 10, hd: 11, aFx: 6, aFy: 0, aBx: 2, aBy: 2 }), 1],
+  [g({ hx: -2, tl: -10, hd: -12, aFx: 0, aFy: -12, aBx: -6, aBy: -9 }), 2],
+  [g({ hx: -1.5, tl: -8, hd: -9, aFx: 1, aFy: -11, aBx: -5, aBy: -8 }), 1],
+  [g({ hx: 0, tl: 8, hd: 10, aFx: 5, aFy: 3, aBx: 1, aBy: 5 }), 3],
+  [g({ hx: 0, tl: 2, hd: 0, aFx: 4, aFy: 6, aBx: 2, aBy: 7 }), 7, true],
+]);
 
 /** 반응 5 어긋남 (40틱): 팔을 늘어뜨린 채 그대로 서 있다 (몸도 선 위에 있다) */
 export const REACT_OSCAR_CUT: MotionData = {
