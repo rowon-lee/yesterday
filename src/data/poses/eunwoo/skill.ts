@@ -32,9 +32,28 @@ const AN_ARRIVE = E({ hx: 0, hy: -22, tl: 10, hd: 4, aFx: 8, aFy: 8, aBx: 4, aBy
 /** 내려서며 팔을 가볍게 펼친다 (가운 자락이 펄럭) */
 const AN_OPEN = E({ hx: 0, hy: -21, tl: 8, hd: 0, aFx: 12, aFy: 2, aBx: -8, aBy: 6, lFx: 7, lBx: -7 });
 
-/** 스킬 1 응답: 준비 → 튀김(멈칫) → 3프레임에 도착(순간이동) → 펼침 → 기본자세. 12프레임 21틱 */
-export const EUNWOO_ANSWER = motion('answer', '스킬 1 응답', [1, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2], [
-  K(0, E_STANCE), K(1, AN_PREP), K(2, AN_SNAP, true), K(3, AN_ARRIVE), K(5, AN_OPEN, true), K(8, AN_OPEN), K(11, E_STANCE),
+/** 뒷손이 얼굴 옆으로 올라와 손가락을 건다 */
+const AN_COCK = E({ hx: 0.2, hy: -21.3, tl: 6, hd: -3, aFx: 10, aFy: 6, aBx: 9, aBy: -10, lFx: 8, lBx: -8 });
+/** 접었던 몸이 풀린다 (떠 있는 채) */
+const AN_UNFOLD = E({ hx: 0, hy: -21.8, tl: 9, hd: 3, aFx: 9.5, aFy: 6, aBx: 1, aBy: 5, lFx: 5, lFy: -1.5, lBx: -5, lBy: -1.5 });
+const AN_SPREAD = E({ hx: 0, hy: -21.5, tl: 8.5, hd: 1.5, aFx: 11, aFy: 3.5, aBx: -4, aBy: 5.5, lFx: 6, lFy: -0.8, lBx: -6, lBy: -0.8 });
+/** 떠 있는 동안 (가운 자락이 내려앉는다): 팔이 깃털처럼 천천히 내려온다 */
+const AN_FLOAT_A = E({ hx: 0, hy: -21.3, tl: 7, hd: -1, aFx: 12.5, aFy: 1, aBx: -9, aBy: 5, lFx: 7, lBx: -7 });
+const AN_FLOAT_B = E({ hx: 0, hy: -21.6, tl: 6, hd: -1.5, aFx: 12, aFy: 2.5, aBx: -8.5, aBy: 7, lFx: 7, lBx: -7 });
+const AN_FLOAT_C = E({ hx: -0.1, hy: -21.4, tl: 6.5, hd: -0.5, aFx: 11.5, aFy: 4, aBx: -8, aBy: 8, lFx: 7, lBx: -7 });
+const AN_DESC_A = E({ hx: -0.3, hy: -21.2, tl: 6, hd: 1, aFx: 10.5, aFy: 6, aBx: -7, aBy: 9, lFx: 7, lBx: -6.5 });
+const AN_DESC_B = E({ hx: -0.6, hy: -20.6, tl: 6.5, hd: 3, aFx: 9, aFy: 9, aBx: -6.5, aBy: 11, lFx: 7, lBx: -6 });
+/** 사뿐히 무게를 싣는다 */
+const AN_SOFT = E({ hx: -1, hy: -20.2, tl: 6, hd: 4.5, aFx: 8, aFy: 11, aBx: -6, aBy: 12.5, lFx: 6.8, lBx: -5.5 });
+const AN_RISE = E({ hx: -1.3, hy: -22.2, tl: 3.5, hd: 5.5, aFx: 7.3, aFy: 12.8, aBx: -5.7, aBy: 13.6, lFx: 6.6, lFy: -0.6, lBx: -4.7 });
+
+/**
+ * 스킬 1 응답 (2차 리워크): 준비 → 손가락을 걸고 → 튀김(멈칫) → 5틱에 도착(순간이동, sim ANSWER_TELE_TICK) → 접었던 몸이 풀리며 팔을 펼침
+ * → 떠 있는 동안 팔이 깃털처럼 내려옴 → 사뿐히 무게를 싣고 기본자세. 12프레임 → 16프레임 21틱 (dur 1~2로 고르게 짧게, 3장 백은우)
+ */
+export const EUNWOO_ANSWER = motion('answer', '스킬 1 응답', [1, 1, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2], [
+  K(0, E_STANCE), K(1, AN_PREP), K(2, AN_COCK), K(3, AN_SNAP, true), K(4, AN_ARRIVE), K(5, AN_UNFOLD), K(6, AN_SPREAD), K(7, AN_OPEN),
+  K(8, AN_FLOAT_A), K(9, AN_FLOAT_B), K(10, AN_FLOAT_C), K(11, AN_DESC_A), K(12, AN_DESC_B), K(13, AN_SOFT), K(14, AN_RISE), K(15, E_STANCE),
 ]);
 /** 순간이동하는 틱 (3프레임이 시작하는 틱) */
 export const ANSWER_TELE_TICK = 5;
