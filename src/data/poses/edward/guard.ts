@@ -44,16 +44,31 @@ export const EDWARD_GUARD: MotionData = {
   ],
 };
 
-/** 방어 막힘: 밀려 젖혀짐 → 버텨 다시 숙임 → 막기. 12프레임 (sim은 막힌 경직 길이에 맞춰 늘인다) */
+/** 한 번 더 밀린다: 몸이 내려앉고, 해머 머리는 늦게 뒤로 젖혀진다 */
+const GH_PUSH2 = grip2(E({ hx: -5, hy: -19.8, tl: -6, hd: 13, aFx: 5.5, aFy: 12, lFx: 9, lBx: -12.5, wa: -105 }), -9);
+/** 무릎으로 받아 가장 낮게 버틴다 */
+const GH_SINK = grip2(E({ hx: -4.5, hy: -18.6, tl: -2, hd: 10, aFx: 6.5, aFy: 12.5, lFx: 9, lBx: -12.5, wa: -102 }), -9);
+/** 다시 숙여 밀면 해머 머리가 늦게 앞으로 넘어간다 (지나치기) */
+const GH_TIP = grip2(E({ hx: -1, hy: -19.3, tl: 10, hd: 5, aFx: 8.5, aFy: 13, lFx: 9, lBx: -11, wa: -76 }), -9);
+/** 되세워 자리 잡는다 */
+const GH_SET = grip2(E({ hx: -1, hy: -19.7, tl: 9, hd: 6, aFx: 8, aFy: 13, lFx: 9, lBx: -11, wa: -84 }), -9);
+
+/**
+ * 방어 막힘 (2차 리워크): 손잡이째 밀려 젖혀짐 → 한 번 더 밀려 내려앉음(머리는 늦게 젖혀짐) → 무릎으로 받음 → 숙여 밈(머리는 아직 뒤) →
+ * 해머 머리가 늦게 앞으로 넘어감 → 되세움 → 막기. 7프레임 (sim이 막힌 경직 길이를 프레임 수로 고르게 나눈다: 표시 틱은 뷰어·시트용)
+ */
 export const EDWARD_GUARD_HIT: MotionData = {
   name: 'edward/guard_hit',
   label: '에드워드 방어 막힘',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 2, 2, 1, 2, 2, 2],
   keys: [
     { at: 0, pose: BLOCK_HIT },
-    { at: 2, pose: BLOCK_HIT, stop: true },
-    { at: 6, pose: BLOCK_BRACE, stop: true },
-    { at: 11, pose: BLOCK },
+    { at: 1, pose: GH_PUSH2 },
+    { at: 2, pose: GH_SINK, stop: true },
+    { at: 3, pose: { ...BLOCK_BRACE, wa: -96 } },
+    { at: 4, pose: GH_TIP },
+    { at: 5, pose: GH_SET, stop: true },
+    { at: 6, pose: BLOCK },
   ],
 };
 
