@@ -160,11 +160,13 @@ export const EUNWOO_SUPER_TOUCH = motion('super_touch', '선의 연출 4 어깨�
   K(0, walk(0)), K(1, TOUCH_STEP), K(2, TOUCH_A), K(3, TOUCH_REACH), K(4, TOUCH_PRESS), K(5, TOUCH_B),
 ], undefined, { ribbon: { stiff: 0.4, gravity: 1.3 } });
 
-/** 장면 5 (50틱): 손을 얹은 채 상대를 따라 조금 숙이고, 금빛 치유의 빛이 차오른다 */
-const HEAL_A = E({ hx: 1, hy: -22.5, tl: 14, hd: 14, tw: -3, aFx: 5, aFy: 15, aBx: 15, aBy: 0, lFx: 8, lBx: -5, wa: 90 });
+/** 장면 5 (50틱): 손을 얹은 채 주저앉는 상대를 따라 천천히 숙인다 (상대가 무릎 꿇는 12~28틱에 함께), 금빛 치유의 빛이 차오른다 */
+const HEAL_START = E({ hx: 1, hy: -22.7, tl: 11, hd: 11, tw: -3, aFx: 5, aFy: 15, aBx: 15, aBy: -4, lFx: 8, lBx: -5, wa: 90 });
+const HEAL_A = E({ hx: 1, hy: -22.5, tl: 12.5, hd: 13, tw: -3, aFx: 5, aFy: 15, aBx: 15, aBy: -2.8, lFx: 8, lBx: -5, wa: 90 });
+const HEAL_FOLLOW = E({ hx: 1, hy: -22.1, tl: 17, hd: 17, tw: -2.2, aFx: 5, aFy: 15, aBx: 14.2, aBy: 4.8, lFx: 8, lBx: -5, wa: 90 });
 const HEAL_B = E({ hx: 1, hy: -22, tl: 18, hd: 18, tw: -2, aFx: 5, aFy: 15, aBx: 14, aBy: 6, lFx: 8, lBx: -5, wa: 90 });
-export const EUNWOO_SUPER_HEAL = motion('super_heal', '선의 연출 5 백합', [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5], [
-  K(0, TOUCH_B), K(5, HEAL_A), K(11, HEAL_B),
+export const EUNWOO_SUPER_HEAL = motion('super_heal', '선의 연출 5 백합', [8, 8, 10, 12, 12], [
+  K(0, TOUCH_B), K(1, HEAL_START), K(2, HEAL_A), K(3, HEAL_FOLLOW), K(4, HEAL_B),
 ], undefined, { ribbon: { stiff: 0.4, gravity: 1.3 } });
 
 /** 장면 6 (40틱): 손이 어깨에서 떨어지고 → 한 번에 거두며 몸을 세우고 → 한 걸음 물러나 (자리 50 → 38) → 칼을 쥔 채 서서 → 기본자세 (세계가 나비로 부서진다) */
