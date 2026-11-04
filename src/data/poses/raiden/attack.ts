@@ -471,42 +471,60 @@ export const RAIDEN_AXE_KICK: MotionData = {
 
 // ---- 차지: 투전승불 (공격을 길게 눌렀다 떼기. "울려라." 생체 전류를 증폭해 적빛 전격 갑옷이 드러난다) ----
 // 128×96. 떼면 앞발로 깊이 디디며 뒷주먹을 끝까지 (지침서 2장 기준값: 발 간격 36, 엉덩이 6 낮게, 몸통 36°, 뒷어깨 6px 앞, 한 줄)
-/** 두 주먹을 허리로 끌어당기며 다리를 넓게 벌리고 낮게 버틴다 (고개를 숙여 힘을 모은다) */
-const CH_PULL = R({ hx: -1, hy: -15, tl: 8, hd: 16, aFx: -2, aFy: 13, aBx: -4, aBy: 13, lFx: 11, lBx: -12 });
-/** 모으는 동안 1: 가슴을 펴고 주먹을 쥔 채 고개를 들어 상대를 본다 (온몸에 힘이 들어가 떨림) */
-const CH_HOLD_A = R({ hx: -1, hy: -15, tl: 2, hd: 4, aFx: -1, aFy: 12, aBx: -3, aBy: 12, lFx: 11, lBx: -12 });
-/** 모으는 동안 2: 어깨가 한 번 들썩인다 */
-const CH_HOLD_B = R({ hx: -1, hy: -15.5, tl: 4, hd: 6, aFx: -1.5, aFy: 11, aBx: -3.5, aBy: 11, lFx: 11, lBx: -12 });
+// 2차 리워크: 모으기·되풀이(8~20틱)·떼기(20틱)·판정(21~25틱)·몸 이동은 공격 데이터 그대로, 그림만 다시 깎았다.
+/** 들어가기: 어깨가 먼저 뒤로 틀리고 엉덩이가 내려앉기 시작, 주먹은 아직 가슴께 */
+const CH_START = R({ hx: -2, hy: -17.5, tl: 10, hd: 12, tw: 3, aFx: 8, aFy: 4, aBx: 2, aBy: 6, lFx: 10, lBx: -11 });
+/** 두 주먹을 허리로 끌어당기며 다리를 넓게 벌리고, 엉덩이를 뒷발 쪽으로 빼며 낮게 (뒷어깨는 엉덩이보다 4px 뒤) */
+const CH_PULL = R({ hx: -4, hy: -15.5, tl: 5, hd: 15, tw: 7, aFx: -1, aFy: 12, aBx: -4, aBy: 12, lFx: 11, lBx: -12 });
+/** 감기 끝 (멈칫): 가장 낮고 가장 뒤, 고개를 숙여 힘을 모은다 */
+const CH_SET = R({ hx: -5, hy: -14.5, tl: 2, hd: 17, tw: 8, aFx: -2, aFy: 13, aBx: -5, aBy: 12.5, lFx: 11, lBx: -12 });
+/** 모으는 동안 (8~20틱 되풀이, 다섯 장): 가슴을 펴고 고개를 든다 → 어깨가 들썩 → 전류에 움찔 → 가라앉음 → 다시 움츠림 */
+const CH_HOLD_A = R({ hx: -5, hy: -15, tl: 0, hd: 4, tw: 8, aFx: -1, aFy: 12, aBx: -4, aBy: 12, lFx: 11, lBx: -12 });
+const CH_HOLD_B = R({ hx: -5, hy: -16.5, tl: -2, hd: 1, tw: 7, aFx: -1, aFy: 10, aBx: -4, aBy: 10, lFx: 11, lBx: -12 });
+const CH_HOLD_C = R({ hx: -4.5, hy: -15, tl: 4, hd: 8, tw: 9, aFx: -2.5, aFy: 12.5, aBx: -5.5, aBy: 13, lFx: 11, lBx: -12 });
+const CH_HOLD_D = R({ hx: -5, hy: -15.5, tl: 1, hd: 3, tw: 7, aFx: -1, aFy: 11, aBx: -4, aBy: 10.5, lFx: 11, lBx: -12 });
+const CH_HOLD_E = R({ hx: -5.5, hy: -14.5, tl: 3, hd: 7, tw: 8.5, aFx: -2, aFy: 13, aBx: -5, aBy: 12.5, lFx: 11, lBx: -12 });
 /** 떼는 순간 (스미어): 앞발로 크게 디디며 허리를 틀어 뒷주먹이 쏘아져 나간다 (그림은 뒷팔 1.45배) */
 const CH_STEP = R({ hx: 3, hy: -14.5, tl: 26, hd: 8, tw: -3.5, aFx: 3, aFy: 4, aBx: 14, aBy: -6, lFx: 19, lBx: -13 });
-/** 타격: 온몸을 실어 뒷주먹을 끝까지, 앞주먹은 가슴으로 당기고 뒷다리는 뒤로 길게 (가장 멀리) */
+/** 타격: 온몸을 실어 뒷주먹을 끝까지, 앞주먹은 가슴으로 당기고 뒷다리는 뒤로 길게 */
 const CH_HIT = R({ hx: 5.5, hy: -13, tl: 36, hd: 10, tw: -6, aFx: 3, aFy: 4, aBx: 16, aBy: -8.2, lFx: 22, lBx: -15, lBy: -1 });
-const CH_HOLD_HIT = R({ hx: 6, hy: -13, tl: 37, hd: 10, tw: -6.5, aFx: 3, aFy: 4, aBx: 16.4, aBy: -8.2, lFx: 22, lBx: -15.5, lBy: -1 });
-/** 거두며 가드로 */
-const CH_BACK = R({ hx: 2, hy: -17, tl: 20, hd: 8, tw: -1.5, aFx: 11, aFy: -3, aBx: 9.5, aBy: -1, lFx: 13, lBx: -10 });
+/** 지나치기: 엉덩이·어깨가 한 번 더 밀고 들어가 주먹이 4px 더 나간다 (가장 멀리) */
+const CH_OVER = R({ hx: 7.5, hy: -12.5, tl: 40, hd: 11, tw: -7.5, aFx: 3, aFy: 4.5, aBx: 16.5, aBy: -8, lFx: 22, lBx: -15.5, lBy: -1 });
+/** 되돌아옴 (멈칫): 2~3px 돌아와 자리 잡는다 */
+const CH_SETTLE = R({ hx: 6, hy: -13, tl: 37, hd: 10, tw: -6, aFx: 3, aFy: 4, aBx: 16, aBy: -8.5, lFx: 22, lBx: -15.5, lBy: -1 });
+/** 회복 첫 프레임: 무게가 뒤로 빠지며 두 손이 곧장 얼굴 앞 가드로, 앞발을 들어 물러 디딘다 */
+const CH_BACK = R({ hx: 1, hy: -17, tl: 18, hd: 8, tw: -1, aFx: 11, aFy: -3, aBx: 9, aBy: -1, lFx: 15, lFy: -3, lBx: -12 });
+/** 가드로 자리 잡는 중 (기본자세보다 발이 조금 넓다) */
+const CH_GUARD = R({ hx: -0.5, hy: -18.5, tl: 16, hd: 8, aFx: 12.5, aFy: -4, aBx: 8.5, aBy: -0.5, lFx: 10, lBx: -10 });
 
 /**
- * 차지 투전승불 (128×96): 1~4프레임 두 주먹을 허리로 끌어당겨 버팀(한 번) → 5~8프레임 모으는 동안 되풀이(떨림) →
- * 떼면 9프레임(스미어)부터 앞발로 깊이 디디며 뒷주먹을 끝까지(10~11프레임 판정) → 여운 → 가드. 14프레임 (기본 차지와 같은 구조)
+ * 차지 투전승불 (128×96): 1~4프레임 어깨 먼저 → 두 주먹을 허리로 끌어당겨 낮게 버팀(한 번, 4 멈칫) → 5~9프레임 모으는 동안 되풀이(떨림) →
+ * 떼면 10프레임(스미어)부터 앞발로 깊이 디디며 뒷주먹을 끝까지(11~12프레임 판정, 12 지나치기) → 13 되돌아와 30틱까지 버팀(피격 상자 시간표와 같게)
+ * → 14~16 가드 (처음 빠르고 끝으로 느리게). 16프레임 36틱
  */
 export const RAIDEN_CHARGE: MotionData = {
   name: 'raiden/charge',
   label: '라이덴 차지 투전승불',
   wide: true,
-  smear: { frame: 8, limb: 'aB', stretch: 1.45 },
-  dur: [2, 2, 2, 2, 3, 3, 3, 3, 1, 2, 2, 5, 3, 3],
+  smear: { frame: 9, limb: 'aB', stretch: 1.45 },
+  dur: [1, 2, 2, 3, 3, 2, 2, 3, 2, 1, 2, 2, 5, 2, 2, 2],
   keys: [
     { at: 0, pose: R_STANCE },
+    { at: 1, pose: CH_START },
     { at: 2, pose: CH_PULL },
+    { at: 3, pose: CH_SET, stop: true },
     { at: 4, pose: CH_HOLD_A },
-    { at: 6, pose: CH_HOLD_B },
-    { at: 7, pose: CH_HOLD_A },
-    { at: 8, pose: CH_STEP },
-    { at: 9, pose: CH_HIT },
-    { at: 10, pose: CH_HOLD_HIT },
-    { at: 11, pose: CH_HOLD_HIT, stop: true },
-    { at: 12, pose: CH_BACK },
-    { at: 13, pose: R_STANCE },
+    { at: 5, pose: CH_HOLD_B },
+    { at: 6, pose: CH_HOLD_C },
+    { at: 7, pose: CH_HOLD_D },
+    { at: 8, pose: CH_HOLD_E },
+    { at: 9, pose: CH_STEP },
+    { at: 10, pose: CH_HIT },
+    { at: 11, pose: CH_OVER, stop: true },
+    { at: 12, pose: CH_SETTLE },
+    { at: 13, pose: CH_BACK },
+    { at: 14, pose: CH_GUARD },
+    { at: 15, pose: R_STANCE },
   ],
 };
 
