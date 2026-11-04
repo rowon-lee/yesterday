@@ -250,13 +250,16 @@ function pointsOf(j, who) {
 
 /**
  * 판정 손발(limb)이 없는 기술의 끝을 사람이 정한 것: 이름 → 관절. 없으면 '첫 프레임보다 가장 많이 앞으로 나간 손·발'.
- * 화과산은 몸 주변으로 터지는 기술이라 그 규칙이 넓게 디딘 앞발을 고른다 → 두 팔을 내던지는 앞손으로 (2차 리워크 라이덴)
+ * 화과산은 몸 주변으로 터지는 기술이라 그 규칙이 넓게 디딘 앞발을 고른다 → 두 팔을 내던지는 앞손으로 (2차 리워크 라이덴).
+ * 은우 와이어 내려찍기는 뒷손으로 던지는 와이어가 판정이라 연검 끝이 아니라 뒷손 (2차 리워크 백은우). 이 표가 연검 끝 규칙보다 먼저다
  */
-const TIP = { 'raiden/hwagwasan': 'hF' };
+const TIP = { 'raiden/hwagwasan': 'hF', 'eunwoo/wire': 'hB' };
 
 /** 공격의 끝 (손·발·무기 끝) */
 function tipFn(name, atk, joints) {
   const who = whoOf(name);
+  const fixed = TIP[name];
+  if (fixed) return { f: (j) => j[fixed], ko: { hF: '앞손', hB: '뒷손', fF: '앞발', fB: '뒷발' }[fixed], joint: fixed };
   if (who === 'edward') return { f: (j) => hammerHead(j), ko: '해머 머리' };
   if (who === 'eunwoo' && joints.every((j) => j.fx?.rib)) return { f: (j) => j.fx.rib[j.fx.rib.length - 1], ko: '연검 끝' };
   if (who === 'oscar') return { f: (j) => j.hF, ko: '칼자루 손' };
