@@ -66,9 +66,29 @@ const SH_CUP = E({ hx: 0, hy: -21, tl: 12, hd: 14, aFx: 3, aFy: -1, aBx: 5, aBy:
 const SH_OPEN = E({ hx: 0, hy: -23, tl: -4, hd: -12, aFx: 12, aFy: -10, aBx: -10, aBy: -10, lFx: 6, lFy: -1, lBx: -6, lBy: -1 });
 const SH_HOLD = E({ hx: 0, hy: -22.5, tl: -2, hd: -8, aFx: 12, aFy: -6, aBx: -10, aBy: -6, lFx: 6, lBx: -6 });
 
-/** 스킬 2 아직 여기 있어: 모음 → 오므림(멈칫) → 펼쳐 날려 보냄 → 기본자세. 12프레임 28틱 */
-export const EUNWOO_STILL_HERE = motion('still_here', '스킬 2 아직 여기 있어', [1, 2, 2, 3, 3, 2, 2, 2, 3, 3, 3, 2], [
-  K(0, E_STANCE), K(1, SH_GATHER), K(3, SH_CUP, true), K(5, SH_OPEN), K(7, SH_HOLD, true), K(9, SH_HOLD), K(11, E_STANCE),
+/** 두 손이 가슴 쪽으로 모이기 시작 (어깨가 안으로) */
+const SH_GATHER_A = E({ hx: 0, hy: -22.2, tl: 6, hd: 7, aFx: 5.5, aFy: 7, aBx: 3, aBy: 5, lFx: 7, lBx: -7 });
+/** 가슴 앞에서 두 손이 닿는다 */
+const SH_CUP_IN = E({ hx: 0, hy: -21.2, tl: 11, hd: 11, aFx: 3.5, aFy: 0.5, aBx: 5.5, aBy: -1, lFx: 7, lBx: -7 });
+/** 발끝으로 솟으며 오므린 손이 얼굴 앞으로 */
+const SH_RISE_A = E({ hx: 0, hy: -22.4, tl: 6, hd: 4, aFx: 4.5, aFy: -5, aBx: 5.5, aBy: -6, lFx: 6.5, lFy: -0.5, lBx: -6.5, lBy: -0.5 });
+const SH_RISE_B = E({ hx: 0, hy: -23, tl: 1, hd: -4, aFx: 6, aFy: -10, aBx: 4, aBy: -11, lFx: 6, lFy: -1, lBx: -6, lBy: -1 });
+/** 날려 보낸 뒤 팔이 한 번 더 뒤로 벌어지고 가슴이 열린다 */
+const SH_OVER = E({ hx: 0, hy: -23.2, tl: -6, hd: -14, aFx: 12.5, aFy: -9, aBx: -11, aBy: -9, lFx: 6, lFy: -1, lBx: -6, lBy: -1 });
+/** 날아가는 나비를 눈으로 따라간다 */
+const SH_WATCH = E({ hx: 0, hy: -22.6, tl: -1, hd: -6, aFx: 11.5, aFy: -4, aBx: -9.5, aBy: -4, lFx: 6, lBx: -6 });
+const SH_LOWER_A = E({ hx: -0.3, hy: -22.5, tl: 0, hd: -2, aFx: 10, aFy: 1, aBx: -8.5, aBy: 2, lFx: 6.2, lBx: -5.6 });
+const SH_LOWER_B = E({ hx: -0.8, hy: -22.6, tl: 1, hd: 2, aFx: 8.5, aFy: 7, aBx: -7, aBy: 8, lFx: 6.3, lBx: -5.2 });
+const SH_SETTLE = E({ hx: -1.2, hy: -22.8, tl: 1.5, hd: 4.5, aFx: 7.5, aFy: 11, aBx: -6, aBy: 12, lFx: 6.4, lFy: -0.5, lBx: -4.8 });
+
+/**
+ * 스킬 2 아직 여기 있어 (2차 리워크): 두 손이 모이기 시작 → 가슴 앞에서 닿고 → 오므려 숨을 들이쉼(멈칫) → 발끝으로 솟으며 얼굴 앞으로
+ * → 위로 펼쳐 날려 보냄 → 팔이 한 번 더 벌어짐 → 버팀(멈칫) → 나비를 눈으로 따라감 → 천천히 내리며 기본자세.
+ * 12프레임 → 16프레임 28틱 (dur 1~3으로 고르게 짧게, 3장 백은우)
+ */
+export const EUNWOO_STILL_HERE = motion('still_here', '스킬 2 아직 여기 있어', [1, 1, 2, 2, 3, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1], [
+  K(0, E_STANCE), K(1, SH_GATHER_A), K(2, SH_GATHER), K(3, SH_CUP_IN), K(4, SH_CUP, true), K(5, SH_RISE_A), K(6, SH_RISE_B), K(7, SH_OPEN),
+  K(8, SH_OVER), K(9, SH_HOLD, true), K(10, SH_WATCH), K(11, SH_LOWER_A), K(12, SH_LOWER_B), K(13, SH_SETTLE), K(14, E({ ...E_STANCE, hd: 5, aBy: 13.6 })), K(15, E_STANCE),
 ]);
 
 // ---- 차지 스텔라리스 발도 (windup 4, 되풀이 4~7, 떼면 8프레임부터, 판정 10~11프레임) ----
