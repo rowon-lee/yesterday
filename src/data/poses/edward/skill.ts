@@ -50,38 +50,65 @@ export const EDWARD_REENACT: MotionData = {
  */
 /** 염동력 박자: 14프레임 48틱 (0~10 준비, 10~14 뻗음, 14~34 당김·밀어붙임, 34~40 놓음, 40~48 복귀) */
 const TK_DUR = [2, 4, 4, 2, 2, 4, 4, 4, 4, 4, 3, 3, 4, 4] as const;
-/** 끌어당김 0~10틱: 뒷손을 앞으로 뻗어 손바닥을 편다 (뒷어깨가 앞으로, 앞손은 가슴 앞에서 해머를 쥐고 버틴다) */
-const TP_REACH = E({ hx: 0.5, hy: -21.5, tl: 4, hd: -6, tw: -4, aBx: 13, aBy: -5, lFx: 9, lBx: -9.5 });
-const TP_REACH2 = E({ hx: 1.5, hy: -21, tl: 8, hd: -6, tw: -6, aBx: 17.5, aBy: -4, lFx: 11, lBx: -11 });
-/** 10~14틱: 손끝에서 푸른 띠가 뻗는다 (손바닥을 더 내민다) */
-const TP_SHOOT = E({ hx: 2, hy: -21, tl: 10, hd: -6, tw: -6.5, aBx: 18, aBy: -3.5, lFx: 11.5, lBx: -11 });
-/** 14~34틱: 주먹을 쥐며 팔을 당긴다 (몸을 뒤로 젖혀 버틴다) */
-const TP_CLENCH = E({ hx: 1.5, hy: -21, tl: 6, hd: -6, tw: -5, aBx: 15.5, aBy: -4, lFx: 11, lBx: -11 });
-const TP_PULL1 = E({ hx: 0, hy: -21, tl: 0, hd: -5, tw: -3, aBx: 11, aBy: -2.5, lFx: 11, lBx: -11.5 });
-const TP_PULL2 = E({ hx: -1.5, hy: -21.5, tl: -5, hd: -5, tw: -1.5, aBx: 7, aBy: 0, lFx: 11, lBx: -12 });
-const TP_PULL3 = E({ hx: -2.5, hy: -21.5, tl: -8, hd: -6, tw: -0.5, aBx: 4, aBy: 2, lFx: 11, lBx: -12 });
-/** 34~40틱: 쥔 손을 펴 떨어뜨린다 */
-const TP_DROP = E({ hx: -1, hy: -22, tl: -3, hd: -4, tw: -1, aBx: 8, aBy: 7, lFx: 9.5, lBx: -10 });
+/*
+ * 끌어당김 (2차 리워크): 빈 뒷손을 엉덩이 뒤로 당겨 감고(멈춤 5틱) → 뒷어깨가 먼저 앞으로 돌고 → 손이 아래에서 위로 호를 그리며
+ * 얼굴 높이로 뻗어(10틱, 판정) → 손바닥이 한 번 더 밀렸다가(지나치기) 주먹을 쥐며 2px 되돌아온다 →
+ * 몸을 뒤로 젖혀 끌어당긴다(14~34틱, 끝에 2px 내려앉음) → 손을 펴 떨어뜨린다(34틱) → 천천히 주머니로.
+ * 해머는 앞손이 어깨에 걸친 채, 몸이 숙이고 젖힐 때마다 한 박자 늦게 어깨 위에서 들썩인다
+ */
+const TP_DRAW = E({ hx: -0.5, hy: -21.8, tl: -2, hd: -5, tw: 2.5, aBx: -6, aBy: 8, lFx: 9.5, lBx: -9, wa: -149 });
+/** 감기 끝 (멈춤): 앞발을 넓게 디뎌 버티고, 뒷발에 실어 뒷어깨를 뒤로 젖혀 손바닥을 엉덩이 뒤에 감춘다 */
+const TP_COIL = E({ hx: -1.5, hy: -21, tl: -5, hd: -6, tw: 4, aBx: -8, aBy: 5, lFx: 12.5, lBx: -10, wa: -150 });
+/** 풀림: 뒷어깨가 먼저 앞으로 돌고, 손은 아직 엉덩이 옆 */
+const TP_TURN = E({ hx: 0, hy: -21.3, tl: 0, hd: -6, tw: 1, aBx: -12, aBy: 7, lFx: 12.5, lBx: -10.5, wa: -151 });
+/** 손이 아래에서 올라오며 뻗는다 */
+const TP_RISE = E({ hx: 1.5, hy: -21, tl: 7, hd: -6, tw: -5, aBx: 0, aBy: 9, lFx: 12.5, lBx: -11, wa: -146 });
+/** 10~14틱: 얼굴 높이로 끝까지 뻗어 손바닥을 편다 (손끝에서 푸른 띠가 뻗는다) */
+const TP_SHOOT = E({ hx: 2, hy: -20.8, tl: 10, hd: -6, tw: -6.5, aBx: 18, aBy: -4, lFx: 12.5, lBx: -11, wa: -139 });
+/** 지나치기: 몸이 기울며 손바닥이 한 번 더 밀린다 */
+const TP_OVER = E({ hx: 4.5, hy: -20.4, tl: 17, hd: -6, tw: -8.5, aBx: 18, aBy: -3, lFx: 13, lBx: -10.5, wa: -136 });
+/** 14틱: 주먹을 쥐며 2px 되돌아온다 */
+const TP_CLENCH = E({ hx: 3, hy: -20.8, tl: 12, hd: -6, tw: -6.5, aBx: 17, aBy: -4, lFx: 12.5, lBx: -11, wa: -137 });
+/** 14~34틱: 주먹 쥔 팔을 당기며 몸을 뒤로 젖혀 버틴다 (끝에 2px 내려앉는다) */
+const TP_PULL1 = E({ hx: 0.5, hy: -21, tl: 2, hd: -5, tw: -3, aBx: 12, aBy: -2.5, lFx: 11, lBx: -11.5, wa: -141 });
+const TP_PULL2 = E({ hx: -1, hy: -21.3, tl: -3, hd: -5, tw: -1.5, aBx: 8, aBy: -0.5, lFx: 11, lBx: -12, wa: -147 });
+const TP_PULL3 = E({ hx: -2.5, hy: -21.5, tl: -7, hd: -6, tw: 0, aBx: 4, aBy: 1.5, lFx: 11, lBx: -12, wa: -153 });
+const TP_PULL4 = E({ hx: -3, hy: -20.6, tl: -9, hd: -7, tw: 0.5, aBx: 2.5, aBy: 2.5, lFx: 11, lBx: -12.5, wa: -157 });
+/** 34~40틱: 쥔 손을 펴 떨어뜨린다 (몸이 다시 선다) */
+const TP_DROP = E({ hx: -1.5, hy: -21.6, tl: -4, hd: -4, tw: -0.5, aBx: 8, aBy: 6, lFx: 10, lBx: -11, wa: -155 });
+const TP_DROP2 = E({ hx: -1, hy: -22, tl: -3, hd: -4, tw: 0, aBx: 6, aBy: 9, lFx: 9.5, lBx: -10, wa: -151 });
+/** 손이 주머니로 돌아가며 발을 모은다 */
+const TP_BACK1 = E({ hx: -0.5, hy: -22.2, tl: -3.5, hd: -4, tw: 1, aBx: 1, aBy: 11, lFx: 8, lBx: -8.5, wa: -149 });
+const TP_BACK2 = E({ hx: -0.2, hy: -22.4, tl: -4, hd: -4, tw: 1.3, aBx: -1.5, aBy: 12.5, lFx: 7, lBx: -7.5, wa: -148 });
 
-/** 스킬 2 염동력 끌어당김 (128×96): 손을 뻗어(1~3) → 띠가 뻗어 움켜쥠(4~5 판정) → 주먹을 쥐고 당김(6~10) → 놓음(11~12) → 기본자세. 14프레임 48틱 */
+/**
+ * 스킬 2 염동력 끌어당김 (128×96, 2차 리워크): 1~3 뒷손을 엉덩이 뒤로 감고 멈춤 → 4 뒷어깨가 먼저 → 5 손이 올라오며 →
+ * 6 얼굴 높이로 뻗음(판정, 띠) → 7 지나치기 → 8 주먹을 쥠(14틱) → 9~12 몸을 젖혀 끌어당김 → 13~14 놓음(34틱) → 15~17 기본자세.
+ * 17프레임 48틱 (공격 데이터 그대로: 발동 10 · 지속 4 · 끌어당김 14~34틱 · 놓음 34틱)
+ */
 export const EDWARD_TELEKINESIS: MotionData = {
   name: 'edward/telekinesis',
   label: '에드워드 스킬 2 염동력 끌어당김',
   wide: true,
-  dur: TK_DUR,
+  dur: [1, 2, 5, 1, 1, 2, 2, 3, 4, 4, 4, 5, 3, 3, 3, 3, 2],
   keys: [
     { at: 0, pose: E_STANCE },
-    { at: 1, pose: TP_REACH },
-    { at: 2, pose: TP_REACH2, stop: true },
-    { at: 3, pose: TP_SHOOT },
-    { at: 4, pose: TP_SHOOT },
-    { at: 5, pose: TP_CLENCH },
-    { at: 6, pose: TP_PULL1 },
-    { at: 8, pose: TP_PULL2 },
-    { at: 9, pose: TP_PULL3, stop: true },
-    { at: 10, pose: TP_DROP },
-    { at: 11, pose: TP_DROP, stop: true },
-    { at: 13, pose: E_STANCE },
+    { at: 1, pose: TP_DRAW },
+    { at: 2, pose: TP_COIL, stop: true },
+    { at: 3, pose: TP_TURN },
+    { at: 4, pose: TP_RISE },
+    { at: 5, pose: TP_SHOOT },
+    { at: 6, pose: TP_OVER },
+    { at: 7, pose: TP_CLENCH, stop: true },
+    { at: 8, pose: TP_PULL1 },
+    { at: 9, pose: TP_PULL2 },
+    { at: 10, pose: TP_PULL3 },
+    { at: 11, pose: TP_PULL4, stop: true },
+    { at: 12, pose: TP_DROP },
+    { at: 13, pose: TP_DROP2 },
+    { at: 14, pose: TP_BACK1 },
+    { at: 15, pose: TP_BACK2 },
+    { at: 16, pose: E_STANCE },
   ],
 };
 
