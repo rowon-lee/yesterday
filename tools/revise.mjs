@@ -338,7 +338,9 @@ for (const name of names) {
   let hammerBefore = null;
   // 판정이 연검 선인 기술 (백은우): 그 판정 구간이 시작하는 틱의 그림 리본 점 8개와 판정 선 점 8개의 가장 큰 차이 (tools/ribbon-lines.mjs와 같은 잣대)
   const PICK = [0, 1, 3, 4, 5, 6, 8, 9];
-  if (mo && mo.mv.time.hits.some((h) => h.line)) {
+  if (mo && name.startsWith('oscar/') && mo.mv.data.selfHit) {
+    // 오스카: 판정은 발밑 기준 베기 선 (data/poses/oscar/slashes)을 sim이 직접 낸다 (selfHit, 관절 판정 예외). 그림 관절과 무관해 잴 것이 없다
+  } else if (mo && mo.mv.time.hits.some((h) => h.line)) {
     for (const h of mo.mv.time.hits) {
       const rib = h.line && B.joints[frameAt(B.cum, h.t[0])]?.fx?.rib;
       hitDrift.push(rib ? Math.round(Math.max(...PICK.map((k, i) => Math.hypot(rib[k][0] - h.line[i][0], rib[k][1] - h.line[i][1]))) * 10) / 10 : null);
