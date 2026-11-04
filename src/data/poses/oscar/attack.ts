@@ -170,14 +170,19 @@ export const OSCAR_AIR1 = cut('oscar/air1', '오스카 공중 1타', [
   [AIR_END, 7],
 ]);
 
-export const OSCAR_AIR2 = iai('oscar/air2', '오스카 공중 2타', {
-  from: AIR_END,
-  ready: OD({ ...AIR, tw: 1 }, 0),
-  flick: OD({ ...AIR, hx: 1, tl: 10, hd: 8, lFx: 7, lFy: -6, tw: -2 }, 5),
-  click: OD({ ...AIR, tl: 11, hd: 12, lFx: 7, lFy: -6 }, 0),
-  still: OD({ ...AIR, tl: 12, hd: 12, lFx: 6, lFy: -7 }, 0),
-  end: AIR_END,
-}, AIR_QUICK, true);
+/**
+ * 공중 2타 (2차 리워크): 앞 위로 올려 긋는 선. 무릎을 당겨 웅크리고 고개를 숙여 멈춤 (1틱) → 칼날이 비치는 1틱에
+ * 선을 따라 몸이 위로 펴지며 고개가 들리고 앞다리가 앞 아래로 뻗는다 → '탁' 멈춤 → 여운 → 공중 자세. 7프레임 20틱
+ */
+export const OSCAR_AIR2 = cut('oscar/air2', '오스카 공중 2타', [
+  [AIR_END, 1],
+  [OD({ ...AIR, hx: -0.5, tl: 21, hd: 20, lFx: 3, lFy: -10, lBx: -3, lBy: -8, tw: 1 }, -2), 1, true],
+  [OD({ ...AIR, hx: 1, tl: 2, hd: -4, lFx: 8, lFy: -3, lBx: -3, lBy: -9, tw: -2 }, 5), 1],
+  [OD({ ...AIR, hx: 0.5, tl: 4, hd: 0, lFx: 7.5, lFy: -4, lBx: -2.5, lBy: -8.5 }, 0), 2, true],
+  [OD({ ...AIR, tl: 7, hd: 6, lFx: 6.5, lFy: -5, lBx: -2, lBy: -7.5 }, 0), 4, true],
+  [OR({ ...AIR, tl: 11, hd: 10, lFx: 5.5, lFy: -7, lBx: -1.5, lBy: -6.5 }), 4],
+  [AIR_END, 7],
+]);
 
 /** 공중 3타: 한 번 크게 비틀며 X자 두 줄 */
 export const OSCAR_AIR3 = iai('oscar/air3', '오스카 공중 3타 (X자)', {
