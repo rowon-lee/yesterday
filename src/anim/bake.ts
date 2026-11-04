@@ -82,9 +82,10 @@ export function buildMotion(d: MotionData): Motion & { bake(skin?: SkinId): void
 
 /**
  * 스미어: 치는 팔(어깨→팔꿈치→주먹)이나 다리(엉덩이→무릎→발)를 stretch배 길이로 늘려 그린다.
- * 위쪽 마디(위팔·허벅지)는 그대로 두고 아래 마디를 늘려 끝을 멀리 보낸다 (늘어난 길이 = 팔다리 전체 길이 × (stretch − 1))
+ * 위쪽 마디(위팔·허벅지)는 그대로 두고 아래 마디를 늘려 끝을 멀리 보낸다 (늘어난 길이 = 팔다리 전체 길이 × (stretch − 1)).
+ * 동작 점검(tools/motioncheck.mjs)이 그림과 같은 실루엣을 뽑으려고 함께 쓴다
  */
-function smeared(j: Joints, limb: 'aF' | 'aB' | 'lF' | 'lB' | 'kF' | 'kB', stretch: number): Joints {
+export function smeared(j: Joints, limb: 'aF' | 'aB' | 'lF' | 'lB' | 'kF' | 'kB', stretch: number): Joints {
   // 무릎 기술: 허벅지를 늘려 무릎을 멀리 보내고 정강이는 함께 옮긴다
   if (limb === 'kF' || limb === 'kB') {
     const knee = limb === 'kF' ? 'kF' : 'kB';
