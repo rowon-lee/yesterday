@@ -14,8 +14,14 @@ const NEW_KINDS = new Set(['containers', 'stump', 'watertower', 'sign', 'tram', 
 
 // 1) sim/ 안에 무작위·시간 값이 없는지 소스를 훑는다.
 const FORBIDDEN = /\b(Math\.random|Date\.now|performance\.now|new Date)\b/;
+/** sim은 그림(anim/)을 읽지 않는다: 판정·시간은 공격 데이터(data/moves)에서만 (3-0a(2)) */
+const ANIM_IMPORT = /from '(\.\.\/)+anim\//;
 for (const file of walk('src/sim')) {
   readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+    if (ANIM_IMPORT.test(line)) {
+      failed++;
+      console.log(`NG  sim이 그림을 읽음: ${file}:${i + 1}  ${line.trim()}`);
+    }
     if (FORBIDDEN.test(line)) {
       failed++;
       console.log(`NG  금지된 값 사용: ${file}:${i + 1}  ${line.trim()}`);
@@ -26,7 +32,10 @@ for (const file of walk('src/sim')) {
 // 2) sim 코드를 그대로 불러와 돌린다 (TypeScript는 Vite가 변환).
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 const sim = await vite.ssrLoadModule('/src/sim/index.ts');
-const { HIT_AIR_LOOP_FROM } = await vite.ssrLoadModule('/src/data/poses/common.ts');
+const { HURT_RULES } = await vite.ssrLoadModule('/src/data/moves/hurt.ts');
+const HIT_AIR_LOOP_FROM = HURT_RULES.hitAirLoopFrom;
+// 그림 쪽 (렌더 전용): 연타 이음처럼 그림끼리 이어지는지 보는 시험이 쓴다. sim은 그림을 읽지 않는다 (3-0a(2))
+const anim = await vite.ssrLoadModule('/src/render/pose.ts');
 const R = sim.RULES;
 const HP = sim.createState(0).fighters[0].hp;
 
@@ -116,7 +125,7 @@ for (const [name, ok, note] of charChecks()) {
 // 5-6) 캐릭터별 시험 (tools/simtests/*.mjs)
 for (const file of readdirSync('tools/simtests').filter((n) => n.endsWith('.mjs')).sort()) {
   const mod = await import(`./simtests/${file}`);
-  for (const [name, ok, note] of mod.default(sim, { runCpuMatch, replay })) {
+  for (const [name, ok, note] of mod.default(sim, { runCpuMatch, replay, anim })) {
     if (!ok) failed++;
     console.log(`${ok ? 'OK ' : 'NG '} ${file.replace('.mjs', '')} 시험: ${name}${note ? ` (${note})` : ''}`);
   }
@@ -207,7 +216,7 @@ function charChecks() {
   for (const c of sim.CHAR_IDS) {
     for (const slot of SLOTS) {
       try {
-        sim.motionFrames(sim.motionOf(c, slot));
+        sim.timelineOf(sim.motionOf(c, slot));
       } catch {
         missing.push(`${c}.${slot}`);
       }
@@ -217,14 +226,14 @@ function charChecks() {
   // 라이덴(1P)과 기본 스틱맨(2P): 싸움이 시작되면 각자 자기 대기
   const s = sim.createState(1, { chars: ['raiden', 'base'] });
   while (s.phase === 'intro') sim.step(s, [0, 0]);
-  const p0 = sim.fighterPose(s.fighters[0]).motion;
-  const p1 = sim.fighterPose(s.fighters[1]).motion;
+  const p0 = sim.fighterSpan(s.fighters[0]).motion;
+  const p1 = sim.fighterSpan(s.fighters[1]).motion;
   out.push(['라이덴은 라이덴 대기, 기본 스틱맨은 기본 대기', p0 === 'raiden/idle' && p1 === 'base/idle', `${p0} · ${p1}`]);
   // 라이덴 대기: 한 바퀴(44틱) 동안 12프레임이 차례로 한 번씩, 다음 바퀴는 1번부터
-  const m = sim.motionFrames('raiden/idle');
+  const m = sim.timelineOf('raiden/idle');
   const seen = [];
   for (let t = 0; t < m.total * 2 + 1; t++) {
-    const fr = sim.fighterPose(s.fighters[0]).frame;
+    const fr = sim.fighterSpan(s.fighters[0]).frame;
     if (seen[seen.length - 1] !== fr) seen.push(fr);
     sim.step(s, [0, 0]);
   }
@@ -235,8 +244,8 @@ function charChecks() {
   // 캐릭터가 자기 그림을 쓰는 기술(라이덴 벽 박차기 공격): 그림은 라이덴 것, 판정 프레임·시간은 기본 기술과 같다
   const rk = sim.movesOf('raiden').wallKick;
   const bk = sim.movesOf('base').wallKick;
-  out.push(['라이덴 벽 박차기 공격은 라이덴 그림, 시간은 기본 기술과 같음', rk.frames.name === 'raiden/wall_kick' && rk.activeStart === bk.activeStart && rk.activeEnd === bk.activeEnd && rk.total === bk.total,
-    `${rk.frames.name} 판정 ${rk.activeStart}~${rk.activeEnd}틱 / 기본 ${bk.activeStart}~${bk.activeEnd}틱, 전체 ${rk.total}/${bk.total}`]);
+  out.push(['라이덴 벽 박차기 공격은 라이덴 그림, 시간은 기본 기술과 같음', rk.time.motion === 'raiden/wall_kick' && rk.activeStart === bk.activeStart && rk.activeEnd === bk.activeEnd && rk.total === bk.total,
+    `${rk.time.motion} 판정 ${rk.activeStart}~${rk.activeEnd}틱 / 기본 ${bk.activeStart}~${bk.activeEnd}틱, 전체 ${rk.total}/${bk.total}`]);
   // 라이덴 평타 (MMA): 가만히 선 기본 스틱맨에게 1~4타 연타, 띄우기 → 점프 → 공중 1·2·3타, 쓸기, 대시 공격
   const rfresh = (x0, x1) => {
     const st = sim.createState(1, { chars: ['raiden', 'base'] });
@@ -285,7 +294,7 @@ function charChecks() {
       if (hb) reach = Math.max(reach, Math.round((hb.x1 - f.x) / 256));
     }
     const moved = (st.fighters[0].x - x0) / 256;
-    const adv = jab.data.advance.reduce((a, b) => a + b, 0);
+    const adv = jab.time.advance.reduce((a, [, b]) => a + b, 0);
     out.push([`잽 판정 끝 = 궤적 상자 끝 (몸 중심에서 ${want}px), 몸 이동 ${adv}px`, reach === want && moved === adv, `판정 끝 ${reach}px, 움직인 거리 ${moved}px`]);
     st = rfresh(3150, 3190);
     let minGap = Infinity;
@@ -347,7 +356,7 @@ function charChecks() {
       }
       return r;
     };
-    const gap = sim.movesOf('raiden').skill1.data.blink;
+    const gap = sim.movesOf('raiden').skill1.time.blink;
     const near = zan(3000, 3120);
     out.push([`잔흔: 앞의 상대에게 순간이동해 바로 앞(${gap.gap}px)에서 나타나고, 잔상에 닿은 상대가 느려지고, 하이킥이 맞음`,
       near.blink && near.blink.to === 3120 - gap.gap && near.slowed && near.slowT > 0 && near.hits[0] === 'skill1',
@@ -359,7 +368,7 @@ function charChecks() {
     // 공중: 점프하고 10틱 뒤 쓰면 그 높이로 순간이동하고, 차는 동안 그 높이에 떠 있다
     const air = zan(3000, 3400, [sim.IN_JUMP, ...Array(12).fill(0)], 30);
     const mv = sim.movesOf('raiden').skill1;
-    const lastActive = mv.frames.cum[mv.data.active[mv.data.active.length - 1]];
+    const lastActive = mv.activeEnd;
     const hover = air.ys.slice(0, lastActive - mv.blink.tick);
     out.push(['잔흔: 공중에서도 쓰고, 차는 동안 그 높이에 떠 있음', air.blink && air.blink.y < -10 && hover.length > 0 && hover.every((y) => y === air.blink.y),
       air.blink ? `높이 ${-air.blink.y}px, 떠 있는 동안 높이 ${[...new Set(hover.map((y) => -y))].join('·')}px` : '순간이동 없음']);
@@ -509,7 +518,7 @@ function check(s, problems) {
     if (f.dropT < 0) bad(`${n} 내려오기 틱 음수`);
     if (!Number.isInteger(f.x) || !Number.isInteger(f.y) || !Number.isInteger(f.vx) || !Number.isInteger(f.vy)) bad(`${n} 위치·속도가 정수가 아님`);
     try {
-      sim.fighterPose(f);
+      sim.fighterSpan(f);
     } catch (e) {
       bad(`${n} 그림 프레임 오류 ${e.message}`);
     }
@@ -1186,7 +1195,7 @@ function attackChecks() {
  */
 function hitMotionChecks() {
   const results = [];
-  const m = sim.motionFrames('common/hit_light');
+  const m = sim.timelineOf('common/hit_light');
   const STRETCH = 4;
   /** 길이 len틱 동안 틱마다 보이는 프레임 (0부터) */
   const frames = (len) => Array.from({ length: len }, (_, t) => sim.frameFitted(m, t, len, STRETCH));
@@ -1227,13 +1236,13 @@ function hitMotionChecks() {
     sim.step(s, [t === 0 ? sim.IN_ATTACK : 0, 0]);
     if (d.mode === 'hitstun') {
       len = d.len;
-      const p = sim.fighterPose(d);
+      const p = sim.fighterSpan(d);
       seen.push(`${p.motion}#${p.frame + 1}`);
     }
   }
   const fr = seen.map((v) => Number(v.split('#')[1]));
   const allLight = seen.length > 0 && seen.every((v) => v.startsWith('common/hit_light#'));
-  const lastLight = sim.motionFrames('common/hit_light').dur.length;
+  const lastLight = sim.timelineOf('common/hit_light').dur.length;
   results.push([`평타 1타에 맞으면 약하게 맞음을 1번부터 ${lastLight}번까지 재생한다`, allLight && fr[0] === 1 && fr[fr.length - 1] === lastLight && fr.every((v, i) => i === 0 || v >= fr[i - 1]),
     `경직 ${len}틱, 히트스톱 포함 ${seen.length}틱: ${[...new Set(fr)].join(' ')}`]);
   return results;
@@ -1246,7 +1255,7 @@ function commonMotionChecks() {
   const results = [];
   const R = sim.RULES;
   const I = sim;
-  const mf = (n) => sim.motionFrames(n);
+  const mf = (n) => sim.timelineOf(n);
   // 1) 기본 길이 (사양서 표). 프레임 수는 동작의 목적에 맞게 정하므로 (12~14 규칙 폐기, 3-0a) 보지 않고 적기만 한다
   const spec = [['hit_light', 20], ['hit_heavy', 32], ['guard_crush', 44], ['hit_air', 24], ['knockdown', 32], ['getup', 24], ['tech', 18]];
   const got = spec.map(([n, t]) => [n, mf(`common/${n}`).total === t, `${mf(`common/${n}`).dur.length}프레임·${mf(`common/${n}`).total}틱`]);
@@ -1286,7 +1295,7 @@ function commonMotionChecks() {
     for (let t = 0; t < n; t++) {
       sim.step(s, inputs(t, s));
       const d = s.fighters[1];
-      const p = sim.fighterPose(d);
+      const p = sim.fighterSpan(d);
       log.push({ mode: d.mode, motion: p.motion, frame: p.frame + 1, hurt: !!sim.boxesOf(d).hurt, hitstop: d.hitstop, ev: s.events });
     }
     return log;
@@ -1339,7 +1348,7 @@ function commonMotionChecks() {
     const at = [];
     for (const inp of seq) {
       sim.step(st, [inp, 0]);
-      if (st.events.some((e) => e.type === 'hit' && e.who === 0 && String(e.move).startsWith('air'))) at.push(sim.fighterPose(st.fighters[1]));
+      if (st.events.some((e) => e.type === 'hit' && e.who === 0 && String(e.move).startsWith('air'))) at.push(sim.fighterSpan(st.fighters[1]));
     }
     results.push(['공중에서 다시 맞으면 1번부터 다시', at.length === 3 && at.every((p) => p.motion === 'common/hit_air' && p.frame === 0), at.map((p) => `${p.motion.split('/')[1]}#${p.frame + 1}`).join(' ')]);
   }
@@ -1402,7 +1411,7 @@ function cineChecks() {
     s.fighters[0].meter = R.METER_MAX;
     return s;
   };
-  const total = sim.MOVES.super.data.cinematic.scenes.reduce((n, sc) => n + sim.motionFrames(sc.a.motion).total, 0);
+  const total = sim.cineTicks('base', 'super');
   // 1) 맞으면: 연출 동안 둘 다 고정(cine), 체력·시간 그대로, 끝에 한 번에 피해
   let s = fresh(2400, 2440);
   const [a, d] = s.fighters;
@@ -1599,7 +1608,7 @@ function wallChecks() {
   air(f, tower.x0 - 9, 150);
   run(s, hold(I.IN_RIGHT | I.IN_UP, 6));
   run(s, [I.IN_JUMP, ...hold(0, 3), I.IN_DASH, ...hold(0, sim.STATS.airDashTicks + 1)]);
-  const poseAfter = sim.fighterPose(f).motion;
+  const poseAfter = sim.fighterSpan(f).motion;
   results.push(['벽 점프 뒤 공중 대시가 끝나면 벽 점프 그림이 다시 나오지 않는다', f.mode === 'air' && poseAfter !== 'base/wall_jump', `${f.mode} ${poseAfter}`]);
 
   // 벽 달리기: 지상 대시로 기둥탑 왼쪽 면에 닿으면 벽을 바라보며 달려 오르고, 꼭대기(296)에 못 닿으면 끝에서 벽에 붙는다
@@ -1694,7 +1703,7 @@ function wallChecks() {
     }
     const defOk = p2in ? what === 'block' && o.mode === 'blockstun' : what === 'hit' && o.mode === 'airhit' && o.vx < 0;
     for (let i = 0; i < wk.data.hitstop + 1; i++) sim.step(s, [0, p2in]);
-    const rebound = f.mode === 'attack' && f.vx > 0 && f.vy < 0 && f.t >= wk.frames.cum[wk.dive.to];
+    const rebound = f.mode === 'attack' && f.vx > 0 && f.vy < 0 && f.t >= wk.dive.to;
     results.push([`벽 박차기 공격을 ${label}, 때린 쪽은 뒤로 튕겨 오른다`, hitAt > 0 && defOk && rebound, `${what || '안 맞음'} ${o.mode}, 때린 쪽 ${f.mode} vx ${(f.vx / 256).toFixed(1)} vy ${(f.vy / 256).toFixed(1)}`]);
     if (!p2in) {
       run(s, [I.IN_JUMP | I.IN_LEFT]);

@@ -1,7 +1,8 @@
 import { reachTip } from '../anim/boxes';
 import { cellOf } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
-import { BREAKABLES, cineScenes, GRIDS, fighterPose, movesOf, RULES, statsOf, tramRestX, WRECKS, type Fighter, type SimState, type WreckMat } from '../sim';
+import { BREAKABLES, cineScenes, GRIDS, movesOf, RULES, statsOf, tramRestX, WRECKS, type Fighter, type SimState, type WreckMat } from '../sim';
+import { activeFrames, animFrameAt, fighterPose, moveAnim } from './pose';
 import type { DebrisKind } from './debris';
 import { CITADEL as D } from '../data/stages/citadel';
 import { KNOCKDOWN_RELAND } from '../data/poses/common';
@@ -139,7 +140,8 @@ const motionByName = new Map(MOTIONS.map((m) => [m.name, m]));
 /** 차지를 모으는 동안 허리에 당긴 주먹 자리 (발밑 기준, 오른쪽 보는 기준): 그 캐릭터 차지에서 되풀이하는 첫 프레임의 앞주먹 */
 const chargeFist = (f: Fighter) => {
   const mv = movesOf(f.char).charge;
-  return mv.frames.joints[mv.data.charge!.windup].hF;
+  const A = moveAnim(mv);
+  return A.joints[animFrameAt(A, mv.time.charge!.loop[0])]!.hF;
 };
 /**
  * 번개 휩쓸기 길 (발밑 기준 px, 오른쪽 보는 기준): 치는 팔다리 끝(주먹·발·무릎)이 판정 두 프레임 앞부터
@@ -155,9 +157,11 @@ function sweepPath(mv: MoveOf): Array<[number, number]> | null {
   const hit = sweepCache.get(key);
   if (hit) return hit;
   const [a, b] = d.limb;
-  const J = mv.frames.joints;
-  const first = d.active[0];
-  const last = d.active[d.active.length - 1];
+  const J = moveAnim(mv).joints;
+  // 판정 틱(공격 데이터)에 해당하는 그림 프레임
+  const act = activeFrames(mv);
+  const first = act[0]!;
+  const last = act[act.length - 1]!;
   const pts: Array<[number, number]> = [];
   for (let i = Math.max(0, first - 2); i <= last; i++) {
     const p = J[i][b];
@@ -166,7 +170,7 @@ function sweepPath(mv: MoveOf): Array<[number, number]> | null {
   }
   let best: [number, number] = pts[pts.length - 1];
   let far = -1;
-  for (const i of d.active) {
+  for (const i of act) {
     const t = reachTip(J[i][a][0], J[i][a][1], J[i][b][0], J[i][b][1], d.reach ?? 0);
     const dist = Math.hypot(t[0] - pts[0][0], t[1] - pts[0][1]);
     if (dist > far) {
@@ -215,9 +219,9 @@ function trailPath(mv: MoveOf, id: string, b: TrailBox): Array<[number, number]>
   const hit = trailCache.get(key);
   if (hit) return hit;
   const custom = RAIDEN_TRAILS[id];
-  const J = mv.frames.joints;
+  const J = moveAnim(mv).joints;
   const end = (d.limb?.[1] ?? 'hF') as 'hF';
-  const a0 = d.active[0];
+  const a0 = activeFrames(mv)[0]!;
   const tip = (i: number): [number, number] => {
     const p = J[Math.max(0, Math.min(J.length - 1, i))][end];
     return [p[0], p[1]];
@@ -939,7 +943,8 @@ export class FightVfx {
    */
   private teleport(f: Fighter, x: number, y: number, to: number, move?: string): void {
     const mv = move ? movesOf(f.char)[move as keyof ReturnType<typeof movesOf>] : undefined;
-    const frame = Math.max(0, (mv?.data.blink?.at ?? 1) - 1);
+    // 순간이동 틱(공격 데이터)의 그림 프레임 바로 앞 프레임
+    const frame = Math.max(0, (mv?.time.blink ? animFrameAt(moveAnim(mv), mv.time.blink.at) : 1) - 1);
     const wx = x / 256;
     const wy = GROUND_Y + y / 256;
     const tx = to / 256;
@@ -1234,15 +1239,23 @@ export class FightVfx {
 
   /** 크게 내디디는 프레임(몸 이동이 가장 큰 프레임)이 시작하는 틱: 앞발이 닿는 자리에 물 튐과 먼지 (렌더 전용, 땅에서만) */
   private stepSplash(f: Fighter, mv: MoveOf, i: number): void {
-    const adv = mv.data.advance!;
-    let k = 0;
-    adv.forEach((a, n) => {
-      if (a > adv[k]) k = n;
-    });
-    if (adv[k] <= 0 || f.y < 0) return;
-    const start = k === 0 ? 0 : mv.frames.cum[k - 1];
+    // 몸 이동(공격 데이터 advance 구간) 가운데 가장 큰 구간이 시작하는 틱
+    let best = 0;
+    let start = 0;
+    let at = 0;
+    for (const [d, a] of mv.time.advance!) {
+      if (a > best) {
+        best = a;
+        start = at;
+      }
+      at += d;
+    }
+    if (best <= 0 || f.y < 0) return;
     if (!(this.prevMoveT[i] < start && f.t >= start)) return;
-    const foot = mv.frames.joints[Math.min(mv.frames.joints.length - 1, k + 1)].fF;
+    // 그 틱의 그림 프레임 다음 프레임의 앞발
+    const A = moveAnim(mv);
+    const k = animFrameAt(A, start);
+    const foot = A.joints[Math.min(A.joints.length - 1, k + 1)]!.fF;
     const wx = f.x / 256 + f.facing * foot[0];
     const wy = GROUND_Y + f.y / 256;
     this.debris.burst('water', wx, wy - 1, f.facing, 6);
@@ -1615,9 +1628,10 @@ export class FightVfx {
     // 파천 진각 (20~32틱 '굳게 디딤'): 3번 프레임이 시작하는 틱에 앞발 자리 바닥 금과 물 튐
     if (f.mode === 'attack' && f.move === 'super') {
       const mv = movesOf(f.char).super;
-      const at = mv.frames.cum[2];
+      const A = moveAnim(mv);
+      const at = A.cum[2]!;
       if (this.prevMoveT[i] < at && f.t >= at) {
-        const foot = mv.frames.joints[3].fF;
+        const foot = A.joints[3]!.fF;
         const fx0 = f.x / 256 + f.facing * foot[0];
         const fl = GROUND_Y + f.floor / 256;
         this.layer.add(pacheonCrack({ x: fx0, floor: fl, dir: f.facing, life: 150, ramp: fxRamp(PACHEON_RAMP), seed: this.seed++ }));

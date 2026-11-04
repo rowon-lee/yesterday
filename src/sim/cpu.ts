@@ -19,7 +19,7 @@ import type { Fighter, SimState } from './types';
 type Plan = 'approach' | 'retreat' | 'guard' | 'string' | 'launch' | 'sweep' | 'jumpIn' | 'dashIn' | 'skill' | 'skill2' | 'super' | 'wait' | 'perch' | 'charge';
 
 /**
- * 이 캐릭터 기술이 닿는 거리 (px, 두 사람 가운데 사이): 판정 프레임 동안 공격 상자 앞끝 + 그때까지 몸이 나아간 거리.
+ * 이 캐릭터 기술이 닿는 거리 (px, 두 사람 가운데 사이): 판정 구간 동안 공격 상자 앞끝 + 그때까지 몸이 나아간 거리.
  * 캐릭터마다 사거리가 달라(라이덴 번개, 오스카 검격, 에드워드 해머) 거리 판단을 기술 데이터로 한다. 처음 쓸 때 계산해 둔다 (정적 데이터라 결정론)
  */
 const reachCache = new Map<string, number>();
@@ -52,7 +52,7 @@ function threatRange(op: Fighter): number {
 function pastActive(op: Fighter): boolean {
   if (op.mode !== 'attack' || !op.move) return false;
   const mv = movesOf(op.char)[op.move];
-  return mv.data.active.length > 0 && op.t > mv.activeEnd;
+  return mv.time.hits.length > 0 && op.t > mv.activeEnd;
 }
 /** 상대가 헛친 기술의 남은 후딜레이 틱 (헛친 게 아니면 0): 판정이 끝났고 이번 기술이 아무것도 맞히거나 막히지 않았다 */
 function whiffLeft(op: Fighter): number {

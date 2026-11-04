@@ -1,7 +1,7 @@
 // 백은우 시험 (정해진 입력으로). simtest.mjs가 불러 결과를 찍는다: [이름, 통과, 메모]
 // 고유 특성 백합 낙인(방어막·미끄러짐), 스킬 1 응답(순간이동 3번), 스킬 2(회복·빨라짐·낙인), 차지(끌어당김), 필살기(연출 330틱·짧은 판·회복·둔해짐),
 // 연검 판정 선(그림과 같음·리치), 연타 이음(몸·리본), 등장 160틱, 결정론
-export default function checks(sim, { runCpuMatch, replay }) {
+export default function checks(sim, { runCpuMatch, replay, anim }) {
   const results = [];
   const I = sim;
   const EXT = { LILY: 0, BUFF: 1, CHAIN: 2, DULL: 3, HEALED: 4 };
@@ -121,22 +121,18 @@ export default function checks(sim, { runCpuMatch, replay }) {
   }
   results.push(['필살기 선의 두 번째부터 짧은 판 (전개를 30틱으로: 연출 270틱)', short && cineTicks2 === 270, `짧은 판 ${short}, 연출 ${cineTicks2}틱`]);
 
-  // 8) 연검 판정 선 (11-0): 공격 데이터의 선이 지금 동작 그림의 리본과 같다 (점 8개: 손, 손잡이 끝, 날 마디 6개)
+  // 8) 연검 판정 선 (11-0): 공격 데이터 시간표의 판정 구간마다 선 (점 8개: 손, 손잡이 끝, 날 마디 6개). 그림과는 따로 관리한다 (3-0a(2))
   const mv = sim.movesOf('eunwoo');
-  const PICK = [0, 1, 3, 4, 5, 6, 8, 9];
   let lineMoves = 0;
   let lineBad = [];
   for (const [id, m] of Object.entries(mv)) {
-    if (!m.data.line) continue;
+    if (!m.time.hits.some((h) => h.line)) continue;
     lineMoves++;
-    for (const f of m.data.active) {
-      const rib = m.frames.joints[f]?.fx?.rib;
-      const want = rib && PICK.map((k) => rib[k]);
-      const got = m.data.line[f];
-      if (!want || !got || JSON.stringify(want) !== JSON.stringify(got)) lineBad.push(`${id}#${f}`);
-    }
+    m.time.hits.forEach((h, k) => {
+      if (!h.line || h.line.length !== 8) lineBad.push(`${id}#${k}`);
+    });
   }
-  results.push(['연검 판정 선 = 그 프레임 리본 위의 점 8개 (공격 데이터, tools/ribbon-lines.mjs)', lineMoves >= 8 && lineBad.length === 0, `선 판정 기술 ${lineMoves}개${lineBad.length ? `, 다름 ${lineBad.join(' ')}` : ''}`]);
+  results.push(['연검 판정 선: 선 기술의 판정 구간마다 점 8개 (공격 데이터 data/moves/time.ts)', lineMoves >= 8 && lineBad.length === 0, `선 판정 기술 ${lineMoves}개${lineBad.length ? `, 빠짐 ${lineBad.join(' ')}` : ''}`]);
 
   // 9) 연검 선 판정: 1타는 리본 끝(약 60px)까지 닿고, 그보다 멀면 상자가 겹쳐도 선이 지나지 않으면 맞지 않는다
   const reachTest = (dist) => {
@@ -152,8 +148,10 @@ export default function checks(sim, { runCpuMatch, replay }) {
   const chain = [['atk1', 'atk2'], ['atk2', 'atk3'], ['atk3', 'atk4']].map(([a, b]) => {
     const A = mv[a];
     const B = mv[b];
-    const fa = A.frames.joints[A.data.active[A.data.active.length - 1] + 1];
-    const fb = B.frames.joints[0];
+    // 그림 쪽: 앞 타 판정이 끝나는 틱의 그림 프레임 (판정 바로 뒤 프레임) = 다음 타 첫 프레임
+    const AA = anim.moveAnim(A);
+    const fa = AA.joints[anim.animFrameAt(AA, A.activeEnd)];
+    const fb = anim.moveAnim(B).joints[0];
     const same = ['hip', 'neck', 'hF', 'hB', 'fF', 'fB'].every((k) => fa[k][0] === fb[k][0] && fa[k][1] === fb[k][1]);
     const rib = JSON.stringify(fa.fx?.rib) === JSON.stringify(fb.fx?.rib);
     return [a, b, same && rib];

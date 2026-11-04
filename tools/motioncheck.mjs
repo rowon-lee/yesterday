@@ -24,6 +24,9 @@ const { SKINS, skinForMotion } = await load('/src/anim/skins.ts');
 const { hammerHead } = await load('/src/anim/decor/edward.ts');
 const { CHARACTERS } = await load('/src/data/characters/index.ts');
 const { BASE_MOVES } = await load('/src/data/moves/base.ts');
+const { movesOf } = await load('/src/sim/frames.ts');
+// 판정 틱(공격 데이터 data/moves/time.ts)이 그림에서 몇 번째 프레임인지 (3-0a(2): 판정은 그림과 따로)
+const { activeFrames } = await load('/src/render/pose.ts');
 const { glyphRows } = await load('/src/render/font.ts');
 await vite.close();
 
@@ -97,14 +100,16 @@ const GRADE_OF = (pts, core) => (pts === 0 ? 'A' : pts >= 5 || (pts >= 4 && core
 const ATTACK = new Map();
 /** 동작 → 기술 이름 (판정이 없는 기술도: 스킬 1 응답처럼) */
 const MOVE_ID = new Map();
-for (const [cid, c] of Object.entries(CHARACTERS)) {
+for (const cid of Object.keys(CHARACTERS)) {
+  const ms = movesOf(cid);
   for (const id of Object.keys(BASE_MOVES)) {
-    const own = c.moves?.[id];
+    const own = CHARACTERS[cid].moves?.[id];
     if (cid !== 'base' && !own) continue;
-    const d = { ...BASE_MOVES[id], ...own };
+    const mv = ms[id];
+    const d = mv.data;
     for (const name of [d.motion, d.alt].filter(Boolean)) {
       if (!MOVE_ID.has(name)) MOVE_ID.set(name, id);
-      if (name === d.motion && d.active?.length && !ATTACK.has(name)) ATTACK.set(name, { cid, id, d });
+      if (name === d.motion && mv.time.hits.length && !ATTACK.has(name)) ATTACK.set(name, { cid, id, d, active: activeFrames(mv) });
     }
   }
 }
@@ -249,10 +254,10 @@ function tipFn(name, atk, joints) {
   if (who === 'edward') return { f: (j) => hammerHead(j), ko: '해머 머리' };
   if (who === 'eunwoo' && joints.every((j) => j.fx?.rib)) return { f: (j) => j.fx.rib[j.fx.rib.length - 1], ko: '연검 끝' };
   if (who === 'oscar') return { f: (j) => j.hF, ko: '칼자루 손' };
-  const limb = atk.d.boxOnly && !atk.d.limb ? null : atk.d.limb;
+  const limb = atk.d.limb;
   if (limb) return { f: (j) => j[limb[1]], ko: { hF: '앞손', hB: '뒷손', fF: '앞발', fB: '뒷발', kF: '앞무릎', kB: '뒷무릎' }[limb[1]] ?? limb[1], joint: limb[1] };
   // 판정 구간이 없는 기술: 첫 프레임보다 가장 많이 앞으로 나간 손·발
-  const hit = atk.d.active[0];
+  const hit = atk.active[0];
   let best = 'hF';
   for (const k of ['hF', 'hB', 'fF', 'fB']) if (joints[hit][k][0] - joints[0][k][0] > joints[hit][best][0] - joints[0][best][0]) best = k;
   return { f: (j) => j[best], ko: { hF: '앞손', hB: '뒷손', fF: '앞발', fB: '뒷발' }[best], joint: best };
@@ -319,7 +324,7 @@ function check(m) {
   let hit = -1;
   if (atk) {
     tip = tipFn(name, atk, J);
-    hit = atk.d.active[0];
+    hit = atk.active[0];
   }
   const track = (f) => J.map(f);
   const T0 = tip ? track(tip.f) : null;
@@ -401,9 +406,9 @@ function check(m) {
   const chain = chainOf(name, tip);
   const SH = track((j) => j[chain.sh]);
   const HIP = track((j) => j.hip);
-  const last = atk.d.active[atk.d.active.length - 1];
+  const last = atk.active[atk.active.length - 1];
   info.hit = hit;
-  info.active = atk.d.active;
+  info.active = atk.active;
   info.tip = tip.ko;
   info.move = `${atk.cid}.${atk.id}`;
   const air = !!atk.d.air || /air|wall_kick/.test(name) || atk.id === 'slam';

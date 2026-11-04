@@ -95,7 +95,7 @@ export default function checks(sim, { runCpuMatch, replay }) {
   s = fresh(3150, 3196);
   s.fighters[0].meter = 100;
   run(s, [I.IN_SKILL2 | I.IN_LEFT, ...hold(I.IN_LEFT, 2), ...hold(0, 12)]);
-  const alt = sim.fighterPose(s.fighters[0]).motion;
+  const alt = sim.fighterSpan(s.fighters[0]).motion;
   log = run(s, hold(0, 34));
   const d = s.fighters[1];
   const carried = (d.x / 256) - 3196;

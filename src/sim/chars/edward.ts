@@ -4,7 +4,7 @@ import { wallBehind, wallSplat } from '../city';
 import { startCine } from '../cine';
 import { activeHitOf, hurtOf, overlap, strikeBox, type WBox } from '../combat';
 import { isAirborne, setMode } from '../fighter';
-import { frameAtTick, movesOf } from '../frames';
+import { movesOf } from '../frames';
 import { IN_LEFT, IN_RIGHT } from '../input';
 import { floorBelow } from '../platforms';
 import { smashProps } from '../props';
@@ -96,8 +96,6 @@ const TK_LIFT = px(5);
 const TK_PUSH = 80;
 const TK_PUSH_BLOCK = 64;
 const TK_STUN = 40;
-const TK_PULL_FRAME = 5;
-const TK_DROP_FRAME = 10;
 const TK_REACH: { x0: number; x1: number; h: number } = { x0: -24, x1: 176, h: 130 };
 const TK_THROW = 35;
 /**
@@ -109,15 +107,13 @@ const SLAB_FROM = 22;
 const SLAB_TICKS = 14;
 const SLAB_BACK = 26;
 const SLAB_H = 34;
-/** 바닥 파도가 시작하는 프레임 (머리 위로 치켜든 프레임) */
-const SLAB_FRAME = 11;
 
-/** 공중 평타: 감는 동안(첫 판정 프레임 전) 해머 무게를 버티며 공중에 머문다 (떨어지지 않는다, 2026-11-02 피드백 12-1 '느리고 크게') */
+/** 공중 평타: 감는 동안(첫 판정 틱 전) 해머 무게를 버티며 공중에 머문다 (떨어지지 않는다, 2026-11-02 피드백 12-1 '느리고 크게') */
 const AIR_HANG: ReadonlySet<MoveId> = new Set(['air1', 'air2', 'air3']);
-/** 내려찍기: 이 프레임부터 수직으로 떨어진다, 땅에 닿을 때까지 이 프레임에 머문다, 착지하면 이 프레임부터 땅 위에서 이어진다 */
-const SLAM_DROP = 4;
-const SLAM_FALL_HOLD = 5;
-const SLAM_LAND = 6;
+/*
+ * 시점은 공격 데이터 시간표의 marks (data/moves/time.ts, 틱): 염동력 tkPull·tkDrop (끌어오기 시작·놓기), 차지 slab (바닥 파도 시작),
+ * 내려찍기 slamDrop (이 틱부터 수직으로 떨어진다)·slamHold (떨어지는 동안 이 틱 바로 앞에 머문다)·slamLand (착지하면 이 틱부터 땅 위에서)
+ */
 /** 내려찍기 떨어지는 속도 (1/256px/틱), 착지 지점 반원 충격파 반지름·높이 (px) */
 const SLAM_VY = px(9);
 const SLAM_RADIUS = 48;
@@ -141,10 +137,10 @@ function worldBox(f: Fighter, x0: number, x1: number, y0: number, y1: number): W
  * 염동력으로 붙잡은 상대를 옮긴다 (기술 진행 틱마다): 14~34틱 동안 부드럽게 (3u² − 2u³, 정수 계산) 끌어당기거나 밀어붙이고, 34틱에 놓는다.
  * 옮기는 동안 상대는 굳어 있다 (히트스톱을 2틱씩 이어 준다)
  */
-function tkCarry(s: SimState, f: Fighter, cum: readonly number[]): void {
+function tkCarry(s: SimState, f: Fighter, marks: Readonly<Record<string, number>>): void {
   const def = other(s, f);
-  const t0 = cum[TK_PULL_FRAME - 1]!;
-  const t1 = cum[TK_DROP_FRAME - 1]!;
+  const t0 = marks.tkPull!;
+  const t1 = marks.tkDrop!;
   const pull = f.ext[EX.TK_GRAB] === 1;
   const blocked = f.ext[EX.TK_BLOCK] === 1;
   const air = f.ext[EX.TK_AIR] === 1;
@@ -233,7 +229,7 @@ export const EDWARD_HOOKS: CharHooks = {
       setMode(f, 'attack');
       f.move = 'slam';
       f.queued = null;
-      f.t = mv.frames.cum[SLAM_LAND - 1];
+      f.t = mv.time.marks!.slamLand!;
       f.vx = 0;
       f.ext[EX.SLAM] = 2;
       const who = s.fighters.indexOf(f);
@@ -296,27 +292,27 @@ export const EDWARD_HOOKS: CharHooks = {
 
   move(s, f, id) {
     const mv = movesOf(f.char)[id];
-    const fr = frameAtTick(mv.frames, f.t);
+    const marks = mv.time.marks;
     // 공중 평타: 감는 동안 공중에 버틴다 (떨어지던 속도를 멈춘다. 솟는 중이면 그대로)
     if (AIR_HANG.has(id) && isAirborne(f)) {
-      if (fr < (mv.data.active[0] ?? 0) && f.vy > 0) f.vy = 0;
+      if (f.t < mv.activeStart && f.vy > 0) f.vy = 0;
       // 앞으로 날던 힘은 해머 무게에 줄어든다 (상대를 지나쳐 날아가지 않게)
       f.vx = Math.trunc((f.vx * 7) / 8);
     }
     if (id === 'slam' && f.ext[EX.SLAM] === 1) {
-      // 내려찍기: 치켜드는 동안 공중에 멈췄다가 (SLAM_DROP 프레임부터) 수직으로 떨어진다. 땅에 닿을 때까지 떨어지는 프레임에 머문다
-      if (fr < SLAM_DROP) {
+      // 내려찍기: 치켜드는 동안 공중에 멈췄다가 (slamDrop 틱부터) 수직으로 떨어진다. 땅에 닿을 때까지 떨어지는 자리(slamHold 바로 앞 틱)에 머문다
+      if (f.t < marks!.slamDrop!) {
         f.vx = Math.trunc((f.vx * 3) / 4);
         if (f.vy > 0) f.vy = 0;
       } else if (isAirborne(f)) {
         f.ext[EX.SLAM] = 1;
         f.vx = 0;
         f.vy = SLAM_VY;
-        if (fr > SLAM_FALL_HOLD) f.t = mv.frames.cum[SLAM_FALL_HOLD] - 1;
+        if (f.t >= marks!.slamHold!) f.t = marks!.slamHold! - 1;
       }
       return true;
     }
-    if (id === 'skill2' && f.ext[EX.TK_GRAB]! > 0) tkCarry(s, f, mv.frames.cum);
+    if (id === 'skill2' && f.ext[EX.TK_GRAB]! > 0) tkCarry(s, f, marks!);
     const hb = activeHitOf(f);
     // 4타 풀스윙: 휘두르는 순간 주변 작은 물건까지 부순다
     if (id === 'atk4' && f.t === mv.activeStart + 1) smashProps(s, f, worldBox(f, SPIN_REACH.x0, SPIN_REACH.x1, -SPIN_REACH.h, 2), PROP_SMASH, false);
@@ -333,7 +329,7 @@ export const EDWARD_HOOKS: CharHooks = {
         }
       });
     }
-    if (id === 'charge' && f.t === mv.frames.cum[SLAB_FRAME - 1]) {
+    if (id === 'charge' && f.t === marks!.slab) {
       // 머리 위로 치켜든 틱 (떼고 6틱): 발 앞에서 앞쪽 바닥이 일직선으로 차례로 솟구치기 시작한다 (단계마다 더 길게). 들린 바닥은 잔해로 남는다
       const lv = Math.max(1, Math.min(3, f.chargeLv));
       const len = SLAB_LEN[lv - 1]!;

@@ -23,8 +23,8 @@ export interface CharacterData {
   stats: Stats;
   motions: Partial<Record<MotionSlot, string>>;
   /**
-   * 기술마다 바꾸는 것: 그림(motion)과 기술 수치(판정 프레임·판정 구간·피해·경직·밀림·내디딤…).
-   * 적지 않은 것은 기본 스틱맨 기술 그대로 쓴다 (발동·지속·회복 틱은 그림의 표시 틱과 판정 프레임으로 정해진다).
+   * 기술마다 바꾸는 것: 그림(motion)과 기술 수치(피해·경직·밀림·날리기·이펙트 모양…).
+   * 적지 않은 것은 기본 스틱맨 기술 그대로 쓴다. 발동·지속·회복·판정 상자·캔슬·몸 이동은 여기가 아니라 data/moves/time.ts (캐릭터 × 기술, 틱 단위).
    */
   moves?: Partial<Record<MoveId, Partial<MoveData>>>;
   /**
