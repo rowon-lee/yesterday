@@ -11,30 +11,6 @@ import { O_STANCE, OD, OR } from './stance';
  * 4타만 "반쯤 뽑아 들었다가 납도하는 '탁'에 세 줄".
  */
 
-/**
- * 표준 발도 13프레임: 기본자세 → 손을 얹음(멈칫) → 칼날이 비침(1틱) → '탁'(1프레임 멈춤) → 그대로 → 기본자세.
- * air: 공중 평타 (손을 얹는 멈칫이 한 프레임 짧다. 전에는 프레임 수 12로 알아냈다 — 3-0a에서 프레임 수와 떼어 냄)
- */
-function iai(name: string, label: string, p: { from?: Pose; ready: Pose; flick: Pose; click: Pose; still: Pose; end?: Pose }, dur: number[], air = false): MotionData {
-  const k = air ? -1 : 0;
-  return {
-    name,
-    label,
-    wide: true,
-    dur,
-    keys: [
-      { at: 0, pose: p.from ?? O_STANCE },
-      { at: 1, pose: p.ready, stop: true },
-      ...(air ? [] : [{ at: 2, pose: p.ready, stop: true }]),
-      { at: 3 + k, pose: p.flick },
-      { at: 4 + k, pose: p.click, stop: true },
-      { at: 5 + k, pose: p.click, stop: true },
-      { at: 8 + k, pose: p.still, stop: true },
-      { at: dur.length - 1, pose: p.end ?? O_STANCE },
-    ],
-  };
-}
-
 /** 한 프레임 = [자세, 표시 틱, 멈춤(stop)] */
 type Fr = readonly [pose: Pose, dur: number, stop?: boolean];
 
@@ -166,9 +142,6 @@ export const OSCAR_DASH_ATTACK = cut('oscar/dash_attack', '오스카 대시 공�
 const AIR = { hy: -25, tl: 14, hd: 14, lFx: 5, lFy: -8, lBx: -1, lBy: -6 } as const;
 const AIR_END = OR({ hy: -25, tl: 13, hd: 12, lFx: 5, lFy: -8, lBx: -1, lBy: -6 });
 
-/** 공중 박자 (12프레임 20틱): 칼날이 비치는 2번째 프레임 = 2틱째에 선. 판정 2~4번째 프레임 */
-const AIR_QUICK = [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2];
-
 /**
  * 공중 1타 (2차 리워크): 앞 아래로 긋는 선. 등을 살짝 젖히고 손이 날밑으로 물러나 멈춤 (1틱) → 칼날이 5px 비치는 1틱에
  * 선을 따라 몸이 앞으로 숙고 뒷다리가 뒤로 뻗는다 (선 = 2틱) → '탁' 멈춤 → 고개를 숙인 여운 → 뒷손이 등 뒤로 → 공중 자세.
@@ -198,15 +171,16 @@ export const OSCAR_AIR2 = cut('oscar/air2', '오스카 공중 2타', [
   [AIR_END, 7],
 ]);
 
-/** 공중 3타: 한 번 크게 비틀며 X자 두 줄 */
-export const OSCAR_AIR3 = iai('oscar/air3', '오스카 공중 3타 (X자)', {
-  from: AIR_END,
-  ready: OD({ ...AIR, hx: -0.5, tl: 10, hd: 16, tw: -2 }, 1),
-  flick: OD({ ...AIR, hx: 1.5, tl: 20, hd: 8, lFx: 7, lFy: -5, lBx: -4, lBy: -4, tw: 3 }, 6),
-  click: OD({ ...AIR, hx: 1, tl: 18, hd: 12, lFx: 7, lFy: -5, lBx: -4, lBy: -4 }, 0),
-  still: OD({ ...AIR, hx: 0.5, tl: 16, hd: 13, lFx: 6, lFy: -6, lBx: -3, lBy: -5 }, 0),
-  end: AIR_END,
-}, AIR_QUICK, true);
+/** 공중 3타 (2차 리워크): 고개를 숙이며 반대로 감아 멈춤 (1틱) → 칼날 6px 1틱에 크게 비틀어 펴짐 (X자 두 줄) → '탁' → 여운 → 공중 자세. 7프레임 20틱 */
+export const OSCAR_AIR3 = cut('oscar/air3', '오스카 공중 3타 (X자)', [
+  [AIR_END, 1],
+  [OD({ ...AIR, hx: -0.5, tl: 8, hd: 19, lFx: 3, lFy: -10, lBx: -3, lBy: -8, tw: -2 }, -2), 1, true],
+  [OD({ ...AIR, hx: 1.5, tl: 22, hd: 5, lFx: 7, lFy: -5, lBx: -5, lBy: -3, tw: 3 }, 6), 1],
+  [OD({ ...AIR, hx: 1, tl: 19, hd: 11, lFx: 7, lFy: -5, lBx: -4, lBy: -4 }, 0), 2, true],
+  [OD({ ...AIR, hx: 0.5, tl: 17, hd: 16, lFx: 6, lFy: -6, lBx: -3, lBy: -5 }, 0), 4, true],
+  [OR({ ...AIR, tl: 14.5, hd: 13, lFx: 5.5, lFy: -7, lBx: -2, lBy: -5.5 }), 4],
+  [AIR_END, 7],
+]);
 
 // ---- 내려찍기 (공중 ↓+공격) 내려다봄: 발밑을 내려다보는 순간 위에서 아래로 세로 선이 바닥까지 갈라진다 ----
 /** 내려찍기 (2차 리워크): 공중 자세 (2틱) → 발밑을 내려다보며 손이 날밑으로 3px 물러나 멈춤 (2틱) → 칼날 5px 1틱에 몸이 더 숙어 내려다봄 (세로 선) → '탁' → 여운 → 고개를 듦 → 공중 자세. 7프레임 26틱 */
