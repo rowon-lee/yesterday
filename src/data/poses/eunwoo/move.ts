@@ -80,6 +80,8 @@ function foot(q: number, c: number, cycle: number, from: number, lift: number, d
 
 /** 2차 리워크 종종걸음: 발이 뜬 뒤 뒤에서 잠깐 머물렀다가(뒤꿈치를 차올림) 한 번에 앞으로 채여 나가고, 디딜 자리 위에서 내려앉는다 */
 const SNAP_F: readonly [number, number] = [0.35, 0.3];
+/** 뒤 걷기: 발이 뜨자마자 뒤로 채여 가서, 디딜 자리 위에 오래 머물렀다 내려앉는다 */
+const SNAP_B: readonly [number, number] = [0.05, 0.3];
 
 /**
  * 앞 걷기 i번째 프레임: 엉덩이를 높이 두고(발끝으로) 몸을 조금 숙여 종종걸음. 연검 쥔 앞손은 엉덩이 뒤로 낮게 빼서
@@ -103,8 +105,8 @@ function runFrame(i: number): Pose {
 function backFrame(i: number): Pose {
   const p = i / N;
   const c = 0.36;
-  const [fx, fy] = foot(p % 1, c, E_RUN_BACK_CYCLE, -5, 5, -1);
-  const [bx, by] = foot((p + 0.5) % 1, c, E_RUN_BACK_CYCLE, -5, 5, -1);
+  const [fx, fy] = foot(p % 1, c, E_RUN_BACK_CYCLE, -5, 5, -1, SNAP_B);
+  const [bx, by] = foot((p + 0.5) % 1, c, E_RUN_BACK_CYCLE, -5, 5, -1, SNAP_B);
   const bob = Math.cos(2 * TAU * (p - c / 2));
   const sw = Math.cos(TAU * p);
   return {
