@@ -155,20 +155,33 @@ const D_GLIDE = E({ hx: 3, hy: -14, tl: 30, hd: -14, aFx: -8, aFy: 8, aBx: 16, a
 /** 미끄러지는 끝: 뒷발을 당겨 모으며 몸을 일으킨다 */
 const D_DRAW = E({ hx: 2, hy: -18, tl: 20, hd: -6, aFx: 6, aFy: 8, aBx: 10, aBy: 2, lFx: 11, lBx: -11 });
 
-/** 지상 대시: 실을 쏨 → 2~7프레임 낮게 미끄러짐 → 일어나 기본자세. 12프레임 × 1틱 */
+/** 몸이 실 쪽으로 쏠리며 낮아진다 */
+const D_DIP = E({ hx: 2, hy: -17, tl: 22, hd: -9, aFx: 0, aFy: 9, aBx: 15.5, aBy: -4, lFx: 12, lBx: -14, lBy: 0 });
+/** 미끄러지는 중: 더 낮게, 뒷발이 바닥을 스치며 끌린다 */
+const D_GLIDE2 = E({ hx: 3.5, hy: -13.5, tl: 32, hd: -15, aFx: -9, aFy: 8, aBx: 16, aBy: -3, lFx: 14.5, lBx: -20, lBy: 0 });
+/** 미끄러지는 끝: 뒷발을 끌어당기기 시작 */
+const D_SLOW = E({ hx: 3, hy: -15, tl: 27, hd: -11, aFx: -3, aFy: 8.5, aBx: 13.5, aBy: -1, lFx: 13, lBx: -15, lBy: 0 });
+const D_STAND = E({ hx: 0, hy: -21, tl: 10, hd: 0, aFx: 7, aFy: 11, aBx: 2, aBy: 9, lFx: 8, lBx: -7 });
+
+/**
+ * 지상 대시 (2차 리워크): 실을 쏨 → 몸이 실 쪽으로 쏠림 → 낮게 미끄러짐 → 더 낮게, 뒷발이 끌림 → 끌어당김 → 일어남 → 기본자세 가까이.
+ * 12프레임 × 1틱(4~7번 같은 자세) → 8프레임. sim은 대시 12틱을 프레임 수로 고르게 나눈다
+ */
 export const EUNWOO_DASH: MotionData = {
   name: 'eunwoo/dash',
   label: '백은우 지상 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [2, 1, 2, 1, 2, 1, 2, 1],
   // 가운·머리·연검이 곧게 뒤로 날린다
-  follow: { ribbon: { stiff: 0.5, gravity: 0.4, keys: [{ at: 0, wind: 0.5 }, { at: 2, wind: 1.1 }, { at: 8, wind: 1.1 }, { at: 11, wind: 0.2 }] }, wind: 1 },
+  follow: { ribbon: { stiff: 0.5, gravity: 0.4, keys: [{ at: 0, wind: 0.5 }, { at: 1.5, wind: 1.1 }, { at: 5, wind: 1.1 }, { at: 7, wind: 0.2 }] }, wind: 1 },
   keys: [
-    { at: 0, pose: E_STANCE },
-    { at: 1, pose: D_FLICK },
-    { at: 3, pose: D_GLIDE },
-    { at: 7, pose: D_GLIDE, stop: true },
-    { at: 9, pose: D_DRAW },
-    { at: 11, pose: E_STANCE },
+    { at: 0, pose: D_FLICK },
+    { at: 1, pose: D_DIP },
+    { at: 2, pose: D_GLIDE },
+    { at: 3, pose: D_GLIDE2, stop: true },
+    { at: 4, pose: D_SLOW },
+    { at: 5, pose: D_DRAW },
+    { at: 6, pose: D_STAND },
+    { at: 7, pose: E_STANCE },
   ],
 };
 
