@@ -53,8 +53,6 @@ function cut(name: string, label: string, frames: readonly Fr[]): MotionData {
   };
 }
 
-/** 땅 평타 박자 (13프레임 26틱): 칼날이 비치는 3번째(0부터) 프레임 = 4틱째에 선이 생긴다. 판정 3~5번째 프레임 (늦게 맞는 틱까지) */
-const QUICK = [1, 2, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2];
 // ---- 1타 칼자루에 손: 몸은 그대로, 엄지로 날밑을 밀어 칼날이 4px 비쳤다 들어간다 ----
 /** 1타 (2차 리워크): 기본자세 (2틱) → 손이 날밑으로 물러나며 고개를 숙여 멈춤 (2틱) → 칼날 5px 1틱 (선) → '탁' → 고개를 숙인 여운 → 무게가 뒤로 빠짐 → 기본자세. 7프레임 26틱 */
 export const OSCAR_ATK1 = cut('oscar/atk1', '오스카 1타 (칼자루에 손)', [
@@ -211,14 +209,16 @@ export const OSCAR_AIR3 = iai('oscar/air3', '오스카 공중 3타 (X자)', {
 }, AIR_QUICK, true);
 
 // ---- 내려찍기 (공중 ↓+공격) 내려다봄: 발밑을 내려다보는 순간 위에서 아래로 세로 선이 바닥까지 갈라진다 ----
-export const OSCAR_SLAM = iai('oscar/slam', '오스카 내려찍기 (내려다봄)', {
-  from: AIR_END,
-  ready: OD({ hy: -25, tl: 22, hd: 26, lFx: 4, lFy: -6, lBx: -3, lBy: -5 }, 0),
-  flick: OD({ hx: 0.5, hy: -25, tl: 28, hd: 30, lFx: 4, lFy: -5, lBx: -3, lBy: -5, tw: 1 }, 5),
-  click: OD({ hy: -25, tl: 26, hd: 28, lFx: 4, lFy: -5, lBx: -3, lBy: -5 }, 0),
-  still: OD({ hy: -25, tl: 24, hd: 24, lFx: 4, lFy: -6, lBx: -3, lBy: -5 }, 0),
-  end: AIR_END,
-}, QUICK);
+/** 내려찍기 (2차 리워크): 공중 자세 (2틱) → 발밑을 내려다보며 손이 날밑으로 3px 물러나 멈춤 (2틱) → 칼날 5px 1틱에 몸이 더 숙어 내려다봄 (세로 선) → '탁' → 여운 → 고개를 듦 → 공중 자세. 7프레임 26틱 */
+export const OSCAR_SLAM = cut('oscar/slam', '오스카 내려찍기 (내려다봄)', [
+  [AIR_END, 2],
+  [OD({ hx: -0.5, hy: -25, tl: 18, hd: 22, lFx: 4, lFy: -7, lBx: -3, lBy: -5 }, -3), 2, true],
+  [OD({ hx: 0.5, hy: -25, tl: 30, hd: 32, lFx: 4, lFy: -4, lBx: -3, lBy: -5, tw: 1 }, 5), 1],
+  [OD({ hy: -25, tl: 27, hd: 29, lFx: 4, lFy: -5, lBx: -3, lBy: -5 }, 0), 2, true],
+  [OD({ hy: -25, tl: 25, hd: 26, lFx: 4, lFy: -6, lBx: -3, lBy: -5 }, 0), 6, true],
+  [OR({ hy: -25, tl: 18, hd: 17, lFx: 4.5, lFy: -7, lBx: -2, lBy: -5.5 }), 6],
+  [AIR_END, 7],
+]);
 
 export const OSCAR_ATTACK_MOTIONS: readonly MotionData[] = [
   OSCAR_ATK1, OSCAR_ATK2, OSCAR_ATK3, OSCAR_ATK4, OSCAR_LAUNCHER, OSCAR_SWEEP, OSCAR_DASH_ATTACK,
