@@ -5,38 +5,46 @@ import { R, R_STANCE } from './stance';
  * 라이덴 이동 (캐릭터 기획서 '움직임': MMA 파이터의 바운스 스텝).
  */
 
-// ---- 대기: 한 번 튈 때마다 내려앉음 → 웅크림 → 박참 → 떠오름 → 꼭대기 → 떨어짐 → 닿음 ----
+// ---- 대기: 한 번 튈 때마다 내려앉음 → 웅크림 → 박참 → 꼭대기 → 떨어짐 → 닿음 ----
+// 2차 리워크 (재수정 지침 3장 라이덴 '대기에서 앞뒤로 가볍게 튀며 주기 30~40틱'): 42틱 → 36틱 (한 번 튐 18틱).
+// 닿고 박차는 순간은 2~3틱으로 빠르게, 꼭대기에서 8틱 떠 있다가 떨어지는 동안 빨라진다. 사이 프레임 없이 프레임마다 자세 하나
 /** 웅크림: 내려앉은 힘을 무릎으로 받아 더 낮아지고, 몸이 앞으로 숙고 턱이 내려가며 손이 1.5px 처진다 (몸이 앞으로 실림) */
 const SQUASH_A = R({ hx: 0, hy: -17, tl: 18, hd: 11, aFx: 12.5, aFy: -2.5, aBx: 8, aBy: 1.5 });
-/** 박참: 발끝으로 바닥을 밀며 몸이 솟기 시작한다 (발은 아직 바닥) */
-const PUSH_A = R({ hx: 0.5, hy: -20.5, tl: 15, hd: 9, aFx: 13, aFy: -3, aBx: 8, aBy: 1 });
+/** 박참: 발끝으로 바닥을 밀며 무릎이 펴지기 시작한다 (발은 아직 바닥, 손은 아직 처진 채 — 몸이 솟는 건 다음 2틱에 한 번에) */
+const PUSH_A = R({ hx: 0.5, hy: -19, tl: 16, hd: 10, aFx: 13, aFy: -2.5, aBx: 8, aBy: 1.5 });
 /** 꼭대기: 몸이 펴지며 엉덩이 5px 위, 두 발이 3px 떠서 몸 밑으로 조금 모이고, 손은 관성으로 1px 뜬다 */
 const TOP_A = R({ hx: 0.5, hy: -24, tl: 12, hd: 6, aFx: 13, aFy: -5, aBx: 8, aBy: -1, lFx: 7.5, lFy: -3, lBx: -8.5, lBy: -3 });
+/** 떨어짐: 발이 바닥을 찾아 먼저 내려가고, 손은 한 박 늦게 꼭대기 높이에 남는다 */
+const FALL_A = R({ hx: 0.3, hy: -22, tl: 13, hd: 7, aFx: 13, aFy: -5.5, aBx: 8, aBy: -1.5, lFx: 7.8, lFy: -1.5, lBx: -8.8, lBy: -1.5 });
 /** 2번째 웅크림: 몸이 뒤로 실린다 */
 const SQUASH_B = R({ hx: -1.5, hy: -17, tl: 17, hd: 10, aFx: 12.5, aFy: -2.5, aBx: 7.5, aBy: 1.5 });
-const PUSH_B = R({ hx: -1.5, hy: -20.5, tl: 15, hd: 8, aFx: 13.5, aFy: -3.5, aBx: 7.5, aBy: 1 });
+const PUSH_B = R({ hx: -1.5, hy: -19, tl: 16, hd: 9, aFx: 13, aFy: -3, aBx: 7.5, aBy: 1.5 });
 /** 2번째 꼭대기: 앞손을 2.5px 내밀어 한 번 까딱인다 */
 const TOP_B = R({ hx: -1.5, hy: -24, tl: 13, hd: 6, aFx: 15.5, aFy: -5.5, aBx: 7.5, aBy: -1, lFx: 7.5, lFy: -3, lBx: -8.5, lBy: -3 });
+/** 2번째 떨어짐: 내민 앞손을 거두며 내려간다 */
+const FALL_B = R({ hx: -1, hy: -22, tl: 14, hd: 7, aFx: 14, aFy: -5, aBx: 7.8, aBy: -1.5, lFx: 7.8, lFy: -1.5, lBx: -8.8, lBy: -1.5 });
 
 /**
  * 대기: 가드를 올린 채 제자리에서 두 번 통통 튄다 (한 번은 몸이 앞, 한 번은 뒤로 실림).
- * 바닥에 닿는 순간은 짧게 웅크렸다 바로 박차고(2~3틱), 꼭대기에서 잠깐 떠 있다(6틱). 14프레임 42틱, 1초에 약 2.9번 튄다.
+ * 닿음 2 → 웅크림 3 → 박참 2 → 꼭대기 8(멈칫) → 떨어짐 3틱. 10프레임 36틱 (주기 36틱, 1초에 약 3.3번 튄다)
  */
 export const RAIDEN_IDLE: MotionData = {
   name: 'raiden/idle',
   label: '라이덴 대기',
   loop: true,
-  dur: [2, 3, 2, 3, 6, 3, 2, 2, 3, 2, 3, 6, 3, 2],
+  dur: [2, 3, 2, 8, 3, 2, 3, 2, 8, 3],
   keys: [
     { at: 0, pose: R_STANCE },
     { at: 1, pose: SQUASH_A },
     { at: 2, pose: PUSH_A },
-    { at: 4, pose: TOP_A, stop: true },
-    { at: 7, pose: R_STANCE, stop: true },
-    { at: 8, pose: SQUASH_B },
-    { at: 9, pose: PUSH_B },
-    { at: 11, pose: TOP_B, stop: true },
-    { at: 14, pose: R_STANCE },
+    { at: 3, pose: TOP_A, stop: true },
+    { at: 4, pose: FALL_A },
+    { at: 5, pose: R_STANCE },
+    { at: 6, pose: SQUASH_B },
+    { at: 7, pose: PUSH_B },
+    { at: 8, pose: TOP_B, stop: true },
+    { at: 9, pose: FALL_B },
+    { at: 10, pose: R_STANCE },
   ],
 };
 
