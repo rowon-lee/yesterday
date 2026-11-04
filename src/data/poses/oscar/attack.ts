@@ -148,22 +148,20 @@ export const OSCAR_SWEEP = cut('oscar/sweep', '오스카 쓸기 (낮게)', [
 // ---- 대시 공격: 월영(그림자 대시)으로 미끄러지다 앞발로 멈추며 칼날이 비친다. 지나온 길 앞을 길게 ----
 /** 미끄러지는 자세 (대시와 같은 꼴): 깊이 숙여 두 발을 끈다, 엄지는 날밑에 */
 const DA_GLIDE = OD({ hx: 3, hy: -18, tl: 34, hd: 4, lFx: 4, lBx: -10, lBy: -2 }, 2);
-/** 대시 공격: 미끄러짐(0~2) → 앞발로 멈추며 칼날이 비침(3번째 프레임, 선) → '탁' 멈춤 → 그대로 → 기본자세. 13프레임 */
-export const OSCAR_DASH_ATTACK: MotionData = {
-  name: 'oscar/dash_attack',
-  label: '오스카 대시 공격 (월영 베기)',
-  wide: true,
-  dur: [1, 1, 2, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2],
-  keys: [
-    { at: 0, pose: DA_GLIDE },
-    { at: 2, pose: DA_GLIDE },
-    { at: 3, pose: OD({ hx: 3, hy: -19, tl: 24, hd: 6, lFx: 10, lBx: -10, tw: 1 }, 6) },
-    { at: 4, pose: OD({ hx: 2.5, hy: -19.5, tl: 20, hd: 11, lFx: 10, lBx: -10 }, 0), stop: true },
-    { at: 5, pose: OD({ hx: 2.5, hy: -19.5, tl: 20, hd: 11, lFx: 10, lBx: -10 }, 0), stop: true },
-    { at: 8, pose: OD({ hx: 2, hy: -20, tl: 18, hd: 12, lFx: 9.5, lBx: -9.5 }, 0), stop: true },
-    { at: 12, pose: O_STANCE },
-  ],
-};
+/**
+ * 대시 공격 (2차 리워크): 미끄러짐 → 앞발을 디뎌 멈추기 시작 (1틱) → 손이 날밑으로, 멈춤 (2틱) → 칼날 6px 1틱 (선) → '탁' →
+ * 숙인 채 여운 → 몸을 세우며 무게가 뒤로 → 기본자세. 8프레임 26틱 (미끄러짐을 같은 자세 3장으로 늘이던 것 대신)
+ */
+export const OSCAR_DASH_ATTACK = cut('oscar/dash_attack', '오스카 대시 공격 (월영 베기)', [
+  [DA_GLIDE, 1],
+  [OD({ hx: 3.5, hy: -18.6, tl: 29, hd: 6, lFx: 8, lBx: -10, lBy: -1 }, -1), 1],
+  [OD({ hx: 3, hy: -19, tl: 25, hd: 9, lFx: 10, lBx: -10 }, -2), 2, true],
+  [OD({ hx: 3, hy: -19, tl: 24, hd: 5, lFx: 10, lBx: -10, tw: 1 }, 6), 1],
+  [OD({ hx: 2.5, hy: -19.5, tl: 20, hd: 11, lFx: 10, lBx: -10 }, 0), 2, true],
+  [OD({ hx: 2, hy: -20, tl: 18, hd: 14, lFx: 9.5, lBx: -9.5 }, 0), 6, true],
+  [OR({ hx: 0.5, hy: -21.6, tl: 14, hd: 10, lFx: 7.5, lBx: -7.5 }), 6],
+  [O_STANCE, 7],
+]);
 
 // ---- 공중 1·2·3타: 공중에서 몸을 비틀며 칼날이 비친다 ----
 /** 공중 기본: 다리를 가볍게 접은 자세 (점프 꼭대기와 같은 꼴), 엄지는 날밑에 */
