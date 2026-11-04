@@ -276,35 +276,67 @@ export const EDWARD_SCOOP: MotionData = {
 };
 
 // ---- 쓸기: 바닥 쓸기 (낮게 엎드려 해머 머리로 발목 높이를 가로지른다) ----
-const W_LOAD = A({ hx: -2, hy: -14, tl: 24, hd: -10, tw: -2, lFx: 12, lBx: -14, wa: -200 }, [-24, -8]);
-const W_COIL = A({ hx: -3, hy: -13, tl: 26, hd: -12, tw: -3, lFx: 13, lBx: -15, wa: -190 }, [-32, -8]);
-const W_SMEAR = A({ hx: 2, hy: -12, tl: 32, hd: -14, tw: 3, lFx: 18, lBx: -16, wa: -250 }, [8, -7]);
-const W_HIT = A({ hx: 5, hy: -11.5, tl: 38, hd: -14, tw: 4.5, lFx: 19, lBx: -17, wa: -342 }, [50, -8]);
-const W_OVER = A({ hx: 5.5, hy: -11.5, tl: 38, hd: -12, tw: 5, lFx: 19, lBx: -17.5, wa: -368 }, [54, -14]);
-const W_HOLD = A({ hx: 5, hy: -12, tl: 36, hd: -12, tw: 4.5, lFx: 19, lBx: -17, wa: -362 }, [53, -12]);
-const W_BACK1 = G({ hx: 2, hy: -17, tl: 16, hd: -4, tw: 2, aFx: 11, aFy: -2, lFx: 14, lBx: -13, wa: -415 });
-const W_BACK2 = E({ hx: 0.5, hy: -21, tl: 0, hd: -3, aFx: 5, aFy: 4, aBx: -2.5, aBy: 12, lFx: 9, lBx: -9, wa: -490 });
+/*
+ * 손이 먼저 낮고 고르게 앞으로 나가고 (허리 앞 → 앞 무릎 위), 해머 머리는 손 뒤 바닥에 끌리다가 손을 앞질러 휘돈다.
+ * 머리 자리는 손 자리 + 해머 길이(30px) × 무기 방향으로 정했다 (손이 튀지 않게)
+ */
+/** 해머를 어깨에서 내린다: 두 손이 먼저 앞으로 나오고 머리는 어깨 뒤에 처진다, 무릎을 굽히기 시작한다 */
+const W_LIFT = G({ hx: -0.5, hy: -20.5, tl: 8, hd: -4, tw: 0, aFx: 7, aFy: 6, lFx: 9, lBx: -10, wa: -150 });
+/** 낮게 웅크린다: 머리는 아직 몸 뒤 허공에서 내려오는 중 */
+const W_LOAD = A({ hx: -1.5, hy: -15, tl: 22, hd: -10, tw: -2, lFx: 12, lBx: -14, wa: -160 }, [-25, -25]);
+/** 감기 끝 (멈춤 6틱): 뒷발에 싣고 (엉덩이 4px 뒤로) 어깨를 뒤로 틀어 해머 머리를 뒤 바닥 멀리 내려놓는다 */
+const W_COIL = A({ hx: -4, hy: -13, tl: 26, hd: -12, tw: -4, lFx: 13, lBx: -15, wa: -190 }, [-36, -8]);
+/** 풀림: 허리·어깨가 먼저 돌고 앞발이 미끄러져 나간다. 손은 아직 뒤에 있고 해머 머리는 뒤 바닥에 끌린다 */
+const W_RELEASE = A({ hx: 0, hy: -12.5, tl: 30, hd: -13, tw: 1, lFx: 15, lBx: -15, wa: -196 }, [-34, -8]);
+/** 스미어: 두 손이 허리 앞으로 끌려 나오고, 해머 머리는 손 뒤 바닥을 긁으며 따라온다 (잔상) */
+const W_SMEAR = A({ hx: 3, hy: -12, tl: 33, hd: -14, tw: 3, lFx: 18, lBx: -16, wa: -230 }, [-11, -3]);
+/** 타격: 머리가 손을 앞질러 휘돌며 정강이 높이를 가로지른다 */
+const W_HIT = A({ hx: 5, hy: -11.5, tl: 37, hd: -14, tw: 4.5, lFx: 19, lBx: -17, wa: -345 }, [43, -16]);
+const W_HIT2 = A({ hx: 5.5, hy: -11.2, tl: 38, hd: -13, tw: 5, lFx: 19, lBx: -17.5, wa: -355 }, [50, -18]);
+/** 지나치기: 머리가 앞 위로 더 쏠리며, 몸이 끌려 나간다 (뒷발 뒤꿈치가 들린다) */
+const W_OVER = A({ hx: 6.5, hy: -10.8, tl: 39, hd: -12, tw: 5, lFx: 19.5, lBx: -17, lBy: -1, wa: -375 }, [54, -26]);
+const W_OVER2 = A({ hx: 7, hy: -10.4, tl: 40, hd: -11, tw: 4.5, lFx: 19.5, lBx: -16, lBy: -1.5, wa: -395 }, [52, -33]);
+/** 여운: 쏠린 머리가 조금 돌아오고 (2~4px), 몸이 내려앉는다 */
+const W_HOLD = A({ hx: 6.5, hy: -10.8, tl: 38, hd: -11, tw: 4.5, lFx: 19.5, lBx: -16.5, wa: -388 }, [52.5, -31]);
+const W_HOLD2 = A({ hx: 6.3, hy: -10.2, tl: 38, hd: -11, tw: 4.3, lFx: 19.5, lBx: -16.5, wa: -385 }, [53, -29]);
+/**
+ * 복귀: 무게가 먼저 뒤로 빠지며 일어난다 (해머는 아직 앞에) → 두 손이 해머를 앞에서 가슴 높이로 들고 (머리는 아직 앞) →
+ * 손이 어깨로 오는 동안 해머가 머리 위로 넘어간다 → 어깨에 걸치며 머리가 한 번 더 내려앉는다 (뒷손은 손잡이를 놓고 두 프레임에 걸쳐 주머니로)
+ */
+const W_BACK1 = G({ hx: 3, hy: -14, tl: 24, hd: -6, tw: 2, aFx: 14, aFy: 6, lFx: 15, lBx: -14, wa: -385 });
+const W_BACK2 = G({ hx: 1.5, hy: -18, tl: 12, hd: -4, tw: 1.5, aFx: 12, aFy: -6, lFx: 12, lBx: -12, wa: -395 });
+const W_BACK3 = G({ hx: 0.5, hy: -20.5, tl: 2, hd: -3, tw: 1, aFx: 6, aFy: 0, lFx: 9.5, lBx: -9.5, wa: -455 });
+const W_BACK4 = E({ hx: 0.3, hy: -21, tl: -2, hd: -4, aFx: 5, aFy: 5, aBx: 1, aBy: 8, lFx: 7.5, lBx: -8, wa: -515 });
 
-/** 쓸기 바닥 쓸기 (128×96): 낮게 감고(2~3) → 스미어(4) → 발목 높이를 가로지름(5~6 판정) → 지나치기 → 여운 → 복귀. 13프레임 */
+/**
+ * 쓸기 바닥 쓸기 (128×96, 2차 리워크): 1~3 해머를 내려 몸 뒤 바닥에 떨구며 웅크림 → 4 감기 끝(6틱 멈춤) →
+ * 5 허리가 먼저 풀리고 머리는 뒤에 끌림 → 6 스미어 → 7~8 발목 높이를 가로지름(판정) → 9~10 머리가 쏠리며 몸이 끌려 나감 →
+ * 11~12 여운 → 13~17 무게가 뒤로 빠진 뒤 해머를 들어 어깨로. 17프레임 36틱 (공격 데이터 그대로: 발동 11 · 지속 4 · 회복 21)
+ */
 export const EDWARD_SWEEP: MotionData = {
   name: 'edward/sweep',
   label: '에드워드 쓸기 바닥 쓸기',
   wide: true,
-  smear: { frame: 3, limb: 'aF', stretch: 1.3, ghosts: 3 },
-  dur: [2, 3, 5, 1, 2, 2, 2, 2, 5, 3, 3, 3, 3],
+  smear: { frame: 5, limb: 'aF', stretch: 1.3, ghosts: 3 },
+  dur: [1, 1, 1, 6, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 3],
   keys: [
     { at: 0, pose: E_STANCE },
-    { at: 1, pose: W_LOAD },
-    { at: 2, pose: W_COIL, stop: true },
-    { at: 3, pose: W_SMEAR },
-    { at: 4, pose: W_HIT },
-    { at: 5, pose: W_HIT },
-    { at: 6, pose: W_OVER },
-    { at: 7, pose: W_OVER, stop: true },
-    { at: 8, pose: W_HOLD },
-    { at: 10, pose: W_BACK1 },
-    { at: 11, pose: W_BACK2 },
-    { at: 12, pose: STANCE_TURNED },
+    { at: 1, pose: W_LIFT },
+    { at: 2, pose: W_LOAD },
+    { at: 3, pose: W_COIL, stop: true },
+    { at: 4, pose: W_RELEASE },
+    { at: 5, pose: W_SMEAR },
+    { at: 6, pose: W_HIT },
+    { at: 7, pose: W_HIT2 },
+    { at: 8, pose: W_OVER },
+    { at: 9, pose: W_OVER2, stop: true },
+    { at: 10, pose: W_HOLD },
+    { at: 11, pose: W_HOLD2, stop: true },
+    { at: 12, pose: W_BACK1 },
+    { at: 13, pose: W_BACK2 },
+    { at: 14, pose: W_BACK3 },
+    { at: 15, pose: W_BACK4 },
+    { at: 16, pose: STANCE_TURNED },
   ],
 };
 
