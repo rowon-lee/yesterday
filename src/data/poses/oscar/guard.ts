@@ -38,16 +38,21 @@ export const OSCAR_GUARD: MotionData = {
   ],
 };
 
-/** 방어 막힘: 밀려 등이 펴짐 → 버텨 숙임 → 막기 자세. 12프레임 (sim은 막힌 경직 길이에 맞춰 늘인다) */
+/**
+ * 방어 막힘 (2차 리워크): 막힌 순간 (칼이 6px 밀려 나옴) → 한 번 더 크게 밀려 등이 젖혀지고 고개가 들림 (8px) → 무릎으로 받아 내려앉음 →
+ * 버텨 숙임 → 막기 자세. 젖혀진 정점과 내려앉은 자세에 조금 머문다. 5프레임
+ * (sim이 막힌 경직 길이를 프레임 수로 고르게 나누므로 박자는 자세 차이로 낸다: 표시 틱은 뷰어·시트용)
+ */
 export const OSCAR_GUARD_HIT: MotionData = {
   name: 'oscar/guard_hit',
   label: '오스카 방어 막힘',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 2, 3, 2, 4],
   keys: [
     { at: 0, pose: PARRY_HIT },
-    { at: 2, pose: PARRY_HIT, stop: true },
-    { at: 6, pose: PARRY_BRACE, stop: true },
-    { at: 11, pose: PARRY },
+    { at: 1, pose: OD({ hx: -4, hy: -19.3, tl: -7, hd: -9, lFx: 8, lBx: -9.5 }, 8) },
+    { at: 2, pose: OD({ hx: -3, hy: -18.6, tl: 2, hd: 2, lFx: 8, lBx: -9.5 }, 6), stop: true },
+    { at: 3, pose: PARRY_BRACE },
+    { at: 4, pose: PARRY },
   ],
 };
 
