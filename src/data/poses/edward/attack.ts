@@ -165,52 +165,63 @@ export const EDWARD_SWING: MotionData = {
 // ---- 3타: 머리 위로 크게 돌려 내려찍기 (위 → 아래 원호, 끝에서 바닥 균열 40px) ----
 /** 3타 원호: 머리 위 뒤에서 넘어와 앞 아래 바닥으로 (시계 방향) */
 const ARC3: HammerArc = { cx: 18, cy: -40, rx: 36, ry: 40, a0: -110, a1: 30 };
-/** 감기: 해머를 앞에서 머리 위로 크게 돌려 올린다 */
-const C3_UP = A({ hx: 3, hy: -20.5, tl: -4, hd: -12, tw: 2, lFx: 15, lBx: -13, wa: -82 }, [22, -78]);
+/** 감기: 두 손이 먼저 해머를 앞에서 머리 위로 들어 올린다 (머리는 아직 앞 위를 향한다) */
+const C3_UP = A({ hx: 3, hy: -20.5, tl: -4, hd: -12, tw: 2, lFx: 15, lBx: -13, wa: -58 }, [23, -88]);
 /** 머리 위를 지나 등 뒤로 넘긴다 (몸을 젖힌다) */
 const C3_OVER_HEAD = A({ hx: 0, hy: -21, tl: -12, hd: -12, tw: -1, lFx: 13, lBx: -13, wa: -122 }, [-12, -84]);
-/** 감기 끝 (멈춤): 등 뒤로 크게 젖혀 해머가 뒤 위에 걸린다 */
+/** 감기 끝 (멈춤 7틱): 등 뒤로 크게 젖혀 해머가 뒤 위에 걸린다 */
 const C3_MAX = A({ hx: -2, hy: -20.5, tl: -18, hd: -10, tw: -3, lFx: 13, lBx: -14, wa: -150 }, [-36, -70]);
-/** 스미어: 몸을 앞으로 접으며 해머가 머리 위를 넘어온다 (머리는 뒤에 처진다) */
-const C3_SMEAR = A({ hx: 3, hy: -19, tl: 10, hd: -8, tw: 3, lFx: 16, lBx: -15, wa: -108 }, arcAt(ARC3, -95));
-/** 타격: 앞 위에서 앞 아래로 내려찍는다 */
-const C3_HIT = A({ hx: 5, hy: -17, tl: 24, hd: -4, tw: 5, lFx: 18, lBx: -16, wa: -42 }, arcAt(ARC3, -40));
-const C3_HIT2 = A({ hx: 6, hy: -15, tl: 34, hd: 0, tw: 5, lFx: 18.5, lBx: -16.5, wa: 22 }, arcAt(ARC3, 5));
+/** 풀림: 허리·어깨가 먼저 앞으로 접히기 시작한다. 손과 해머는 아직 머리 뒤 위 */
+const C3_RELEASE = A({ hx: 0.5, hy: -20, tl: -10, hd: -10, tw: -1, lFx: 15, lBx: -14.5, wa: -144 }, [-34.8, -72.6]);
+/** 스미어: 몸을 앞으로 접으며 두 손이 이마 앞으로 끌려 나오고, 해머 머리는 머리 위에 처져 뒤따른다 */
+const C3_SMEAR = A({ hx: 3, hy: -19, tl: 10, hd: -8, tw: 3, lFx: 16, lBx: -15, wa: -107 }, arcAt(ARC3, -110));
+/** 타격: 머리가 손을 따라잡아 앞 위에서 앞 아래로 내려찍는다 */
+const C3_HIT = A({ hx: 5, hy: -17, tl: 24, hd: -4, tw: 5, lFx: 18, lBx: -16, wa: -29 }, arcAt(ARC3, -40));
+const C3_HIT2 = A({ hx: 6, hy: -15, tl: 34, hd: 0, tw: 5, lFx: 18.5, lBx: -16.5, wa: 15 }, arcAt(ARC3, 5));
 /** 지나치기: 머리가 바닥에 쿵 박힌다 (바닥 균열), 몸이 깊이 끌려 숙인다 */
 export const C3_IMPACT = A({ hx: 6.5, hy: -13.5, tl: 42, hd: 4, tw: 4.5, lFx: 19, lBx: -17, wa: 70 }, [48, -6]);
 const C3_IMPACT2 = A({ hx: 6.8, hy: -13, tl: 44, hd: 6, tw: 4.5, lFx: 19, lBx: -17, wa: 78 }, [49, -6]);
-/** 여운: 바닥에 박힌 해머를 쥔 채 버틴다 */
+/** 여운: 바닥에 박힌 해머를 쥔 채 버틴다 (몸이 2px 내려앉는다) */
 const C3_HOLD = A({ hx: 6.5, hy: -13.5, tl: 42, hd: 5, tw: 4.5, lFx: 19, lBx: -17, wa: 74 }, [48.5, -6]);
-const C3_HOLD2 = A({ hx: 6.3, hy: -13.7, tl: 41, hd: 4, tw: 4.3, lFx: 19, lBx: -17, wa: 75 }, [48.5, -6]);
-/** 복귀: 해머를 뽑아 끌어 올려 어깨로 */
-const C3_BACK1 = G({ hx: 4, hy: -17, tl: 20, hd: -2, tw: 2, aFx: 13, aFy: 4, lFx: 15, lBx: -13, wa: 10 });
-const C3_BACK2 = G({ hx: 2, hy: -20.5, tl: 6, hd: -3, tw: 1, aFx: 8, aFy: -8, lFx: 11, lBx: -10, wa: -95 });
+const C3_HOLD2 = A({ hx: 6.3, hy: -12.5, tl: 43, hd: 4, tw: 4.3, lFx: 19, lBx: -17, wa: 75 }, [48.5, -6]);
+/**
+ * 복귀: 무게가 먼저 뒤로 빠진다 (해머는 아직 바닥에 박힌 채) → 두 손으로 뽑아 끌어 올리고 → 얼굴 앞으로 (머리는 아직 앞 위) →
+ * 손이 어깨로 오는 동안 머리가 뒤로 넘어가 어깨에 걸치며 한 번 더 내려앉는다
+ */
+const C3_BACK0 = A({ hx: 5, hy: -14.5, tl: 36, hd: 2, tw: 3.5, lFx: 18, lBx: -16, wa: 72 }, [46, -6]);
+const C3_BACK1 = G({ hx: 3.5, hy: -17.5, tl: 20, hd: -2, tw: 2, aFx: 13, aFy: 4, lFx: 15, lBx: -13, wa: 50 });
+const C3_BACK2 = G({ hx: 2, hy: -20, tl: 8, hd: -3, tw: 1, aFx: 9, aFy: -6, lFx: 11, lBx: -10.5, wa: -40 });
+const C3_BACK3 = E({ hx: 0.5, hy: -21.8, tl: -2, hd: -4, aFx: 5, aFy: 4, aBx: 1, aBy: 8, lFx: 7.5, lBx: -7.5, wa: -153 });
 
 /**
- * 3타 머리 위로 돌려 내려찍기 (128×96): 2타 지나치기 자세에서 → 2~4 해머를 앞에서 머리 위로 돌려 등 뒤로 넘김(4번 멈춤) → 5 스미어 →
- * 6~7 위에서 앞 아래로 내려찍음(판정) → 8~9 바닥에 박힘(균열 40px) → 10~11 박힌 채 버팀 → 12~14 뽑아 어깨로. 14프레임 44틱
+ * 3타 머리 위로 돌려 내려찍기 (128×96, 2차 리워크): 2타 지나치기 자세에서 → 2~4 해머를 앞에서 머리 위로 돌려 등 뒤로 넘김(4번 7틱 멈춤) →
+ * 5 허리가 먼저 접힘 → 6 스미어 → 7~8 위에서 앞 아래로 내려찍음(판정) → 9~10 바닥에 박힘(균열 40px) → 11~12 박힌 채 버팀 →
+ * 13~17 무게가 뒤로 빠진 뒤 뽑아 어깨로. 17프레임 44틱 (공격 데이터 그대로: 발동 17 · 지속 4 · 회복 23)
  */
 export const EDWARD_RISE: MotionData = {
   name: 'edward/rise',
   label: '에드워드 3타 머리 위로 돌려 내려찍기',
   wide: true,
-  smear: { frame: 4, limb: 'aF', stretch: 1.3, ghosts: 3 },
-  dur: [3, 3, 4, 6, 1, 2, 2, 2, 2, 5, 5, 3, 3, 3],
+  smear: { frame: 5, limb: 'aF', stretch: 1.3, ghosts: 3 },
+  dur: [3, 2, 3, 7, 1, 1, 2, 2, 2, 2, 4, 4, 2, 3, 3, 2, 1],
   keys: [
     { at: 0, pose: C2_OVER },
     { at: 1, pose: C3_UP },
     { at: 2, pose: C3_OVER_HEAD },
     { at: 3, pose: C3_MAX, stop: true },
-    { at: 4, pose: C3_SMEAR },
-    { at: 5, pose: C3_HIT },
-    { at: 6, pose: C3_HIT2 },
-    { at: 7, pose: C3_IMPACT },
-    { at: 8, pose: C3_IMPACT2, stop: true },
-    { at: 9, pose: C3_HOLD },
-    { at: 10, pose: C3_HOLD2, stop: true },
-    { at: 11, pose: C3_BACK1 },
-    { at: 12, pose: C3_BACK2 },
-    { at: 13, pose: E_STANCE },
+    { at: 4, pose: C3_RELEASE },
+    { at: 5, pose: C3_SMEAR },
+    { at: 6, pose: C3_HIT },
+    { at: 7, pose: C3_HIT2 },
+    { at: 8, pose: C3_IMPACT },
+    { at: 9, pose: C3_IMPACT2, stop: true },
+    { at: 10, pose: C3_HOLD },
+    { at: 11, pose: C3_HOLD2, stop: true },
+    { at: 12, pose: C3_BACK0 },
+    { at: 13, pose: C3_BACK1 },
+    { at: 14, pose: C3_BACK2 },
+    { at: 15, pose: C3_BACK3 },
+    { at: 16, pose: E_STANCE },
   ],
 };
 
