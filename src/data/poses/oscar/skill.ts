@@ -267,18 +267,20 @@ export const REACT_OSCAR_OPEN: MotionData = {
   ],
 };
 
-/** 반응 2 검영 (40틱): 둘레를 도는 검영에 몸을 움츠린다 */
-export const REACT_OSCAR_ORBIT: MotionData = {
-  name: 'react/oscar_orbit',
-  label: '월령수류 반응 2 (움츠림)',
-  wide: true,
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3],
-  keys: [
-    { at: 0, pose: LOOK_UP },
-    { at: 6, pose: BRACE, stop: true },
-    { at: 13, pose: BRACE, stop: true },
-  ],
-};
+/**
+ * 반응 2 검영 (40틱, 2차 리워크): 달을 올려다본 채 굳어 있다 → 검영이 눈앞을 지나며 고개가 움찔 (1틱) →
+ * 어깨를 움츠리며 팔이 올라감 (2틱) → 그대로 굳음 → 등 뒤로 도는 검영에 고개가 숙여졌다가 (1틱) →
+ * 한 번 더 움츠리며 고개를 듦 → 버팀. 7프레임 (키 3개를 14장으로 늘이던 것 대신)
+ */
+export const REACT_OSCAR_ORBIT = seq('react/oscar_orbit', '월령수류 반응 2 (움츠림)', [
+  [LOOK_UP, 10, true],
+  [g({ hd: -10, tl: -1, aFx: 6, aFy: -8 }), 1],
+  [g({ hy: -20.8, hd: -2, tl: 4, aFx: 8, aFy: -11, aBx: 6, aBy: -8 }), 2],
+  [g({ hy: -21.2, hd: -3, tl: 3, aFx: 7, aFy: -10, aBx: 6, aBy: -7.5 }), 10, true],
+  [g({ hy: -21.4, hd: 16, tl: 6, aFx: 7, aFy: -9, aBx: 6, aBy: -6.5 }), 1],
+  [g({ hy: -20.7, hd: -5, tl: 3, aFx: 8.5, aFy: -11, aBx: 6.5, aBy: -8 }), 2],
+  [BRACE, 14, true],
+]);
 
 /** 짧은 판 반응 1 (40틱) */
 export const REACT_OSCAR_OPEN_S: MotionData = {
