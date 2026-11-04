@@ -99,48 +99,54 @@ export const RAIDEN_CROSS: MotionData = {
 };
 
 // ---- 3타: 미들킥 (지침서 7장: 뒷다리가 크게 반원을 그림, 지름 약 56px 반원 번개) ----
-// 뒷다리로 몸통을 찬다. 앞발 하나로 버티고 몸은 뒤로 젖혀 균형 (지침서 2장 '발차기는 뒤로 젖혀'). 뒷손은 뒤로 휘둘러 반동
-/** 앞발을 비스듬히 앞으로 내디디며 무게를 싣는다 */
-const MK_STEP = R({ hx: 2, hy: -18.5, tl: 10, hd: 10, aFx: 11, aFy: -7, aBx: 6, aBy: -2, lFx: 12, lBx: -10, lBy: -1 });
-/** 감기 끝 (멈칫): 앞발 하나로 서서 뒷무릎을 앞으로 높이 끌어올린다 (정강이는 접어 뒤로), 뒷손은 아래로 내린다 */
-const MK_CHAMBER = R({ hx: 3, hy: -21, tl: -4, hd: 14, aFx: 9, aFy: -10, aBx: -2, aBy: 8, lFx: 3, lBx: 6, lBy: -17 });
-/** 스미어: 정강이가 채찍처럼 펴지며 앞으로 (그림은 뒷다리 1.35배), 뒷손이 뒤로 휘돈다 */
-const MK_SMEAR = R({ hx: 4, hy: -21.5, tl: -10, hd: 16, aFx: 9, aFy: -11, aBx: -10, aBy: 5, lFx: 1, lBx: 20, lBy: -24 });
-/** 타격: 뒷다리를 몸통 높이로 끝까지 뻗고 몸은 뒤로 젖혀 받친다 (앞손은 얼굴 앞, 뒷손은 뒤로 뻗어 균형) */
-const MK_HIT = R({ hx: 5, hy: -21.5, tl: -16, hd: 20, aFx: 9, aFy: -11, aBx: -12, aBy: 4, lFx: -1, lBx: 29, lBy: -28 });
-const MK_HIT2 = R({ hx: 5.5, hy: -21.5, tl: -17, hd: 20, aFx: 9, aFy: -11, aBx: -12.5, aBy: 3, lFx: -1, lBx: 29.5, lBy: -30 });
-/** 지나치기: 찬 다리가 한 박 더 위로 휘어 지나간다 */
-const MK_OVER = R({ hx: 5, hy: -21.5, tl: -20, hd: 22, aFx: 9, aFy: -11, aBx: -12, aBy: 1, lFx: -1, lBx: 27, lBy: -34 });
-/** 여운: 다리를 뻗은 채 멈췄다가 조금 내려온다 */
-const MK_HOLD = R({ hx: 5, hy: -21.5, tl: -18, hd: 21, aFx: 9, aFy: -11, aBx: -11, aBy: 3, lFx: -1, lBx: 27.5, lBy: -31 });
-/** 다리를 접어 거둔다 */
-const MK_RETRACT = R({ hx: 4, hy: -20.5, tl: -6, hd: 14, aFx: 10, aFy: -9, aBx: -4, aBy: 6, lFx: 0, lBx: 7, lBy: -14 });
+// 뒷다리로 몸통을 찬다. 앞발 하나로 버티고 몸은 뒤로 젖혀 균형 (지침서 2장 '발차기는 뒤로 젖혀'). 뒷손은 뒤로 휘둘러 반동.
+// 2차 리워크: 판정 7~10틱·몸 이동(공격 데이터)은 그대로. 뒷발이 뒤 아래 → 무릎을 높이 접어 머리 높이 → 몸통으로 내리꽂는 호를 그리고,
+// 디딘 앞발은 몸 이동만큼 칸 안에서 뒤로 물러나 바닥에 붙어 있다 (미끄러지지 않게). 골반을 앞으로 밀어 넣으며 찬다(3장 라이덴)
+/** 감기: 앞발을 비스듬히 내디디며 뒷발로 바닥을 밀어 뒤꿈치를 든다 (뒷발이 4px 뒤로) */
+const MK_STEP = R({ hx: 2, hy: -18, tl: 12, hd: 10, aFx: 11, aFy: -6, aBx: 6, aBy: 1, lFx: 11, lBx: -13, lBy: -1 });
+/** 감기 끝 (멈칫): 앞발 하나로 서서 뒷무릎을 앞으로 엉덩이보다 높이 끌어올리고 정강이는 아래로 접는다, 뒷손은 아래로 */
+const MK_CHAMBER = R({ hx: 4, hy: -21, tl: -6, hd: 14, aFx: 9, aFy: -10, aBx: -1, aBy: 8, lFx: 9.5, lBx: 9, lBy: -15 });
+/** 스미어: 골반이 앞으로 돌며 정강이가 가슴 높이 위로 휘어 나온다 (그림은 뒷다리 1.35배), 뒷손이 뒤로 휘돈다 */
+const MK_SMEAR = R({ hx: 5, hy: -21.5, tl: -12, hd: 17, aFx: 9, aFy: -11, aBx: -9, aBy: 6, lFx: 7, lBx: 22, lBy: -33 });
+/** 타격: 몸통 높이로 내리꽂으며 끝까지 뻗고, 몸은 뒤로 젖혀 받친다 (엉덩이는 디딘 발 위, 앞손은 얼굴 앞, 뒷손은 뒤로 뻗어 균형) */
+const MK_HIT = R({ hx: 6, hy: -21.5, tl: -16, hd: 20, aFx: 9, aFy: -11, aBx: -12, aBy: 4, lFx: 5, lBx: 29, lBy: -29 });
+/** 지나치기: 골반째 한 번 더 밀고 들어가 발이 상대 몸을 뚫고 앞 아래로 5px 더 */
+const MK_OVER = R({ hx: 8, hy: -21, tl: -19, hd: 21, aFx: 9, aFy: -11, aBx: -13, aBy: 2, lFx: 4, lBx: 32, lBy: -25 });
+/** 되돌아옴 (멈칫): 2~3px 돌아와 뻗은 채 잠깐 */
+const MK_REBOUND = R({ hx: 7, hy: -21.5, tl: -17, hd: 20, aFx: 9, aFy: -11, aBx: -12, aBy: 3, lFx: 3, lBx: 30, lBy: -27.5 });
+/** 여운: 뻗은 다리가 조금 처지고 뒷손이 돌아오기 시작 (피격 상자 시간표가 18틱까지 다리를 뻗고 있어 그림도 거기까지 뻗어 둔다) */
+const MK_HOLD = R({ hx: 6.5, hy: -21.5, tl: -15, hd: 19, aFx: 9.5, aFy: -10, aBx: -9, aBy: 3, lFx: 3, lBx: 29, lBy: -24.5 });
+/** 회복 첫 프레임: 무게가 뒤로 빠지며 다리를 접어 거두고, 두 손은 곧장 얼굴 앞 가드로 */
+const MK_RETRACT = R({ hx: 3, hy: -20.5, tl: -2, hd: 12, aFx: 11, aFy: -8, aBx: 8, aBy: -2, lFx: 3, lBx: 6, lBy: -14 });
 /** 뒤로 내려 딛는다 */
-const MK_STEPDOWN = R({ hx: 2, hy: -19, tl: 6, hd: 10, aFx: 11, aFy: -7, aBx: 4, aBy: 2, lFx: 4, lBx: -10, lBy: -2 });
-const MK_BACK = R({ hx: 0.5, hy: -18.5, tl: 12, hd: 9, aFx: 12, aFy: -5, aBx: 7, aBy: 0, lFx: 7, lBx: -9 });
+const MK_STEPDOWN = R({ hx: 1, hy: -19, tl: 9, hd: 10, aFx: 12, aFy: -6, aBx: 8, aBy: -1, lFx: 3, lBx: -10, lBy: -1 });
+/** 앞발을 들어 기본자세 자리로 끌어온다 */
+const MK_BACK = R({ hx: 0, hy: -18.5, tl: 13, hd: 9, aFx: 12.5, aFy: -5, aBx: 8, aBy: 0, lFx: 6, lFy: -2, lBx: -9 });
 
-/** 3타 미들킥 (128×96): 내디딤(2) → 뒷무릎 끌어올림(3, 멈칫) → 스미어(4) → 몸통 높이로 끝까지(5~6프레임 판정) → 지나치기 → 여운 → 내려 딛기. 13프레임 25틱 */
+/**
+ * 3타 미들킥 (128×96): 내디디며 뒷발로 밀기(2) → 뒷무릎 끌어올림(3, 멈칫) → 스미어(4) → 몸통 높이로 내리꽂기(5~6프레임 판정, 6 지나치기)
+ * → 되돌아옴(7, 멈칫) → 여운(8, 18틱까지) → 거두기·내려 딛기·끌어오기(9~11, 처음 빠르고 끝으로 느리게) → 기본자세. 12프레임 26틱
+ */
 export const RAIDEN_MIDDLE_KICK: MotionData = {
   name: 'raiden/middle_kick',
   label: '라이덴 3타 미들킥',
   wide: true,
   smear: { frame: 3, limb: 'lB', stretch: 1.35 },
-  // 박자: 3타 앞에 짧은 틈 (내디딤 3틱·무릎 끌어올림 2틱에 멈칫 + 스미어 1틱 = 7틱)
-  dur: [1, 3, 2, 1, 2, 1, 1, 4, 3, 2, 2, 2, 2],
+  // 박자: 3타 앞에 짧은 틈 (내디딤 2틱·무릎 끌어올림 3틱 멈칫 + 스미어 1틱 = 7틱)
+  dur: [1, 2, 3, 1, 2, 2, 3, 4, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: R_STANCE },
     { at: 1, pose: MK_STEP },
     { at: 2, pose: MK_CHAMBER, stop: true },
     { at: 3, pose: MK_SMEAR },
     { at: 4, pose: MK_HIT },
-    { at: 5, pose: MK_HIT2 },
-    { at: 6, pose: MK_OVER },
-    { at: 7, pose: MK_OVER, stop: true },
-    { at: 8, pose: MK_HOLD },
-    { at: 9, pose: MK_RETRACT },
-    { at: 10, pose: MK_STEPDOWN },
-    { at: 11, pose: MK_BACK },
-    { at: 12, pose: R_STANCE },
+    { at: 5, pose: MK_OVER },
+    { at: 6, pose: MK_REBOUND, stop: true },
+    { at: 7, pose: MK_HOLD },
+    { at: 8, pose: MK_RETRACT },
+    { at: 9, pose: MK_STEPDOWN },
+    { at: 10, pose: MK_BACK },
+    { at: 11, pose: R_STANCE },
   ],
 };
 
