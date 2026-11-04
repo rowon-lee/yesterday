@@ -57,29 +57,37 @@ export const EDWARD_INTRO: MotionData = {
 };
 
 // ---- 승리: 해머를 바닥에 세우고 손잡이 끝에 두 손을 포갠다 ----
-/** 해머를 어깨에서 들어 머리 위로 넘긴다 (손은 배 앞으로 내려 해머 머리가 낮게 지난다) */
-const W_LIFT = E({ hx: 0.5, hy: -22, tl: -1, hd: -2, aFx: 7, aFy: 13, aBx: -3, aBy: 10, lFx: 7, lBx: -7, wa: -100 });
-/** 앞으로 내려 돌린다 */
-const W_SWING = E({ hx: 0.5, hy: -22, tl: 2, hd: -2, aFx: 11, aFy: 8, aBx: -3, aBy: 10, lFx: 7, lBx: -7, wa: -20 });
-/** 해머 머리를 바닥에 쿵 세운다 (손잡이가 똑바로 선다) */
-const W_PLANT = grip2(E({ hx: 1, hy: -21, tl: 8, hd: 2, aFx: 13, aFy: 10.5, lFx: 7, lBx: -8, wa: 90 }), 2.5);
-/** 손잡이 끝에 두 손을 포개고 가슴을 펴 턱을 든다 */
+/** 손이 먼저 해머를 어깨에서 들어 배 앞으로 내린다 (해머 머리는 아직 어깨 뒤 위에 처진다) */
+const W_LIFT = E({ hx: 0.5, hy: -22, tl: -1, hd: -2, aFx: 7, aFy: 13, aBx: -3, aBy: 10, lFx: 7, lBx: -7, wa: -125 });
+/** 머리가 늦게 머리 위를 넘어 앞으로 내려온다 */
+const W_SWING = E({ hx: 0.5, hy: -22, tl: 2, hd: -2, aFx: 11, aFy: 8, aBx: -3, aBy: 10, lFx: 7, lBx: -7, wa: -40 });
+/** 해머 머리를 바닥에 쿵 세운다 (손잡이가 똑바로 선다), 몸이 받아 내려앉는다 */
+const W_PLANT = grip2(E({ hx: 1, hy: -20.8, tl: 8, hd: 2, aFx: 13, aFy: 10.5, lFx: 7, lBx: -8, wa: 90 }), 2.5);
+/** 손잡이가 무게에 앞으로 한 번 기울었다 돌아온다 */
+const W_ROCK = grip2(E({ hx: 1.2, hy: -20.6, tl: 10, hd: 3, aFx: 13.5, aFy: 10.8, lFx: 7, lBx: -8, wa: 82 }), 2.5);
+/** 손잡이 끝에 두 손을 포갠다 */
+const W_HANDS = grip2(E({ hx: 0.5, hy: -21.8, tl: 3, hd: -4, aFx: 12.5, aFy: 11.5, lFx: 6, lBx: -6.5, wa: 92 }), 2.5);
+/** 가슴을 펴고 턱을 든다 */
 const W_REST = grip2(E({ hx: 0, hy: -22.5, tl: -3, hd: -10, aFx: 12.5, aFy: 12, lFx: 5, lBx: -5, wa: 90 }), 2.5);
-const W_REST2 = grip2(E({ hx: 0, hy: -22.8, tl: -4, hd: -12, aFx: 12.5, aFy: 12.2, lFx: 5, lBx: -5, wa: 90 }), 2.5);
+const W_REST2 = grip2(E({ hx: 0, hy: -22.8, tl: -4, hd: -13, aFx: 12.5, aFy: 12.2, lFx: 5, lBx: -5, wa: 90 }), 2.5);
 
-/** 승리: 해머를 어깨에서 내려 → 바닥에 세우고 → 손잡이 끝에 두 손을 포개고 턱을 든다. 14프레임 × 3~4틱 (끝 자세에 머문다) */
+/**
+ * 승리 (2차 리워크): 손이 먼저 해머를 어깨에서 들어 → 머리가 늦게 앞으로 넘어와 → 바닥에 쿵 세움 → 손잡이가 앞으로 한 번 기울었다 돌아옴 →
+ * 손잡이 끝에 두 손을 포갬 → 가슴을 펴고 → 턱을 든다 (끝 자세에 머문다). 8프레임 51틱 (같은 자세를 늘어놓지 않고 dur로 머문다)
+ */
 export const EDWARD_WIN: MotionData = {
   name: 'edward/win',
   label: '에드워드 승리',
-  dur: [3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+  dur: [3, 4, 3, 3, 5, 7, 10, 16],
   keys: [
     { at: 0, pose: E_STANCE },
-    { at: 2, pose: W_LIFT },
-    { at: 4, pose: W_SWING },
-    { at: 5, pose: W_PLANT, stop: true },
-    { at: 8, pose: W_REST },
-    { at: 11, pose: W_REST2, stop: true },
-    { at: 13, pose: W_REST2 },
+    { at: 1, pose: W_LIFT },
+    { at: 2, pose: W_SWING },
+    { at: 3, pose: W_PLANT, stop: true },
+    { at: 4, pose: W_ROCK },
+    { at: 5, pose: W_HANDS },
+    { at: 6, pose: W_REST },
+    { at: 7, pose: W_REST2 },
   ],
 };
 
