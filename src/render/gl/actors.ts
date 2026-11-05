@@ -185,6 +185,20 @@ export class Actors {
     }
   }
 
+  /**
+   * 불러오기 화면: 평면 층에 큰 그림(무너질 때 조각을 잘라 오는 건물 정면 모음 등)을 처음 옮길 때 드는 준비를 미리 한다
+   * (한 칸만 옮겼다 지운다. 대련 중 건물이 처음 무너지는 순간 멈추지 않게)
+   */
+  warmFlats(sources: ReadonlyArray<CanvasImageSource | null>): void {
+    for (const flat of [this.back, this.front]) {
+      for (const src of sources) {
+        if (!src) continue;
+        flat.ctx.drawImage(src, 0, 0, 1, 1, 0, 0, 1, 1);
+        flat.ctx.clearRect(0, 0, 1, 1);
+      }
+    }
+  }
+
   /** 캐릭터가 없는 화면(타이틀 등): 캐릭터·그림자·이펙트 층을 모두 감춘다 */
   hide(): void {
     for (const m of this.chars) m.visible = false;

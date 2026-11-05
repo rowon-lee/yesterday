@@ -6,6 +6,8 @@ import { BASE_MOTION_SLOTS, type CharId, type MotionSlot } from '../data/charact
 import { CHAR_IDS, isChar, motionOf, movesOf } from '../sim';
 import { drawText, textWidth } from './font';
 import { gl, glReady, glSteps } from './gl';
+import { facadeAtlas } from './gl/buildings';
+import { keepAtlas } from './gl/plaza';
 import { warmGpu } from './gl/warm';
 import { rehearsal } from './rehearse';
 import { COLORS } from './palette';
@@ -134,6 +136,13 @@ export function bootSteps(overlay: HTMLCanvasElement, plan: ReadonlyArray<readon
   if (!glReady()) {
     for (const s of glSteps(overlay)) steps.push({ label: s.label, show: 'STAGE', weight: s.weight, run: () => s.run() });
   }
+  steps.push({
+    label: '무너질 때 떨어지는 건물 조각 그림',
+    show: 'STAGE',
+    weight: 60,
+    // 건물·시타델이 무너질 때 정면 그림에서 조각을 잘라 떨어뜨린다: 그 모음 그림을 미리 만들고 평면 층에 한 번 옮겨 둔다
+    run: () => gl().actors.warmFlats([facadeAtlas(), keepAtlas()]),
+  });
   steps.push(...spriteSteps(plan));
   steps.push({ label: '셰이더·텍스처 미리 만들기', show: 'SHADERS', weight: 600, run: () => warmGpu() });
   steps.push({ label: '소리 미리 풀기', show: 'SOUND', weight: 60, run: () => audio.prepare() });

@@ -14,10 +14,13 @@ import { SCREEN_H, SCREEN_W } from './screen';
  */
 const SCRIPT: ReadonlyArray<readonly [keys: readonly string[], hold: number, wait: number]> = [
   [[], 0, 250],
+  // 기술이 상대에 닿게 (맞았을 때의 이펙트까지) 걸어서 다가간다
+  [['KeyD'], 30, 20],
   [['KeyJ'], 2, 12],
   [['KeyJ'], 2, 12],
   [['KeyJ'], 2, 14],
   [['KeyJ'], 2, 40],
+  [['KeyD'], 30, 10],
   [['KeyS', 'KeyJ'], 3, 40],
   [['KeyW', 'KeyJ'], 3, 50],
   [['KeyL'], 2, 4],
@@ -28,9 +31,13 @@ const SCRIPT: ReadonlyArray<readonly [keys: readonly string[], hold: number, wai
   [['KeyJ'], 2, 50],
   [['KeyK'], 2, 16],
   [['KeyS', 'KeyJ'], 3, 60],
+  [['KeyD'], 20, 10],
   [['KeyJ'], 80, 50],
+  [['KeyD'], 20, 10],
   [['KeyU'], 3, 90],
+  [['KeyD'], 20, 10],
   [['KeyI'], 3, 90],
+  [['KeyD'], 20, 10],
   [['KeyO'], 3, 470],
 ];
 /** 새 이펙트가 없어도 이만큼 틱마다 한 번은 그린다 (평면 층·HUD·먼지) */
