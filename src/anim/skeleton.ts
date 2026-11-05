@@ -64,8 +64,8 @@ export const LOOKS = {
    * 밝은 빛기둥 앞에서 읽히게 어두운 실루엣 (레퍼런스 3처럼): 검붉은 몸·아주 어두운 그늘·진한 주색 빛 받는 쪽·흰 테두리. 지금은 라이덴 강타만 쓴다
    */
   struck: { outline: 'raidenFxCore', shadow: 'ink', base: 'raidenFxDark', light: 'raidenFxScarlet' },
-  /** 백은우 강타에 맞은 순간: 짙은 하늘 몸·잉크 그늘·옅은 하늘 빛 받는 쪽·흰 테두리 (밝은 은빛 리본 앞에서 읽히게) */
-  struckEw: { outline: 'eunwooFxCore', shadow: 'eunwooFxInk', base: 'eunwooFxDeep', light: 'eunwooFxSky' },
+  /** 백은우 강타에 맞은 순간: 짙은 하늘 몸·잉크 그늘·옅은 하늘 빛 받는 쪽·금 테두리 (밝은 은빛 리본 앞에서 읽히게, 14-10 ②⑤ 금이 두 번째 주인공 색) */
+  struckEw: { outline: 'eunwooFxGold', shadow: 'eunwooFxInk', base: 'eunwooFxDeep', light: 'eunwooFxSky' },
   /** 에드워드 강타에 맞은 순간: 짙은 청동 몸·잉크 그늘·밝은 청동 빛 받는 쪽·흰 테두리 (밝은 청동 원호 앞에서 읽히게) */
   struckEd: { outline: 'edwardFxCore', shadow: 'edwardFxInk', base: 'edwardFxDeep', light: 'edwardFxBronze' },
   /** 차지를 모으는 동안 몸이 빛남: 한 단계씩 밝게 (렌더가 단계마다 맥박치듯 바꿔 끼운다) */

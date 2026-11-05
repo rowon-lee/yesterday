@@ -71,6 +71,10 @@ export interface GWedge extends GBase {
   edge?: GTone;
   /** 셀 3단 색을 통째로 바꾼다 [바깥 단, 주색 단, 심] (기본 [edge, 1, 0]). 에드워드 푸른 장막 띠 [6, 4, 5] */
   tones?: readonly [GTone, GTone, GTone];
+  /** 14-10 ① 맨 바깥 어두운 띠: 바깥 단 둘레에 이만큼 (px, 2~4) 잉크 색 띠를 두른다 (양 끝은 함께 뾰족하다) */
+  rim?: number;
+  /** 14-10 ② 한쪽 가장자리 금 테 (색 4): [시작 u, 끝 u, 굵기 px, 쪽 (+1 축 위쪽 · −1 아래쪽)]. 흩어지면 조각마다 그 가장자리를 따라 간다 */
+  thread?: readonly [number, number, number, number];
 }
 
 /** 스우시 띠 (문법 1): 원호를 따라 휘는 굵은 띠. 두께는 꼬리에서 머리로 (u 0 → 1) */
@@ -99,6 +103,8 @@ export interface GSwoosh extends GBase {
   tones?: readonly [GTone, GTone, GTone];
   /** 두께가 이 비율로 약 18px마다 굽이치며 흐른다 (기본 0: 납작한 큰 원호의 맨 아래가 한 줄로 곧게 눕지 않게) */
   ruffle?: number;
+  /** 14-10 ① 맨 바깥 어두운 띠: 바깥 단 둘레에 이만큼 (px, 2~4) 잉크 색 띠를 두른다 (양 끝은 함께 뾰족하다) */
+  rim?: number;
 }
 
 /**
@@ -152,6 +158,12 @@ export interface GRing extends GBase {
   /** 맨 위·맨 아래 (곡선이 수평이 되는 자리)를 약 32px씩 끊는다 (에드워드: 큰 고리·바닥에 누운 고리가 자로 그은 듯 평평해지지 않게, 끊긴 압력 고리) */
   cap?: boolean;
   tone?: GTone;
+  /** 14-10 ③ 끊긴 마디마다 가운데가 굵고 양 끝이 뾰족한 리본 호로 (철사처럼 같은 굵기로 이어지지 않게) */
+  taper?: boolean;
+  /** 14-10 ① 둘레 잉크 색 띠 (px) */
+  rim?: number;
+  /** 굵은 자리 안쪽 심 색 (두께 35%, 7px 넘게 굵은 곳만) */
+  core?: GTone;
 }
 
 /** 방사 속도선 (문법 5): 고리 안쪽에서 맞은 점으로 모이는 가는 선. 바깥이 굵고 안쪽 끝이 뾰족 */
@@ -168,6 +180,8 @@ export interface GFlash extends GBase {
   at?: GPt;
   /** 테두리 색 (기본 4) */
   rim?: GTone;
+  /** 14-10 ② 몸 색: 있으면 세 겹 (테두리 → 이 색의 별 → 작은 흰 심). 없으면 지금처럼 두 겹 (테두리 → 흰 별) */
+  inner?: GTone;
   spikes: ReadonlyArray<readonly [number, number, number]>;
 }
 
@@ -183,6 +197,8 @@ export interface GEmbers extends GBase {
   fan: number;
   /** 사는 틱 (14-2 잔향: 중력으로 떨어져 바닥에서 튀고, 식으며 색이 어두워진다) */
   life: number;
+  /** 불씨마다 처음 색 (차례로 돌려 쓴다). 없으면 공통 [0, 1, 4, 1, 0, 2] */
+  tones?: readonly GTone[];
 }
 
 /** 연기·열기 (14-2 잔향): 단단한 경계의 작은 덩어리가 천천히 오르며 커졌다 작아진다. 처음은 진한 주색(열기) → 잉크색 */
@@ -236,6 +252,8 @@ export interface GRibbon extends GBase {
   ruffle?: number;
   /** 셀 3단 색을 통째로 바꾼다 [바깥 단, 주색 단, 심] (기본 [edge, 1, 0]). 에드워드 푸른 장막 띠 [6, 4, 5] */
   tones?: readonly [GTone, GTone, GTone];
+  /** 14-10 ① 맨 바깥 어두운 띠: 바깥 단 둘레에 이만큼 (px, 2~4) 잉크 색 띠를 두른다 (양 끝은 함께 뾰족하다) */
+  rim?: number;
 }
 
 /**
