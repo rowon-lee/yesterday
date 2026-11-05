@@ -126,6 +126,17 @@ function superTime(s: SimState, i: number): number {
 const HUD_LILY = ['...3...', '.3.1.3.', '..121..', '3122213', '..121..', '.3.1.3.', '...3...'];
 
 export const EUNWOO_RENDER: CharRender = {
+  reset() {
+    trails.fill(null);
+    intros.fill(null);
+    lastFrame.fill('');
+    threads.length = 0;
+    swarms.length = 0;
+    shields.length = 0;
+    marks.fill(null);
+    auras.fill(null);
+    minds.fill(null);
+  },
   // 길티기어식 이펙트 기술의 덧그림: 내려찍기 와이어 (뒷손에서 앞아래로 쏘아 감아 채고, 맞혔으면 상대 몸에 감긴 채 따라간다)
   ggStrike(c, s, f, _i, id) {
     const mv = movesOf(f.char)[id];

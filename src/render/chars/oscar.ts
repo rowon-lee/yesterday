@@ -195,10 +195,11 @@ interface Slot {
   /** 스킬 2 틈 빛 (월드 자리, 끝 틱) */
   slitLight: { x: number; y: number; until: number };
 }
-const slots: Slot[] = [0, 1].map(() => ({
+const freshSlot = (): Slot => ({
   seen: -99, who: null, pulse: [0, 0, 0, 0, 0], cand: -1, D: -1, domainOn: false, endTick: -1, short: false, moonX: 0, moonY: 0, lines: [],
   sliced: false, domainFx: null, slitLight: { x: 0, y: 0, until: -1 },
-}));
+});
+const slots: Slot[] = [0, 1].map(freshSlot);
 let nowTick = 0;
 
 /** 이 사람이 차지를 모으는 중이거나, 떼고 아직 펼치기 전인가 (꽃이 살아 있는 동안) */
@@ -408,6 +409,10 @@ function onEvent(c: CharFx, s: SimState, e: SimEvent, i: number): void {
 }
 
 export const OSCAR_RENDER: CharRender = {
+  reset() {
+    slots.forEach((_, i) => (slots[i] = freshSlot()));
+    nowTick = 0;
+  },
   ramp: MOON_RAMP,
   light: COLORS.moonLight,
   ownSpark: true,

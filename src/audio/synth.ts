@@ -90,6 +90,11 @@ function sharedOf(ctx: BaseAudioContext): Shared {
   return s;
 }
 
+/** 노이즈 버퍼를 미리 만든다 (처음 소리를 낼 때 만들지 않게) */
+export function primeSynth(ctx: BaseAudioContext): void {
+  sharedOf(ctx);
+}
+
 /** 디스토션 곡선 (tanh): 세기 k */
 function curveOf(ctx: BaseAudioContext, k: number): Float32Array<ArrayBuffer> {
   const s = sharedOf(ctx);

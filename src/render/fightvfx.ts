@@ -45,7 +45,7 @@ import { facadeAtlas } from './gl/buildings';
 import { keepAtlas } from './gl/plaza';
 import { fxColor, fxHex, fxRamp, FX_PX, type VfxLayer } from './vfx';
 import { lights } from './light';
-import { rendersOf, type CharFx } from './chars';
+import { rendersOf, resetCharRenders, type CharFx } from './chars';
 import { clearScreenFx, impact as impactFrame, rainHold, zoomPunch } from './screenfx';
 import { COLORS } from './palette';
 
@@ -554,6 +554,7 @@ export class FightVfx {
   reset(s: SimState): void {
     this.layer.clear();
     clearScreenFx();
+    resetCharRenders();
     this.debris.clear();
     this.later = [];
     this.round = s.round;

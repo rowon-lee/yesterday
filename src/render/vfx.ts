@@ -76,8 +76,12 @@ export class VfxLayer {
   /** 지난 그리기에서 이펙트가 칠한 사각형 (x0, y0, x1, y1). 다음 그리기 전에 그 안만 지운다 */
   private used = [0, 0, SCREEN_W - 1, SCREEN_H - 1];
 
+  /** 지금까지 얹은 이펙트 수 (늘기만 한다. 이펙트 미리 그려 보기가 새 이펙트가 생긴 틱에만 그리려고 본다) */
+  born = 0;
+
   add(fx: VfxInstance): void {
     this.list.push(fx);
+    this.born++;
   }
 
   private wipe(): void {

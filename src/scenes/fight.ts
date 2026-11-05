@@ -86,8 +86,19 @@ const CAMERA_DAMP = 0.35;
  *   ?p1skin=raiden&p2skin=… 확인용: 캐릭터 겉모습(장식·색)만 바꿔 그린다 (동작·기술은 그 캐릭터 것 그대로)
  * Esc·P로 일시정지 (계속 / 처음부터 / 조작법 / 타이틀로). 경기가 끝나면 다시 하기 / 타이틀로.
  */
-export function fightScene(app?: App): Scene {
-  const params = new URLSearchParams(location.search);
+export interface FightOpts {
+  /** 주소 옵션 (없으면 지금 주소) */
+  params?: URLSearchParams;
+  /**
+   * 불러오기 화면의 '이펙트 미리 그려 보기' (render/rehearse.ts): 화면 밖에서 짧은 연습 대련을 돌려 이펙트 코드·캐시를 데운다.
+   * 3D 무대 그리기·확대·소리·터치 패드·확인 도구 값은 건드리지 않는다 (sim과 이펙트·HUD 2D 그림만)
+   */
+  rehearsal?: boolean;
+}
+
+export function fightScene(app?: App, opts: FightOpts = {}): Scene & { fxBorn(): number } {
+  const params = opts.params ?? new URLSearchParams(location.search);
+  const rehearsal = opts.rehearsal === true;
   const p1Cpu = params.get('p1') === 'cpu';
   const practice = params.get('mode') === 'practice';
   const dummy = params.get('dummy') ?? (params.get('p2') === 'idle' ? 'stand' : params.get('p2') === 'tech' ? 'tech' : practice ? 'stand' : 'cpu');
@@ -167,18 +178,21 @@ export function fightScene(app?: App): Scene {
   };
   reset();
   // 휴대폰이면 터치 패드·버튼을 띄운다 (CPU끼리 구경할 때는 감춘다)
-  touch.enable(!p1Cpu);
+  if (!rehearsal) touch.enable(!p1Cpu);
   // 확인 도구가 읽는 값
-  (window as unknown as { __fight: () => SimState }).__fight = () => s;
-  // 확인 도구(14-6 숫자 표)가 읽는 값: 애니 이펙트를 낸 기록
-  (window as unknown as { __animeLog: () => unknown }).__animeLog = () => fightVfx.animeLog;
-  // 확인 도구: 이번 프레임 애니 이펙트 칸 (뒤·앞 겹 합침, 화면 칸마다 0/1, base64). 처음 부르면 기록을 켠다
-  (window as unknown as { __fxMarks: () => string }).__fxMarks = () => {
-    if (!vfx.debugMarks) vfx.debugMarks = new Uint8Array(SCREEN_W * SCREEN_H);
-    let bin = '';
-    for (let i = 0; i < vfx.debugMarks.length; i += 0x8000) bin += String.fromCharCode(...vfx.debugMarks.subarray(i, i + 0x8000));
-    return btoa(bin);
-  };
+  if (!rehearsal) installDebugHooks();
+  function installDebugHooks(): void {
+    (window as unknown as { __fight: () => SimState }).__fight = () => s;
+    // 확인 도구(14-6 숫자 표)가 읽는 값: 애니 이펙트를 낸 기록
+    (window as unknown as { __animeLog: () => unknown }).__animeLog = () => fightVfx.animeLog;
+    // 확인 도구: 이번 프레임 애니 이펙트 칸 (뒤·앞 겹 합침, 화면 칸마다 0/1, base64). 처음 부르면 기록을 켠다
+    (window as unknown as { __fxMarks: () => string }).__fxMarks = () => {
+      if (!vfx.debugMarks) vfx.debugMarks = new Uint8Array(SCREEN_W * SCREEN_H);
+      let bin = '';
+      for (let i = 0; i < vfx.debugMarks.length; i += 0x8000) bin += String.fromCharCode(...vfx.debugMarks.subarray(i, i + 0x8000));
+      return btoa(bin);
+    };
+  }
 
   /** 잔상을 남기고, 착지·박차고 뛰는 순간에 흙먼지를 일으킨다 (대시의 잔상·먼지는 Sprite Fusion Dash & Blink) */
   const watchMotion = () => {
@@ -309,6 +323,13 @@ export function fightScene(app?: App): Scene {
     });
   };
 
+  let rehearsalCtx: CanvasRenderingContext2D | null = null;
+  const offscreen = () => {
+    const c = document.createElement('canvas');
+    c.width = SCREEN_W;
+    c.height = SCREEN_H;
+    return c.getContext('2d')!;
+  };
   const render3d = (ctx: CanvasRenderingContext2D) => {
     const g = gl();
     const [ox, oy] = fx.offset();
@@ -324,13 +345,22 @@ export function fightScene(app?: App): Scene {
         const fist = fighterPose(att).joints.hB;
         red = [att.x / 256 + att.facing * fist[0] - placed.ix, GROUND_Y + att.y / 256 + fist[1] - placed.iy, 22];
       }
-      g.world.freezeRain(still, red);
+      if (!rehearsal) g.world.freezeRain(still, red);
     }
-    g.world.update(g.view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256, s.clock, s.citadel, s.wreck);
-    g.view.commitLights();
+    if (!rehearsal) {
+      g.world.update(g.view, s.tick, s.props, s.city, (s.fighters[0].x + s.fighters[1].x) / 2 / 256, s.clock, s.citadel, s.wreck);
+      g.view.commitLights();
+    }
     const v = { x: placed.ix, y: placed.iy };
     const toScreen = (x: number, y: number): [number, number] => [Math.round(x - v.x), Math.round(GROUND_Y + y - v.y)];
-    g.actors.back.paint(g.view.renderer, v.x, v.y, (c) => {
+    // 미리 그려 보기(rehearsal): 화면의 평면 층·그래픽 칩은 건드리지 않고 화면 밖 캔버스에만 그린다
+    const paint = (layer: typeof g.actors.back, draw: (c: CanvasRenderingContext2D) => boolean) => {
+      if (!rehearsal) return layer.paint(g.view.renderer, v.x, v.y, draw);
+      rehearsalCtx ??= offscreen();
+      rehearsalCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+      draw(rehearsalCtx);
+    };
+    paint(g.actors.back, (c) => {
       let drew = dust.length > 0;
       drawDust(c, dust, toScreen);
       trails.forEach((tr, i) => {
@@ -353,7 +383,7 @@ export function fightScene(app?: App): Scene {
       }
       return drew;
     });
-    g.actors.front.paint(g.view.renderer, v.x, v.y, (c) => {
+    paint(g.actors.front, (c) => {
       let drew = vfx.draw(c, v, 'front');
       if (fightVfx.debris.busy) {
         fightVfx.debris.drawDust(c, v, 'front');
@@ -386,8 +416,10 @@ export function fightScene(app?: App): Scene {
         order: order.indexOf(f),
       };
     }));
-    applyZoom(v);
-    g.view.render();
+    if (!rehearsal) {
+      applyZoom(v);
+      g.view.render();
+    }
     ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
     if (showBoxes) {
       drawPlatforms(ctx, v, s);
@@ -466,7 +498,7 @@ export function fightScene(app?: App): Scene {
       const p2 = dummy === 'stand' ? 0 : dummy === 'guard' ? (s.phase === 'fight' ? IN_DOWN : 0) : dummy === 'tech' ? (canTech ? IN_JUMP : 0) : cpuInput(cpus[1], s, 1);
       step(s, [p1, p2]);
       // 소리: 이번 틱 사건을 읽어 바로 낸다 (맞는 틱에 소리가 시작)
-      for (const c of sound.read(s)) audio.cue(c);
+      for (const c of sound.read(s)) if (!rehearsal) audio.cue(c);
       fx.push(s.events);
       for (const e of s.events) if (e.type === 'cine' && e.text === 'start') cineStart = s.tick;
       fightVfx.tick(s);
@@ -484,7 +516,7 @@ export function fightScene(app?: App): Scene {
       watchMotion();
       followCamera();
       // 터치 공격 버튼: 길게 눌러 모으는 중이면 빛낸다
-      touch.setCharge(s.fighters[0].mode === 'charge' ? 2 : s.fighters[0].chargeArm ? 1 : 0);
+      if (!rehearsal) touch.setCharge(s.fighters[0].mode === 'charge' ? 2 : s.fighters[0].chargeArm ? 1 : 0);
       if (cutin) {
         cutin.t++;
         if (s.freeze === 0) cutin = null;
@@ -495,6 +527,7 @@ export function fightScene(app?: App): Scene {
       if (cam.x < 0) followCamera();
       render3d(ctx);
     },
+    fxBorn: () => vfx.born,
   };
 }
 
