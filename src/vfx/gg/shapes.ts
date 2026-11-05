@@ -247,7 +247,9 @@ export function swoosh(s: GSwoosh, ph: Phase): Paint[] {
   };
   const [ba, bf] = s.bulge ?? [0.9, 0.7];
   const len = Math.abs(a1 - a0) * rr;
-  return bandPaints({ C, N, w: s.w, len, peak: s.peak ?? 0.62, ba, bf, skew: s.skew ?? 0.2, levels: celLevels(s, ph), drift: clamp(0.2 * len, 8, 36) }, ph);
+  const ruf = s.ruffle ?? 0;
+  const mul = ruf ? (u: number) => 1 + ruf * Math.sin((2 * Math.PI * u * len) / 18 - 0.9 * ph.ls) : undefined;
+  return bandPaints({ C, N, w: s.w, len, peak: s.peak ?? 0.62, ba, bf, skew: s.skew ?? 0.2, levels: celLevels(s, ph), drift: clamp(0.2 * len, 8, 36), mul }, ph);
 }
 
 /**

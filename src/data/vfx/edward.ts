@@ -47,7 +47,7 @@ const smallHit = (dir: number, size: number, life = 24): GShape[] => [spark(dir,
 /** 4타 풀스윙 원호 (ARC4 가운데 0,−32 · 55×22): 몸 뒤에서 발 앞을 지나 앞으로, 가장 굵게. 납작한 원을 6° 기울인다 (밑이 수평으로 길게 눕지 않게) */
 const ATK4_ARC: GShape[] = [
   ghost([0, -32], 62, 28, 190, -30, 30, { rot: -6, fade: 10 }),
-  arc([0, -32], 58, 25, 205, -22, 54, { rot: -6, peak: 0.8, coreLen: 0.55, hold: 2, fade: 14 }),
+  arc([0, -32], 58, 25, 205, -22, 54, { rot: -6, peak: 0.8, coreLen: 0.55, ruffle: 0.06, hold: 2, fade: 14 }),
 ];
 /** 4타 화면 밖으로 (14-9 E): 맞은 점에서 날아가는 쪽(위 앞 −30°)으로 화면 밖까지 빛기둥 둘 */
 const ATK4_OUT: GShape[] = [
@@ -465,7 +465,7 @@ export interface EdwardSkill2 {
 }
 /** 장막 손 (12-3 '상대보다 한 둘레 큰 손 모양 막'): 다섯 손가락 쐐기가 사방에서 상대 가슴으로 모여 움켜쥔다 (장막 색) */
 const VEIL_HAND: GShape[] = [
-  ...([[-150, 52, 15], [-108, 58, 17], [-62, 56, 16], [-14, 50, 14], [128, 46, 13]] as const).map(([a, r, w]) => ({
+  ...([[-150, 52, 15], [-108, 58, 17], [-62, 56, 16], [-26, 50, 14], [128, 46, 13]] as const).map(([a, r, w]) => ({
     kind: 'wedge', at: [Math.cos((a * Math.PI) / 180) * r, Math.sin((a * Math.PI) / 180) * r], angle: a + 180, back: 4, fwd: r * 0.78, w, peak: 0.3, bulge: [0.6, 1.2],
     tones: [6, 4, 5], main: 0.6, core: 0.22, hold: 6, fade: 10,
   }) as GShape),

@@ -96,6 +96,8 @@ export interface GSwoosh extends GBase {
   rot?: number;
   /** 셀 3단 색을 통째로 바꾼다 [바깥 단, 주색 단, 심] (기본 [edge, 1, 0]). 에드워드 푸른 장막 띠 [6, 4, 5] */
   tones?: readonly [GTone, GTone, GTone];
+  /** 두께가 이 비율로 약 18px마다 굽이치며 흐른다 (기본 0: 납작한 큰 원호의 맨 아래가 한 줄로 곧게 눕지 않게) */
+  ruffle?: number;
 }
 
 /**
