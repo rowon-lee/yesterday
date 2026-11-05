@@ -73,6 +73,8 @@ export interface GWedge extends GBase {
   tones?: readonly [GTone, GTone, GTone];
   /** 14-10 ① 맨 바깥 어두운 띠: 바깥 단 둘레에 이만큼 (px, 2~4) 잉크 색 띠를 두른다 (양 끝은 함께 뾰족하다) */
   rim?: number;
+  /** 14-10 ② 한쪽 가장자리 금 테 (색 4): [시작 u, 끝 u, 굵기 px, 쪽 (+1 축 위쪽 · −1 아래쪽)]. 흩어지면 조각마다 그 가장자리를 따라 간다 */
+  thread?: readonly [number, number, number, number];
 }
 
 /** 스우시 띠 (문법 1): 원호를 따라 휘는 굵은 띠. 두께는 꼬리에서 머리로 (u 0 → 1) */

@@ -124,6 +124,13 @@ interface BandSpec {
   blunt?: boolean;
   /** 흩어지는 조각 길이 상한 (조각 두께의 몇 배, 기본 16) */
   aspect?: number;
+  /**
+   * 14-10 ② 한쪽 가장자리 금 테: [시작 u, 끝 u, 굵기 px, 쪽 (+1 위 · −1 아래)]. 맨 바깥 밝은 단의 가장자리 안쪽에 붙고,
+   * 흩어지면 조각마다 그 조각의 가장자리를 따라 간다 (조각 밖에 따로 떠서 가는 선이 되지 않게). 굵기는 조각 두께의 40%를 넘지 않는다
+   */
+  edge?: readonly [number, number, number, number];
+  /** 금 테 위를 미끄러지는 흰 빛 자리 (u, 본조각에만) */
+  edgeGlint?: number;
 }
 
 /** 흩어질 때 띠가 찢어지는 조각: 가운데 본조각 + 곁조각 둘 (두께·길이·자리가 서로 달라 같은 굵기 평행선이 되지 않는다) */
@@ -146,6 +153,10 @@ function bandPaints(b: BandSpec, ph: Phase): Paint[] {
   const outer = b.levels.find((lv) => p < lv.drop);
   if (!outer) return [];
   const perLevel: number[][][] = b.levels.map(() => []);
+  // 금 테가 붙는 단: 맨 바깥 밝은 단 (어두운 남색 테 단 다음)
+  const brightIdx = b.levels.findIndex((lv) => !lv.px);
+  const gold: number[][] = [];
+  const goldHi: number[][] = [];
   const e = p > 0 ? Math.min(1, p / 0.3) : 0;
   const S = p > 0 ? Math.min(b.shards ?? 3, b.w >= 11 ? 3 : 2) : 1;
   const flip = hash(ph.seed, 1, 21) < 0.5 ? 1 : -1;
@@ -177,17 +188,85 @@ function bandPaints(b: BandSpec, ph: Phase): Paint[] {
       const uB = u0 + (u1 - u0) * (b.peak + (1 - b.peak) * lv.l);
       const ba = p > 0 && b.blunt ? Math.min(b.ba, 0.6) : b.ba;
       const bf = p > 0 && b.blunt ? Math.min(b.bf, 0.6) : b.bf;
-      const H0 = b.mul ? (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf) * b.mul!(u, li) : (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf);
+      // 두께 배수 단 번호: 어두운 남색 테 단은 맨 바깥 밝은 단과 같은 번호로 센다 (비틀린 자리에서 밝은 단이 더 좁아지지 않게)
+      const lm = Math.max(0, li - (b.levels[0]?.px ? 1 : 0));
+      const H0 = b.mul ? (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf) * b.mul!(u, lm) : (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf);
       const px = lv.px ?? 0;
       const H = px > 0 ? (u: number) => H0(u) + 2 * px * Math.min(1, 3 * profile((u - uA) / (uB - uA), b.peak, ba, bf)) * Math.pow(1 - p, 0.5) : H0;
       perLevel[li]!.push(slice((u) => b.C(u, d), (u) => b.N(u, d), H, b.skew, off - ratio, off + ratio, uA, uB, n));
+      if (b.edge && li === brightIdx) edgeOf(b, H0, off + (b.edge[3] >= 0 ? ratio : -ratio), ratio, uA, uB, d, j === 0 ? b.edgeGlint : undefined, gold, goldHi);
     });
   }
   const out: Paint[] = [];
   b.levels.forEach((lv, li) => {
     if (perLevel[li]!.length) out.push({ tone: lv.tone, rings: perLevel[li]!, sep: true });
   });
+  if (gold.length) out.push({ tone: 4, rings: gold, sep: true });
+  if (goldHi.length) out.push({ tone: 0, rings: goldHi, sep: true });
   return out;
+}
+
+/**
+ * 금 테 한 조각 (14-10 ②): 조각 [uA, uB] 안에서 금 테 구간 (조각 길이에 비례)만큼, 그 조각 밝은 단의 sE 쪽 가장자리에서 안쪽으로.
+ * 굵기는 가운데가 굵고 양 끝으로 가늘어지며, 조각 두께(ratio × H)의 40%를 넘지 않는다. 1.2px 아래 자리는 빼고 잇는다
+ */
+function edgeOf(b: BandSpec, H: (u: number) => number, sE: number, ratio: number, uA: number, uB: number, d: number, glintU: number | undefined, out: number[][], hi: number[][]): void {
+  const [e0, e1, tw, side] = b.edge!;
+  const a = uA + (uB - uA) * e0;
+  const z = uA + (uB - uA) * e1;
+  if (z - a <= 0) return;
+  const off = (s: number, h: number) => (s >= 0 ? (s * h * (1 + b.skew)) / 2 : (s * h * (1 - b.skew)) / 2);
+  const sgn = side >= 0 ? 1 : -1;
+  const n = Math.max(8, Math.ceil(((z - a) * b.len) / 3));
+  let up: number[] = [];
+  let dn: number[] = [];
+  let gUp: number[] = [];
+  let gDn: number[] = [];
+  const flush = () => {
+    if (up.length >= 4) {
+      const ring = up.slice();
+      for (let i = dn.length - 2; i >= 0; i -= 2) ring.push(dn[i]!, dn[i + 1]!);
+      out.push(ring);
+    }
+    if (gUp.length >= 4) {
+      const g = gUp.slice();
+      for (let i = gDn.length - 2; i >= 0; i -= 2) g.push(gDn[i]!, gDn[i + 1]!);
+      hi.push(g);
+    }
+    up = [];
+    dn = [];
+    gUp = [];
+    gDn = [];
+  };
+  for (let i = 0; i <= n; i++) {
+    const u = a + ((z - a) * i) / n;
+    const h = Math.max(0, H(u));
+    const t = Math.min(h * ratio * 0.4, tw * Math.pow(Math.sin((Math.PI * i) / n), 0.6));
+    if (t < 1.2) {
+      flush();
+      continue;
+    }
+    const [x, y] = b.C(u, d);
+    const [nx, ny] = b.N(u, d);
+    const eo = off(sE, h);
+    const io = eo - sgn * t;
+    up.push(x + nx * eo, y + ny * eo);
+    dn.push(x + nx * io, y + ny * io);
+    if (glintU !== undefined && Math.abs((u - uA) / Math.max(1e-6, uB - uA) - glintU) < 0.05 && t >= 1.2) {
+      gUp.push(x + nx * eo, y + ny * eo);
+      gDn.push(x + nx * io, y + ny * io);
+    } else if (gUp.length) {
+      // 흰 빛 구간이 끝났다: 그 구간만 닫는다 (금 테는 이어서 그린다)
+      if (gUp.length >= 4) {
+        const g = gUp.slice();
+        for (let k = gDn.length - 2; k >= 0; k -= 2) g.push(gDn[k]!, gDn[k + 1]!);
+        hi.push(g);
+      }
+      gUp = [];
+      gDn = [];
+    }
+  }
+  flush();
 }
 
 /** 셀 3단 (진한 주색 → 주색 → 심, tones로 통째로 바꿀 수 있다: 에드워드 푸른 장막 띠). 살아 있는 동안 흰 심이 맥동한다 (4틱 주기, ±22%) */
@@ -220,6 +299,7 @@ export function wedge(s: GWedge, ph: Phase): Paint[] {
     skew: s.skew ?? 0,
     levels: celLevels(s, ph),
     drift: clamp(0.18 * L, 8, 40),
+    edge: s.thread,
   }, ph);
 }
 
@@ -887,46 +967,12 @@ export function ribbon(s: GRibbon, ph: Phase): Paint[] {
   };
   const [ba, bf] = s.bulge ?? [1.1, 0.6];
   const peak = s.peak ?? 0.66;
-  // 리본 조각은 6px 넘게 굵고 두께의 10배까지만 길다 (긴 리본이 흩어지며 가늘고 긴 가닥이 남지 않게)
-  const out = bandPaints({ C, N, w: s.w, len: L, peak, ba, bf, skew: s.skew ?? 0, levels: celLevels(s, ph), drift: clamp(0.25 * L, 10, 44), mul, blunt: true, minShard: 6, aspect: 10 }, ph);
-  // 금색 실 한 가닥 (앞날 안쪽): 흩어지기 시작하면 (바깥 단보다 먼저) 빠진다
+  // 리본 조각은 6px 넘게 굵고 두께의 10배까지만 길다 (긴 리본이 흩어지며 가늘고 긴 가닥이 남지 않게).
+  // 금 테 (14-10 ②)는 맨 바깥 밝은 단의 한쪽 가장자리를 따라 조각마다 붙어 간다. 흰 빛이 한 점 미끄러진다
   const th = s.thread;
-  if (th && ph.p < 0.22) {
-    const [u0, u1, tw, side] = th;
-    const thick = s.w * ph.a * Math.pow(1 - ph.p, 0.8);
-    const skew = s.skew ?? 0;
-    const up: number[] = [];
-    const dn: number[] = [];
-    const glintU = u0 + (u1 - u0) * (((ph.ls * 0.13) % 1.3) - 0.15);
-    const hiUp: number[] = [];
-    const hiDn: number[] = [];
-    const n = Math.max(8, Math.ceil(((u1 - u0) * L) / 3));
-    for (let i = 0; i <= n; i++) {
-      const u = u0 + ((u1 - u0) * i) / n;
-      const [x, y] = C(u, 0);
-      const [nx, ny] = N(u, 0);
-      const h = thick * profile(u, peak, ba, bf) * mul(u, 0);
-      const edge = side >= 0 ? (h * (1 + skew)) / 2 : (-h * (1 - skew)) / 2;
-      // 실 굵기: 가운데가 굵고 양 끝으로 가늘어진다, 띠 두께의 40%를 넘지 않는다
-      const t = Math.min(h * 0.4, tw * Math.pow(Math.sin((Math.PI * i) / n), 0.6));
-      const inner = edge - (side >= 0 ? 1 : -1) * t;
-      up.push(x + nx * edge, y + ny * edge);
-      dn.push(x + nx * inner, y + ny * inner);
-      if (Math.abs(u - glintU) < 0.05 && t >= 1.2) {
-        hiUp.push(x + nx * edge, y + ny * edge);
-        hiDn.push(x + nx * inner, y + ny * inner);
-      }
-    }
-    const ring = up.slice();
-    for (let i = dn.length - 2; i >= 0; i -= 2) ring.push(dn[i]!, dn[i + 1]!);
-    out.push({ tone: 4, rings: [ring] });
-    if (hiUp.length >= 4) {
-      const g = hiUp.slice();
-      for (let i = hiDn.length - 2; i >= 0; i -= 2) g.push(hiDn[i]!, hiDn[i + 1]!);
-      out.push({ tone: 0, rings: [g] });
-    }
-  }
-  return out;
+  const glint = th ? (((ph.ls * 0.13) % 1.3) - 0.15) : undefined;
+  const edgeGlint = th && glint !== undefined ? th[0] + (th[1] - th[0]) * glint : undefined;
+  return bandPaints({ C, N, w: s.w, len: L, peak, ba, bf, skew: s.skew ?? 0, levels: celLevels(s, ph), drift: clamp(0.25 * L, 10, 44), mul, blunt: true, minShard: 6, aspect: 10, edge: th, edgeGlint }, ph);
 }
 
 /** 꽃잎 하나 (양 끝이 뾰족한 잎 모양 6각형): 가운데 (x, y), 방향 (라디안), 길이, 폭 */
