@@ -13,7 +13,7 @@ export type GPt = readonly [number, number];
 
 /**
  * 셀 색 단계 (캐릭터 색표 번호): 0 심 (흰·크림) · 1 주색 · 2 진한 주색 · 3 잉크 (아주 어두운) · 4 고리·테두리 (보색 소량)
- * · 5 덧색 (백은우 백합 꽃잎 연분홍) · 6 짙은 주색 (백은우 짙은 하늘: 물빛 그늘). 색표에 없는 번호는 0으로 그린다
+ * · 5 덧색 (백은우 백합 꽃잎 연분홍, 에드워드 밝은 장막) · 6 짙은 주색 (백은우 짙은 하늘: 물빛 그늘, 에드워드 짙은 장막). 색표에 없는 번호는 0으로 그린다
  */
 export type GTone = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -38,6 +38,8 @@ interface GBase {
   pulse?: boolean;
   /** 14-9 I 시간 엇갈림: 살아 있는 정지 동안 자라는 빠르기 배수 (기본 1, 자라는 상한도 함께 늘어난다) */
   grow?: number;
+  /** 오래 머무는 모양 (14-9 J 탄 자국)이 같은 그림으로 멈추지 않게 두께가 이 비율로 천천히 숨쉰다 (살아 있는 시계, 약 9틱 주기) */
+  breathe?: number;
 }
 
 /**
@@ -66,6 +68,8 @@ export interface GWedge extends GBase {
   coreLen?: number;
   /** 바깥 단 색 (기본 2 진한 주색) */
   edge?: GTone;
+  /** 셀 3단 색을 통째로 바꾼다 [바깥 단, 주색 단, 심] (기본 [edge, 1, 0]). 에드워드 푸른 장막 띠 [6, 4, 5] */
+  tones?: readonly [GTone, GTone, GTone];
 }
 
 /** 스우시 띠 (문법 1): 원호를 따라 휘는 굵은 띠. 두께는 꼬리에서 머리로 (u 0 → 1) */
@@ -90,6 +94,8 @@ export interface GSwoosh extends GBase {
   sy?: number;
   /** 납작한 원 기울기 (도, 가운데 기준. 꼭대기가 수평으로 길게 눕지 않게) */
   rot?: number;
+  /** 셀 3단 색을 통째로 바꾼다 [바깥 단, 주색 단, 심] (기본 [edge, 1, 0]). 에드워드 푸른 장막 띠 [6, 4, 5] */
+  tones?: readonly [GTone, GTone, GTone];
 }
 
 /**
@@ -218,6 +224,8 @@ export interface GRibbon extends GBase {
   wave?: readonly [number, number];
   /** 천의 잔물결: 두께가 이 비율로 약 15px마다 굽이친다 (기본 0.06) */
   ruffle?: number;
+  /** 셀 3단 색을 통째로 바꾼다 [바깥 단, 주색 단, 심] (기본 [edge, 1, 0]). 에드워드 푸른 장막 띠 [6, 4, 5] */
+  tones?: readonly [GTone, GTone, GTone];
 }
 
 /**
@@ -268,7 +276,61 @@ export interface GStitch extends GBase {
   tone?: GTone;
 }
 
-export type GShape = GWedge | GSwoosh | GBolt | GInk | GRing | GRays | GFlash | GEmbers | GSmoke | GRibbon | GFlutter | GStitch;
+/**
+ * 짓누르는 충격파 (에드워드 14-4 고유 모양): 바닥 한 점 위 납작한 반원 껍데기 띠 (꼭대기가 가장 굵고 바닥에 닿는 끝이 뾰족하다).
+ * 살아 있는 시계로 반지름은 r[0] → r[1]로 넓어지고 높이는 h[0] → h[1]로 낮아진다 (퍼지며 눌려 납작해진다: 히트스톱 동안도 퍼진다).
+ * 흩어지면 바깥으로 밀려가며 찢어진다. at은 바닥 위 점 (y 0이 바닥)
+ */
+export interface GQuake extends GBase {
+  kind: 'quake';
+  at?: GPt;
+  /** 반지름 (가로, px)·높이 (px): 처음 → 끝 */
+  r: readonly [number, number];
+  h: readonly [number, number];
+  /** 퍼지는 틱 (살아 있는 시계, 처음이 빠르고 끝이 느리다) */
+  spread: number;
+  /** 꼭대기 두께 (px) */
+  w: number;
+  /** 기울기 (도, 기본 −5: 꼭대기가 수평으로 길게 눕지 않게) */
+  rot?: number;
+  /** 1 앞쪽 4분원만 · −1 뒤쪽만 · 0 양쪽 반원 (기본) */
+  sides?: -1 | 0 | 1;
+  peak?: number;
+  bulge?: readonly [number, number];
+  skew?: number;
+  main?: number;
+  core?: number;
+  coreLen?: number;
+  edge?: GTone;
+  tones?: readonly [GTone, GTone, GTone];
+}
+/**
+ * 바닥 덩어리 파편 (에드워드 14-4 고유 모양): 모난 큰 덩어리(4~16px)가 튀어 올라 돌며 떨어지고 바닥에서 튄다.
+ * 셀 3단: 아래쪽 그늘 · 몸 · 위쪽 빛 받는 면 (처음 몇 틱은 빛 받는 면이 흰 심: 달궈진 단면). 살아 있는 시계로 산다.
+ * 14-9 D: zoom이 있으면 카메라 쪽으로 커지며 날아온다
+ */
+export interface GChunks extends GBase {
+  kind: 'chunks';
+  at?: GPt;
+  n: number;
+  /** 처음 퍼진 반폭 (px), 크기 [가장 작은, 가장 큰] (px) */
+  spread: number;
+  size: readonly [number, number];
+  /** 빠르기 (px/틱), 방향 (도), 퍼짐 (도) */
+  speed: number;
+  dir: number;
+  fan: number;
+  life: number;
+  /** 하나씩 나오는 간격 (틱, 기본 0: 한꺼번에) */
+  every?: number;
+  /** 도는 빠르기 상한 (라디안/틱, 기본 0.25), 중력 (px/틱², 기본 0.2), 틱마다 커지는 비 (기본 0) */
+  spin?: number;
+  gravity?: number;
+  zoom?: number;
+  /** [그늘, 몸, 빛 받는 면] (기본 [3, 2, 1]) */
+  tones?: readonly [GTone, GTone, GTone];
+}
+export type GShape = GWedge | GSwoosh | GBolt | GInk | GRing | GRays | GFlash | GEmbers | GSmoke | GRibbon | GFlutter | GStitch | GQuake | GChunks;
 
 /** 화면 전환 (문법 8): 맞힌 틱부터 */
 export interface GScreen {
@@ -316,4 +378,6 @@ export interface GMove {
   pre?: readonly GShape[];
   /** 여러 번 맞히는 기술의 두 번째 타부터 맞은 점에 그리는 모양 (없으면 맞은 점 모양은 첫 타에만) */
   rehit?: readonly GShape[];
+  /** 공격자를 따라가는 모양: 판정이 시작하는 틱에 나와 기준점이 틱마다 공격자 발밑으로 옮겨진다 (에드워드 내려찍기 낙하 꼬리) */
+  trail?: readonly GShape[];
 }

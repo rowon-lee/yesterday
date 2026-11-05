@@ -5,7 +5,7 @@
 //   살아 있는 정지: ls(살아 있는 틱)로 번개가 2틱마다 다시 꺾이고, 흰 심이 맥동하고, creep(정지한 틱)만큼 가시·끝이 조금씩 더 뻗는다
 //   흩어짐 p: 꼬리부터 가닥으로 찢어져 공격 방향으로 흘러가고, 두께가 줄고, 바깥 단계 색부터 빠진다
 // 너무 가늘어진 가닥(2.6px 아래)이나 두께에 비해 너무 긴 가닥은 그리지 않는다 (1px 선이 남지 않게).
-import type { GBolt, GFlash, GInk, GPt, GRays, GRibbon, GRing, GStitch, GSwoosh, GTone, GWedge } from '../../data/vfx/types';
+import type { GBolt, GFlash, GInk, GPt, GQuake, GRays, GRibbon, GRing, GStitch, GSwoosh, GTone, GWedge } from '../../data/vfx/types';
 
 /** 칠할 것: 색 단계와 고리들. sep = 고리마다 따로 칠한다 (겹쳐도 구멍이 나지 않게), 아니면 짝홀 규칙으로 한 번에 */
 export interface Paint {
@@ -186,12 +186,13 @@ function bandPaints(b: BandSpec, ph: Phase): Paint[] {
   return out;
 }
 
-/** 셀 3단 (진한 주색 → 주색 → 심). 살아 있는 동안 흰 심이 맥동한다 (4틱 주기, ±22%) */
-function celLevels(o: { main?: number; core?: number; coreLen?: number; edge?: GTone }, ph: Phase): Level[] {
+/** 셀 3단 (진한 주색 → 주색 → 심, tones로 통째로 바꿀 수 있다: 에드워드 푸른 장막 띠). 살아 있는 동안 흰 심이 맥동한다 (4틱 주기, ±22%) */
+function celLevels(o: { main?: number; core?: number; coreLen?: number; edge?: GTone; tones?: readonly [GTone, GTone, GTone] }, ph: Phase): Level[] {
+  const [te, tm, tc] = o.tones ?? [o.edge ?? 2, 1, 0];
   const core = (o.core ?? 0.3) * (1 + 0.22 * Math.sin((ph.ls * Math.PI) / 2));
-  const out: Level[] = [{ tone: o.edge ?? 2, t: 1, l: 1, drop: 0.35 }];
-  if ((o.main ?? 0.66) > 0) out.push({ tone: 1, t: o.main ?? 0.66, l: 0.95, drop: 0.7 });
-  if ((o.core ?? 0.3) > 0) out.push({ tone: 0, t: core, l: o.coreLen ?? 0.78, drop: 0.85 });
+  const out: Level[] = [{ tone: te, t: 1, l: 1, drop: 0.35 }];
+  if ((o.main ?? 0.66) > 0) out.push({ tone: tm, t: o.main ?? 0.66, l: 0.95, drop: 0.7 });
+  if ((o.core ?? 0.3) > 0) out.push({ tone: tc, t: core, l: o.coreLen ?? 0.78, drop: 0.85 });
   return out;
 }
 
@@ -247,6 +248,75 @@ export function swoosh(s: GSwoosh, ph: Phase): Paint[] {
   const [ba, bf] = s.bulge ?? [0.9, 0.7];
   const len = Math.abs(a1 - a0) * rr;
   return bandPaints({ C, N, w: s.w, len, peak: s.peak ?? 0.62, ba, bf, skew: s.skew ?? 0.2, levels: celLevels(s, ph), drift: clamp(0.2 * len, 8, 36) }, ph);
+}
+
+/**
+ * 짓누르는 충격파 (에드워드 14-4): 바닥 점 위 납작한 반원 껍데기 띠. 꼭대기가 가장 굵고 (안쪽으로 두껍다) 바닥에 닿는 양 끝이 뾰족하다.
+ * 살아 있는 시계로 반지름은 넓어지고 높이는 낮아진다 (처음이 빠르다: 퍼지며 눌려 납작해진다). 꼭대기가 수평으로 길게 눕지 않게 조금 기울이고,
+ * 두께가 18px마다 조금씩 굽이친다. 흩어지면 바깥으로 밀려가며 찢어진다
+ */
+export function quake(s: GQuake, ph: Phase): Paint[] {
+  const at = s.at ?? [0, 0];
+  const k0 = clamp(ph.ls / Math.max(1, s.spread), 0, 1);
+  const k = 1 - (1 - k0) * (1 - k0);
+  const R = s.r[0] + (s.r[1] - s.r[0]) * k;
+  const H = s.h[0] + (s.h[1] - s.h[0]) * k;
+  const rot = (s.rot ?? -5) * D2R;
+  const rc = Math.cos(rot);
+  const rs = Math.sin(rot);
+  const side = s.sides ?? 0;
+  // 위쪽 반원 (화면 각 180° 뒤 → 270° 꼭대기 → 360° 앞). 한쪽만이면 그 쪽 4분원
+  const t0 = side > 0 ? 1.5 * Math.PI : Math.PI;
+  const t1 = side < 0 ? 1.5 * Math.PI : 2 * Math.PI;
+  const th = (u: number) => t0 + (t1 - t0) * u;
+  const C = (u: number, d: number): GPt => {
+    const t = th(u);
+    const x = Math.cos(t) * (R + d);
+    const y = Math.sin(t) * H;
+    return [at[0] + x * rc - y * rs, at[1] + x * rs + y * rc];
+  };
+  const N = (u: number): GPt => {
+    const t = th(u);
+    const nx = Math.cos(t) * H;
+    const ny = Math.sin(t) * R;
+    const l = Math.hypot(nx, ny) || 1;
+    return [(nx * rc - ny * rs) / l, (nx * rs + ny * rc) / l];
+  };
+  let len = 0;
+  let q0 = C(0, 0);
+  for (let i = 1; i <= 24; i++) {
+    const q = C(i / 24, 0);
+    len += Math.hypot(q[0] - q0[0], q[1] - q0[1]);
+    q0 = q;
+  }
+  // 꼭대기 (u: 양쪽 0.5, 앞쪽만 0, 뒤쪽만 1)가 가장 굵다
+  const peak = s.peak ?? (side > 0 ? 0.1 : side < 0 ? 0.9 : 0.5);
+  const [ba, bf] = s.bulge ?? (side > 0 ? [0.4, 0.8] : side < 0 ? [0.8, 0.4] : [0.75, 0.75]);
+  const mul = (u: number) => 1 + 0.12 * Math.sin((2 * Math.PI * u * len) / 18 - 0.9 * ph.ls);
+  // 띠는 높이의 85%를 넘게 두껍지 않다 (눌려 낮아질수록 얇아진다: 바닥 아래로 삐져나가지 않게)
+  const w = Math.min(s.w, 0.85 * H);
+  return bandPaints({ C, N, w, len, peak, ba, bf, skew: s.skew ?? -0.5, levels: celLevels(s, ph), drift: clamp(0.3 * R, 8, 40), mul, minShard: 3.2 }, ph);
+}
+
+/** 다각형 (평평한 x, y 목록)을 반평면 x·nx + y·ny ≥ c 안으로 자른다 */
+export function clipHalf(pts: readonly number[], nx: number, ny: number, c: number): number[] {
+  const out: number[] = [];
+  const n = pts.length >> 1;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ax = pts[2 * i]!;
+    const ay = pts[2 * i + 1]!;
+    const bx = pts[2 * j]!;
+    const by = pts[2 * j + 1]!;
+    const da = ax * nx + ay * ny - c;
+    const db = bx * nx + by * ny - c;
+    if (da >= 0) out.push(ax, ay);
+    if (da >= 0 !== db >= 0) {
+      const t = da / (da - db);
+      out.push(ax + (bx - ax) * t, ay + (by - ay) * t);
+    }
+  }
+  return out;
 }
 
 /** 굵은 번개의 점 (점을 직접 주거나 원호 + 꺾임) */

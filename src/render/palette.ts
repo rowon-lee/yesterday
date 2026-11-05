@@ -64,6 +64,12 @@ export const COLORS = {
   eunwooFxDeep: '#3d63a8',
   // 색 뒤집기 (14-9 L): 은백·옅은 하늘이 1틱 동안 금빛 쪽으로
   eunwooFxAmber: '#f2a93b',
+  // 에드워드 길티기어식 이펙트 색 (동작연출지침서 14-4 '흰 → 청동 → 짙은 청동 → 푸른 잔상(껍데기 색)', 14-8 셀 단계):
+  // 심 따뜻한 흰 → 주색 밝은 청동 → 진한 주색 짙은 청동, 잉크 아주 어두운 밤색. 푸른 잔상은 껍데기 장막 색(veil 세 단계)을 그대로 쓴다
+  edwardFxCore: '#fff3dc',
+  edwardFxBronze: '#eba64e',
+  edwardFxDeep: '#9c5822',
+  edwardFxInk: '#170b06',
   // 피부 (얼굴·손, 2026-11-02 '피부는 손·얼굴만'): 창백한 살빛 세 단계
   skin: '#e6c9bc',
   skinLight: '#f6e4da',
@@ -294,6 +300,7 @@ export const COMMON: readonly ColorName[] = [
   // 백은우
   'lily', 'lilyLight', 'lilyDark', 'lilyDeep', 'gown', 'gownShade', 'gownDark', 'hairBrown', 'hairBrownLight', 'hairBrownDark', 'thread', 'threadLight', 'ash', 'ashLight', 'ashDark', 'skin', 'skinLight', 'skinDark',
   'eunwooFxCore', 'eunwooFxSilver', 'eunwooFxSky', 'eunwooFxInk', 'eunwooFxGold', 'eunwooFxDeep', 'eunwooFxAmber',
+  'edwardFxCore', 'edwardFxBronze', 'edwardFxDeep', 'edwardFxInk',
   // 에드워드
   'crimson', 'crimsonLight', 'crimsonDark', 'crimsonDeep', 'veil', 'veilLight', 'veilDark', 'bronze', 'bronzeLight', 'bronzeDark', 'hammer', 'hammerLight', 'hammerDark',
   // 오스카

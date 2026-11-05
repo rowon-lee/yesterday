@@ -3,6 +3,7 @@
 // 맞을 자리 쪽으로 공기가 빨려 드는 짧은 빛 쐐기 2~3개가 바깥에서 그 자리로 모여든다 (뿌리가 굵어 1px 선이 되지 않는다).
 // 관절·맞을 자리는 틱마다 다시 읽는다 (공중에서 움직이는 공격도 따라간다). 차지는 모으는 동안 되풀이한다.
 // 백은우 (style 'glint'): 번개 대신 짧은 은빛 리본 조각이 손 → 연검 끝으로 미끄러지고 (사슬 = 그 틱의 연검 리본 점), 마지막 틱에 끝에서 네 갈래 반짝임.
+// 에드워드 (style 'hammer'): 굵은 청동 조각이 어깨 → 손 → 해머 머리로 미끄러지고 (해머 머리가 무거워지는 '온다'의 신호), 마지막 틱에 해머 머리에서 섬광.
 import type { GPt } from '../../data/vfx/types';
 import { fillRings, type GFrame, type Layer } from './raster';
 import { bolt, flash, hash, ribbon, wedge, type Paint, type Phase } from './shapes';
@@ -23,8 +24,8 @@ export interface PreludeSpec {
   loop?: () => boolean;
   /** 빨려 드는 선 수 (2~3) */
   lines?: number;
-  /** 사슬을 타는 것: bolt 굵은 번개 조각 (라이덴) · glint 은빛 리본 조각 (백은우) */
-  style?: 'bolt' | 'glint';
+  /** 사슬을 타는 것: bolt 굵은 번개 조각 (라이덴) · glint 은빛 리본 조각 (백은우) · hammer 굵은 청동 조각 (에드워드) */
+  style?: 'bolt' | 'glint' | 'hammer';
 }
 
 const TICK = 1 / 60;
@@ -90,16 +91,19 @@ export default function ggPrelude(o: PreludeSpec) {
         // 조각 위 점 4개 (가운데 둘은 틱마다 비틀린다: 살아 있는 전류)
         const pts: GPt[] = [0, 0.33, 0.66, 1].map((q) => at(ua + (ub - ua) * q));
         const ph: Phase = { a: 1, ls: k * 2, creep: 0, p: 0, seed: o.seed * 13 + ci };
-        if (o.style === 'glint') {
-          // 은빛 리본 조각 (뒤가 가늘고 앞이 굵다, 셀 3단)
-          if (L >= 10) paintW(f, ribbon({ kind: 'ribbon', pts, w: 6, peak: 0.72, bulge: [1.2, 0.5], wave: [0, 40], main: 0.6, core: 0.3 }, ph), (x, y) => [x, y]);
+        if (o.style === 'glint' || o.style === 'hammer') {
+          // 은빛 리본 조각 (뒤가 가늘고 앞이 굵다, 셀 3단). 에드워드는 더 굵은 청동 조각
+          const w = o.style === 'hammer' ? 9 : 6;
+          if (L >= 10) paintW(f, ribbon({ kind: 'ribbon', pts, w, peak: 0.72, bulge: [1.2, 0.5], wave: [0, 40], ...(o.style === 'hammer' ? { ruffle: 0 } : {}), main: 0.6, core: 0.3 }, ph), (x, y) => [x, y]);
         } else paintW(f, bolt({ kind: 'bolt', pts, w0: 2.5, w1: 4 }, ph), (x, y) => [x, y]);
         // 마지막 틱: 주먹(발)·연검 끝에서 작은 섬광 (백은우는 네 갈래 반짝임)
         if (last) {
           const tip = chain[chain.length - 1]!;
           const spikes: ReadonlyArray<readonly [number, number, number]> = o.style === 'glint'
             ? [[0, 10, 2], [90, 6, 1.5], [180, 7, 1.5], [-90, 8, 1.5]]
-            : [[0, 9, 2], [70, 6, 1.5], [150, 7, 1.5], [-110, 6, 1.5], [-40, 8, 1.5]];
+            : o.style === 'hammer'
+              ? [[0, 12, 2.6], [72, 8, 2], [144, 9, 2], [-144, 7, 1.8], [-72, 10, 2]]
+              : [[0, 9, 2], [70, 6, 1.5], [150, 7, 1.5], [-110, 6, 1.5], [-40, 8, 1.5]];
           const sp = flash({ kind: 'flash', spikes }, { a: 1, ls: k, creep: 0, p: 0, seed: o.seed }, [0, 0]);
           paintW(f, sp, (x, y) => [tip[0] + fc * x, tip[1] + y]);
         }

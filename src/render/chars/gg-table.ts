@@ -1,9 +1,11 @@
 import type { LookName } from '../../anim/skeleton';
 import type { CharId } from '../../data/characters';
+import { EDWARD_GG, EDWARD_GG_DRAFTS } from '../../data/vfx/edward';
 import { EUNWOO_GG, EUNWOO_GG_DRAFTS, EUNWOO_GG_SUPER_END } from '../../data/vfx/eunwoo';
 import { RAIDEN_GG, RAIDEN_GG_CHARGE } from '../../data/vfx/raiden';
 import type { GMove } from '../../data/vfx/types';
 import { COLORS } from '../palette';
+import { EDWARD_GG_FLIP, EDWARD_GG_RAMP } from './edward-gg';
 import { EUNWOO_GG_FLIP, EUNWOO_GG_RAMP } from './eunwoo-gg';
 import { RAIDEN_GG_RAMP } from './raiden-gg';
 
@@ -17,8 +19,8 @@ export interface GGChar {
   flip?: readonly number[];
   /** 기술 이펙트 (차지는 모은 단계, 필살기는 판정 물결이 맞힌 틱) */
   move(id: string, chargeLv: number): GMove | undefined;
-  /** 전조가 사슬을 타는 모양: bolt 굵은 번개 (라이덴) · glint 은빛 리본 조각 (백은우, 사슬 = 연검 리본) */
-  prelude: 'bolt' | 'glint';
+  /** 전조가 사슬을 타는 모양: bolt 굵은 번개 (라이덴) · glint 은빛 리본 조각 (백은우, 사슬 = 연검 리본) · hammer 청동 조각 (에드워드, 사슬 = 팔 → 해머 머리) */
+  prelude: 'bolt' | 'glint' | 'hammer';
   /** 맞은 점 빛 색, 맞은 사람 실루엣 색 묶음, 배경 누르기 어두운 단·밝은 단 */
   light: string;
   look: LookName;
@@ -66,5 +68,23 @@ export const GG_CHARS: Partial<Record<CharId, GGChar>> = {
     light: COLORS.eunwooFxSilver,
     look: 'struckEw',
     press: { dark: COLORS.eunwooFxInk, hi: COLORS.eunwooFxSilver },
+  },
+  edward: {
+    ramp: EDWARD_GG_RAMP,
+    flip: EDWARD_GG_FLIP,
+    move: (id, lv) => {
+      const d = draftOf(id) - 1;
+      if (id === 'charge') return EDWARD_GG_DRAFTS.charge[d]?.[clamp(lv, 1, 3) - 1];
+      if (id === 'atk4') return EDWARD_GG_DRAFTS.atk4[d];
+      // 염동력은 맞힌 틱의 맞은 점 모양 (장막 손·벽·터짐은 sim 사건: render/fightvfx edwardEvent)
+      if (id === 'skill2') return EDWARD_GG_DRAFTS.skill2[d]?.hit;
+      // 필살기 'hit'은 연출 끝 한 번에 들어가는 피해 (잡는 순간은 연출 시작 사건: render/fightvfx edwardSuperStart)
+      if (id === 'super') return EDWARD_GG_DRAFTS.super[d]?.end;
+      return EDWARD_GG[id];
+    },
+    prelude: 'hammer',
+    light: COLORS.edwardFxBronze,
+    look: 'struckEd',
+    press: { dark: COLORS.edwardFxInk, hi: COLORS.edwardFxBronze },
   },
 };

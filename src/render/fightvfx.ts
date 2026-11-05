@@ -8,6 +8,7 @@ import { CITADEL as D } from '../data/stages/citadel';
 import { KNOCKDOWN_RELAND } from '../data/poses/common';
 import type { TrailBox } from '../data/moves/base';
 import { HWAGWASAN, PACHEON_ASH, RAIDEN_EXT } from '../sim/chars/raiden';
+import { EX as EDWARD_EX } from '../sim/chars/edward';
 import type { SkinId } from '../anim/skins';
 import { Debris } from './debris';
 import arc from '../vfx/arc';
@@ -17,9 +18,12 @@ import ggEffect from '../vfx/gg';
 import pressBackground from '../vfx/gg/press';
 import ggBarrier from '../vfx/gg/barrier';
 import ggPrelude from '../vfx/gg/prelude';
+import ggTether from '../vfx/gg/tether';
 import type { GMove, GShape, GTech } from '../data/vfx/types';
 import { RAIDEN_GG, RAIDEN_GG_BARRIER, RAIDEN_GG_SUPER } from '../data/vfx/raiden';
 import { EUNWOO_GG_DRAFTS } from '../data/vfx/eunwoo';
+import { EDWARD_GG_DRAFTS, EDWARD_GG_SLAM_LAND, edwardSlabs } from '../data/vfx/edward';
+import { hammerHead } from '../anim/decor/edward';
 import { RAIDEN_GG_RAMP } from './chars/raiden-gg';
 import { draftOf, GG_CHARS, type GGChar } from './chars/gg-table';
 import type { LookName } from '../anim/skeleton';
@@ -786,8 +790,10 @@ export class FightVfx {
         this.debris.burst('brick', wx, wy, out, 3);
       } else if (e.type === 'char' && att?.char === 'raiden') this.raidenEvent(s, e.text ?? '', e.x, e.y, e.combo ?? 1, att);
       else if (e.type === 'char' && att?.char === 'eunwoo') this.eunwooEvent(s, e.text ?? '', e.x, e.y, e.to, e.combo, att);
+      else if (e.type === 'char' && att?.char === 'edward') this.edwardEvent(s, e.text ?? '', e.x, e.y, e.combo, att, def);
       else if (e.type === 'cine' && e.text === 'whiff' && att?.char === 'raiden') this.pacheonWhiff(att);
       else if (e.type === 'cine' && e.text === 'start' && e.move === 'super' && att?.char === 'eunwoo' && def) this.eunwooSuperStart(s, att, def);
+      else if (e.type === 'cine' && e.text === 'start' && e.move === 'super' && att?.char === 'edward' && def) this.edwardSuperStart(s, att, def);
     }
 
     s.fighters.forEach((f, i) => {
@@ -1077,7 +1083,7 @@ export class FightVfx {
   }
 
   /** 길티기어식 이펙트 하나 띄우기 (그 캐릭터 색표, 14-9 L 색 뒤집기 포함). 공격자 히트스톱 동안 진행 시계가 멈춘다 */
-  private ggSpawn(f: Fighter, shapes: readonly GShape[], origin: readonly [number, number], facing: number, mv?: { fx?: GTech }, floor?: number): void {
+  private ggSpawn(f: Fighter, shapes: readonly GShape[], origin: readonly [number, number], facing: number, mv?: { fx?: GTech }, floor?: number, follow?: () => readonly [number, number]): void {
     const g = GG_CHARS[f.char];
     if (!g || !shapes.length) return;
     const fighter = f;
@@ -1085,6 +1091,7 @@ export class FightVfx {
     this.layer.add(ggEffect({
       shapes, ramp: g.ramp, origin: [origin[0], origin[1]], facing, held: () => fighter.hitstop > 0, seed: this.seed++,
       floor: floor ?? GROUND_Y + f.floor / 256, flip: fl && g.flip ? { at: fl.at, ticks: fl.ticks, ramp: g.flip } : undefined,
+      follow: follow ? () => { const q = follow(); return [q[0], q[1]]; } : undefined,
     }));
   }
 
@@ -1130,6 +1137,12 @@ export class FightVfx {
     const box = mv.data.box;
     const g = GG_CHARS[f.char];
     const glint = g?.prelude === 'glint';
+    const hammer = g?.prelude === 'hammer';
+    // 에드워드 염동력 (14-9 M): 뒷손을 타고 장막 조각이 모이고, 붙잡을 상대 가슴으로 공기가 빨려 든다 (판정 거리 안에 있으면)
+    const foe = this.fighters?.find((o) => o !== f);
+    const tkTarget = hammer && id === 'skill2' && foe && box && Math.abs(foe.x - f.x) / 256 <= box.x + box.w
+      ? () => [foe.x / 256, GROUND_Y + foe.y / 256 - 30] as const
+      : undefined;
     this.layer.add(ggPrelude({
       chains: () => {
         const j = fighterPose(fighter).joints as unknown as Record<string, readonly [number, number]> & { fx?: { rib?: ReadonlyArray<readonly [number, number]> } };
@@ -1138,9 +1151,15 @@ export class FightVfx {
         // 백은우: 손 → 연검 끝 (그 틱의 리본 점). 리본이 없는 프레임이면 칼 든 팔
         const rib = glint ? j.fx?.rib : undefined;
         if (rib && rib.length > 2) return [rib.map((q) => [ox + fighter.facing * q[0], oy + q[1]] as const)];
+        // 에드워드: 어깨 → 팔꿈치 → 손 → 해머 머리 (해머 기술), 염동력·필살기는 뒷손
+        if (hammer) {
+          const W = (q: readonly [number, number]) => [ox + fighter.facing * q[0], oy + q[1]] as const;
+          if (id === 'skill2' || id === 'super') return [[W(j.shB!), W(j.eB!), W(j.hB!)]];
+          return [[W(j.shF!), W(j.eF!), W(j.hF!), W(hammerHead(fighterPose(fighter).joints))]];
+        }
         return names.map((c) => c.filter((n) => j[n]).map((n) => [ox + fighter.facing * j[n]![0], oy + j[n]![1]] as const));
       },
-      target: target ?? (() => {
+      target: target ?? tkTarget ?? (() => {
         const ox = fighter.x / 256;
         const oy = GROUND_Y + fighter.y / 256;
         const tx = box ? Math.max(14, Math.min(80, box.x + box.w * 0.5)) : 40;
@@ -1167,8 +1186,9 @@ export class FightVfx {
     const ax = f.x / 256;
     const ay = GROUND_Y + f.y / 256;
     const shapes = mv.shapes.filter((s) => (s.anchor ?? 'self') === 'self');
-    void fighter;
     this.ggSpawn(f, shapes, [ax, ay], f.facing, mv);
+    // 공격자를 따라가는 모양 (내려찍기 낙하 꼬리)
+    if (mv.trail?.length) this.ggSpawn(f, mv.trail, [ax, ay], f.facing, mv, undefined, () => [fighter.x / 256, GROUND_Y + fighter.y / 256]);
     if (f.char !== 'raiden') void 0;
     else if (id === 'skill2') {
       // 화과산 날숨: 발치 물 튐, 짧은 흔들림, 반구 빛 (9-3)
@@ -2039,6 +2059,84 @@ export class FightVfx {
       this.glow(dx, dy - 40, 200, COLORS.eunwooFxCore, 0.9, 25, 4);
       this.animeLog.push({ tick: s.tick, move: 'superRelease', impact: { press: pr?.ticks ?? 0, silhouette: 0, grade: 'super' }, at: { ax: fx0, ay: fy0, facing: att.facing, dx, px: dx, py: dy - 26 } });
     }
+  }
+
+  /**
+   * 에드워드 sim 사건의 길티기어식 이펙트 (14-8 문법, 14-9 기법, 시안은 EDWARD_GG_DRAFTS): 내려찍기 착지 (착지 발밑 앞 20px), 차지 바닥 파도 (판 줄이
+   * 시작하는 바닥), 재현:나 (발밑), 염동력 장막 손 (상대 가슴)·장막 벽 (상대 발밑 앞)·장막이 터짐 (상대 가슴). 사건 자리는 sim 단위 (1/256px).
+   * 모양은 모두 사건 자리 기준으로 놓는다 (anchor와 상관없이)
+   */
+  private edwardEvent(s: SimState, text: string, x: number, y: number, combo: number | undefined, att: Fighter, def: Fighter | undefined): void {
+    const g = GG_CHARS.edward!;
+    const ax = att.x / 256;
+    const ay = GROUND_Y + att.y / 256;
+    const sk2 = EDWARD_GG_DRAFTS.skill2[draftOf('skill2') - 1]!;
+    let mv: GMove | undefined;
+    let at: [number, number] = [ax, ay];
+    let veil = false;
+    let floor = GROUND_Y + att.floor / 256;
+    if (text === 'slamLand') {
+      mv = EDWARD_GG_SLAM_LAND;
+      at = [ax + att.facing * 20, ay];
+    } else if (text === 'slabs') {
+      mv = edwardSlabs(combo ?? 64);
+      at = [x / 256, GROUND_Y + y / 256];
+      floor = at[1];
+    } else if (text === 'reenact') {
+      mv = EDWARD_GG_DRAFTS.skill1[draftOf('skill1') - 1]!.plant;
+      veil = true;
+    } else if (def && (text === 'tkGrab' || text === 'tkBurst')) {
+      mv = text === 'tkGrab' ? sk2.grab : sk2.burst;
+      at = [def.x / 256, GROUND_Y + def.y / 256 - 30];
+      floor = GROUND_Y + def.floor / 256;
+      veil = true;
+    } else if (def && text === 'tkWall') {
+      mv = sk2.wall;
+      at = [def.x / 256 - att.facing * 12, GROUND_Y + def.floor / 256];
+      floor = at[1];
+      veil = true;
+    }
+    if (!mv) return;
+    // 장막 벽은 밀려가는 상대를 따라간다 (12-3 '장막에 붙은 채 밀려난다')
+    const foe = def;
+    const follow = foe && text === 'tkWall' ? () => [foe.x / 256 - att.facing * 12, GROUND_Y + foe.floor / 256] as const : undefined;
+    this.ggSpawn(att, mv.shapes, at, att.facing, mv, floor, follow);
+    // 끌어당김: 뒷손 → 상대 가슴으로 꼬인 장막 띠 하나 (12-3, 14-8 ① 가는 가닥 대신 굵은 띠)
+    if (foe && text === 'tkGrab') {
+      const hand = () => {
+        const j = fighterPose(att).joints;
+        return [att.x / 256 + att.facing * j.hB[0], GROUND_Y + att.y / 256 + j.hB[1]] as const;
+      };
+      this.layer.add(ggTether({
+        from: hand, to: () => [foe.x / 256, GROUND_Y + foe.y / 256 - 28], alive: () => att.mode === 'attack' && att.move === 'skill2' && att.ext[EDWARD_EX.TK_GRAB] === 1,
+        ramp: g.ramp, seed: this.seed++,
+      }));
+    }
+    if (def) this.screenOf(s, def, mv, g);
+    else if (mv.screen?.press) {
+      const pr = mv.screen.press;
+      pressBackground({ tick: s.tick, ticks: pr.ticks, k: 1, color: pr.color, mode: pr.mode, scale: pr.scale, crack: pr.crack, dark: g.press.dark, hi: g.press.hi });
+    }
+    this.ggTech(mv.fx, at, att.facing, floor);
+    if (mv.light) this.glow(at[0], at[1] - (veil ? 0 : 10), mv.light.r, veil ? COLORS.veilLight : COLORS.edwardFxBronze, 0.9, mv.light.t, 2);
+    const id = text === 'reenact' ? 'skill1' : text === 'slamLand' ? 'slamLand' : text === 'slabs' ? 'slabs' : text;
+    this.animeLog.push({ tick: s.tick, move: id, impact: { press: mv.screen?.press?.ticks ?? 0, silhouette: 0, grade: mv.grade }, at: { ax, ay, facing: att.facing, dx: def ? def.x / 256 : ax, px: at[0], py: at[1] } });
+    if (this.animeLog.length > 64) this.animeLog.shift();
+  }
+
+  /** 에드워드 껍데기 뒤집어쓰기 잡는 순간 (sim 연출 시작 사건, 12-6 연출 그대로): 14-9 A 임팩트 프레임 + 장막 손·고리 (상대 가슴) */
+  private edwardSuperStart(s: SimState, att: Fighter, def: Fighter): void {
+    const mv = EDWARD_GG_DRAFTS.super[draftOf('super') - 1]!.grab;
+    const ay = GROUND_Y + att.y / 256;
+    const feetY = GROUND_Y + def.y / 256;
+    const hy = Math.max(feetY - 46, Math.min(feetY - 8, ay + (mv.hitY ?? -30)));
+    const hx = def.x / 256 - att.facing * 3;
+    this.ggSpawn(att, mv.shapes, [hx, hy], att.facing, mv, GROUND_Y + def.floor / 256);
+    this.screenOf(s, def, mv, GG_CHARS.edward!);
+    this.ggTech(mv.fx, [hx, hy], att.facing, GROUND_Y + def.floor / 256);
+    if (mv.light) this.glow(hx, hy, mv.light.r, COLORS.veilLight, 0.9, mv.light.t, 4);
+    this.animeLog.push({ tick: s.tick, move: 'superGrab', impact: { press: 0, silhouette: mv.screen?.silhouette ?? 0, grade: 'super' }, at: { ax: att.x / 256, ay, facing: att.facing, dx: def.x / 256, px: hx, py: hy } });
+    if (this.animeLog.length > 64) this.animeLog.shift();
   }
 
   /** 맞은 쪽을 주색 실루엣 + 밝은 테두리로 그릴 틱인가 (14-8 ⑧ 카운터 느낌, 하얀 번쩍임보다 먼저) */

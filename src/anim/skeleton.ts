@@ -66,6 +66,8 @@ export const LOOKS = {
   struck: { outline: 'raidenFxCore', shadow: 'ink', base: 'raidenFxDark', light: 'raidenFxScarlet' },
   /** 백은우 강타에 맞은 순간: 짙은 하늘 몸·잉크 그늘·옅은 하늘 빛 받는 쪽·흰 테두리 (밝은 은빛 리본 앞에서 읽히게) */
   struckEw: { outline: 'eunwooFxCore', shadow: 'eunwooFxInk', base: 'eunwooFxDeep', light: 'eunwooFxSky' },
+  /** 에드워드 강타에 맞은 순간: 짙은 청동 몸·잉크 그늘·밝은 청동 빛 받는 쪽·흰 테두리 (밝은 청동 원호 앞에서 읽히게) */
+  struckEd: { outline: 'edwardFxCore', shadow: 'edwardFxInk', base: 'edwardFxDeep', light: 'edwardFxBronze' },
   /** 차지를 모으는 동안 몸이 빛남: 한 단계씩 밝게 (렌더가 단계마다 맥박치듯 바꿔 끼운다) */
   glow1: { outline: 'ink', shadow: 'gold', base: 'goldLight', light: 'white' },
   glow2: { outline: 'ink', shadow: 'sky', base: 'skyLight', light: 'white' },

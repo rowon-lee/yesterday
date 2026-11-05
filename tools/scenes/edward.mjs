@@ -45,6 +45,11 @@ export default {
       [['ArrowRight'], 36], [[], 4], [['ArrowRight', 'ArrowUp', 'KeyL'], 1], [['ArrowRight'], 34], [['ArrowRight'], 20], [['KeyK'], 1], [[], 50],
     ],
   },
+  // 에드워드 벽 박차기 공격 (길티기어식 이펙트 확인용): 왼쪽 맵 끝 벽(x 56)으로 뛰어 붙었다가 공격 → 해머를 내리치며 앞아래로 (2P 라이덴은 앞에 서 있다)
+  edward_wallkick: {
+    q: 'scene=fight&p2=idle&p1char=edward&p2char=raiden', p1: 100, p2: 150, settle: 20,
+    steps: [[[], 6], [['ArrowLeft', 'KeyK'], 1], [['ArrowLeft'], 30], [['ArrowLeft', 'KeyJ'], 1], [[], 70]],
+  },
   // 에드워드 승리: 체력이 거의 없는 상대를 평타로 쓰러뜨리고 승리 동작
   edward_win: {
     q: 'scene=fight&p2=idle&p1char=edward', settle: 10, p1: 3150, p2: 3200,
