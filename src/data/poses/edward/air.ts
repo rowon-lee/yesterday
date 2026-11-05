@@ -17,16 +17,19 @@ const J_RISE = E({ hx: 0, hy: -25, tl: 2, hd: -4, aFx: 5, aFy: 5, aBx: 2, aBy: -
 /** 꼭대기: 두 무릎을 당기고 뒷손은 옆으로 (균형) */
 export const J_TOP = E({ hx: 0, hy: -24, tl: 6, hd: -2, aFx: 5, aFy: 5.5, aBx: -6, aBy: 4, lFx: 7, lFy: -11, lBx: -2, lBy: -9, wa: -148 });
 
-/** 점프: 1프레임 웅크림 → 2~3프레임 박차고 솟음 → 무릎을 당김. 12프레임 × 2틱 */
+/**
+ * 점프: 1프레임 웅크림 → 2~3프레임 박차고 솟음 → 무릎을 당김. 12프레임 × 2틱.
+ * 어깨 위 해머는 몸보다 늦다 (2차 리워크): 박차고 솟는 동안 머리가 어깨에 눌려 처졌다가, 꼭대기에서 몸이 멈추면 한 번 더 떠올랐다 내려앉는다
+ */
 export const EDWARD_JUMP: MotionData = {
   name: 'edward/jump',
   label: '에드워드 점프',
   dur: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
   keys: [
     { at: 0, pose: J_CROUCH },
-    { at: 2, pose: J_PUSH },
-    { at: 5, pose: J_RISE },
-    { at: 9, pose: J_TOP, stop: true },
+    { at: 2, pose: { ...J_PUSH, wa: -154 } },
+    { at: 5, pose: { ...J_RISE, wa: -166 } },
+    { at: 9, pose: { ...J_TOP, wa: -136 }, stop: true },
     { at: 11, pose: J_TOP },
   ],
 };
@@ -56,16 +59,30 @@ const F_OPEN = E({ hx: 0, hy: -24, tl: 3, hd: -2, aFx: 5, aFy: 5.5, aBx: -7, aBy
 /** 빨리 떨어질 때: 두 발을 넓게 벌려 무겁게 내리고 무릎을 굽혀 착지를 준비, 뒷손은 옆으로 벌려 균형 */
 const F_READY = E({ hx: 0, hy: -23, tl: 6, hd: 0, aFx: 5, aFy: 5, aBx: -9, aBy: -1, lFx: 10, lFy: -1, lBx: -10, lBy: -1, wa: -152 });
 
-/** 낙하: 웅크림(꼭대기) → 다리를 펴며 → 발을 넓게 벌려 착지 준비. 12프레임 */
+/** 무릎이 풀리기 시작한다 (해머는 아직 어깨에 걸친 그대로) */
+const F_UNTUCK = E({ hx: 0, hy: -24, tl: 4, hd: -2, aFx: 5, aFy: 5.5, aBx: -6, aBy: 3, lFx: 7, lFy: -9, lBx: -3, lBy: -7, wa: -148 });
+/** 두 발을 넓게 벌려 균형을 잡는다 (떨어지기 시작하자 해머 머리가 늦게 떠오른다) */
+const F_SPREAD = E({ hx: 0, hy: -23.5, tl: 5, hd: -1, aFx: 5, aFy: 5, aBx: -8.5, aBy: 0, lFx: 9.5, lFy: -2, lBx: -9, lBy: -2, wa: -137 });
+/** 팔로 균형을 잡으며 자리 잡는다 (해머 머리가 늦게 내려오기 시작한다) */
+const F_BALANCE = E({ hx: 0, hy: -23.2, tl: 5.5, hd: -0.5, aFx: 5, aFy: 5, aBx: -9.5, aBy: -2, lFx: 10, lFy: -1.5, lBx: -9.5, lBy: -1.5, wa: -145 });
+/** 빨리 떨어질 때: 무릎을 조금 더 굽혀 받을 준비를 하고 뒷손을 더 벌린다 */
+const F_FAST = E({ hx: 0, hy: -22.2, tl: 8, hd: 1.5, aFx: 5, aFy: 4.8, aBx: -10, aBy: -3, lFx: 10.5, lFy: -0.5, lBx: -10.5, lBy: -0.5, wa: -153 });
+
+/**
+ * 낙하 (2차 리워크): 웅크림(꼭대기) → 무릎이 풀림 → 한 번에 다리를 넓게 펴고 (해머 머리가 늦게 떠오름) → 팔로 균형 →
+ * 착지 준비 (해머가 늦게 내려앉음) → 빨리 떨어지면 무릎을 더 굽힘. 6프레임 (떨어지는 빠르기로 프레임을 고른다: dur 합 36 그대로)
+ */
 export const EDWARD_FALL: MotionData = {
   name: 'edward/fall',
   label: '에드워드 낙하',
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [3, 2, 7, 6, 8, 10],
   keys: [
     { at: 0, pose: J_TOP },
-    { at: 5, pose: F_OPEN },
-    { at: 10, pose: F_READY, stop: true },
-    { at: 11, pose: F_READY },
+    { at: 1, pose: F_UNTUCK },
+    { at: 2, pose: F_SPREAD },
+    { at: 3, pose: F_BALANCE },
+    { at: 4, pose: F_READY, stop: true },
+    { at: 5, pose: F_FAST },
   ],
 };
 
@@ -75,16 +92,32 @@ const L_SQUASH = E({ hx: 0, hy: -12, tl: 26, hd: 6, aFx: 6, aFy: 7, aBx: -6, aBy
 /** 버티며 일어난다 */
 const L_RISE = E({ hx: 0, hy: -19.5, tl: 8, hd: 0, aFx: 5, aFy: 6.5, aBx: -4, aBy: 11, lFx: 8, lBx: -9, wa: -152 });
 
-/** 착지: 발이 닿음 → 쿵 깊게 받음 → 버티며 일어나 기본자세. 12프레임 × 1틱 (바닥 울림은 렌더) */
+/** 발이 닿아 무릎이 꺾이기 시작한다 (해머는 아직 그대로) */
+const L_TOUCH = E({ hx: 0, hy: -18, tl: 14, hd: 3, aFx: 5.5, aFy: 6.5, aBx: -7, aBy: 4, lFx: 10.5, lBx: -11, wa: -151 });
+/** 해머 머리가 늦게 어깨를 내리누르며 2px 더 눌린다 */
+const L_SQUASH2 = E({ hx: 0, hy: -10.8, tl: 28, hd: 7, aFx: 6, aFy: 7.4, aBx: -6, aBy: 8.5, lFx: 10.5, lBx: -11.5, wa: -168 });
+/** 밀어 일어난다 */
+const L_PUSH = E({ hx: 0, hy: -15.5, tl: 16, hd: 2, aFx: 5.5, aFy: 7, aBx: -5, aBy: 10, lFx: 9, lBx: -10, wa: -160 });
+/** 서며 자리 잡는다 (해머 머리가 늦게 한 번 튀어 오른다) */
+const L_SETTLE = E({ hx: 0, hy: -21.8, tl: -1, hd: -2, aFx: 4.8, aFy: 6.2, aBx: -3, aBy: 12.5, lFx: 7, lBx: -7.5, wa: -143 });
+
+/**
+ * 착지 (2차 리워크): 발이 닿음 → 무릎이 꺾임 → 쿵 깊게 받음 → 해머가 늦게 어깨를 눌러 2px 더 → 밀어 일어남 → 일어섬 →
+ * 자리 잡음(해머가 늦게 튐) → 기본자세. 8프레임 (sim이 착지 길이를 프레임 수로 고르게 나눈다: 표시 틱은 뷰어·시트용, 바닥 울림은 렌더)
+ */
 export const EDWARD_LAND: MotionData = {
   name: 'edward/land',
   label: '에드워드 착지',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 1, 1, 3, 2, 2, 1, 1],
   keys: [
     { at: 0, pose: F_READY },
-    { at: 3, pose: L_SQUASH, stop: true },
-    { at: 7, pose: L_RISE },
-    { at: 11, pose: E_STANCE },
+    { at: 1, pose: L_TOUCH },
+    { at: 2, pose: { ...L_SQUASH, wa: -155 } },
+    { at: 3, pose: L_SQUASH2, stop: true },
+    { at: 4, pose: L_PUSH },
+    { at: 5, pose: { ...L_RISE, wa: -153 } },
+    { at: 6, pose: L_SETTLE },
+    { at: 7, pose: E_STANCE },
   ],
 };
 
@@ -128,16 +161,33 @@ export const EDWARD_DASH: MotionData = {
 /** 공중에서 해머를 두 손으로 어깨 뒤에 치켜 감고 몸을 앞으로 던진다: 다리는 뒤로 끌린다 */
 const AD_LUNGE = grip2(E({ hx: 2, hy: -24, tl: 34, hd: -18, aFx: 2, aFy: -1, lFx: -2, lFy: -10, lBx: -11, lBy: -6, wa: -118 }));
 
-/** 공중 대시: 웅크림 → 2~3프레임 해머를 뒤로 끌고 몸을 던짐 → 몸을 세우며 낙하 준비. 12프레임 × 1틱 */
+/** 무릎을 끌어당겨 웅크리며 두 손으로 해머를 어깨 뒤로 당긴다 */
+const AD_COCK = grip2(E({ hx: 0, hy: -24.5, tl: 12, hd: -8, aFx: 3, aFy: 2, lFx: 8, lFy: -13, lBx: -1, lBy: -11, wa: -140 }));
+/** 몸을 앞으로 던진다: 다리가 뒤로 끌리고, 해머 머리는 아직 어깨 뒤에 처진다 */
+const AD_THROW = grip2(E({ hx: 2, hy: -24, tl: 30, hd: -16, aFx: 3, aFy: 0, lFx: -1, lFy: -9, lBx: -10, lBy: -6, wa: -146 }));
+/** 미끄러지며 몸이 더 눕는다 (머리가 따라잡았다가 한 번 더 쏠린다) */
+const AD_GLIDE = grip2(E({ hx: 2, hy: -23.6, tl: 37, hd: -17, aFx: 2, aFy: -0.5, lFx: -3, lFy: -9, lBx: -12, lBy: -5, wa: -110 }));
+const AD_GLIDE2 = grip2(E({ hx: 2, hy: -23.4, tl: 38, hd: -16, aFx: 2.5, aFy: 0, lFx: -2, lFy: -8, lBx: -12, lBy: -4.5, wa: -115 }));
+/** 몸을 세운다: 뒷손이 손잡이를 놓고, 해머는 늦게 어깨로 넘어온다 */
+const AD_RIGHT = E({ hx: 1, hy: -24, tl: 14, hd: -6, aFx: 4, aFy: 2, aBx: -5, aBy: 0, lFx: 5, lFy: -6, lBx: -6, lBy: -5, wa: -122 });
+
+/**
+ * 공중 대시 (2차 리워크): 꼭대기 → 웅크려 해머를 당김 → 몸을 던짐(해머 머리는 뒤에 처짐) → 해머가 따라잡음 → 미끄러지며 더 눕고 쏠림 →
+ * 몸을 세움(해머는 늦게 넘어옴) → 낙하 준비. 8프레임 (sim이 12틱을 프레임 수로 고르게 나눈다: 표시 틱은 뷰어·시트용)
+ */
 export const EDWARD_AIR_DASH: MotionData = {
   name: 'edward/air_dash',
   label: '에드워드 공중 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 1, 1, 2, 2, 2, 1, 2],
   keys: [
     { at: 0, pose: J_TOP },
-    { at: 2, pose: AD_LUNGE },
-    { at: 8, pose: AD_LUNGE, stop: true },
-    { at: 11, pose: F_OPEN },
+    { at: 1, pose: AD_COCK, stop: true },
+    { at: 2, pose: AD_THROW },
+    { at: 3, pose: AD_LUNGE },
+    { at: 4, pose: AD_GLIDE },
+    { at: 5, pose: AD_GLIDE2, stop: true },
+    { at: 6, pose: AD_RIGHT },
+    { at: 7, pose: F_OPEN },
   ],
 };
 
