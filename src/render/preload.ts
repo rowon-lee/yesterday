@@ -10,6 +10,7 @@ import { facadeAtlas } from './gl/buildings';
 import { keepAtlas } from './gl/plaza';
 import { warmGpu } from './gl/warm';
 import { rehearsal } from './rehearse';
+import { SpriteWorkers } from './sprite-workers';
 import { COLORS } from './palette';
 import { SCREEN_H, SCREEN_W } from './screen';
 
@@ -84,42 +85,63 @@ export function motionPlan(fighters: ReadonlyArray<readonly [CharId, SkinId]>): 
   return out;
 }
 
-/** 캐릭터 그림을 그리고 그림 모음에 올리는 단계 (PC에서 한 프레임 약 0.6ms 어림) */
-export function spriteSteps(plan: ReadonlyArray<readonly [BakedMotion, SkinId]>): LoadStep[] {
+/**
+ * 캐릭터 그림 (PC에서 한 프레임 약 0.6ms 어림). start()가 그림 일꾼(웹 워커)들에게 나눠 맡기고,
+ * 단계 steps[0]은 일꾼이 다 그릴 때까지 기다린다 (그동안 화면 스레드는 앞 단계인 무대를 만든다).
+ * 일꾼을 쓸 수 없거나(?workers=0 포함) 실패하면 남은 그림을 화면 스레드에서 한 프레임에 12ms씩 그린다. steps[1]은 그림 모음 올리기
+ */
+export function spriteJob(plan: ReadonlyArray<readonly [BakedMotion, SkinId]>): { start(): void; workers(): SpriteWorkers | null; steps: LoadStep[] } {
   const total = plan.reduce((n, [m]) => n + m.dur.length, 0);
+  let pool: SpriteWorkers | null = null;
+  const start = () => {
+    if (pool || new URLSearchParams(location.search).get('workers') === '0') return;
+    pool = new SpriteWorkers(plan);
+    lastSpriteWorkers = pool;
+  };
+  const bakedFrames = () => plan.reduce((n, [m, skin]) => n + (m.isBaked(skin) ? m.dur.length : 0), 0);
   let k = 0;
-  let done = 0;
-  return [
-    {
-      label: '캐릭터 그림',
-      show: 'FIGHTERS',
-      weight: total * 0.6,
-      run(deadline) {
-        while (k < plan.length) {
-          const [m, skin] = plan[k]!;
-          const before = m.isBaked(skin);
-          const finished = m.bakeSome(skin, deadline);
-          if (finished) {
-            if (!before) done += m.dur.length;
-            k++;
+  return {
+    start,
+    workers: () => pool,
+    steps: [
+      {
+        label: '캐릭터 그림',
+        show: 'FIGHTERS',
+        weight: 300,
+        run(deadline) {
+          start();
+          // 일꾼이 그리는 중이면 기다린다 (막대만 그린다)
+          if (pool && !pool.done) return false;
+          // 일꾼이 없거나 실패: 남은 것을 화면 스레드에서
+          while (k < plan.length) {
+            const [m, skin] = plan[k]!;
+            if (m.bakeSome(skin, deadline)) k++;
+            if (performance.now() > deadline) break;
           }
-          if (performance.now() > deadline) break;
-        }
-        return k >= plan.length;
+          return k >= plan.length;
+        },
+        part: () => bakedFrames() / Math.max(1, total),
       },
-      part: () => done / Math.max(1, total),
-    },
-    {
-      label: '그림 모음 올리기',
-      show: 'FIGHTERS',
-      weight: 120,
-      run() {
-        const { actors, view } = gl();
-        actors.sprites.placeAll(plan);
-        actors.sprites.upload(view.renderer);
+      {
+        label: '그림 모음 올리기',
+        show: 'FIGHTERS',
+        weight: 120,
+        run() {
+          const { actors, view } = gl();
+          actors.sprites.placeAll(plan);
+          actors.sprites.upload(view.renderer);
+        },
       },
-    },
-  ];
+    ],
+  };
+}
+
+/** 마지막으로 보낸 그림 일꾼 (확인용: 일꾼 수, 다 그린 데까지 걸린 시간) */
+export let lastSpriteWorkers: SpriteWorkers | null = null;
+
+/** 캐릭터 그림 단계만 (대련 주소로 연 뒤 타이틀에서 다른 캐릭터를 고른 경우) */
+export function spriteSteps(plan: ReadonlyArray<readonly [BakedMotion, SkinId]>): LoadStep[] {
+  return spriteJob(plan).steps;
 }
 
 /** 이펙트 미리 그려 보기: 캐릭터마다 화면 밖 연습 대련 (상대는 다음 캐릭터). PC에서 한 틱 약 0.3ms 어림 */
@@ -133,6 +155,9 @@ export function rehearsalSteps(chars: readonly CharId[]): LoadStep[] {
 /** 처음 열 때 전체 단계: 3D 화면·무대 → 캐릭터 그림 → 셰이더 → 소리 → 이펙트 미리 그려 보기 */
 export function bootSteps(overlay: HTMLCanvasElement, plan: ReadonlyArray<readonly [BakedMotion, SkinId]>, chars: readonly CharId[]): LoadStep[] {
   const steps: LoadStep[] = [];
+  const sprites = spriteJob(plan);
+  // 그림 일꾼을 맨 먼저 보낸다: 화면 스레드가 무대를 만드는 동안 캐릭터 그림을 함께 그린다
+  steps.push({ label: '그림 일꾼 보내기', show: 'STAGE', weight: 5, run: () => sprites.start() });
   if (!glReady()) {
     for (const s of glSteps(overlay)) steps.push({ label: s.label, show: 'STAGE', weight: s.weight, run: () => s.run() });
   }
@@ -143,7 +168,7 @@ export function bootSteps(overlay: HTMLCanvasElement, plan: ReadonlyArray<readon
     // 건물·시타델이 무너질 때 정면 그림에서 조각을 잘라 떨어뜨린다: 그 모음 그림을 미리 만들고 평면 층에 한 번 옮겨 둔다
     run: () => gl().actors.warmFlats([facadeAtlas(), keepAtlas()]),
   });
-  steps.push(...spriteSteps(plan));
+  steps.push(...sprites.steps);
   steps.push({ label: '셰이더·텍스처 미리 만들기', show: 'SHADERS', weight: 600, run: () => warmGpu() });
   steps.push({ label: '소리 미리 풀기', show: 'SOUND', weight: 60, run: () => audio.prepare() });
   if (chars.length && new URLSearchParams(location.search).get('rehearse') !== '0') steps.push(...rehearsalSteps(chars));

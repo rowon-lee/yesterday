@@ -7,7 +7,7 @@ import { measureFrame, quality } from './render/light';
 import { drawText, textWidth } from './render/font';
 import { SCREEN_H, SCREEN_W } from './render/screen';
 import { gl, hasWebGL2 } from './render/gl';
-import { bootSteps, fightersOf, Loader, motionPlan, ROSTER_FIGHTERS, spriteSteps } from './render/preload';
+import { bootSteps, fightersOf, lastSpriteWorkers, Loader, motionPlan, ROSTER_FIGHTERS, spriteSteps } from './render/preload';
 import { SIGNS } from './render/gl/signs';
 import { audio, installAudioUnlock } from './audio/engine';
 
@@ -50,7 +50,7 @@ const pointer = new Pointer(canvas);
 let loader: Loader | null = null;
 let afterLoad: (() => void) | null = null;
 /** 마지막 불러오기: 단계마다 걸린 시간과 전체 (ms, 확인용) */
-let lastLoad: { ms: number; steps: Array<[string, number]> } | null = null;
+let lastLoad: { ms: number; steps: Array<[string, number]>; workers: { count: number; ms: number; failed: boolean } | null } | null = null;
 let loadFrame = 0;
 
 /** 다음 틱에 바꿀 장면 (장면 안에서 goto를 불러도 그 틱은 끝까지 돈다) */
@@ -282,7 +282,12 @@ function render(ticks: number, now: number): void {
     if (loadFrame > 0) loader.step(12);
     loader.draw(ctx, loadFrame++);
     if (loader.done) {
-      lastLoad = { ms: Math.round(loader.finishedAt - loader.startedAt), steps: loader.times };
+      const w = lastSpriteWorkers;
+      lastLoad = {
+        ms: Math.round(loader.finishedAt - loader.startedAt),
+        steps: loader.times,
+        workers: w ? { count: w.count, ms: Math.round(w.finishedAt - w.startedAt), failed: w.failed } : null,
+      };
       loader = null;
       ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
       const then = afterLoad;

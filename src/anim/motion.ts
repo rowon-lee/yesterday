@@ -93,6 +93,8 @@ export interface Motion {
   /** 불러오기 화면이 조금씩 그릴 때: deadline(performance.now)까지 그리고, 다 그렸으면 true */
   bakeSome?(skin: SkinId, deadline?: number): boolean;
   isBaked?(skin: SkinId): boolean;
+  /** 다른 곳(그림 일꾼, render/sprite-workers)에서 다 그린 프레임을 받아 둔다 (이미 다 그렸으면 그대로) */
+  adopt?(skin: SkinId, frames: CellFrame[]): void;
 }
 
 export const DEFAULT_CELL = 64;
