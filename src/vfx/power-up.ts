@@ -30,13 +30,20 @@ export default function powerUp(o: Options = {}) {
   // ft: 사라지는 시계. 유지(sustain) 중에는 HOLD 직전에서 멈춘다
   const aura = () => smooth(BURST - 0.04, BURST + 0.12, t) * (1 - smooth(HOLD, FADE, ft)) * (0.85 + 0.15 * Math.sin(t * 13));
   const flare = () => Math.max(Math.exp(-(((t - PULSE1) / 0.07) ** 2)), Math.exp(-(((t - PULSE2) / 0.07) ** 2))) + Math.exp(-(((t - BURST) / 0.08) ** 2));
+  // YESTERDAY: 몸 모양이 지난 틱과 같으면 (같은 실루엣 그림이 같은 자리) 거리 표를 다시 계산하지 않는다 (휴대폰 프레임 시간)
+  let lastSil: Uint32Array | null | undefined, lastDx = 0, lastDy = 0;
   function body() {
     const [fx, fy] = feet(), cx = Math.round(fx / PX), cy = Math.round(fy / PX);
     bx0 = cx - BW / 2;
     by0 = cy - BH + 6;
     midY = cy - 22;
-    mask.fill(0);
     const s = o.actor?.silhouette?.();
+    const sil = s ? s.data : null, dx = s ? bx0 - s.x : 0, dy = s ? by0 - s.y : 0;
+    if (lastSil !== undefined && sil === lastSil && dx === lastDx && dy === lastDy) return;
+    lastSil = sil;
+    lastDx = dx;
+    lastDy = dy;
+    mask.fill(0);
     let any = false;
     if (s)
       for (let y = 0; y < BH; y++)

@@ -696,45 +696,81 @@ function patchInner(f: Face, i: number, gone: boolean): void {
  * 무너진 자리의 잔해 더미와 타는 불: 무너진 뒤 15초 동안 더미 위에서 불길이 줄어들며 타고, 그 뒤로는 잉걸불 빛만 남는다
  * (어둠 속에서 더미와 그 위에 선 사람을 비추는 실제 광원).
  */
+type Pile = { mesh: THREE.Mesh; c: HTMLCanvasElement; tex: THREE.CanvasTexture; step: number; key: string; w: number };
+/** 더미 그림판 폭 (가장 넓은 건물 + 양끝 6px씩) */
+const PILE_W = Math.max(...GRIDS.map((g) => g.w)) + 12;
+/** 처음에 만들어 두는 더미 수 (모자라면 그때 하나 더 만든다) */
+const PILES = 16;
+
 class Rubble {
-  private readonly piles: Array<{ mesh: THREE.Mesh; c: HTMLCanvasElement; tex: THREE.CanvasTexture; step: number; key: string }> = [];
+  private readonly piles: Pile[] = [];
+  /** 다 쓴 더미 (숨겨 두었다가 다시 쓴다: 대련 중 건물이 무너질 때 캔버스·텍스처·재질을 새로 만들지 않게) */
+  private readonly free: Pile[] = [];
   private readonly flames: Flame[] = [];
 
-  constructor(private readonly group: THREE.Group) {}
+  constructor(private readonly group: THREE.Group) {
+    for (let i = 0; i < PILES; i++) this.free.push(this.make());
+  }
+
+  /** 더미 하나: 가장 넓은 건물 폭 그림판과 판 (쓸 때 판 꼭짓점을 더미 폭으로 옮기고, 그림판의 앞쪽 w칸만 읽게 텍스처 좌표를 줄인다) */
+  private make(): Pile {
+    const [c] = canvas(PILE_W, 64);
+    const tex = pixelTexture(c);
+    const mesh = plane(-0.5, 0.5, 0, 64, FRONT_Z + 10, litMaterial(tex));
+    mesh.visible = false;
+    this.group.add(mesh);
+    return { mesh, c, tex, step: -1, key: '', w: 0 };
+  }
+
+  /** 월드 x0~x1에 더미를 놓는다 (예전의 x0~x1 판과 같은 자리·같은 텍스처 칸) */
+  private place(p: Pile, x0: number, x1: number, key: string): void {
+    const w = x1 - x0;
+    p.key = key;
+    p.step = -1;
+    p.w = w;
+    p.mesh.position.x = (x0 + x1) / 2;
+    // 꼭짓점은 예전 판(PlaneGeometry(w, 64))과 같은 자리 (±w/2), 텍스처 좌표는 그림판의 앞쪽 w칸까지
+    const geo = p.mesh.geometry;
+    const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const right = pos.getX(i) > 0;
+      pos.setX(i, right ? w / 2 : -w / 2);
+      uv.setX(i, right ? w / PILE_W : 0);
+    }
+    pos.needsUpdate = true;
+    uv.needsUpdate = true;
+    geo.computeBoundingSphere();
+    geo.computeBoundingBox();
+    p.mesh.visible = true;
+    // 건물 무리는 자리 행렬을 다시 계산하지 않으므로 (움직이지 않는 무대) 새로 놓은 더미는 직접 한 번 계산한다
+    p.mesh.updateMatrix();
+    p.mesh.updateMatrixWorld(true);
+  }
+
+  private release(p: Pile): void {
+    p.mesh.visible = false;
+    p.key = '';
+    this.free.push(p);
+    // 먼저 만든 더미부터 다시 쓴다 (예전처럼 먼저 무너진 더미가 먼저 그려지게: 겹친 더미 끝의 그리기 차례가 같게)
+    this.free.sort((a, b) => a.mesh.id - b.mesh.id);
+  }
 
   update(city: CityState | null, tick: number): void {
     const list = city?.collapses ?? [];
-    while (this.piles.length > list.length) {
-      const p = this.piles.pop()!;
-      this.group.remove(p.mesh);
-      p.tex.dispose();
-      (p.mesh.material as THREE.Material).dispose();
-      p.mesh.geometry.dispose();
-    }
+    while (this.piles.length > list.length) this.release(this.piles.pop()!);
     this.fires(list, tick);
     list.forEach((col, k) => {
       const r = rubbleOf(col.b, col.c0, col.c1);
       const { x0, x1 } = r;
       const key = `${col.b}:${col.c0}:${col.c1}:${col.tick}`;
       let p = this.piles[k];
-      if (p && p.key !== key) {
-        this.group.remove(p.mesh);
-        p = undefined as unknown as typeof p;
-      }
-      if (!p) {
-        const [c] = canvas(x1 - x0, 64);
-        const tex = pixelTexture(c);
-        const mesh = plane(x0, x1, 0, 64, FRONT_Z + 10, litMaterial(tex));
-        this.group.add(mesh);
-        // 건물 무리는 자리 행렬을 다시 계산하지 않으므로 새로 놓은 더미는 직접 한 번 계산한다
-        mesh.updateMatrixWorld(true);
-        p = { mesh, c, tex, step: -1, key };
-        this.piles[k] = p;
-      }
+      if (!p) p = this.piles[k] = this.free.shift() ?? this.make();
+      if (p.key !== key) this.place(p, x0, x1, key);
       const step = Math.min(8, Math.max(0, Math.floor(((tick - col.tick) / CITY_RULES.rubble.settle) * 8)));
       if (step === p.step) return;
       p.step = step;
-      paintRubble(p.c, r, step / 8, col.b * 977 + col.c0 * 31);
+      paintRubble(p.c, p.w, r, step / 8, col.b * 977 + col.c0 * 31);
       p.tex.needsUpdate = true;
     });
   }
@@ -774,11 +810,11 @@ const BURN = 900;
  * 잔해 더미 (sim의 잔해 더미와 같은 자리·높이): 양 끝은 거의 서 있는 벽 조각(벽 기동에 쓰는 벽), 가운데 윗면은 고른 돌무더기(발판).
  * 다 쌓이면 윗면이 r.h에 닿는다. grow: 쌓인 정도 0~1.
  */
-function paintRubble(c: HTMLCanvasElement, r: { x0: number; x1: number; h: number; tx0: number; tx1: number }, grow: number, seed: number): void {
+function paintRubble(c: HTMLCanvasElement, w: number, r: { x0: number; x1: number; h: number; tx0: number; tx1: number }, grow: number, seed: number): void {
   const g = c.getContext('2d')!;
-  const w = c.width;
   const H = c.height;
-  g.clearRect(0, 0, w, H);
+  // 그림판은 가장 넓은 더미 폭이다: 앞쪽 w칸만 이 더미 (판의 텍스처 좌표가 거기까지만 읽는다)
+  g.clearRect(0, 0, c.width, H);
   if (grow <= 0) return;
   const top = r.h * grow;
   const tx0 = r.tx0 - r.x0;

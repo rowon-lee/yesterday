@@ -1,6 +1,6 @@
 import { COLORS, type ColorName } from '../render/palette';
 import type { Joints, Point } from './pose';
-import { Indexed, Mask, outlineSilhouette, paint, stampDisc, stampLine, type Shade } from './raster';
+import { giveMask, Indexed, Mask, outlineSilhouette, paint, stampDisc, stampLine, takeMask, type Shade } from './raster';
 
 /** 굵기 (외곽선 제외). 전체 모양 바깥 둘레에 1px 외곽선이 붙는다. */
 export const LIMB_W = 4;
@@ -166,18 +166,19 @@ export function drawSkeleton(
 ): void {
   const P = (q: Point): Point => [ox + q[0], oy + q[1]];
   const group = (draw: (m: Mask) => void, shade: Shade) => {
-    const m = new Mask(img.w, img.h);
+    const m = takeMask(img);
     draw(m);
     paint(img, m, shade);
+    giveMask(m);
   };
-  const [cx0, cx1] = clip ?? [0, img.w];
+  const [cx0, cx1] = clip ?? [img.ox, img.ox + img.w];
   const pen: DecorPen = {
     fill(part, draw) {
-      const m = new Mask(img.w, img.h);
+      const m = takeMask(img);
       const set = (x: number, y: number) => {
         if (x >= cx0 && x < cx1) m.set(x, y);
       };
-      const clipped = new Mask(img.w, img.h);
+      const clipped = takeMask(img);
       draw({
         line: (a, b, w) => stampLine(clipped, ...P(a), ...P(b), w),
         disc: (c, r) => stampDisc(clipped, ...P(c), r),
@@ -188,8 +189,12 @@ export function drawSkeleton(
           }
         },
       });
-      for (let y = 0; y < img.h; y++) for (let x = cx0; x < cx1; x++) if (clipped.get(x, y)) m.set(x, y);
+      for (let y = clipped.y0; y <= clipped.y1; y++) {
+        for (let x = Math.max(cx0, clipped.x0); x < Math.min(cx1, clipped.x1 + 1); x++) if (clipped.get(x, y)) m.set(x, y);
+      }
       paint(img, m, PART_SHADE[part]);
+      giveMask(m);
+      giveMask(clipped);
     },
   };
   const seg = (m: Mask, a: Point, b: Point, w: number) => stampLine(m, ...P(a), ...P(b), w);
@@ -308,20 +313,4 @@ export function lookTable(look: Look): number[][] {
   table[SLOT.metal] = rgb(metal[1]);
   table[SLOT.metalLight] = rgb(metal[2]);
   return table;
-}
-
-/** 색 번호 그림 → 캔버스 픽셀 */
-export function toImageData(img: Indexed, look: Look): ImageData {
-  const table = lookTable(look);
-  const out = new ImageData(img.w, img.h);
-  for (let i = 0; i < img.a.length; i++) {
-    const c = img.a[i];
-    if (!c) continue;
-    const [r, g, b] = table[c];
-    out.data[i * 4] = r;
-    out.data[i * 4 + 1] = g;
-    out.data[i * 4 + 2] = b;
-    out.data[i * 4 + 3] = 255;
-  }
-  return out;
 }

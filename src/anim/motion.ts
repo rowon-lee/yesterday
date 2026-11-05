@@ -1,5 +1,6 @@
 import type { HitSpec } from './boxes';
 import type { FollowSpec } from './follow';
+import type { CellFrame } from './bake';
 import type { Key } from './keyed';
 import type { Joints } from './pose';
 import type { LookName } from './skeleton';
@@ -80,8 +81,18 @@ export interface Motion {
   hit?: HitSpec;
   /** frame번째 프레임을 칸 왼쪽 위 (ox, oy)에 그린다. 기본은 오른쪽을 보는 모습. */
   draw(ctx: CanvasRenderingContext2D, frame: number, ox: number, oy: number, opts?: DrawOptions): void;
-  /** 미리 그린 시트 (프레임을 가로로 늘어놓은 캔버스, 색 한 벌·방향 하나·캐릭터 겉모습 하나). 2.5D 렌더가 텍스처로 쓴다 */
-  sheet?(look: LookName, flip: boolean, skin?: SkinId): HTMLCanvasElement;
+  /**
+   * 한 프레임을 색 입혀 칸 캔버스(돌려 쓰는 것 하나)에 옮겨 둔다: 그 캔버스의 (0, 0, w, h)를 칸 안 (x, y)에 붙이면 된다.
+   * 다음 image·draw 호출 때 덮어쓰므로 바로 옮겨 그린다 (확대해서 붙일 때)
+   */
+  image?(frame: number, opts?: DrawOptions): { canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number };
+  /** 한 프레임의 칸 크기 픽셀 (RGBA를 32비트 하나로, 투명은 0). 이펙트가 몸 윤곽·밝기를 따라갈 때 */
+  rgba?(frame: number, opts?: DrawOptions): Uint32Array;
+  /** 프레임마다 색 번호 그림 (칸 안에서 그림이 있는 네모만). 처음 부르면 그 겉모습을 다 그린다 */
+  frames?(skin: SkinId): readonly CellFrame[];
+  /** 불러오기 화면이 조금씩 그릴 때: deadline(performance.now)까지 그리고, 다 그렸으면 true */
+  bakeSome?(skin: SkinId, deadline?: number): boolean;
+  isBaked?(skin: SkinId): boolean;
 }
 
 export const DEFAULT_CELL = 64;

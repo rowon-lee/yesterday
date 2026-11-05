@@ -258,13 +258,28 @@ export class Outskirts {
   /** 서치라이트: 빛줄기, 받침 자리, 위상, 훑는 폭(라디안) */
   private readonly searchlights: Array<{ beam: Beam; x: number; y: number; phase: number; sweep: number }> = [];
 
-  constructor() {
-    const det = new Details();
-    this.factory(det);
-    this.docks(det);
-    this.elrail(det);
-    this.wall(det);
-    this.group.add(det.build(), this.glows.build(), ...this.beacons.build(), this.embers.mesh, this.smoke.mesh, this.sparks.mesh);
+  private readonly det = new Details();
+
+  /** staged: 불러오기 화면이 build(0~3)로 한 구간씩 짓고 finish()로 마친다 (막대가 오래 멈추지 않게). 아니면 여기서 다 짓는다 */
+  constructor(staged = false) {
+    if (staged) return;
+    for (let k = 0; k < Outskirts.SECTIONS; k++) this.build(k);
+    this.finish();
+  }
+
+  /** 구간 수: 공장 지대, 항만 창고 부두, 고가 철도 밑, 성벽 검문소 */
+  static readonly SECTIONS = 4;
+
+  /** k번 구간을 짓는다 (차례대로) */
+  build(k: number): void {
+    if (k === 0) this.factory(this.det);
+    else if (k === 1) this.docks(this.det);
+    else if (k === 2) this.elrail(this.det);
+    else this.wall(this.det);
+  }
+
+  finish(): void {
+    this.group.add(this.det.build(), this.glows.build(), ...this.beacons.build(), this.embers.mesh, this.smoke.mesh, this.sparks.mesh);
   }
 
   private lamp(x: number, y: number, z: number, range: number, color: string, power: number, flicker = 0, down = false): void {
@@ -1077,6 +1092,34 @@ function vnoise(x: number, y: number, cell: number, seed: number): number {
   return (h(ix, iy) * (1 - sx) + h(ix + 1, iy) * sx) * (1 - sy) + (h(ix, iy + 1) * (1 - sx) + h(ix + 1, iy + 1) * sx) * sy;
 }
 const px = (g: CanvasRenderingContext2D, x: number, y: number, c: string) => rect(g, x, y, 1, 1, c);
+
+/** '#rrggbb' → ImageData에 바로 쓰는 32비트 값 (리틀 엔디안 ABGR) */
+const abgrCache = new Map<string, number>();
+const abgr = (c: string): number => {
+  let v = abgrCache.get(c);
+  if (v === undefined) {
+    const n = parseInt(c.slice(1), 16);
+    v = (0xff000000 | ((n & 0xff) << 16) | (n & 0xff00) | ((n >> 16) & 0xff)) >>> 0;
+    abgrCache.set(c, v);
+  }
+  return v;
+};
+/**
+ * 한 점씩 아주 많이 칠할 때 (콘크리트 결 등): 네모 칸(x0, y0, w, h)의 픽셀을 배열에 모았다가 한 번에 올린다.
+ * 불투명 '#rrggbb'만 쓴다 (한 점 fillRect와 같은 그림). keep이면 지금 그림을 먼저 읽어 와 칠하지 않은 칸은 그대로 둔다
+ */
+function pixelBlock(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, keep: boolean) {
+  const img = keep ? g.getImageData(x0, y0, w, h) : g.createImageData(w, h);
+  const p = new Uint32Array(img.data.buffer);
+  return {
+    set(x: number, y: number, c: string): void {
+      p[(y - y0) * w + (x - x0)] = abgr(c);
+    },
+    flush(): void {
+      g.putImageData(img, x0, y0);
+    },
+  };
+}
 
 /**
  * 흘러내린 자국 (녹물·물때): (x, y)에서 아래로 len. 머리는 굵고 아래로 가늘어지며, 끝으로 갈수록 끊기고 결을 따라 한 칸씩 비뚤어진다
@@ -2489,12 +2532,18 @@ function paintConcreteTiers(f: Frame, x0: number, seed: number): void {
     const c = tones[Math.floor(hash(seed + k * 7) * tones.length)];
     const ya = Math.max(0, Y(hh + 64));
     const yb = Math.min(h, Y(hh));
+    if (yb <= ya) continue;
+    // 단 하나를 칸마다 다 칠한다: 한 번에 올린다 (한 점씩 fillRect와 같은 그림)
+    const dark = tone(c, 0.86);
+    const light = tone(c, 1.08);
+    const blk = pixelBlock(g, 0, ya, w, yb - ya, false);
     for (let y = ya; y < yb; y++) {
       for (let x = 0; x < w; x++) {
         const n = vnoise(x + x0 * sk, y, 22, seed + 3) * 0.7 + vnoise(x + x0 * sk, y, 7, seed + 9) * 0.3;
-        px(g, x, y, n > 0.66 ? tone(c, 0.86) : n < 0.3 ? tone(c, 1.08) : c);
+        blk.set(x, y, n > 0.66 ? dark : n < 0.3 ? light : c);
       }
     }
+    blk.flush();
   }
   for (let hh = 64; hh < 640; hh += 64) {
     const y = Y(hh);
@@ -2518,10 +2567,13 @@ function paintConcreteTiers(f: Frame, x0: number, seed: number): void {
     rect(g, x + 2, 0, 1, h, '#4f5460');
   }
   // 땅 가까이 튄 물때와 소금기 (덩어리)
+  const band = Math.min(h, 26);
+  const blk = pixelBlock(g, 0, h - band, w, band, true);
   for (let x = 0; x < w; x++) {
-    const top = Math.floor(10 + vnoise(x, 0, 9, seed) * 16);
-    for (let y = h - top; y < h; y++) px(g, x, y, vnoise(x, y, 5, seed + 1) < 0.5 ? '#30343c' : '#383c46');
+    const top = Math.min(band, Math.floor(10 + vnoise(x, 0, 9, seed) * 16));
+    for (let y = h - top; y < h; y++) blk.set(x, y, vnoise(x, y, 5, seed + 1) < 0.5 ? '#30343c' : '#383c46');
   }
+  blk.flush();
 }
 
 /** 동쪽 끝 모서리·서쪽 보루 앞면: 콘크리트 단, 총안 창 줄 (main이면 경고 띠) */

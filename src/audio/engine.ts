@@ -10,9 +10,9 @@
  */
 import { Mixer } from './mixer';
 import { audioSettings, levelGain, onAudioSettings, type AudioSettings } from './settings';
-import { JITTER, recipeFor, TICK_SEC, type Cue } from './sfx';
+import { JITTER, recipeFor, SFX, TICK_SEC, type Cue } from './sfx';
 import type { Recipe } from './sfx/types';
-import type { PlayOpts, Voice } from './synth';
+import { playRecipe, primeSynth, type PlayOpts, type Voice } from './synth';
 
 type AudioSessionNav = Navigator & { audioSession?: { type: string } };
 
@@ -42,16 +42,36 @@ class AudioEngine {
     return this.ctx;
   }
 
+  /** 컨텍스트와 믹서(리버브 울림·노이즈 버퍼 포함)를 만든다. 사람이 누르기 전이면 멈춘 채로 생긴다 (켜기는 unlock) */
+  private create(): void {
+    if (this.ctx) return;
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    this.applySession(audioSettings());
+    this.ctx = new Ctor({ latencyHint: 'interactive' });
+    this.mixer = new Mixer(this.ctx);
+    primeSynth(this.ctx);
+    this.apply(audioSettings());
+  }
+
+  /**
+   * 불러오기 화면: 소리를 미리 풀어 둔다 (첫 효과음 때 멈추지 않게). 컨텍스트·믹서·리버브 울림·노이즈 버퍼를 만들고,
+   * 모든 효과음 레시피를 스피커에 이어지지 않은 소리 0 길로 한 번씩 짜 둔다 (디스토션 곡선도 이때 생기고, 소리 부품을 만드는 코드가 데워진다)
+   */
+  prepare(): void {
+    this.create();
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const sink = ctx.createGain();
+    sink.gain.value = 0;
+    const o: PlayOpts = { pitch: 1, stretch: 1, stop: 0.1, rng: () => 0.5 };
+    for (const list of Object.values(SFX)) for (const r of list) playRecipe(ctx, r, ctx.currentTime, o, sink, sink);
+  }
+
   /** 사람의 입력 안에서 부른다: 컨텍스트를 만들고 켠다 */
   unlock(): void {
-    if (!this.ctx) {
-      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctor) return;
-      this.applySession(audioSettings());
-      this.ctx = new Ctor({ latencyHint: 'interactive' });
-      this.mixer = new Mixer(this.ctx);
-      this.apply(audioSettings());
-    }
+    this.create();
+    if (!this.ctx) return;
     this.unlocked = true;
     if (this.ctx.state !== 'running') {
       void this.ctx.resume().catch(() => {});
