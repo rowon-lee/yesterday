@@ -12,19 +12,25 @@ const BREATH_IN = OR({ hy: -23, tl: 11, hd: 9 });
 /** 날숨: 다시 굽으며 내려앉고, 엄지로 날밑을 밀어 칼날이 2px 비친다 (몸에 밴 버릇) */
 const BREATH_OUT = OR({ hy: -21, tl: 14, hd: 13 }, 2);
 
-/** 대기: 들숨 → 머무름 → 날숨에 날밑을 밀었다가 → 칼을 다시 밀어 넣으며 제자리. 14프레임 72틱 (1.2초에 한 번 숨) */
+/**
+ * 대기 (2차 리워크): 들숨 시작 → 들숨 (머문다) → 날숨 시작 → 엄지가 날밑에 닿고 (2틱) → 날숨에 날밑을 밀어 칼날이 2px 비침 (머문다) →
+ * '탁' 다시 밀어 넣음 → 고개를 한 번 끄덕이며 제자리. 8프레임 72틱 (1.2초에 한 번 숨, 사이 프레임 대신 숨마다 한 장)
+ */
 export const OSCAR_IDLE: MotionData = {
   name: 'oscar/idle',
   label: '오스카 대기',
   loop: true,
-  dur: [6, 6, 6, 6, 6, 4, 4, 4, 6, 6, 4, 4, 5, 5],
+  dur: [10, 8, 12, 6, 2, 10, 10, 14],
   keys: [
     { at: 0, pose: O_STANCE },
-    { at: 4, pose: BREATH_IN, stop: true },
-    { at: 6, pose: BREATH_IN },
-    { at: 9, pose: BREATH_OUT, stop: true },
-    { at: 11, pose: OR({ hy: -21.5, tl: 14, hd: 13 }) },
-    { at: 14, pose: O_STANCE },
+    { at: 1, pose: OR({ hy: -22.6, tl: 12, hd: 10.5 }) },
+    { at: 2, pose: BREATH_IN, stop: true },
+    { at: 3, pose: OR({ hy: -22.2, tl: 12.5, hd: 11.5 }) },
+    { at: 4, pose: OR({ hy: -21.6, tl: 13.5, hd: 12.5 }, -1.5) },
+    { at: 5, pose: BREATH_OUT, stop: true },
+    { at: 6, pose: OR({ hy: -21, tl: 14, hd: 14 }), stop: true },
+    { at: 7, pose: OR({ hy: -21.5, tl: 14, hd: 18 }) },
+    { at: 8, pose: O_STANCE },
   ],
 };
 
