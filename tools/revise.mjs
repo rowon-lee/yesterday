@@ -47,7 +47,7 @@ async function loadAt(root) {
 const OLD = await loadAt(opt.before);
 const NEW = await loadAt('.');
 
-const SLOT = { w: 128, h: 96, fx: 64, fy: 93 };
+const SLOT = { w: 144, h: 108, fx: 72, fy: 105 };
 const cumOf = (dur) => dur.reduce((a, d) => (a.push((a[a.length - 1] ?? 0) + d), a), []);
 const frameAt = (cum, t) => {
   for (let i = 0; i < cum.length; i++) if (t < cum[i]) return i;

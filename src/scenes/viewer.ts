@@ -141,7 +141,7 @@ export function viewerScene(): Scene {
       ctx.fillStyle = COLORS.night;
       ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
-      // 큰 보기: 칸 바탕(격자), 바닥선, 캐릭터 확대 (보통 칸 3배, 큰 칸 128×96은 2배로 왼쪽에 붙여)
+      // 큰 보기: 칸 바탕(격자), 바닥선, 캐릭터 확대 (보통 칸 3배, 큰 칸 128×96·에드워드 칸 144×108은 2배로 왼쪽에 붙여)
       const view = viewOf(cell);
       const sw = cell.w * view.zoom;
       const sh = cell.h * view.zoom;
@@ -154,6 +154,8 @@ export function viewerScene(): Scene {
       ctx.fillStyle = COLORS.gridLight;
       ctx.fillRect(view.x, VIEW_Y + (cell.fy + 1) * view.zoom, sw, view.zoom);
       ctx.drawImage(sprite(m, v.frame, v.look, v.flip, skinForMotion(m.name, v.skin)), view.x, VIEW_Y, sw, sh);
+      // 오른쪽 정보 칸: 큰 보기 오른쪽 끝에서 띄운다 (에드워드 칸 144×108은 2배가 288px이라 기본 자리 260을 넘는다)
+      const panelX = Math.max(PANEL_X, view.x + sw + 4);
 
       // 오른쪽 정보
       const total = m.dur.reduce((a, b) => a + b, 0);
@@ -184,14 +186,14 @@ export function viewerScene(): Scene {
         [v.playing ? 'PLAY' : 'STOP', v.playing ? COLORS.green : COLORS.red],
         [`SPEED X${SPEED_LABEL[v.speed].replace('배속', '')}`, COLORS.white],
       ];
-      lines.forEach(([t, c], i) => t && drawText(ctx, t, PANEL_X, VIEW_Y + i * 8, c));
+      lines.forEach(([t, c], i) => t && drawText(ctx, t, panelX, VIEW_Y + i * 8, c));
       if (v.boxes) {
         ctx.fillStyle = COLORS.green;
-        ctx.fillRect(PANEL_X, VIEW_Y + 98, 5, 5);
-        drawText(ctx, 'HURT DATA', PANEL_X + 8, VIEW_Y + 98, COLORS.white);
+        ctx.fillRect(panelX, VIEW_Y + 98, 5, 5);
+        drawText(ctx, 'HURT DATA', panelX + 8, VIEW_Y + 98, COLORS.white);
         ctx.fillStyle = COLORS.red;
-        ctx.fillRect(PANEL_X, VIEW_Y + 106, 5, 5);
-        drawText(ctx, 'HIT DATA', PANEL_X + 8, VIEW_Y + 106, COLORS.white);
+        ctx.fillRect(panelX, VIEW_Y + 106, 5, 5);
+        drawText(ctx, 'HIT DATA', panelX + 8, VIEW_Y + 106, COLORS.white);
       }
 
       // 아래 시간 줄: 프레임마다 표시 틱만큼 폭, 지금 프레임은 금색

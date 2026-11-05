@@ -1,5 +1,5 @@
 import type { TickInput } from '../core/input';
-import { cellOf } from '../anim/motion';
+import { cellOf, MAX_CELL } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import { drawCutin, playCutscene } from '../render/cutin';
 import type { CutinData } from '../data/moves/base';
@@ -545,17 +545,17 @@ function isFast(f: Fighter): boolean {
   return f.mode !== 'dash' && f.mode !== 'airdash' && Math.abs(f.vx) >= 3 * 256;
 }
 
-/** 잔상 캔버스 (가장 큰 칸 128×96) */
+/** 잔상 캔버스 (가장 큰 칸) */
 const ghostCanvas = document.createElement('canvas');
-ghostCanvas.width = 128;
-ghostCanvas.height = 96;
+ghostCanvas.width = MAX_CELL.w;
+ghostCanvas.height = MAX_CELL.h;
 /** 바둑판 무늬 (반투명 대신 디더링) */
 const checker = (() => {
   const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 96;
+  c.width = MAX_CELL.w;
+  c.height = MAX_CELL.h;
   const g = c.getContext('2d')!;
-  for (let y = 0; y < 96; y++) for (let x = y & 1; x < 128; x += 2) g.fillRect(x, y, 1, 1);
+  for (let y = 0; y < MAX_CELL.h; y++) for (let x = y & 1; x < MAX_CELL.w; x += 2) g.fillRect(x, y, 1, 1);
   return c;
 })();
 
@@ -571,7 +571,7 @@ function drawGhost(
   const cell = cellOf(m);
   const gc = ghostCanvas.getContext('2d')!;
   gc.globalCompositeOperation = 'source-over';
-  gc.clearRect(0, 0, 128, 96);
+  gc.clearRect(0, 0, MAX_CELL.w, MAX_CELL.h);
   m.draw(gc, g.frame, 0, 0, { look, flip: g.facing < 0, skin });
   gc.globalCompositeOperation = 'destination-in';
   gc.drawImage(checker, 0, 0);

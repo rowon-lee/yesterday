@@ -140,8 +140,8 @@ function kindOf(name) {
 
 // ───────────────────────── 그리기 (시트와 같은 관절·장식) ─────────────────────────
 
-/** 모든 동작을 한 크기 칸(128×96, 발밑 64, 93)에 맞춰 그린 실루엣 (1 = 칠해짐) */
-const SLOT = { w: 128, h: 96, fx: 64, fy: 93 };
+/** 모든 동작을 한 크기 칸(가장 큰 에드워드 칸 144×108, 발밑 72, 105)에 맞춰 그린 실루엣 (1 = 칠해짐) */
+const SLOT = { w: 144, h: 108, fx: 72, fy: 105 };
 const silCache = new Map();
 function silhouettes(m) {
   let s = silCache.get(m.name);

@@ -6,9 +6,9 @@
 //   살아 있는 L: 언제나 흐른다. 펼쳐짐(0~2틱)·살아 있는 정지(다시 꺾임·맥동·자람)·불씨·연기를 움직인다 (세상은 멈춰도 이펙트는 산다).
 // 난수는 불씨·연기·나비·꽃잎 자리·속도에만 쓴다 (같은 시드면 같은 그림).
 // 14-9 기법 중 모양 시간에 거는 것: B 지연 폭발 (wait: 살아 있는 시계로 늦게 나타남), I 시간 엇갈림 (grow), L 색 뒤집기 (flip), N 맥동 (pulse).
-import type { GEmbers, GFlutter, GPt, GShape, GSmoke, GTone } from '../../data/vfx/types';
+import type { GChunks, GEmbers, GFlutter, GPt, GShape, GSmoke, GTone } from '../../data/vfx/types';
 import { fillRings, put, rng, type GFrame, type Layer } from './raster';
-import { bolt, butterfly, flash, hash, ink, petal, rays, ribbon, ring, stitch, swoosh, wedge, type Paint, type Phase } from './shapes';
+import { bolt, butterfly, clipHalf, flash, hash, ink, petal, quake, rays, ribbon, ring, stitch, swoosh, wedge, type Paint, type Phase } from './shapes';
 
 export type { GFrame, Layer };
 
@@ -26,6 +26,8 @@ export interface GGSpec {
   floor?: number;
   /** 14-9 L 색 뒤집기: 살아 있는 틱 at부터 ticks틱 동안 이 색표로 그린다 */
   flip?: { at: number; ticks: number; ramp: readonly number[] };
+  /** 모양 좌표 (0, 0)를 틱마다 다시 읽는다 (밀려가는 장막 벽처럼 움직이는 것을 따라간다). 바닥 높이는 그대로 */
+  follow?: () => GPt;
 }
 
 interface Ember {
@@ -52,6 +54,20 @@ interface Leaf {
   phase: number;
 }
 
+/** 바닥 덩어리 파편 하나 (에드워드): 꼭짓점 다섯 (반지름 비·각), 처음 자리·속도, 돌기 */
+interface Chunk {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  born: number;
+  life: number;
+  size: number;
+  rot: number;
+  spin: number;
+  shape: number[];
+}
+
 interface Puff {
   x: number;
   y: number;
@@ -71,20 +87,22 @@ function spanOf(s: GShape): number {
   return (s.hold ?? 0) + (s.pulse ? 3 : 0) + (s.fade ?? 6);
 }
 /** 살아 있는 시계로 사는 모양 */
-const liveKind = (s: GShape) => s.kind === 'embers' || s.kind === 'smoke' || s.kind === 'flutter' || s.kind === 'stitch';
+const liveKind = (s: GShape) => s.kind === 'embers' || s.kind === 'smoke' || s.kind === 'flutter' || s.kind === 'stitch' || s.kind === 'chunks';
 /** 살아 있는 시계로 사는 모양의 끝 (나타난 뒤 틱) */
 function liveEnd(s: GShape): number {
   if (s.kind === 'flutter') return (s.n - 1) * (s.every ?? 1) + s.life + 2;
   if (s.kind === 'stitch') return s.sew + s.life + 14;
   if (s.kind === 'embers' || s.kind === 'smoke') return s.life + 2;
+  if (s.kind === 'chunks') return (s.n - 1) * (s.every ?? 0) + s.life + 2;
   return 0;
 }
 
 export default function ggEffect(o: GGSpec) {
   const fc = o.facing >= 0 ? 1 : -1;
-  const OX = Math.round(o.origin[0]);
-  const OY = Math.round(o.origin[1]);
-  const floorY = (o.floor ?? o.origin[1]) - OY;
+  let OX = Math.round(o.origin[0]);
+  let OY = Math.round(o.origin[1]);
+  const floorW = o.floor ?? o.origin[1];
+  let floorY = floorW - OY;
   let t = 0;
   let L = 0;
   const born = new Map<GShape, number>();
@@ -92,6 +110,7 @@ export default function ggEffect(o: GGSpec) {
   const embers = new Map<GEmbers, Ember[]>();
   const puffs = new Map<GSmoke, Puff[]>();
   const leafs = new Map<GFlutter, Leaf[]>();
+  const rocks = new Map<GChunks, Chunk[]>();
   /** wait 모양이 나타난 순간의 진행 시계 */
   const tAt = new Map<GShape, number>();
   /** 나타난 뒤 진행 시계로 잰 틱 (아직이면 −1) */
@@ -166,6 +185,8 @@ export default function ggEffect(o: GGSpec) {
         ex = 0;
       } else ex -= 3;
     }
+    // 오래 머무는 모양 (탄 자국): 두께가 천천히 숨쉰다 (같은 그림으로 멈추지 않게)
+    if (s.breathe) a *= 1 + s.breathe * Math.sin(ls * 0.7);
     const p = ex <= 0 ? 0 : Math.min(1, ex / Math.max(1, s.fade ?? 6));
     if (p > 0 && !spread.has(s)) spread.set(s, ls);
     const g = s.grow ?? 1;
@@ -322,6 +343,101 @@ export default function ggEffect(o: GGSpec) {
       }
     });
   };
+  const chunksOf = (s: GChunks): Chunk[] => {
+    let list = rocks.get(s);
+    if (!list) {
+      const r = rng(seedOf(s) + 13);
+      list = [];
+      const at = s.at ?? [0, 0];
+      for (let i = 0; i < s.n; i++) {
+        const a = ((s.dir + (r() - 0.5) * s.fan) * Math.PI) / 180;
+        const v = s.speed * (0.55 + 0.45 * r());
+        const shape: number[] = [];
+        const a0 = r() * Math.PI * 2;
+        for (let k = 0; k < 5; k++) shape.push(0.62 + 0.38 * r(), a0 + ((k + (r() - 0.5) * 0.5) / 5) * Math.PI * 2);
+        list.push({
+          x: at[0] + (r() - 0.5) * 2 * s.spread,
+          y: at[1] - r() * 3,
+          vx: Math.cos(a) * v,
+          vy: Math.sin(a) * v,
+          born: i * (s.every ?? 0),
+          life: Math.round(s.life * (0.7 + 0.3 * r())),
+          size: s.size[0] + (s.size[1] - s.size[0]) * r(),
+          rot: r() * Math.PI * 2,
+          spin: (r() - 0.5) * 2 * (s.spin ?? 0.25),
+          shape,
+        });
+      }
+      rocks.set(s, list);
+    }
+    return list;
+  };
+  /**
+   * 바닥 덩어리 파편 (에드워드 14-4): 포물선으로 날며 돌고, 바닥에 닿으면 두 번 튄 뒤 누워 부서지며 작아진다 (같은 그림으로 멈추지 않게).
+   * 셀 3단: 몸 → 위쪽 빛 받는 면 (처음 3틱은 흰 심: 달궈진 단면) → 아래쪽 그늘. 4px보다 작아지면 그리지 않는다
+   */
+  const drawChunks = (f: GFrame, s: GChunks, ls: number) => {
+    const g = s.gravity ?? 0.2;
+    const zoom = s.zoom ?? 0;
+    const ramp = rampNow();
+    const [tS, tB, tL] = s.tones ?? [3, 2, 1];
+    chunksOf(s).forEach((c) => {
+      const age = ls - c.born;
+      if (age < 0 || age >= c.life) return;
+      const ground = floorY - c.size * 0.3;
+      let x = c.x;
+      let y = c.y;
+      let vx = c.vx;
+      let vy = c.vy;
+      let tt = age;
+      let bounces = 0;
+      let rest = -1;
+      let spun = 0;
+      let spin = c.spin;
+      for (let guard = 0; guard < 4 && tt > 0; guard++) {
+        const disc = vy * vy + 2 * g * (ground - y);
+        const hit = y <= ground && disc >= 0 ? (-vy + Math.sqrt(disc)) / g : Infinity;
+        if (hit > tt) {
+          x += vx * tt;
+          y += vy * tt + 0.5 * g * tt * tt;
+          spun += spin * tt;
+          tt = 0;
+          break;
+        }
+        x += vx * hit;
+        y = ground;
+        spun += spin * hit;
+        tt -= hit;
+        bounces++;
+        if (bounces >= 3) {
+          rest = age - tt;
+          tt = 0;
+          break;
+        }
+        vy = -(vy + g * hit) * 0.3;
+        vx *= 0.5;
+        spin *= 0.5;
+      }
+      let sz = c.size * (1 + zoom * age);
+      if (rest >= 0) sz *= Math.max(0, 1 - (age - rest) / 16);
+      const u = age / c.life;
+      if (u > 0.8) sz *= 1 - (u - 0.8) / 0.2;
+      if (sz < 4) return;
+      const rot = c.rot + spun;
+      const pts: number[] = [];
+      for (let k = 0; k < 5; k++) {
+        const rr = (c.shape[2 * k]! * sz) / 2;
+        const a = c.shape[2 * k + 1]! + rot;
+        pts.push(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      // 빛 받는 면: 위쪽 (공격 방향 위), 그늘: 아래쪽
+      const lit = clipHalf(pts, -0.34, -0.94, -0.34 * x - 0.94 * y + 0.08 * sz);
+      const shade = clipHalf(pts, 0.26, 0.97, 0.26 * x + 0.97 * y + 0.22 * sz);
+      fillRings(f, [toWorld(pts)], ramp[tB] ?? ramp[0]!);
+      if (lit.length >= 6) fillRings(f, [toWorld(lit)], ramp[age < 3 ? 0 : tL] ?? ramp[0]!);
+      if (shade.length >= 6) fillRings(f, [toWorld(shade)], ramp[tS] ?? ramp[0]!);
+    });
+  };
   return {
     update(dt: number) {
       // 나타난 틱·흩어지기 시작한 틱을 그리기와 상관없이 적는다 (그리지 않고 건너뛴 틱이 있어도 시간이 맞게)
@@ -351,6 +467,12 @@ export default function ggEffect(o: GGSpec) {
     },
     draw(f: GFrame, l?: Layer) {
       const layer = l ?? 'back';
+      if (o.follow) {
+        const [fx, fy] = o.follow();
+        OX = Math.round(fx);
+        OY = Math.round(fy);
+        floorY = floorW - OY;
+      }
       for (const s of o.shapes) {
         if ((s.layer ?? 'back') !== layer) continue;
         const ph = phaseOf(s);
@@ -392,6 +514,12 @@ export default function ggEffect(o: GGSpec) {
             break;
           case 'stitch':
             paint(f, stitch(s, Math.floor(L - born.get(s)! + 1e-6), seedOf(s)));
+            break;
+          case 'quake':
+            if (ph.p < 1) paint(f, quake(s, ph));
+            break;
+          case 'chunks':
+            drawChunks(f, s, L - born.get(s)!);
             break;
         }
       }

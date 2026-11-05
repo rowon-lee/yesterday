@@ -34,6 +34,8 @@ export interface MotionData {
    * 체격이 큰 캐릭터 (에드워드 키 약 58px, 2026-11-02 피드백 12-0)
    */
   scale?: number;
+  /** 칸을 직접 정한다 (wide보다 먼저): 큰 워 해머가 128×96을 넘는 에드워드 (EDWARD_CELL) */
+  cell?: Cell;
 }
 
 /** 캐릭터 칸: 크기와 발밑 기준점 (칸 왼쪽 위 기준) */
@@ -47,6 +49,13 @@ export interface Cell {
 export const SMALL_CELL: Cell = { w: 64, h: 64, fx: 32, fy: 61 };
 /** 큰 칸 128×96, 발밑 (64, 93). 보통 칸과 발밑을 맞춰 바꿔 그린다 */
 export const WIDE_CELL: Cell = { w: 128, h: 96, fx: 64, fy: 93 };
+/**
+ * 에드워드 칸 144×108, 발밑 (72, 105): 키운 회색 워 해머(2026-11-05 피드백 '회색 워해머 정도로 크기도 키우고')를 머리 위로 들거나
+ * 끝까지 뻗으면 128×96을 넘는다 (가장 높이 99px, 앞 67px, 뒤 61px). 발밑 아래 여유는 다른 칸과 같은 3px (바닥에 박힌 해머 머리는 바닥선에서 잘린다)
+ */
+export const EDWARD_CELL: Cell = { w: 144, h: 108, fx: 72, fy: 105 };
+/** 가장 큰 칸 (잔상·실루엣을 그리는 캔버스 크기) */
+export const MAX_CELL = { w: 144, h: 108 } as const;
 /** 이 동작의 칸 */
 export const cellOf = (m: { cell?: Cell }): Cell => m.cell ?? SMALL_CELL;
 

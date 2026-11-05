@@ -16,6 +16,7 @@ import { lights } from '../light';
 import { COLORS, type ColorName } from '../palette';
 import { fxColor, fxHex, fxRamp, FX_PX } from '../vfx';
 import type { CharFx, CharRender } from '.';
+import { GG_CHARS } from './gg-table';
 
 /*
  * 에드워드 고유 연출 (렌더 전용, sim 상태를 읽기만 한다). 대표 색: 푸른 장막(이펙트·빛), 붉은 정장, 청동.
@@ -49,6 +50,12 @@ const HAMMER_HITS: ReadonlySet<MoveId> = new Set(['atk1', 'atk2', 'atk3', 'atk4'
 const GROUND_TOUCH: Partial<Record<MoveId, [number, number, number]>> = {
   atk1: [8, 34, 0.35], atk3: [7, 48, 0.8], sweep: [4, 50, 0.4],
 };
+
+/**
+ * 이 기술에 길티기어식 이펙트(동작연출지침서 14-8, data/vfx/edward)가 있는가: 있으면 그 기술의 예전 고리·장막 손·돔·섬광은 그리지 않는다
+ * (바닥 물 튐·먼지·벽돌 부스러기·차지 홈·껍데기 같은 환경·고유 반응은 그대로)
+ */
+const hasGG = (id: string): boolean => !!GG_CHARS.edward?.move(id, 3);
 
 /** 사람마다 지난 틱의 상태 (상태가 바뀌는 순간을 잡는다), 강화된 평타 중인가, 염동력 방향 */
 const prev: Array<{ mode: string; t: number; jumpKind: number }> = [
@@ -187,7 +194,7 @@ export const EDWARD_RENDER: CharRender = {
       // 센 해머·강화된 평타: 맞은 자리에서 파편과 푸른 고리
       const x = (e.x / 256) * FX_PX;
       const y = (GROUND_Y + e.y / 256) * FX_PX;
-      c.layer.add(veilRing({ x, y, radius: empowered[i] ? 30 : 20, flat: 1, ticks: 12, ramp: fxRamp(VEIL) }));
+      if (!hasGG(e.move) || empowered[i]) c.layer.add(veilRing({ x, y, radius: empowered[i] ? 30 : 20, flat: 1, ticks: 12, ramp: fxRamp(VEIL) }));
       c.debris.burst('brick', e.x / 256, GROUND_Y + e.y / 256, f.facing, 3);
       if (empowered[i]) {
         c.layer.add(explosion({ x, ground: (GROUND_Y + f.floor / 256) * FX_PX, size: 0.35, surface: fxColor('street'), seed: c.seed(), fire: 0 }));
@@ -249,9 +256,12 @@ export const EDWARD_RENDER: CharRender = {
           sustain: () => fighter.ext[EX.EMPOWER]! > 0 || fighter.ext[EX.EMP_NOW]! > 0,
           shake: (t) => c.fx.shake(t * 0.4),
         }));
-        c.layer.add(glint({ x: fx + f.facing * 13 * FX_PX, y: fy - 14 * FX_PX, size: 1.1, ramp: fxRamp(VEIL) }));
+        // 길티기어식 이펙트 (render/fightvfx edwardEvent)가 해머를 세운 자리의 빛기둥·맥동 고리를 그린다
+        if (!hasGG('skill1')) {
+          c.layer.add(glint({ x: fx + f.facing * 13 * FX_PX, y: fy - 14 * FX_PX, size: 1.1, ramp: fxRamp(VEIL) }));
+          c.glow(wx, wy - 26, 100, COLORS.veilLight, 0.9, 20);
+        }
         c.layer.add(veilShell({ silhouette: () => c.silhouette(fighter), ticks: 16, ramp: fxRamp(VEIL), seed: c.seed() }));
-        c.glow(wx, wy - 26, 100, COLORS.veilLight, 0.9, 20);
         break;
       case 'empowered':
         empowered[i] = true;
@@ -265,25 +275,33 @@ export const EDWARD_RENDER: CharRender = {
         };
         const chest = (): [number, number] => [(op.x / 256) * FX_PX, (GROUND_Y + op.y / 256 - 26) * FX_PX];
         const alive = () => fighter.ext[EX.TK_GRAB] === 1 && fighter.mode === 'attack';
-        c.layer.add(veilBands({ from: hand, to: chest, alive, ramp: fxRamp(VEIL) }));
-        c.layer.add(veilHand({ at: chest, from: -f.facing, size: 30, alive, ramp: fxRamp(VEIL), seed: c.seed() }));
+        // 길티기어식 이펙트가 있으면 꼬인 장막 띠 하나와 장막 손가락 쐐기를 render/fightvfx edwardEvent가 그린다 (3px 가닥 세 줄·1px 테두리 대신)
+        if (!hasGG('skill2')) {
+          c.layer.add(veilBands({ from: hand, to: chest, alive, ramp: fxRamp(VEIL) }));
+          c.layer.add(veilHand({ at: chest, from: -f.facing, size: 30, alive, ramp: fxRamp(VEIL), seed: c.seed() }));
+        }
         c.layer.add(scrape({
           head: () => (alive() ? [(op.x / 256) * FX_PX, (GROUND_Y + op.floor / 256) * FX_PX] : null),
           ground: (GROUND_Y + op.floor / 256) * FX_PX, groove: fxColor('fxSoot'), sparks: fxRamp(WATER), seed: c.seed(),
         }));
-        c.glow(op.x / 256, GROUND_Y + op.y / 256 - 26, 80, COLORS.veilLight, 0.9, 12);
-        c.fx.flashFor(1);
+        if (!hasGG('skill2')) {
+          c.glow(op.x / 256, GROUND_Y + op.y / 256 - 26, 80, COLORS.veilLight, 0.9, 12);
+          c.fx.flashFor(1);
+        }
         break;
       }
       case 'tkWall': {
         // 밀어냄: 높이 70px 장막 벽이 상대를 붙인 채 밀려 나가고, 벽 밑 젖은 바닥이 갈라진다
         const op = s.fighters[1 - i]!;
         const alive = () => fighter.ext[EX.TK_GRAB] === 2 && fighter.mode === 'attack';
-        c.layer.add(veilWall({
-          at: () => [((op.x / 256) - fighter.facing * 12) * FX_PX, (GROUND_Y + op.floor / 256) * FX_PX],
-          dir: f.facing, height: 70, alive, ramp: fxRamp(VEIL), seed: c.seed(),
-        }));
-        c.glow(op.x / 256, GROUND_Y + op.y / 256 - 30, 90, COLORS.veilLight, 0.9, 14);
+        // 길티기어식 이펙트가 있으면 장막 벽 쐐기를 render/fightvfx edwardEvent가 밀려가는 상대를 따라 그린다
+        if (!hasGG('skill2')) {
+          c.layer.add(veilWall({
+            at: () => [((op.x / 256) - fighter.facing * 12) * FX_PX, (GROUND_Y + op.floor / 256) * FX_PX],
+            dir: f.facing, height: 70, alive, ramp: fxRamp(VEIL), seed: c.seed(),
+          }));
+          c.glow(op.x / 256, GROUND_Y + op.y / 256 - 30, 90, COLORS.veilLight, 0.9, 14);
+        }
         c.fx.shake(0.15);
         break;
       }
@@ -297,7 +315,7 @@ export const EDWARD_RENDER: CharRender = {
       case 'tkBurst': {
         // 장막 벽이 터진다 (veilWall 조각), 화면이 흔들린다
         const op = s.fighters[1 - i]!;
-        c.glow(op.x / 256, GROUND_Y + op.y / 256 - 30, 110, COLORS.veilLight, 1, 12);
+        if (!hasGG('skill2')) c.glow(op.x / 256, GROUND_Y + op.y / 256 - 30, 110, COLORS.veilLight, 1, 12);
         splash(c, (op.x / 256) * FX_PX, (GROUND_Y + op.floor / 256) * FX_PX, f.facing, 0.7);
         c.fx.shake(0.35);
         break;
@@ -321,15 +339,18 @@ export const EDWARD_RENDER: CharRender = {
         // 내려찍기 착지: 반원 충격파(반지름 48px)가 퍼지고 바닥이 패인다, 먼지·물·흙이 튀고 화면이 흔들린다
         const g = (GROUND_Y + f.y / 256) * FX_PX;
         const x = fx + f.facing * 20 * FX_PX;
-        c.layer.add(dome({ x, y: g, radius: e.combo ?? 48, ticks: 16, ramp: fxRamp(['fxWhite', 'bronzeLight', 'veilLight', 'veil']), crack: fxColor('fxSoot'), seed: c.seed() }));
-        c.layer.add(impact({ kind: 'hit', x, y: g - 2 * FX_PX, angle: -Math.PI / 2, size: 0.8, ramp: fxRamp(['fxWhite', 'bronzeLight', 'stone', 'stoneDark', 'fxSoot']), seed: c.seed() }));
+        // 길티기어식 이펙트가 있으면 짓누르는 충격파·고리·덩어리·흔들림을 render/fightvfx edwardEvent가 그린다 (물 튐·벽돌·먼지는 그대로)
+        if (!hasGG('slam')) {
+          c.layer.add(dome({ x, y: g, radius: e.combo ?? 48, ticks: 16, ramp: fxRamp(['fxWhite', 'bronzeLight', 'veilLight', 'veil']), crack: fxColor('fxSoot'), seed: c.seed() }));
+          c.layer.add(impact({ kind: 'hit', x, y: g - 2 * FX_PX, angle: -Math.PI / 2, size: 0.8, ramp: fxRamp(['fxWhite', 'bronzeLight', 'stone', 'stoneDark', 'fxSoot']), seed: c.seed() }));
+          c.glow(x / FX_PX, g / FX_PX - 10, 120, COLORS.bronzeLight, 0.9, 16);
+          c.fx.shake(0.6);
+          c.fx.flashFor(1);
+        } else c.fx.shake(0.3);
         splash(c, x, g, f.facing, 1);
         c.debris.burst('brick', x / FX_PX, g / FX_PX - 2, f.facing, 6);
         c.debris.burst('brick', x / FX_PX, g / FX_PX - 2, -f.facing, 4);
         c.debris.dustCloud(x / FX_PX - 40, x / FX_PX + 40, 0.9, g / FX_PX);
-        c.glow(x / FX_PX, g / FX_PX - 10, 120, COLORS.bronzeLight, 0.9, 16);
-        c.fx.shake(0.6);
-        c.fx.flashFor(1);
         break;
       }
       case 'slabs': {
@@ -385,7 +406,8 @@ export const EDWARD_RENDER: CharRender = {
         const x = fx + f.facing * touch[1] * FX_PX;
         splash(c, x, g, f.facing, touch[2]);
         if (f.move === 'atk3') {
-          for (const dir of [-1, 1]) c.layer.add(shockwave({ x, y: g, dir, len: 20, speed: 300, height: 4, ramp: fxRamp(['stone', 'stoneDark', 'fxSoot']), crack: fxColor('fxSoot'), rubble: fxRamp(RUBBLE), seed: c.seed() }));
+          // 길티기어식 이펙트가 있으면 바닥 충격파는 data/vfx/edward atk3 (짓누르는 충격파·덩어리, 14-9 B)가 그린다
+          if (!hasGG('atk3')) for (const dir of [-1, 1]) c.layer.add(shockwave({ x, y: g, dir, len: 20, speed: 300, height: 4, ramp: fxRamp(['stone', 'stoneDark', 'fxSoot']), crack: fxColor('fxSoot'), rubble: fxRamp(RUBBLE), seed: c.seed() }));
           c.debris.burst('brick', x / FX_PX, g / FX_PX - 2, f.facing, 5);
           c.debris.dustCloud(x / FX_PX - 16, x / FX_PX + 16, 0.5, g / FX_PX);
           c.fx.shake(0.25);
