@@ -56,7 +56,7 @@ const ATK4_OUT: GShape[] = [
 ];
 /** 4타 맞은 점 공통: 큰 원 고리 (푸른 잔상), 방사 가시, 잉크 쐐기 둘, 섬광, 불씨, 흙먼지 */
 const ATK4_HIT: GShape[] = [
-  { kind: 'ring', anchor: 'hit', tone: 4, ripple: 0.4, r: 110, w: 5, thick: -150, rot: -5, gaps: [[-50, -34], [40, 54], [128, 140]], hold: 2, fade: 12 },
+  { kind: 'ring', cap: true, anchor: 'hit', tone: 4, ripple: 0.4, r: 110, w: 5, thick: -150, rot: -5, gaps: [[-50, -34], [40, 54], [128, 140]], hold: 2, fade: 12 },
   {
     kind: 'rays', anchor: 'hit', hold: 2, fade: 9,
     lines: [[-160, 100, 50, 3.5, 0], [-118, 94, 58, 3, 1], [-64, 102, 52, 3.5, 0], [24, 96, 60, 3, 1], [62, 100, 48, 3.5, 0], [104, 94, 56, 3, 1], [146, 98, 52, 3.5, 0]],
@@ -85,7 +85,7 @@ const ATK4_V1: GMove = {
   shapes: [
     ...ATK4_ARC,
     // D: 맞은 사람 발밑 바닥에 누운 큰 타원 고리
-    { kind: 'ring', anchor: 'hit', tone: 2, ripple: 0.35, at: [0, 24], r: 92, w: 6, thick: 90, sy: 0.2, rot: -8, gaps: [[-130, -108]], hold: 2, fade: 14 },
+    { kind: 'ring', cap: true, anchor: 'hit', tone: 2, ripple: 0.35, at: [0, 24], r: 92, w: 6, thick: 90, sy: 0.2, rot: -8, gaps: [[-130, -108]], hold: 2, fade: 14 },
     ...ATK4_OUT,
     ...ATK4_HIT,
     crush([8, 0], [12, 50], [22, 8], 18, { hold: 3, fade: 14 }),
@@ -196,7 +196,7 @@ export const EDWARD_GG: Partial<Record<string, GMove>> = {
       },
       { kind: 'ink', at: [44, -20], angle: -96, len: 92, w: 9, notch: [[0.32, 2], [0.6, 3]], hold: 2, fade: 10 },
       // C 둘째 모양: 고리 (살아 있는 3틱 뒤)
-      { kind: 'ring', anchor: 'hit', tone: 4, ripple: 0.4, r: 74, w: 5, thick: -100, rot: -4, gaps: [[20, 36], [150, 166]], wait: 3, hold: 2, fade: 11 },
+      { kind: 'ring', cap: true, anchor: 'hit', tone: 4, ripple: 0.4, r: 74, w: 5, thick: -100, rot: -4, gaps: [[20, 36], [150, 166]], wait: 3, hold: 2, fade: 11 },
       // C 셋째 모양: 퍼 올린 바닥 덩어리 (살아 있는 6틱 뒤), D 카메라 쪽으로 커진다
       rocks([28, -2], 9, [5, 12], 4.4, -92, 56, 46, { wait: 6, layer: 'front', zoom: 0.02 }),
       crush([28, 0], [8, 34], [16, 6], 14, { hold: 2, fade: 10 }),
@@ -217,10 +217,10 @@ export const EDWARD_GG: Partial<Record<string, GMove>> = {
     fx: { rain: { ticks: 20 }, puddle: { at: [-34, -8, 18], n: 8 } },
     shapes: [
       {
-        kind: 'ribbon', pts: [[-28, -6], [-2, -3], [24, -6], [46, -13], [66, -24]],
+        kind: 'ribbon', pts: [[-28, -4], [-4, -5], [22, -11], [44, -21], [62, -34]],
         w: 28, peak: 0.72, bulge: [1, 0.45], skew: 0.15, coreLen: 0.55, wave: [0, 40], ruffle: 0.03, hold: 1, fade: 11,
       },
-      { kind: 'ring', anchor: 'hit', tone: 2, ripple: 0.35, at: [0, 10], r: 58, w: 5, thick: 90, sy: 0.22, rot: -7, gaps: [[-150, -128]], hold: 2, fade: 12 },
+      { kind: 'ring', cap: true, anchor: 'hit', tone: 2, ripple: 0.35, at: [0, 10], r: 58, w: 5, thick: 90, sy: 0.22, rot: -7, gaps: [[-150, -128]], hold: 2, fade: 12 },
       rocks([30, -2], 4, [4, 8], 2.8, -30, 40, 32),
       ...smallHit(-20, 1, 24),
     ],
@@ -247,7 +247,7 @@ export const EDWARD_GG: Partial<Record<string, GMove>> = {
         w: 12, peak: 0.6, bulge: [1, 0.8], skew: 0, tones: [3, 2, 2], main: 0.5, core: 0, wave: [0, 40], ruffle: 0.08, breathe: 0.14, delay: 10, hold: 44, fade: 30,
       },
       { kind: 'ink', anchor: 'hit', at: [-18, -40], angle: 40, len: 86, w: 9, notch: [[0.3, 2], [0.6, 3]], hold: 2, fade: 10 },
-      { kind: 'ring', anchor: 'hit', tone: 4, ripple: 0.4, r: 70, w: 5, thick: 180, rot: -4, gaps: [[60, 76], [-80, -64]], hold: 2, fade: 11 },
+      { kind: 'ring', cap: true, anchor: 'hit', tone: 4, ripple: 0.4, r: 70, w: 5, thick: 180, rot: -4, gaps: [[60, 76], [-80, -64]], hold: 2, fade: 11 },
       rocks([20, -2], 7, [5, 11], 3.4, -62, 70, 40, { layer: 'front', zoom: 0.02 }),
       spark(-14, 1.4, 2, 4),
       embers(20, -20, 2.6, 36),
@@ -296,7 +296,7 @@ export const EDWARD_GG: Partial<Record<string, GMove>> = {
     shapes: [
       ghost([14, -36], 37, 37, -170, 70, 20),
       arc([14, -36], 32, 32, -160, 92, 32, { peak: 0.62, hold: 1, fade: 10 }),
-      { kind: 'ring', anchor: 'hit', tone: 4, ripple: 0.4, r: 58, w: 5, thick: 60, rot: -4, gaps: [[-120, -104], [160, 172]], wait: 2, hold: 2, fade: 10 },
+      { kind: 'ring', cap: true, anchor: 'hit', tone: 4, ripple: 0.4, r: 58, w: 5, thick: 60, rot: -4, gaps: [[-120, -104], [160, 172]], wait: 2, hold: 2, fade: 10 },
       { kind: 'wedge', anchor: 'hit', at: [0, 0], angle: 76, back: 20, fwd: 150, w: 28, peak: 0.14, bulge: [0.7, 1.3], wait: 5, hold: 2, fade: 11 },
       { kind: 'ink', anchor: 'hit', at: [-26, -20], angle: 58, len: 70, w: 8, notch: [[0.4, 2], [0.7, 2]], wait: 5, hold: 1, fade: 9 },
       spark(76, 1.3, 2, 4),
@@ -348,7 +348,7 @@ export const EDWARD_GG: Partial<Record<string, GMove>> = {
       // G: 원호 한가운데를 가르는 검은 틈
       { kind: 'ink', at: [-4, -86], angle: 42, len: 104, w: 11, notch: [[0.3, 2], [0.56, 3], [0.8, 2]], hold: 2, fade: 11 },
       { kind: 'wedge', anchor: 'hit', at: [0, 0], angle: 38, back: 24, fwd: 280, w: 26, peak: 0.12, bulge: [0.7, 1.3], hold: 2, fade: 12 },
-      { kind: 'ring', anchor: 'hit', tone: 4, ripple: 0.4, r: 64, w: 5, thick: -140, rot: -4, gaps: [[30, 46], [-110, -94]], hold: 2, fade: 10 },
+      { kind: 'ring', cap: true, anchor: 'hit', tone: 4, ripple: 0.4, r: 64, w: 5, thick: -140, rot: -4, gaps: [[30, 46], [-110, -94]], hold: 2, fade: 10 },
       spark(38, 1.3, 2, 4),
       embers(18, 30, 2.4, 30),
       dust([2, 4], 3, 4, 24, 'hit'),
@@ -375,7 +375,7 @@ const chargeScar = (lv: number): GShape => ({
 });
 /** 차지 맞은 점 (단계별) */
 const chargeHit = (lv: number): GShape[] => [
-  { kind: 'ring', anchor: 'hit', tone: 4, ripple: 0.4, r: [62, 84, 112][lv - 1]!, w: 4 + lv, thick: -90, rot: -4, gaps: [[-20, -4], [96, 112], [190, 204]], hold: 2, fade: 11 },
+  { kind: 'ring', cap: true, anchor: 'hit', tone: 4, ripple: 0.4, r: [62, 84, 112][lv - 1]!, w: 4 + lv, thick: -90, rot: -4, gaps: [[-20, -4], [96, 112], [190, 204]], hold: 2, fade: 11 },
   { kind: 'wedge', anchor: 'hit', at: [0, 0], angle: -84, back: 16, fwd: [140, 220, 360][lv - 1]!, w: [20, 28, 38][lv - 1]!, peak: 0.12, bulge: [0.7, 1.3], hold: 2, fade: 12 },
   ...(lv >= 2 ? [{ kind: 'ink', anchor: 'hit', at: [-30, -60], angle: 62, len: 96, w: 10, notch: [[0.3, 2], [0.62, 3]], hold: 2, fade: 10 } as GShape] : []),
   ...(lv >= 3 ? [
@@ -416,7 +416,7 @@ const CHARGE_V2: GMove[] = [1, 2, 3].map((lv) => chargeLv(lv, {
 const CHARGE_V3: GMove[] = [1, 2, 3].map((lv) => chargeLv(lv, {
   tech: { main: 'J', aux: ['H', 'D'] },
   fx: { rain: { ticks: 24 }, puddle: { at: [-20, 10, 36], n: 9 } },
-  extra: (l) => [{ kind: 'ring', anchor: 'hit', tone: 2, ripple: 0.35, at: [0, 30], r: [60, 80, 104][l - 1]!, w: 6, thick: 90, sy: 0.2, rot: -8, gaps: [[-130, -110]], hold: 2, fade: 13 }],
+  extra: (l) => [{ kind: 'ring', cap: true, anchor: 'hit', tone: 2, ripple: 0.35, at: [0, 30], r: [60, 80, 104][l - 1]!, w: 6, thick: 90, sy: 0.2, rot: -8, gaps: [[-130, -110]], hold: 2, fade: 13 }],
 }));
 
 /** 차지 바닥 파도 (slabs 사건, 판 줄이 시작하는 바닥 기준): J 남는 흔적의 둘째 몫 — 솟은 판은 잔해로 남는다 (render/chars/edward slabs) */
@@ -449,8 +449,8 @@ const REENACT_BASE: GShape[] = [
 ];
 /** 재현:나 N 맥동: 몸을 감싸는 장막 고리가 심장처럼 두 번 뛴다 (6틱 간격), 사라지기 직전 한 번 더 부푼다 */
 const REENACT_PULSE: GShape[] = [
-  { kind: 'ring', tone: 4, ripple: 0.4, at: [4, -30], r: 44, w: 6, thick: -70, rot: -4, gaps: [[60, 80]], hold: 4, fade: 10, pulse: true },
-  { kind: 'ring', tone: 5, ripple: 0.4, at: [4, -30], r: 60, w: 5, thick: 110, rot: -4, gaps: [[-150, -130]], delay: 6, hold: 4, fade: 10, pulse: true },
+  { kind: 'ring', cap: true, tone: 4, ripple: 0.4, at: [4, -30], r: 44, w: 6, thick: -70, rot: -4, gaps: [[60, 80]], hold: 4, fade: 10, pulse: true },
+  { kind: 'ring', cap: true, tone: 5, ripple: 0.4, at: [4, -30], r: 60, w: 5, thick: 110, rot: -4, gaps: [[-150, -130]], delay: 6, hold: 4, fade: 10, pulse: true },
 ];
 const reenact = (tech: { main: string; aux: string[] }, extra: GShape[], fx?: GMove['fx']): EdwardSkill1 => ({
   plant: { grade: 'skill', grammar: [1, 2, 5, 7], tech, light: { r: 70, t: 24 }, fx, shapes: [...REENACT_BASE, ...REENACT_PULSE, ...extra] },
@@ -469,7 +469,7 @@ const VEIL_HAND: GShape[] = [
     kind: 'wedge', at: [Math.cos((a * Math.PI) / 180) * r, Math.sin((a * Math.PI) / 180) * r], angle: a + 180, back: 4, fwd: r * 0.78, w, peak: 0.3, bulge: [0.6, 1.2],
     tones: [6, 4, 5], main: 0.6, core: 0.22, hold: 6, fade: 10,
   }) as GShape),
-  { kind: 'ring', tone: 5, ripple: 0.4, r: 46, w: 5, thick: -120, rot: -4, gaps: [[40, 58], [170, 186]], hold: 4, fade: 10 },
+  { kind: 'ring', cap: true, tone: 5, ripple: 0.4, r: 46, w: 5, thick: -120, rot: -4, gaps: [[40, 58], [170, 186]], hold: 4, fade: 10 },
 ];
 const skill2 = (tech: { main: string; aux: string[] }, o: { grab?: GShape[]; wall?: GShape[]; burst?: GShape[]; fx?: GMove['fx']; flip?: boolean; grow?: number }): EdwardSkill2 => ({
   hit: { grade: 'skill', grammar: [5, 7], tech, hitY: -30, light: { r: 40, t: 20 }, shapes: [spark(180, 1.1, 2, 4, 4), embers(14, 180, 1.8, 30)] },
@@ -484,7 +484,7 @@ const skill2 = (tech: { main: string; aux: string[] }, o: { grab?: GShape[]; wal
       // 높이 70px 장막 벽 (12-3): 바닥에서 솟는 두 장막 쐐기, 뒤에 짙은 장막
       { kind: 'wedge', at: [-10, 2], angle: -86, back: 6, fwd: 108, w: 30, peak: 0.3, bulge: [0.6, 1.1], skew: 0.3, tones: [6, 4, 5], main: 0.62, core: 0.22, hold: 8, fade: 12 },
       { kind: 'wedge', at: [-2, 2], angle: -96, back: 4, fwd: 84, w: 18, peak: 0.36, bulge: [0.6, 1.2], tones: [6, 4, 5], main: 0.6, core: 0.3, delay: 2, hold: 6, fade: 10 },
-      { kind: 'ring', tone: 4, ripple: 0.35, at: [-4, 0], r: 56, w: 5, thick: 90, sy: 0.22, rot: -8, gaps: [[-140, -120]], hold: 4, fade: 12 },
+      { kind: 'ring', cap: true, tone: 4, ripple: 0.35, at: [-4, 0], r: 56, w: 5, thick: 90, sy: 0.22, rot: -8, gaps: [[-140, -120]], hold: 4, fade: 12 },
       ...(o.wall ?? []),
     ],
   },
@@ -492,7 +492,7 @@ const skill2 = (tech: { main: string; aux: string[] }, o: { grab?: GShape[]; wal
     grade: 'skill', grammar: [2, 5, 7], tech, light: { r: 80, t: 22 },
     shapes: [
       rocks([0, 0], 10, [5, 11], 3.4, -60, 160, 40, { tones: [6, 4, 5], gravity: 0.12 }),
-      { kind: 'ring', tone: 5, ripple: 0.4, r: 64, w: 5, thick: 30, rot: -4, gaps: [[-60, -44], [120, 136]], hold: 2, fade: 10 },
+      { kind: 'ring', cap: true, tone: 5, ripple: 0.4, r: 64, w: 5, thick: 30, rot: -4, gaps: [[-60, -44], [120, 136]], hold: 2, fade: 10 },
       ...(o.burst ?? []),
     ],
   },
@@ -504,7 +504,7 @@ export interface EdwardSuper {
   end: GMove;
 }
 const SUPER_GRAB: GShape[] = [
-  { kind: 'ring', tone: 4, ripple: 0.4, r: 96, w: 6, thick: -110, rot: -4, gaps: [[-30, -14], [70, 86], [160, 176]], hold: 3, fade: 12 },
+  { kind: 'ring', cap: true, tone: 4, ripple: 0.4, r: 96, w: 6, thick: -110, rot: -4, gaps: [[-30, -14], [70, 86], [160, 176]], hold: 3, fade: 12 },
   ...VEIL_HAND.map((s) => ({ ...s, hold: 8 }) as GShape),
   spark(-90, 1.5, 2, 5, 4),
 ];
@@ -541,7 +541,7 @@ export const EDWARD_GG_DRAFTS = {
     // 시안 1: N / C 모양 변신 (빛기둥 → 고리 → 덩어리) · H 환경 반응 (빗줄기 멈춤)
     reenact({ main: 'N', aux: ['C', 'H'] }, [rocks([14, -4], 7, [4, 9], 2.8, -90, 90, 40, { wait: 8, tones: [6, 4, 5], gravity: 0.1 })], { rain: { ticks: 28 }, puddle: { at: [-16, 30], n: 7 } }),
     // 시안 2: N / L 색 뒤집기 (세우는 순간 1틱 장막 → 청동) · D 2.5D 깊이 (발밑 바닥에 누운 큰 장막 고리)
-    reenact({ main: 'N', aux: ['L', 'D'] }, [{ kind: 'ring', tone: 4, ripple: 0.35, at: [8, 0], r: 84, w: 6, thick: 90, sy: 0.2, rot: -8, gaps: [[-120, -100]], hold: 4, fade: 14 }], { flip: { at: 1, ticks: 1 } }),
+    reenact({ main: 'N', aux: ['L', 'D'] }, [{ kind: 'ring', cap: true, tone: 4, ripple: 0.35, at: [8, 0], r: 84, w: 6, thick: 90, sy: 0.2, rot: -8, gaps: [[-120, -100]], hold: 4, fade: 14 }], { flip: { at: 1, ticks: 1 } }),
     // 시안 3: N / J 남는 흔적 (장막 조각이 1초 넘게 떠 있다) · K 카메라 (줌 펀치)
     reenact({ main: 'N', aux: ['J', 'K'] }, [rocks([4, -30], 8, [4, 8], 0.8, -90, 360, 80, { tones: [6, 4, 5], gravity: 0.004, spin: 0.06 })], { zoom: { at: 0, k: 1.05, ticks: 1 } }),
   ] as EdwardSkill1[],
@@ -561,15 +561,15 @@ export const EDWARD_GG_DRAFTS = {
       grabFx: { rain: { ticks: 30 } },
       endFx: { rain: { ticks: 30 }, puddle: { at: [-40, 30], n: 8 } },
       end: [
-        { kind: 'ring', tone: 2, ripple: 0.35, at: [0, 0], r: 120, w: 6, thick: 90, sy: 0.2, rot: -8, gaps: [[-130, -110]], hold: 3, fade: 14 },
+        { kind: 'ring', cap: true, tone: 2, ripple: 0.35, at: [0, 0], r: 120, w: 6, thick: 90, sy: 0.2, rot: -8, gaps: [[-130, -110]], hold: 3, fade: 14 },
         rocks([0, -2], 8, [5, 11], 3.6, -80, 100, 44, { layer: 'front', zoom: 0.025 }),
       ],
     }),
     // 시안 2: A / N 맥동 (장막 고리가 한 번 더 부푼다) · J 남는 흔적 (무너진 자리에 장막 조각이 1초 넘게 떠 있다)
     superOf({ main: 'A', aux: ['N', 'J'] }, {
-      grab: [{ kind: 'ring', tone: 5, ripple: 0.4, r: 70, w: 5, thick: 60, rot: -4, gaps: [[120, 140]], delay: 4, hold: 6, fade: 10, pulse: true }],
+      grab: [{ kind: 'ring', cap: true, tone: 5, ripple: 0.4, r: 70, w: 5, thick: 60, rot: -4, gaps: [[120, 140]], delay: 4, hold: 6, fade: 10, pulse: true }],
       end: [
-        { kind: 'ring', tone: 4, ripple: 0.4, at: [0, -40], r: 88, w: 6, thick: -90, rot: -4, gaps: [[30, 46], [150, 166]], hold: 6, fade: 10, pulse: true },
+        { kind: 'ring', cap: true, tone: 4, ripple: 0.4, at: [0, -40], r: 88, w: 6, thick: -90, rot: -4, gaps: [[30, 46], [150, 166]], hold: 6, fade: 10, pulse: true },
         rocks([0, -30], 10, [4, 8], 0.9, -90, 360, 84, { tones: [6, 4, 5], gravity: 0.004, spin: 0.06 }),
       ],
     }),
@@ -594,8 +594,8 @@ export const EDWARD_GG_SLAM_LAND: GMove = {
   fx: { rain: { ticks: 22 }, puddle: { at: [-40, 40], n: 8 }, kick: { at: 0, dx: 0, dy: 7, ticks: 9, shake: true } },
   shapes: [
     crush([0, 0], [20, 84], [52, 13], 34, { hold: 5, fade: 16, spread: 14 }),
-    { kind: 'ring', tone: 2, ripple: 0.35, at: [0, 0], r: 108, w: 7, thick: 90, sy: 0.2, rot: -8, gaps: [[-130, -110]], hold: 3, fade: 14 },
-    { kind: 'ring', tone: 4, ripple: 0.4, at: [0, 0], r: 70, w: 5, thick: 90, sy: 0.22, rot: 6, gaps: [[30, 50]], delay: 2, hold: 2, fade: 12 },
+    { kind: 'ring', cap: true, tone: 2, ripple: 0.35, at: [0, 0], r: 108, w: 7, thick: 90, sy: 0.2, rot: -8, gaps: [[-130, -110]], hold: 3, fade: 14 },
+    { kind: 'ring', cap: true, tone: 4, ripple: 0.4, at: [0, 0], r: 70, w: 5, thick: 90, sy: 0.22, rot: 6, gaps: [[30, 50]], delay: 2, hold: 2, fade: 12 },
     { kind: 'wedge', at: [-4, 0], angle: -100, back: 6, fwd: 96, w: 22, peak: 0.2, bulge: [0.6, 1.2], skew: 0.2, delay: 1, hold: 2, fade: 11 },
     { kind: 'ink', at: [-40, -56], angle: 52, len: 92, w: 10, notch: [[0.3, 2], [0.6, 3]], hold: 2, fade: 11 },
     rocks([0, -2], 12, [5, 13], 4, -90, 130, 48, { layer: 'front', zoom: 0.025 }),

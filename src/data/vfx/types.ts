@@ -146,6 +146,8 @@ export interface GRing extends GBase {
   rot?: number;
   /** 물결 (백은우 물결 고리): 테두리가 이 진폭(px)으로 느리게 굽이치며 흐른다 (파장 약 32px). 위·아래 테두리가 한 줄로 곧게 이어지지 않는다 */
   ripple?: number;
+  /** 맨 위·맨 아래 (곡선이 수평이 되는 자리)를 약 32px씩 끊는다 (에드워드: 큰 고리·바닥에 누운 고리가 자로 그은 듯 평평해지지 않게, 끊긴 압력 고리) */
+  cap?: boolean;
   tone?: GTone;
 }
 

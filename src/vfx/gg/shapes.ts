@@ -260,7 +260,8 @@ export function quake(s: GQuake, ph: Phase): Paint[] {
   const k0 = clamp(ph.ls / Math.max(1, s.spread), 0, 1);
   const k = 1 - (1 - k0) * (1 - k0);
   const R = s.r[0] + (s.r[1] - s.r[0]) * k;
-  const H = s.h[0] + (s.h[1] - s.h[0]) * k;
+  // 너무 납작해지지 않는다 (높이는 반지름의 30% 이상: 바닥에 가는 수평선으로 눕지 않게)
+  const H = Math.max(s.h[0] + (s.h[1] - s.h[0]) * k, 0.3 * R);
   const rot = (s.rot ?? -5) * D2R;
   const rc = Math.cos(rot);
   const rs = Math.sin(rot);
@@ -269,10 +270,11 @@ export function quake(s: GQuake, ph: Phase): Paint[] {
   const t0 = side > 0 ? 1.5 * Math.PI : Math.PI;
   const t1 = side < 0 ? 1.5 * Math.PI : 2 * Math.PI;
   const th = (u: number) => t0 + (t1 - t0) * u;
+  // 껍데기 테두리가 1px로 느리게 굽이친다 (파장 약 30px: 납작한 꼭대기가 한 줄로 곧게 이어지지 않게)
   const C = (u: number, d: number): GPt => {
     const t = th(u);
     const x = Math.cos(t) * (R + d);
-    const y = Math.sin(t) * H;
+    const y = Math.sin(t) * H + Math.sin((2 * Math.PI * x) / 30 - 0.8 * ph.ls);
     return [at[0] + x * rc - y * rs, at[1] + x * rs + y * rc];
   };
   const N = (u: number): GPt => {
@@ -570,6 +572,15 @@ export function ring(s: GRing, ph: Phase, at: GPt): Paint[] {
   if (wv * kT < 2.6) return [];
   // 끊긴 곳을 뺀 각 구간 (흩어질 때 여섯 군데가 더 끊어진다)
   const gaps = (s.gaps ?? []).map(([g0, g1]) => [g0 * D2R, g1 * D2R] as const);
+  // 맨 위·맨 아래 끊기 (cap): 기울인 납작한 원에서 화면 높이가 가장 높고 낮은 자리 (tan a = sy / tan rot)의 양쪽 16px + 2°
+  if (s.cap) {
+    const top = Math.atan2(sy * Math.cos(rot), Math.sin(rot));
+    for (const a of [top, top + Math.PI]) {
+      const ds = r * Math.hypot(Math.sin(a), sy * Math.cos(a));
+      const hw = 16 / Math.max(1, ds) + 2 * D2R;
+      gaps.push([a - hw, a + hw]);
+    }
+  }
   if (p > 0) {
     const off = hash(ph.seed, 3, 9) * 60;
     for (let j = 0; j < 6; j++) {
