@@ -1,6 +1,8 @@
 // 길티기어식 이펙트 확인 (동작연출지침서 14-8·14-2·14-9). 이전 버전(--base, 기본 origin/main)과 지금 버전을 같은 입력으로 찍어 PR 자료를 만든다.
 //   node tools/ggcheck.mjs [--char raiden|eunwoo|edward] [--base origin/main] [--out previews/fx/<캐릭터>-gg] [--only 1,4,5] [--drafts]
 //     --drafts: 14-9 시안 (4타·차지·스킬·필살기 시안 3개씩)을 ?ggdraft=로 찍어 <out>/drafts.png 한 장으로 (백은우·에드워드)
+//     --base-draft atk4:3,super:3: 이전 버전을 그 시안으로 찍는다 (고른 시안의 전후 비교)
+//     --compare 4,13: 그 번호 기술마다 전후 비교 PNG (<out>/<번호>-<기술>-compare.png: 위 이전 · 아래 이번, 같은 틱 넷)
 //     → <out>/style-sample.png    스타일 견본: 잽·미들킥·4타·띄우기 피크 정지 화면 + 레퍼런스 세 장 (docs/refs/gg_ref_*.png)
 //       <out>/NN-<기술>-1x.gif     동작마다 번호: 왼쪽 이전 · 오른쪽 지금, 맞기 20틱 전 ~ 맞은 뒤 45틱 (같은 장면·같은 틱, 2배), 실제 속도
 //       <out>/NN-<기술>-half.gif   같은 범위 0.5배속 (틱마다 한 장)
@@ -16,12 +18,14 @@ import { encodeGifDelta } from './gif.mjs';
 import { decodePng, encodePng } from './png.mjs';
 
 const argv = process.argv.slice(2);
-const opt = { char: 'raiden', base: 'origin/main', out: '', only: '', noBase: false, debug: '', dump: '', drafts: false };
+const opt = { char: 'raiden', base: 'origin/main', out: '', only: '', noBase: false, debug: '', dump: '', drafts: false, baseDraft: '', compare: '' };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--char') opt.char = argv[++i];
   else if (a === '--drafts') opt.drafts = true;
   else if (a === '--base') opt.base = argv[++i];
+  else if (a === '--base-draft') opt.baseDraft = argv[++i];
+  else if (a === '--compare') opt.compare = argv[++i];
   else if (a === '--out') opt.out = argv[++i];
   else if (a === '--only') opt.only = argv[++i];
   else if (a === '--no-base') opt.noBase = true;
@@ -95,17 +99,15 @@ const EDWARD_MOVES = [
   { n: 15, id: 'skill2', log: 'tkGrab', l: '15-1', name: 'TELEKINESIS PULL', scene: 'edward_pull', peak: 4 },
   { n: 16, id: 'skill2', log: 'tkWall', l: '15-2', name: 'TELEKINESIS PUSH', scene: 'edward_push', peak: 4 },
   { n: 17, id: 'super', log: 'superGrab', l: '16-1', name: 'THE SHELL GRAB', scene: 'edward_super', peak: 1 },
-  { n: 18, id: 'super', l: '16-2', name: 'THE SHELL END', scene: 'edward_super', peak: 3 },
+  { n: 18, id: 'super', l: '16-2', name: 'THE SHELL END', scene: 'edward_super', peak: 2 },
 ];
-/** 에드워드 시안 피크 틱 (시안 1·2·3)과 시안을 찍는 줄 (번호): 필살기는 시안이 갈리는 끝 타격 */
-const EDWARD_DRAFT_PEAK = { atk4: [2, 1, 2], charge: [1, 2, 2], skill1: [10, 1, 24], skill2: [3, 1, 7], super: [2, 4, 1] };
-const EDWARD_DRAFT_ROW = { atk4: 4, charge: 13, skill1: 14, skill2: 15, super: 18 };
+/** 에드워드는 시안을 골랐다 (2026-11-05): 시안 촬영 없음. 고른 시안의 전후 비교는 --base-draft atk4:3,skill1:2,skill2:2,super:3 --compare 4,13,14,15,18 */
 const CHAR = opt.char;
 const ALL_MOVES = CHAR === 'eunwoo' ? EUNWOO_MOVES : CHAR === 'edward' ? EDWARD_MOVES : RAIDEN_MOVES;
 const MOVES = ALL_MOVES.filter((m) => !opt.only || opt.only.split(',').map(Number).includes(m.n));
-const DRAFT_PEAK = CHAR === 'eunwoo' ? EUNWOO_DRAFT_PEAK : CHAR === 'edward' ? EDWARD_DRAFT_PEAK : null;
-/** 시안 줄의 기술 (백은우는 기술 이름, 에드워드는 번호로 고른다) */
-const draftMove = (id) => (CHAR === 'edward' ? ALL_MOVES.find((x) => x.n === EDWARD_DRAFT_ROW[id]) : ALL_MOVES.find((x) => x.id === id));
+const DRAFT_PEAK = CHAR === 'eunwoo' ? EUNWOO_DRAFT_PEAK : null;
+/** 시안 줄의 기술 (백은우) */
+const draftMove = (id) => ALL_MOVES.find((x) => x.id === id);
 const SAMPLE = CHAR === 'eunwoo' ? ['atk1', 'atk4', 'launcher', 'charge'] : CHAR === 'edward' ? ['atk1', 'atk4', 'slam', 'charge'] : ['atk1', 'atk3', 'atk4', 'launcher'];
 const LABEL = CHAR === 'eunwoo' ? [190, 225, 255] : CHAR === 'edward' ? [240, 182, 104] : [255, 200, 210];
 const CHAR_NAME = { raiden: '라이덴', eunwoo: '백은우', edward: '에드워드' }[CHAR] ?? CHAR;
@@ -183,14 +185,12 @@ function text(dst, s, x, y, scale, rgb) {
     cx += 4 * scale;
   }
 }
-/** 에드워드 기술 → 그 줄의 대표 GMove (시안 1) */
-const edwardMove = (id, d = 1) => {
-  const D = ED.EDWARD_GG_DRAFTS;
-  if (id === 'atk4') return D.atk4[d - 1];
-  if (id === 'charge') return D.charge[d - 1][2];
-  if (id === 'skill1') return D.skill1[d - 1].plant;
-  if (id === 'skill2') return D.skill2[d - 1].grab;
-  if (id === 'super') return D.super[d - 1].end;
+/** 에드워드 기술 → 그 줄의 대표 GMove (고른 시안) */
+const edwardMove = (id) => {
+  if (id === 'charge') return ED.EDWARD_GG_CHARGE[2];
+  if (id === 'skill1') return ED.EDWARD_SKILL1.plant;
+  if (id === 'skill2') return ED.EDWARD_SKILL2.grab;
+  if (id === 'super') return ED.EDWARD_SUPER.end;
   if (id === 'slam') return { ...ED.EDWARD_GG.slam, grammar: [...new Set([...ED.EDWARD_GG.slam.grammar, ...ED.EDWARD_GG_SLAM_LAND.grammar])].sort((a, b) => a - b) };
   return ED.EDWARD_GG[id];
 };
@@ -239,7 +239,8 @@ async function run(which, sc0, draft = '') {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const stopAt = sc.stopAt ?? 75;
-  await page.goto(`${servers[which].resolvedUrls.local[0]}?${sc.q}&stopAt=${stopAt}&ff=1&quality=high${draft ? `&ggdraft=${draft}` : ''}`, { timeout: 600000 });
+  const dq = which === 'base' && opt.baseDraft ? opt.baseDraft : draft;
+  await page.goto(`${servers[which].resolvedUrls.local[0]}?${sc.q}&stopAt=${stopAt}&ff=1&quality=high${dq ? `&ggdraft=${dq}` : ''}`, { timeout: 600000 });
   await page.waitForFunction((n) => window.__debug?.tick >= n, stopAt, { timeout: 600000 });
   await page.evaluate(() => window.__debug.unstop());
   if (sc.p1 !== undefined) {
@@ -609,6 +610,32 @@ for (const m of MOVES) {
   gif(`${opt.out}/${tag}-1x.gif`, real);
 }
 
+// ---------------------------------------------------------------- 고른 시안의 전후 비교 (--compare): 위 이전 · 아래 이번, 같은 틱 넷 (펼쳐진 피크 → 흩어짐 → 잔향)
+if (opt.compare) {
+  const TICKS = [1, 4, 14, 32];
+  const PW = 260;
+  const PH = 150;
+  const GAP = 8;
+  const LH = 24;
+  const frameAt = (list, i) => list[Math.max(0, Math.min(list.length - 1, i))];
+  for (const n of opt.compare.split(',').map(Number)) {
+    const m = MOVES.find((x) => x.n === n);
+    const sh = m && shots[m.scene];
+    if (!m || m.idx < 0 || !sh?.base) continue;
+    const [x0, y0] = windowOf(m, frameAt(sh.new.frames, m.idx + 1), PW, PH);
+    const o = img(TICKS.length * (PW * 2 + GAP) - GAP, 2 * (PH * 2 + LH), 18);
+    TICKS.forEach((d, c) => {
+      [['BEFORE', sh.base, [235, 235, 240]], ['AFTER', sh.new, LABEL]].forEach(([lab, s, rgb], r) => {
+        const ox = c * (PW * 2 + GAP);
+        const oy = r * (PH * 2 + LH) + LH;
+        blit(o, crop(frameAt(s.frames, m.idx + d), x0, y0, PW, PH), ox, oy, 2);
+        text(o, `${m.l ?? m.n} ${lab}  +${d}`, ox + 4, oy - 20, 2, rgb);
+      });
+    });
+    save(`${opt.out}/${String(m.n).padStart(2, '0')}-${m.id}-compare.png`, o);
+  }
+}
+
 // ---------------------------------------------------------------- 스타일 견본: 레퍼런스 세 장 (위) + 잽·미들킥·4타·띄우기 피크 (아래 2×2)
 {
   const refs = ['gg_ref_1_fire', 'gg_ref_2_hit', 'gg_ref_3_counter'].map((n) => decodePng(readFileSync(`docs/refs/${n}.png`)));
@@ -648,7 +675,7 @@ if (opt.drafts && DRAFT_PEAK) {
   const GAP = 8;
   const rows = Object.keys(DRAFT_PEAK);
   const techOf = (id, d) => {
-    const v = CHAR === 'edward' ? edwardMove(id, d) : id === 'atk4' ? EW.EUNWOO_GG_DRAFTS.atk4[d - 1] : id === 'charge' ? EW.EUNWOO_GG_DRAFTS.charge[d - 1][2] : EW.EUNWOO_GG_DRAFTS[id][d - 1];
+    const v = id === 'atk4' ? EW.EUNWOO_GG_DRAFTS.atk4[d - 1] : id === 'charge' ? EW.EUNWOO_GG_DRAFTS.charge[d - 1][2] : EW.EUNWOO_GG_DRAFTS[id][d - 1];
     return v?.tech ? `${v.tech.main} / ${v.tech.aux.join(' ')}` : '';
   };
   const o = img(PW * 2 * 3 + GAP * 2, rows.length * (PH * 2 + 26), 18);

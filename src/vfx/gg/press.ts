@@ -18,6 +18,8 @@ export interface PressSpec {
   crack?: string;
   dark?: string;
   hi?: string;
+  /** crack: 퍼져 나간 금의 가운데 (월드 px). 없으면 그물 금 */
+  center?: readonly [number, number];
 }
 
 /** 배경 누르기를 건다 (이미 더 센 누르기가 걸려 있으면 그것을 둔다) */
@@ -33,4 +35,5 @@ export default function pressBackground(o: PressSpec): void {
   if (o.crack) press.crack = o.crack;
   if (o.dark) press.dark = o.dark;
   if (o.hi) press.hi = o.hi;
+  press.center = o.center ? [o.center[0], o.center[1]] : null;
 }

@@ -8,7 +8,7 @@
 // 14-9 기법 중 모양 시간에 거는 것: B 지연 폭발 (wait: 살아 있는 시계로 늦게 나타남), I 시간 엇갈림 (grow), L 색 뒤집기 (flip), N 맥동 (pulse).
 import type { GChunks, GEmbers, GFlutter, GPt, GShape, GSmoke, GTone } from '../../data/vfx/types';
 import { fillRings, put, rng, type GFrame, type Layer } from './raster';
-import { bolt, butterfly, clipHalf, flash, hash, ink, petal, quake, rays, ribbon, ring, stitch, swoosh, wedge, type Paint, type Phase } from './shapes';
+import { bolt, butterfly, clipHalf, flash, hash, ink, petal, quake, rays, ribbon, ring, stitch, surge, swoosh, wedge, type Paint, type Phase } from './shapes';
 
 export type { GFrame, Layer };
 
@@ -66,11 +66,15 @@ interface Chunk {
   rot: number;
   spin: number;
   shape: number[];
+  /** 바닥에서 들려 올라오는 덩어리 (처음 3틱 동안 바닥에서 자란다) */
+  lift?: boolean;
 }
 
 interface Puff {
   x: number;
   y: number;
+  /** 굴러가는 흙먼지: 처음 옆 빠르기 (px/틱) */
+  vx?: number;
   rise: number;
   sway: number;
   r: number;
@@ -93,7 +97,7 @@ function liveEnd(s: GShape): number {
   if (s.kind === 'flutter') return (s.n - 1) * (s.every ?? 1) + s.life + 2;
   if (s.kind === 'stitch') return s.sew + s.life + 14;
   if (s.kind === 'embers' || s.kind === 'smoke') return s.life + 2;
-  if (s.kind === 'chunks') return (s.n - 1) * (s.every ?? 0) + s.life + 2;
+  if (s.kind === 'chunks') return (s.lift ? Math.ceil(s.spread / s.lift) + 1 : (s.n - 1) * (s.every ?? 0)) + s.life + 2;
   return 0;
 }
 
@@ -155,7 +159,7 @@ export default function ggEffect(o: GGSpec) {
       list = [];
       const at = s.at ?? [0, 0];
       for (let i = 0; i < s.n; i++) {
-        list.push({
+        const q: Puff = {
           x: at[0] + (r() - 0.5) * 2 * s.spread,
           y: at[1] + (r() - 0.5) * s.spread,
           rise: s.rise * (0.7 + 0.6 * r()),
@@ -163,7 +167,13 @@ export default function ggEffect(o: GGSpec) {
           r: s.size * (0.65 + 0.35 * r()),
           life: Math.round(s.life * (0.7 + 0.3 * r())),
           born: Math.round(r() * Math.min(8, s.life * 0.3)),
-        });
+        };
+        // 굴러가는 흙먼지: 양쪽으로 번갈아 바닥을 따라 바깥으로 구른다 (가까운 것은 느리게)
+        if (s.roll !== undefined) {
+          q.vx = (i % 2 ? -1 : 1) * s.roll * (0.35 + 0.65 * r());
+          q.y = at[1] - r() * 3;
+        }
+        list.push(q);
       }
       puffs.set(s, list);
     }
@@ -258,17 +268,19 @@ export default function ggEffect(o: GGSpec) {
       const age = ls - q.born;
       if (age < 0 || age >= q.life) return;
       const u = age / q.life;
-      const rad = q.r * Math.sin(Math.PI * Math.min(1, u * 1.15)) + 0.6;
+      // 굴러가는 흙먼지는 빨리 부풀어 오래 머물다 끝에 줄어든다 (바닥에 낮게 깔려 납작하다)
+      const rolling = q.vx !== undefined;
+      const rad = rolling ? q.r * Math.min(1, u / 0.16, (1 - u) / 0.3) + 0.6 : q.r * Math.sin(Math.PI * Math.min(1, u * 1.15)) + 0.6;
       if (rad < 1.2) return;
-      const cx = q.x + q.sway * age + Math.sin(age * 0.35 + i) * 1.2;
-      const cy = q.y - q.rise * age;
+      const cx = rolling ? q.x + (q.vx! * (1 - Math.exp(-0.05 * age))) / 0.05 + Math.sin(age * 0.21 + i) * 1.2 : q.x + q.sway * age + Math.sin(age * 0.35 + i) * 1.2;
+      const cy = rolling ? q.y - q.rise * age - rad * 0.55 : q.y - q.rise * age;
       const ringPts: number[] = [];
       const nv = 7;
       for (let v = 0; v < nv; v++) {
         const a = (v / nv) * Math.PI * 2 + i;
         // 틱마다 꼭짓점이 조금씩 흔들린다 (살아 있는 연기)
         const rr = rad * (0.82 + 0.3 * hash(i * 31 + v, Math.floor(ls), 77));
-        ringPts.push(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.85);
+        ringPts.push(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * (rolling ? 0.62 : 0.85));
       }
       const [t0, t1] = s.tones ?? [2, 3];
       const tone: GTone = u < 0.25 ? t0 : t1;
@@ -349,10 +361,37 @@ export default function ggEffect(o: GGSpec) {
       const r = rng(seedOf(s) + 13);
       list = [];
       const at = s.at ?? [0, 0];
+      const side = s.sides ?? 0;
+      const perSide = side === 0 ? Math.ceil(s.n / 2) : s.n;
       for (let i = 0; i < s.n; i++) {
+        const shape: number[] = [];
+        if (s.lift) {
+          // 바닥 줄 위에 고르게: 가운데에서 가까운 차례로 솟는다 (물마루가 지나가는 틱), 바깥으로 조금 기울어 오른다
+          const sg = side === 0 ? (i % 2 ? -1 : 1) : side;
+          const dist = (s.spread * (Math.floor(side === 0 ? i / 2 : i) + 0.3 + 0.5 * r())) / perSide;
+          const a = ((s.dir + sg * (0.2 + 0.3 * r()) * s.fan) * Math.PI) / 180;
+          const v = s.speed * (0.65 + 0.35 * r());
+          const a0 = r() * Math.PI * 2;
+          for (let k = 0; k < 5; k++) shape.push(0.62 + 0.38 * r(), a0 + ((k + (r() - 0.5) * 0.5) / 5) * Math.PI * 2);
+          const size = s.size[0] + (s.size[1] - s.size[0]) * r();
+          list.push({
+            x: at[0] + sg * dist,
+            // 바닥에 누운 높이에서 솟는다 (그 아래에서 시작하면 바닥에 닿지 못하고 빠져 버린다)
+            y: at[1] - size * 0.3 - 0.5,
+            vx: Math.cos(a) * v,
+            vy: Math.sin(a) * v,
+            born: Math.round(dist / s.lift),
+            life: Math.round(s.life * (0.75 + 0.25 * r())),
+            size,
+            rot: r() * Math.PI * 2,
+            spin: (r() - 0.5) * 2 * (s.spin ?? 0.12),
+            shape,
+            lift: true,
+          });
+          continue;
+        }
         const a = ((s.dir + (r() - 0.5) * s.fan) * Math.PI) / 180;
         const v = s.speed * (0.55 + 0.45 * r());
-        const shape: number[] = [];
         const a0 = r() * Math.PI * 2;
         for (let k = 0; k < 5; k++) shape.push(0.62 + 0.38 * r(), a0 + ((k + (r() - 0.5) * 0.5) / 5) * Math.PI * 2);
         list.push({
@@ -419,6 +458,8 @@ export default function ggEffect(o: GGSpec) {
         spin *= 0.5;
       }
       let sz = c.size * (1 + zoom * age);
+      // 들려 올라오는 덩어리: 처음 3틱 동안 바닥에서 자라 오른다
+      if (c.lift && age < 3) sz *= 0.45 + (0.55 * age) / 3;
       if (rest >= 0) sz *= Math.max(0, 1 - (age - rest) / 16);
       const u = age / c.life;
       if (u > 0.8) sz *= 1 - (u - 0.8) / 0.2;
@@ -517,6 +558,9 @@ export default function ggEffect(o: GGSpec) {
             break;
           case 'quake':
             if (ph.p < 1) paint(f, quake(s, ph));
+            break;
+          case 'surge':
+            if (ph.p < 1) paint(f, surge(s, ph));
             break;
           case 'chunks':
             drawChunks(f, s, L - born.get(s)!);

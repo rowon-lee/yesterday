@@ -63,6 +63,7 @@ export function clearScreenFx(): void {
   rainHold.until = -1;
   press.at = -1e9;
   press.life = 0;
+  press.center = null;
   impact.at = -1e9;
   impact.life = 0;
   zoomPunch.at = -1e9;
@@ -108,6 +109,8 @@ export const press = {
   crack: '#0a0712',
   dark: '#46081e',
   hi: '#ff526e',
+  /** crack: 있으면 그물 금 대신 이 점 (월드 px)에서 퍼져 나간 금 (가까울수록 조각이 잘고 멀수록 크다, 틱마다 바깥으로 번진다) */
+  center: null as null | readonly [number, number],
 };
 
 /** 이 틱의 배경 누르기 세기 (0이면 없음) */

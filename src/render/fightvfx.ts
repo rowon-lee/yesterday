@@ -22,7 +22,7 @@ import ggTether from '../vfx/gg/tether';
 import type { GMove, GShape, GTech } from '../data/vfx/types';
 import { RAIDEN_GG, RAIDEN_GG_BARRIER, RAIDEN_GG_SUPER } from '../data/vfx/raiden';
 import { EUNWOO_GG_DRAFTS } from '../data/vfx/eunwoo';
-import { EDWARD_GG_DRAFTS, EDWARD_GG_SLAM_LAND, edwardSlabs } from '../data/vfx/edward';
+import { EDWARD_GG_SLAM_LAND, EDWARD_SKILL1, EDWARD_SKILL2, EDWARD_SUPER, edwardSlabs } from '../data/vfx/edward';
 import { hammerHead } from '../anim/decor/edward';
 import { RAIDEN_GG_RAMP } from './chars/raiden-gg';
 import { draftOf, GG_CHARS, type GGChar } from './chars/gg-table';
@@ -1114,6 +1114,8 @@ export class FightVfx {
     });
     const k = tech.kick;
     if (k) run(k.at, () => this.fx.kick(k.dx * facing, k.dy, k.ticks, k.shake));
+    const sk = tech.sink;
+    if (sk) run(sk.at, () => this.fx.sink(sk.px, sk.ticks));
     const z = tech.zoom;
     if (z) run(z.at, () => {
       zoomPunch.at = this.now;
@@ -1238,7 +1240,7 @@ export class FightVfx {
     const shapes = first ? mv.shapes.filter((sh) => sh.anchor === 'hit') : (mv.rehit ?? []);
     this.ggSpawn(att, shapes, [hx, hy], att.facing, mv, GROUND_Y + def.floor / 256);
     if (!first) return;
-    this.screenOf(s, def, mv, g);
+    this.screenOf(s, def, mv, g, [hx, hy]);
     this.ggTech(mv.fx, [hx, hy], att.facing, GROUND_Y + def.floor / 256);
     // 빛은 히트스톱 동안 그대로, 그 뒤 모양보다 늦게 사그라든다 (14-2 잔향: 15~25틱)
     if (mv.light) this.glow(hx, hy, mv.light.r, g.light, 0.9, mv.light.t, data.hitstop + 2);
@@ -1253,9 +1255,10 @@ export class FightVfx {
   }
 
   /** 화면 전환 (14-8 ⑧): 배경 누르기 (어둡게 / 한 색 + 균열), 맞은 사람을 주색 실루엣 + 밝은 테두리로 */
-  private screenOf(s: SimState, def: Fighter, mv: GMove, g: GGChar = GG_CHARS.raiden!): void {
+  private screenOf(s: SimState, def: Fighter, mv: GMove, g: GGChar = GG_CHARS.raiden!, at?: readonly [number, number]): void {
     const p = mv.screen?.press;
-    if (p) pressBackground({ tick: s.tick, ticks: p.ticks, k: 1, color: p.color, mode: p.mode, scale: p.scale, crack: p.crack, dark: g.press.dark, hi: g.press.hi });
+    // radial: 균열이 맞은 점(at)에서 퍼져 나간다 (에드워드)
+    if (p) pressBackground({ tick: s.tick, ticks: p.ticks, k: 1, color: p.color, mode: p.mode, scale: p.scale, crack: p.crack, dark: g.press.dark, hi: g.press.hi, center: p.radial ? at : undefined });
     const k = s.fighters.indexOf(def);
     if (mv.screen?.silhouette && k >= 0) {
       this.struckUntil[k] = s.tick + mv.screen.silhouette - 1;
@@ -2062,7 +2065,7 @@ export class FightVfx {
   }
 
   /**
-   * 에드워드 sim 사건의 길티기어식 이펙트 (14-8 문법, 14-9 기법, 시안은 EDWARD_GG_DRAFTS): 내려찍기 착지 (착지 발밑 앞 20px), 차지 바닥 파도 (판 줄이
+   * 에드워드 sim 사건의 길티기어식 이펙트 (14-8 문법, 14-9 기법, 고른 시안): 내려찍기 착지 (착지 발밑 앞 20px), 차지 바닥 파도 (판 줄이
    * 시작하는 바닥), 재현:나 (발밑), 염동력 장막 손 (상대 가슴)·장막 벽 (상대 발밑 앞)·장막이 터짐 (상대 가슴). 사건 자리는 sim 단위 (1/256px).
    * 모양은 모두 사건 자리 기준으로 놓는다 (anchor와 상관없이)
    */
@@ -2070,7 +2073,7 @@ export class FightVfx {
     const g = GG_CHARS.edward!;
     const ax = att.x / 256;
     const ay = GROUND_Y + att.y / 256;
-    const sk2 = EDWARD_GG_DRAFTS.skill2[draftOf('skill2') - 1]!;
+    const sk2 = EDWARD_SKILL2;
     let mv: GMove | undefined;
     let at: [number, number] = [ax, ay];
     let veil = false;
@@ -2083,7 +2086,7 @@ export class FightVfx {
       at = [x / 256, GROUND_Y + y / 256];
       floor = at[1];
     } else if (text === 'reenact') {
-      mv = EDWARD_GG_DRAFTS.skill1[draftOf('skill1') - 1]!.plant;
+      mv = EDWARD_SKILL1.plant;
       veil = true;
     } else if (def && (text === 'tkGrab' || text === 'tkBurst')) {
       mv = text === 'tkGrab' ? sk2.grab : sk2.burst;
@@ -2112,10 +2115,10 @@ export class FightVfx {
         ramp: g.ramp, seed: this.seed++,
       }));
     }
-    if (def) this.screenOf(s, def, mv, g);
+    if (def) this.screenOf(s, def, mv, g, at);
     else if (mv.screen?.press) {
       const pr = mv.screen.press;
-      pressBackground({ tick: s.tick, ticks: pr.ticks, k: 1, color: pr.color, mode: pr.mode, scale: pr.scale, crack: pr.crack, dark: g.press.dark, hi: g.press.hi });
+      pressBackground({ tick: s.tick, ticks: pr.ticks, k: 1, color: pr.color, mode: pr.mode, scale: pr.scale, crack: pr.crack, dark: g.press.dark, hi: g.press.hi, center: pr.radial ? at : undefined });
     }
     this.ggTech(mv.fx, at, att.facing, floor);
     if (mv.light) this.glow(at[0], at[1] - (veil ? 0 : 10), mv.light.r, veil ? COLORS.veilLight : COLORS.edwardFxBronze, 0.9, mv.light.t, 2);
@@ -2126,13 +2129,13 @@ export class FightVfx {
 
   /** 에드워드 껍데기 뒤집어쓰기 잡는 순간 (sim 연출 시작 사건, 12-6 연출 그대로): 14-9 A 임팩트 프레임 + 장막 손·고리 (상대 가슴) */
   private edwardSuperStart(s: SimState, att: Fighter, def: Fighter): void {
-    const mv = EDWARD_GG_DRAFTS.super[draftOf('super') - 1]!.grab;
+    const mv = EDWARD_SUPER.grab;
     const ay = GROUND_Y + att.y / 256;
     const feetY = GROUND_Y + def.y / 256;
     const hy = Math.max(feetY - 46, Math.min(feetY - 8, ay + (mv.hitY ?? -30)));
     const hx = def.x / 256 - att.facing * 3;
     this.ggSpawn(att, mv.shapes, [hx, hy], att.facing, mv, GROUND_Y + def.floor / 256);
-    this.screenOf(s, def, mv, GG_CHARS.edward!);
+    this.screenOf(s, def, mv, GG_CHARS.edward!, [hx, hy]);
     this.ggTech(mv.fx, [hx, hy], att.facing, GROUND_Y + def.floor / 256);
     if (mv.light) this.glow(hx, hy, mv.light.r, COLORS.veilLight, 0.9, mv.light.t, 4);
     this.animeLog.push({ tick: s.tick, move: 'superGrab', impact: { press: 0, silhouette: mv.screen?.silhouette ?? 0, grade: 'super' }, at: { ax: att.x / 256, ay, facing: att.facing, dx: def.x / 256, px: hx, py: hy } });

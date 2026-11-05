@@ -5,7 +5,7 @@
 //   살아 있는 정지: ls(살아 있는 틱)로 번개가 2틱마다 다시 꺾이고, 흰 심이 맥동하고, creep(정지한 틱)만큼 가시·끝이 조금씩 더 뻗는다
 //   흩어짐 p: 꼬리부터 가닥으로 찢어져 공격 방향으로 흘러가고, 두께가 줄고, 바깥 단계 색부터 빠진다
 // 너무 가늘어진 가닥(2.6px 아래)이나 두께에 비해 너무 긴 가닥은 그리지 않는다 (1px 선이 남지 않게).
-import type { GBolt, GFlash, GInk, GPt, GQuake, GRays, GRibbon, GRing, GStitch, GSwoosh, GTone, GWedge } from '../../data/vfx/types';
+import type { GBolt, GFlash, GInk, GPt, GQuake, GRays, GRibbon, GRing, GStitch, GSurge, GSwoosh, GTone, GWedge } from '../../data/vfx/types';
 
 /** 칠할 것: 색 단계와 고리들. sep = 고리마다 따로 칠한다 (겹쳐도 구멍이 나지 않게), 아니면 짝홀 규칙으로 한 번에 */
 export interface Paint {
@@ -300,6 +300,49 @@ export function quake(s: GQuake, ph: Phase): Paint[] {
   // 띠는 높이의 85%를 넘게 두껍지 않다 (눌려 낮아질수록 얇아진다: 바닥 아래로 삐져나가지 않게)
   const w = Math.min(s.w, 0.85 * H);
   return bandPaints({ C, N, w, len, peak, ba, bf, skew: s.skew ?? -0.5, levels: celLevels(s, ph), drift: clamp(0.3 * R, 8, 40), mul, minShard: 3.2 }, ph);
+}
+
+/**
+ * 바닥을 따라 낮고 넓게 퍼지는 충격파 (에드워드 '무게', 2026-11-05): 양옆으로 밀려가는 낮은 물마루 띠. 앞(바깥)이 가파르고 가운데 쪽이 길게 눕는다.
+ * 윗선 = 바닥 위 높이 h, 아랫선 = 바닥 아래 dip (같은 두께 곡선). 두 선 모두 6px마다 부서진 흙처럼 들쭉날쭉하다 (월드에 붙은 무늬: 바닥 위 곧은 수평선이 생기지 않게).
+ * 셀 단은 위로 몰려 흰 심이 물마루 윗부분을 지난다. 살아 있는 시계로 밀려가며 (처음이 빠르다) 낮아지고 길어지고, 두께가 14px마다 굽이친다.
+ * 흩어지면 조각이 계속 바깥으로 밀려간다
+ */
+export function surge(s: GSurge, ph: Phase): Paint[] {
+  const at = s.at ?? [0, 0];
+  const k0 = clamp(ph.ls / Math.max(1, s.spread), 0, 1);
+  const k = 1 - (1 - k0) * (1 - k0);
+  const F = s.r[0] + (s.r[1] - s.r[0]) * k;
+  const Lc = s.len[0] + (s.len[1] - s.len[0]) * k;
+  const Hc = s.h[0] + (s.h[1] - s.h[0]) * k;
+  const dip = s.dip ?? 4;
+  const J = s.jag ?? 2;
+  const peak = s.peak ?? 0.7;
+  const [ba, bf] = s.bulge ?? [0.9, 0.45];
+  const skew = -0.35;
+  const w = Hc + dip;
+  // 윗선이 −Hc·P, 아랫선이 +dip·P가 되는 가운데 선 높이 (skew로 위·아래 두께가 다르다). 펼쳐짐·흩어짐으로 얇아져도 바닥에 붙어 있게 같은 비로 줄인다
+  const mid = (-Hc + ((1 + skew) * w) / 2) * ph.a * Math.pow(1 - ph.p, 0.8);
+  // 7px마다 위·아래를 번갈아 (크기는 칸마다 다르게): 낮고 길게 눕는 물마루 윗선·아랫선이 30px 넘게 한 줄로 곧게 이어지지 않게
+  const zig = (i: number) => (i & 1 ? 1 : -1) * (0.5 + 0.5 * hash(i, 3, 61));
+  const jag = (x: number) => {
+    const c = x / 7;
+    const i = Math.floor(c);
+    const f = c - i;
+    return J * (zig(i) + (zig(i + 1) - zig(i)) * f);
+  };
+  const mul = (u: number) => 1 + 0.1 * Math.sin((2 * Math.PI * u * Lc) / 14 - 0.9 * ph.ls);
+  const side = s.sides ?? 0;
+  const out: Paint[] = [];
+  for (const sg of side === 0 ? [1, -1] : [side]) {
+    const C = (u: number, d: number): GPt => {
+      const x = sg * (F - Lc + Lc * u + d);
+      return [at[0] + x, at[1] + mid * profile(u, peak, ba, bf) + jag(x)];
+    };
+    const N = (): GPt => [0, -1];
+    out.push(...bandPaints({ C, N, w, len: Lc, peak, ba, bf, skew, levels: celLevels(s, ph), drift: clamp(0.4 * Lc, 10, 50), mul, minShard: 3.2 }, { ...ph, seed: ph.seed + (sg > 0 ? 0 : 977) }));
+  }
+  return out;
 }
 
 /** 다각형 (평평한 x, y 목록)을 반평면 x·nx + y·ny ≥ c 안으로 자른다 */

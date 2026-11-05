@@ -13,9 +13,10 @@ export type GPt = readonly [number, number];
 
 /**
  * 셀 색 단계 (캐릭터 색표 번호): 0 심 (흰·크림) · 1 주색 · 2 진한 주색 · 3 잉크 (아주 어두운) · 4 고리·테두리 (보색 소량)
- * · 5 덧색 (백은우 백합 꽃잎 연분홍, 에드워드 밝은 장막) · 6 짙은 주색 (백은우 짙은 하늘: 물빛 그늘, 에드워드 짙은 장막). 색표에 없는 번호는 0으로 그린다
+ * · 5 덧색 (백은우 백합 꽃잎 연분홍, 에드워드 밝은 장막) · 6 짙은 주색 (백은우 짙은 하늘: 물빛 그늘, 에드워드 짙은 장막)
+ * · 7 먼지 (에드워드 따뜻한 회색: 길게 남는 흙먼지). 색표에 없는 번호는 0으로 그린다
  */
-export type GTone = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export type GTone = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 /** 모든 모양에 붙는 것 */
 interface GBase {
@@ -197,6 +198,11 @@ export interface GSmoke extends GBase {
   life: number;
   /** 처음 1/4 색 → 그 뒤 색 (기본 [2, 3]: 열기 → 연기. 백은우는 물안개 [1, 2]) */
   tones?: readonly [GTone, GTone];
+  /**
+   * 바닥을 따라 굴러가는 흙먼지 (에드워드 '무게'): 처음 바깥으로 구르는 빠르기 (px/틱). 있으면 덩어리마다 가운데에서 먼 쪽으로 구르며 느려지고,
+   * 빨리 부풀어 오래 머물다 끝에 줄어든다 (없으면 지금처럼 오르며 커졌다 작아진다)
+   */
+  roll?: number;
 }
 
 /**
@@ -333,13 +339,59 @@ export interface GChunks extends GBase {
   zoom?: number;
   /** [그늘, 몸, 빛 받는 면] (기본 [3, 2, 1]) */
   tones?: readonly [GTone, GTone, GTone];
+  /**
+   * 바닥에서 들려 올라오는 돌덩이 (에드워드 '무게'): 물마루가 지나가는 빠르기 (px/틱). 있으면 덩어리를 바닥 줄 (at ± spread) 위에 고르게 놓고
+   * 가운데에서 가까운 차례로 솟게 하고 (태어나는 틱 = 거리 / lift), 처음 3틱 동안 바닥에서 자라 오른다. 방향은 바깥으로 조금 기운다
+   */
+  lift?: number;
+  /** lift일 때 놓는 쪽: 1 앞쪽만 · −1 뒤쪽만 · 0 양쪽 (기본) */
+  sides?: -1 | 0 | 1;
 }
-export type GShape = GWedge | GSwoosh | GBolt | GInk | GRing | GRays | GFlash | GEmbers | GSmoke | GRibbon | GFlutter | GStitch | GQuake | GChunks;
+/**
+ * 바닥을 따라 낮고 넓게 퍼지는 충격파 (에드워드 '무게', 2026-11-05): 바닥 점에서 양옆으로 낮은 물마루 띠가 밀려간다.
+ * 물마루는 앞(바깥)이 가파르고 뒤(가운데 쪽)가 길게 눕는 낮은 둔덕이고, 윗선·아랫선은 부서진 흙처럼 들쭉날쭉하며 아랫선은 바닥 아래로 조금 처진다
+ * (바닥에 곧은 수평선이 생기지 않게). 살아 있는 시계로 r[0] → r[1]까지 밀려가며 낮아지고 길어진다 (처음이 빠르고 끝이 느리다).
+ * 흩어지면 가닥으로 찢어지며 계속 바깥으로 밀려간다
+ */
+export interface GSurge extends GBase {
+  kind: 'surge';
+  at?: GPt;
+  /** 물마루 앞끝 거리 (px, 가운데에서): 처음 → 끝 */
+  r: readonly [number, number];
+  /** 높이 (px, 바닥 위): 처음 → 끝 */
+  h: readonly [number, number];
+  /** 길이 (px): 처음 → 끝 */
+  len: readonly [number, number];
+  /** 밀려가는 틱 (살아 있는 시계) */
+  spread: number;
+  /** 1 앞쪽만 · −1 뒤쪽만 · 0 양쪽 (기본) */
+  sides?: -1 | 0 | 1;
+  /** 바닥 아래로 처지는 깊이 (px, 기본 4), 들쭉날쭉 (px, 기본 2: 7px마다 위·아래를 번갈아) */
+  dip?: number;
+  jag?: number;
+  /** 가장 높은 자리 (0 뒤끝 → 1 앞끝, 기본 0.7)와 두 끝으로 가는 모양 */
+  peak?: number;
+  bulge?: readonly [number, number];
+  main?: number;
+  core?: number;
+  coreLen?: number;
+  edge?: GTone;
+  tones?: readonly [GTone, GTone, GTone];
+}
+export type GShape = GWedge | GSwoosh | GBolt | GInk | GRing | GRays | GFlash | GEmbers | GSmoke | GRibbon | GFlutter | GStitch | GQuake | GChunks | GSurge;
 
 /** 화면 전환 (문법 8): 맞힌 틱부터 */
 export interface GScreen {
   /** 배경 누르기: 어둡게 (밝기 scale배 + 색) · 한 색 + 균열 */
-  press?: { mode: 'tint' | 'crack'; ticks: number; color: string; scale?: number; crack?: string };
+  press?: {
+    mode: 'tint' | 'crack';
+    ticks: number;
+    color: string;
+    scale?: number;
+    crack?: string;
+    /** crack: 균열을 맞은 점(사건 자리)에서 퍼져 나간 금으로 (가까울수록 조각이 잘고 멀수록 크다, 틱마다 바깥으로 번진다) */
+    radial?: boolean;
+  };
   /** 맞은 사람을 주색 실루엣 + 밝은 테두리로 (틱) */
   silhouette?: number;
 }
@@ -359,6 +411,8 @@ export interface GTech {
   puddle?: { at: readonly number[]; n: number };
   /** L 색 뒤집기: at틱부터 ticks틱 동안 주색 단계(1·2)가 보색(금빛) 단계로 */
   flip?: { at: number; ticks: number };
+  /** 짓눌림 (에드워드 '무게'): at틱부터 ticks틱 동안 화면이 px만큼 아래로 눌렸다가 돌아온다 (밀기·흔들기와 따로 더해진다) */
+  sink?: { at?: number; px: number; ticks: number };
 }
 
 /** 공격 하나의 이펙트 */

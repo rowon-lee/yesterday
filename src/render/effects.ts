@@ -19,6 +19,9 @@ export class Effects {
   private kickLeft = 0;
   private kickLen = 0;
   private kickShake = false;
+  /** 짓눌림 (에드워드 '무게'): 이 틱 (this.t)까지 화면을 sinkPx만큼 아래로 */
+  private sinkPx = 0;
+  private sinkUntil = -1;
 
   /** 충격 더하기 (0~1) */
   shake(amount: number): void {
@@ -31,6 +34,12 @@ export class Effects {
     this.kickLeft = ticks;
     this.kickLen = Math.max(1, ticks);
     this.kickShake = shake;
+  }
+
+  /** 화면을 px만큼 아래로 ticks틱 동안 눌렀다가 한 번에 돌아온다 (밀기·흔들기와 따로 더한다). 이 틱의 tick()이 뒤따르므로 다음 틱부터 센다 */
+  sink(px: number, ticks: number): void {
+    this.sinkPx = px;
+    this.sinkUntil = this.t + ticks;
   }
 
   flashFor(ticks: number): void {
@@ -69,7 +78,8 @@ export class Effects {
 
   /** 흔들림 오프셋 (정수 px). 틱마다 정해진 무늬로 흔들어 같은 장면은 늘 같게 찍힌다 */
   offset(): [number, number] {
-    const [kx, ky] = this.kickOffset();
+    const [kx, k0] = this.kickOffset();
+    const ky = k0 + (this.t <= this.sinkUntil ? this.sinkPx : 0);
     const k = this.trauma * this.trauma * SHAKE_MAX_PX;
     if (k < 0.5) return [kx, ky];
     const nx = Math.sin(this.t * 2.9) + 0.5 * Math.sin(this.t * 7.3);
