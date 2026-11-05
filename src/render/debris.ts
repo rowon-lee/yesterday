@@ -89,11 +89,78 @@ const rgba = (hex: string): number => {
   return (0xff000000 | ((n & 0xff) << 16) | (n & 0xff00) | ((n >> 16) & 0xff)) >>> 0;
 };
 
+/**
+ * 돌려 쓰는 조각 목록: 살아 있는 것(live, 생긴 차례)과 다 쓴 것(free). 조각을 새로 만들지 않고 다 쓴 것을 꺼내 고쳐 쓴다.
+ * 처음에 상한만큼 미리 만들어 둔다 (대련 중에 새 물건을 만들지 않게)
+ */
+class Pool<T extends object> {
+  readonly live: T[] = [];
+  private readonly free: T[] = [];
+  constructor(private readonly make: () => T, n: number) {
+    for (let i = 0; i < n; i++) this.free.push(make());
+  }
+  /** 하나 꺼내 fill로 모든 칸을 다시 채운다 (지난 값이 남지 않게) */
+  take(fill: (o: T) => void): void {
+    const o = this.free.pop() ?? this.make();
+    fill(o);
+    this.live.push(o);
+  }
+  /** 살릴 것만 남긴다 (차례는 그대로) */
+  keep(alive: (o: T) => boolean): void {
+    const a = this.live;
+    let n = 0;
+    for (let i = 0; i < a.length; i++) {
+      const o = a[i]!;
+      if (alive(o)) a[n++] = o;
+      else this.free.push(o);
+    }
+    a.length = n;
+  }
+  /** 오래된 것부터 버려 max개만 남긴다 */
+  trim(max: number): void {
+    const a = this.live;
+    const over = a.length - max;
+    if (over <= 0) return;
+    for (let i = 0; i < over; i++) this.free.push(a[i]!);
+    a.copyWithin(0, over);
+    a.length = max;
+  }
+  clear(): void {
+    for (const o of this.live) this.free.push(o);
+    this.live.length = 0;
+  }
+}
+
+const newBit = (): Bit => ({ x: 0, y: 0, vx: 0, vy: 0, color: '', life: 0, flutter: false, w: 1, h: 1, top: '', bounce: 0, rest: 0, resting: false });
+const newBlock = (): Block => ({ sx: 0, sy: 0, x: 0, y: 0, w: 0, h: 0, vx: 0, vy: 0, g: 0, color: undefined, delay: 0, dustAt: 0 });
+const newPuff = (): Puff => ({ x: 0, y: 0, r: 0, vx: 0, vy: 0, t: 0, life: 0 });
+
 export class Debris {
-  private bits: Bit[] = [];
-  private blocks: Block[] = [];
-  private puffs: Puff[] = [];
+  private readonly bitPool = new Pool(newBit, MAX_BITS);
+  private readonly blockPool = new Pool(newBlock, MAX_BLOCKS);
+  private readonly puffPool = new Pool(newPuff, MAX_PUFFS);
+  private get bits(): Bit[] {
+    return this.bitPool.live;
+  }
+  private get blocks(): Block[] {
+    return this.blockPool.live;
+  }
+  private get puffs(): Puff[] {
+    return this.puffPool.live;
+  }
   private seed = 1;
+
+  constructor() {
+    // 먼지 구름 그림판도 미리 만든다 (처음 먼지가 날 때 만들지 않게)
+    const c = document.createElement('canvas');
+    c.width = SCREEN_W;
+    c.height = SCREEN_H;
+    const g = c.getContext('2d')!;
+    this.dust = { canvas: c, g, img: g.createImageData(SCREEN_W, SCREEN_H) };
+    this.dustPx = new Uint32Array(this.dust.img.data.buffer);
+    // 빛을 받지 않는 평면 층에 얹히므로 밤 무대에 맞게 한 단계 어둡고 차갑게
+    this.dustColors = ['#3a3530', '#302c30', '#29262c'].map(rgba);
+  }
 
   private r(): number {
     return rand(this.seed++ * 7919);
@@ -101,13 +168,15 @@ export class Debris {
 
   /** 그릴 것이 있는가 (떨어지는 조각, 튀는 조각, 피어난 먼지) */
   get busy(): boolean {
-    return this.blocks.length > 0 || this.bits.length > 0 || this.puffs.some((p) => p.t >= 0);
+    if (this.blocks.length > 0 || this.bits.length > 0) return true;
+    for (const p of this.puffs) if (p.t >= 0) return true;
+    return false;
   }
 
   private src: CanvasImageSource | null = null;
-  private dust: { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D; img: ImageData } | null = null;
-  private dustPx: Uint32Array | null = null;
-  private dustColors: number[] = [];
+  private readonly dust: { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D; img: ImageData };
+  private readonly dustPx: Uint32Array;
+  private readonly dustColors: number[];
 
   /**
    * 건물이 무너짐: x0~x1 사이, 바닥에서 높이 h까지의 정면이 조각나 통째로 내려앉는다.
@@ -142,18 +211,19 @@ export class Debris {
           } else parts.push([x, by, w, bh]);
         }
         for (const [px, py, pw, ph] of parts) {
-          this.blocks.push({
-            sx: px,
-            sy: py,
-            x: px,
-            y: py,
-            w: pw,
-            h: ph,
-            vx: (px + pw / 2 - mid) * 0.006 + (this.r() - 0.5) * 0.5,
-            vy: 0,
-            g: 0.22 + this.r() * 0.1,
-            delay: Math.floor(this.r() * 3) + (row > 2 ? 1 : 0),
-            dustAt: GROUND_Y,
+          this.blockPool.take((b) => {
+            b.sx = px;
+            b.sy = py;
+            b.x = px;
+            b.y = py;
+            b.w = pw;
+            b.h = ph;
+            b.vx = (px + pw / 2 - mid) * 0.006 + (this.r() - 0.5) * 0.5;
+            b.vy = 0;
+            b.g = 0.22 + this.r() * 0.1;
+            b.delay = Math.floor(this.r() * 3) + (row > 2 ? 1 : 0);
+            b.dustAt = GROUND_Y;
+            b.color = undefined;
           });
         }
       }
@@ -166,14 +236,14 @@ export class Debris {
     const n = Math.round(((x1 - x0) / 6 + 10) * size);
     for (let i = 0; i < n; i++) {
       const x = x0 + this.r() * (x1 - x0);
-      this.puffs.push({
-        x,
-        y: ground - this.r() * 10 * size,
-        r: 4 + this.r() * 6 * size,
-        vx: (x - (x0 + x1) / 2) * 0.012 + (this.r() - 0.5) * 0.8,
-        vy: -0.2 - this.r() * 0.45 * size,
-        t: -Math.floor(this.r() * 12 * size),
-        life: 90 + Math.floor(this.r() * 90),
+      this.puffPool.take((p) => {
+        p.x = x;
+        p.y = ground - this.r() * 10 * size;
+        p.r = 4 + this.r() * 6 * size;
+        p.vx = (x - (x0 + x1) / 2) * 0.012 + (this.r() - 0.5) * 0.8;
+        p.vy = -0.2 - this.r() * 0.45 * size;
+        p.t = -Math.floor(this.r() * 12 * size);
+        p.life = 90 + Math.floor(this.r() * 90);
       });
     }
   }
@@ -189,19 +259,20 @@ export class Debris {
       const spread = kind === 'water' || kind === 'sand' ? 0.6 : 1.6;
       const big = hard && r() < 0.25;
       const cols = DEBRIS_COLORS[kind];
-      this.bits.push({
-        x,
-        y,
-        vx: dir * (0.3 + r() * 2.2) + (r() - 0.5) * spread,
-        vy: -(0.6 + r() * (kind === 'paper' ? 1.6 : 2.6)),
-        color: cols[Math.floor(r() * cols.length)],
-        life: 40 + Math.floor(r() * 60),
-        flutter: kind === 'paper',
-        w: big ? (kind === 'wood' ? 4 : 2 + Math.floor(r() * 2)) : 1,
-        h: big ? 2 : 1,
-        top: cols[0],
-        bounce: hard || kind === 'glass' ? 1 : 0,
-        rest: hard ? 30 + Math.floor(r() * 50) : kind === 'glass' ? 16 : 0,
+      this.bitPool.take((b) => {
+        b.x = x;
+        b.y = y;
+        b.vx = dir * (0.3 + r() * 2.2) + (r() - 0.5) * spread;
+        b.vy = -(0.6 + r() * (kind === 'paper' ? 1.6 : 2.6));
+        b.color = cols[Math.floor(r() * cols.length)];
+        b.life = 40 + Math.floor(r() * 60);
+        b.flutter = kind === 'paper';
+        b.w = big ? (kind === 'wood' ? 4 : 2 + Math.floor(r() * 2)) : 1;
+        b.h = big ? 2 : 1;
+        b.top = cols[0];
+        b.bounce = hard || kind === 'glass' ? 1 : 0;
+        b.rest = hard ? 30 + Math.floor(r() * 50) : kind === 'glass' ? 16 : 0;
+        b.resting = false;
       });
     }
   }
@@ -216,19 +287,20 @@ export class Debris {
       const r = () => rand(this.seed++ * 7919);
       const w = Math.max(2, Math.round((3 + r() * 4) * size));
       const h = Math.max(2, Math.round(w * (kind === 'wood' || kind === 'metal' ? 0.4 : 0.6 + r() * 0.3)));
-      this.bits.push({
-        x: x + (r() - 0.5) * 10 * size,
-        y: y + (r() - 0.5) * 8 * size,
-        vx: dir * (0.2 + r() * 1.6) + (r() - 0.5) * 1.2,
-        vy: -(0.3 + r() * 1.8),
-        color: cols[1 + Math.floor(r() * (cols.length - 1))],
-        life: 400,
-        flutter: false,
-        w,
-        h,
-        top: cols[0],
-        bounce: 1,
-        rest: 120 + Math.floor(r() * 120),
+      this.bitPool.take((b) => {
+        b.x = x + (r() - 0.5) * 10 * size;
+        b.y = y + (r() - 0.5) * 8 * size;
+        b.vx = dir * (0.2 + r() * 1.6) + (r() - 0.5) * 1.2;
+        b.vy = -(0.3 + r() * 1.8);
+        b.color = cols[1 + Math.floor(r() * (cols.length - 1))];
+        b.life = 400;
+        b.flutter = false;
+        b.w = w;
+        b.h = h;
+        b.top = cols[0];
+        b.bounce = 1;
+        b.rest = 120 + Math.floor(r() * 120);
+        b.resting = false;
       });
     }
   }
@@ -245,14 +317,19 @@ export class Debris {
         const w = Math.min(cell, x1 - x) - Math.floor(this.r() * 3);
         const h = Math.min(cell, y1 - y) - Math.floor(this.r() * 3);
         if (w < 2 || h < 2) continue;
-        this.blocks.push({
-          sx: 0, sy: 0, x, y: GROUND_Y - y - h, w, h,
-          vx: dir * this.r() * 0.6 + (x - (x0 + x1) / 2) * 0.004,
-          vy: -this.r() * 0.6,
-          g: 0.2 + this.r() * 0.12,
-          delay: Math.floor(this.r() * 4),
-          dustAt: GROUND_Y,
-          color: colors[1 + Math.floor(this.r() * (colors.length - 1))],
+        this.blockPool.take((b) => {
+          b.sx = 0;
+          b.sy = 0;
+          b.x = x;
+          b.y = GROUND_Y - y - h;
+          b.w = w;
+          b.h = h;
+          b.vx = dir * this.r() * 0.6 + (x - (x0 + x1) / 2) * 0.004;
+          b.vy = -this.r() * 0.6;
+          b.g = 0.2 + this.r() * 0.12;
+          b.delay = Math.floor(this.r() * 4);
+          b.dustAt = GROUND_Y;
+          b.color = colors[1 + Math.floor(this.r() * (colors.length - 1))];
         });
       }
     }
@@ -262,21 +339,23 @@ export class Debris {
   dustSweep(x: number, dir: number, size: number, ground = GROUND_Y): void {
     const n = Math.round(14 * size);
     for (let i = 0; i < n; i++) {
-      this.puffs.push({
-        x: x + dir * this.r() * 10,
-        y: ground - this.r() * 4,
-        r: 3 + this.r() * 4 * size,
-        vx: dir * (0.6 + this.r() * 1.6 * size),
-        vy: -0.05 - this.r() * 0.15,
-        t: -Math.floor(this.r() * 6),
-        life: 60 + Math.floor(this.r() * 60),
+      this.puffPool.take((p) => {
+        p.x = x + dir * this.r() * 10;
+        p.y = ground - this.r() * 4;
+        p.r = 3 + this.r() * 4 * size;
+        p.vx = dir * (0.6 + this.r() * 1.6 * size);
+        p.vy = -0.05 - this.r() * 0.15;
+        p.t = -Math.floor(this.r() * 6);
+        p.life = 60 + Math.floor(this.r() * 60);
       });
     }
   }
 
   /** dt: 한 틱의 몇 배만큼 진행할지 (슬로모션이면 0.5) */
   tick(dt = 1): void {
-    for (const b of this.blocks) {
+    // 지나는 동안 새로 생긴 먼지·조각도 이번 틱에 함께 움직인다 (예전처럼 배열 끝에 붙는다)
+    for (let i = 0; i < this.blocks.length; i++) {
+      const b = this.blocks[i]!;
       if (b.delay > 0) {
         b.delay -= dt;
         continue;
@@ -288,11 +367,19 @@ export class Debris {
       const buried = b.y + b.h - GROUND_Y;
       if (buried > 0 && GROUND_Y - buried < b.dustAt - 4) {
         b.dustAt = GROUND_Y - buried;
-        this.puffs.push({ x: b.x + b.w / 2, y: GROUND_Y - 4, r: 3 + b.w / 4, vx: (this.r() - 0.5) * 1.2, vy: -0.3 - this.r() * 0.5, t: 0, life: 50 + Math.floor(this.r() * 30) });
+        this.puffPool.take((p) => {
+          p.x = b.x + b.w / 2;
+          p.y = GROUND_Y - 4;
+          p.r = 3 + b.w / 4;
+          p.vx = (this.r() - 0.5) * 1.2;
+          p.vy = -0.3 - this.r() * 0.5;
+          p.t = 0;
+          p.life = 50 + Math.floor(this.r() * 30);
+        });
         if (this.r() < 0.3) this.burst('brick', b.x + b.w / 2, GROUND_Y - 2, this.r() < 0.5 ? -1 : 1, 1);
       }
     }
-    this.blocks = this.blocks.filter((b) => b.y < GROUND_Y);
+    this.blockPool.keep((b) => b.y < GROUND_Y);
     for (const p of this.puffs) {
       p.t += dt;
       if (p.t < 0) continue;
@@ -302,7 +389,7 @@ export class Debris {
       p.vy *= 1 - 0.006 * dt;
       p.r += 0.12 * dt;
     }
-    this.puffs = this.puffs.filter((p) => p.t < p.life);
+    this.puffPool.keep((p) => p.t < p.life);
     for (const b of this.bits) {
       b.life -= dt;
       if (b.flutter) {
@@ -336,17 +423,17 @@ export class Debris {
         b.y = GROUND_Y - b.h;
       }
     }
-    this.bits = this.bits.filter((b) => b.life > 0 && b.y < GROUND_Y + 4);
+    this.bitPool.keep((b) => b.life > 0 && b.y < GROUND_Y + 4);
     // 누적 상한 (여러 건물이 연달아 무너져도 쌓이지 않게): 오래된 것부터 버린다
-    if (this.bits.length > MAX_BITS) this.bits.splice(0, this.bits.length - MAX_BITS);
-    if (this.puffs.length > MAX_PUFFS) this.puffs.splice(0, this.puffs.length - MAX_PUFFS);
-    if (this.blocks.length > MAX_BLOCKS) this.blocks.splice(0, this.blocks.length - MAX_BLOCKS);
+    this.bitPool.trim(MAX_BITS);
+    this.puffPool.trim(MAX_PUFFS);
+    this.blockPool.trim(MAX_BLOCKS);
   }
 
   clear(): void {
-    this.blocks = [];
-    this.puffs = [];
-    this.bits = [];
+    this.blockPool.clear();
+    this.puffPool.clear();
+    this.bitPool.clear();
   }
 
   /**
@@ -354,23 +441,16 @@ export class Debris {
    * 캐릭터 뒤(back)에는 짙게, 앞(front)에는 갓 피어난 뭉치만 옅게 덮는다 (캐릭터가 묻혀 보이지 않게)
    */
   drawDust(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, layer: 'back' | 'front' = 'back'): void {
-    const live = this.puffs.filter((p) => p.t >= 0 && (layer === 'back' || p.t / p.life <= 0.45));
-    if (!live.length) return;
+    const shown = (p: Puff) => p.t >= 0 && (layer === 'back' || p.t / p.life <= 0.45);
+    let any = false;
+    for (const p of this.puffs) if (shown(p)) any = true;
+    if (!any) return;
     // 뭉치가 많아 한 점씩 fillRect하면 무거우므로 화면 크기 픽셀 버퍼에 찍고 한 번에 얹는다
-    if (!this.dust) {
-      const c = document.createElement('canvas');
-      c.width = SCREEN_W;
-      c.height = SCREEN_H;
-      const g = c.getContext('2d')!;
-      this.dust = { canvas: c, g, img: g.createImageData(SCREEN_W, SCREEN_H) };
-      this.dustPx = new Uint32Array(this.dust.img.data.buffer);
-      // 빛을 받지 않는 평면 층에 얹히므로 밤 무대에 맞게 한 단계 어둡고 차갑게
-      this.dustColors = ['#3a3530', '#302c30', '#29262c'].map(rgba);
-    }
-    const px = this.dustPx!;
+    const px = this.dustPx;
     px.fill(0);
     const [sand, haze, smoke] = this.dustColors;
-    for (const p of live) {
+    for (const p of this.puffs) {
+      if (!shown(p)) continue;
       const k = p.t / p.life;
       const level = Math.round((layer === 'front' ? 5 : 11) * (1 - k));
       if (level <= 0) continue;

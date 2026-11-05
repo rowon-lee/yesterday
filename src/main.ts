@@ -2,12 +2,12 @@ import { Keyboard, type TickInput } from './core/input';
 import { Pointer } from './core/pointer';
 import { startLoop } from './core/loop';
 import { setupScreen } from './render/screen';
-import { bakeAllMotions } from './anim/motions';
 import { DEFAULT_SCENE, GL_SCENES, SCENES, type App } from './scenes';
 import { measureFrame, quality } from './render/light';
 import { drawText, textWidth } from './render/font';
 import { SCREEN_H, SCREEN_W } from './render/screen';
-import { gl, hasWebGL2, initGl } from './render/gl';
+import { gl, hasWebGL2 } from './render/gl';
+import { bootSteps, fightersOf, Loader, motionPlan, ROSTER_FIGHTERS, spriteSteps } from './render/preload';
 import { SIGNS } from './render/gl/signs';
 import { audio, installAudioUnlock } from './audio/engine';
 
@@ -29,7 +29,6 @@ if (GL_MODE && !hasWebGL2()) {
   throw new Error('WebGL2를 쓸 수 없습니다');
 }
 const ctx = setupScreen(canvas, GL_MODE);
-if (GL_MODE) initGl(canvas);
 
 /** WebGL2가 없는 브라우저: 화면 자리에 안내 글 (게임 그림이 아니라 브라우저 글꼴로 쓴다) */
 function noWebGL(c: HTMLCanvasElement): void {
@@ -42,8 +41,17 @@ function noWebGL(c: HTMLCanvasElement): void {
 installAudioUnlock();
 const keyboard = new Keyboard();
 const pointer = new Pointer(canvas);
-// 모든 동작의 시트를 시작할 때 미리 그려 둔다.
-bakeAllMotions();
+
+/**
+ * 불러오기 (render/preload.ts): 3D 화면·무대·캐릭터 그림·셰이더·소리를 시작 화면의 막대 동안 미리 만든다.
+ * 그동안 틱은 돌지 않는다 (확인 도구는 틱이 넘어가기를 기다리므로 불러오기가 끝난 뒤부터 잰다).
+ * 타이틀로 열면 고를 수 있는 네 캐릭터를 모두, 대련 주소로 바로 열면 그 두 사람만 그린다.
+ */
+let loader: Loader | null = null;
+let afterLoad: (() => void) | null = null;
+/** 마지막 불러오기: 단계마다 걸린 시간과 전체 (ms, 확인용) */
+let lastLoad: { ms: number; steps: Array<[string, number]> } | null = null;
+let loadFrame = 0;
 
 /** 다음 틱에 바꿀 장면 (장면 안에서 goto를 불러도 그 틱은 끝까지 돈다) */
 let nextScene: (() => void) | null = null;
@@ -55,12 +63,17 @@ const app: App = {
       nextScene = () => {
         history.replaceState(null, '', `?${q}`);
         sceneName = name;
-        scene = SCENES[name](app);
+        // 아직 그리지 않은 캐릭터로 대련을 열면 (대련 주소로 바로 연 뒤 타이틀에서 다른 캐릭터를 고른 경우) 그 그림부터 불러온다
+        const need = name === 'fight' ? motionPlan(fightersOf(q)).filter(([m, skin]) => !gl().actors.sprites.has(m, skin)) : [];
+        if (need.length) {
+          loader = new Loader(spriteSteps(need));
+          afterLoad = () => void (scene = SCENES[name](app));
+        } else scene = SCENES[name](app);
       };
     } else location.search = `?${q}`;
   },
 };
-let scene = makeScene(app);
+let scene: ReturnType<typeof makeScene> | null = null;
 
 let tickCount = 0;
 /** 확인 도구가 직접 틱을 넘길 때는 화면 루프가 틱을 돌리지 않는다 */
@@ -73,14 +86,38 @@ function tick(): void {
     nextScene();
     nextScene = null;
   }
+  if (loader || !scene) {
+    // 불러오는 동안 누른 키는 버린다
+    keyboard.poll();
+    pointer.poll();
+    return;
+  }
   lastInput = { ...keyboard.poll(), taps: pointer.poll() };
   scene.tick(lastInput);
   tickCount++;
 }
 
+/** 첫 장면을 만든다 (확인용 ?ff=1이면 멈출 틱까지 바로 돌린다: 긴 대전 장면 캡처용) */
+function start(): void {
+  scene = makeScene(app);
+  if (params.has('ff') && Number.isFinite(stopAt)) while (tickCount < stopAt) tick();
+}
+
+if (GL_MODE) {
+  const fighters = sceneName === 'fight' ? fightersOf(params) : sceneName === 'title' ? ROSTER_FIGHTERS : [];
+  loader = new Loader(bootSteps(canvas, motionPlan(fighters), [...new Set(fighters.map(([c]) => c))]));
+  afterLoad = start;
+} else start();
+
 // 확인 도구(tools/screenshot)가 읽는 값
 (window as unknown as { __debug: object }).__debug = {
   get scene() { return sceneName; },
+  /** 불러오는 중이면 진행(0~1)과 지금 단계, 아니면 null */
+  get loading() { return loader ? { progress: loader.progress, label: loader.label } : null; },
+  /** 마지막 불러오기에 걸린 시간 (ms)과 단계별 시간 */
+  get load() { return lastLoad; },
+  /** 불러오기가 빠뜨려 대련 중에 그 자리에서 그린 동작 수 (0이어야 한다) */
+  get spriteMisses() { return GL_MODE && !loader && scene ? gl().actors.sprites.misses : 0; },
   scenes: Object.keys(SCENES),
   get tick() { return tickCount; },
   get held() { return lastInput ? [...lastInput.held] : []; },
@@ -96,7 +133,7 @@ function tick(): void {
     const t0 = performance.now();
     for (let i = 0; i < n; i++) {
       tick();
-      scene.render(ctx);
+      scene!.render(ctx);
       // 3D: 그래픽 칩 일이 끝날 때까지 기다려 그 시간도 잰다 (sync=false면 자바스크립트 몫만)
       if (GL_MODE && sync) gl().view.sync();
     }
@@ -124,7 +161,7 @@ function tick(): void {
   mapProbe() {
     if (!GL_MODE) return null;
     const g = gl();
-    scene.render(ctx);
+    scene!.render(ctx);
     const rgba = g.view.read();
     const depth = g.view.readDepth();
     const toB64 = (u8: Uint8Array) => {
@@ -146,7 +183,7 @@ function tick(): void {
   /** 확인 도구(tools/clip)용: n틱 진행하고 그린 뒤 화면 픽셀을 색 번호로 돌려준다 */
   frame(n: number) {
     for (let i = 0; i < n; i++) tick();
-    scene.render(ctx);
+    scene!.render(ctx);
     let d: Uint8ClampedArray = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     if (GL_MODE) {
       // 3D 화면 위에 HUD를 겹친 그림 (필살기 확대 중이면 화면에 보이는 것처럼 3D 화면만 키운다)
@@ -214,9 +251,6 @@ function tick(): void {
   },
 };
 
-// 확인용: ?ff=1 이면 멈출 틱(stopAt)까지 기다리지 않고 바로 돌린다 (긴 대전 장면 캡처용).
-if (params.has('ff') && Number.isFinite(stopAt)) while (tickCount < stopAt) tick();
-
 /** 확인용: ?fps=1 이면 화면 오른쪽 위에 초당 그린 화면 수, 한 번 그리는 데 걸린 시간, 조명 품질을 띄운다 (휴대폰에서 직접 확인) */
 const showFps = params.get('fps') === '1';
 let fpsFrames = 0;
@@ -242,6 +276,22 @@ function drawFps(ms: number, now: number): void {
 
 /** 화면 그리기: 걸린 시간과 프레임마다 돈 틱 수를 재서 느리면 빛 레이어 품질을 낮춘다 (휴대폰 60프레임) */
 function render(ticks: number, now: number): void {
+  if (loader) {
+    // 불러오기: 한 프레임에 12ms씩 일하고 막대를 그린다 (빛 품질 재기는 하지 않는다: 불러오는 동안 느린 것은 정상).
+    // 첫 프레임은 막대만 그려 바로 보이게 한다
+    if (loadFrame > 0) loader.step(12);
+    loader.draw(ctx, loadFrame++);
+    if (loader.done) {
+      lastLoad = { ms: Math.round(loader.finishedAt - loader.startedAt), steps: loader.times };
+      loader = null;
+      ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+      const then = afterLoad;
+      afterLoad = null;
+      then?.();
+    }
+    return;
+  }
+  if (!scene) return;
   const t0 = performance.now();
   scene.render(ctx);
   const ms = performance.now() - t0;

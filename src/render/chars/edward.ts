@@ -130,6 +130,14 @@ function introImpact(c: CharFx, f: Fighter): void {
 }
 
 export const EDWARD_RENDER: CharRender = {
+  reset() {
+    for (const p of prev) {
+      p.mode = '';
+      p.t = 0;
+      p.jumpKind = 0;
+    }
+    empowered.fill(false);
+  },
   ramp: VEIL,
   light: COLORS.veil,
   ownIntro: true,

@@ -787,8 +787,11 @@ export function spriteMaterial(): THREE.ShaderMaterial {
   return withLights(new THREE.ShaderMaterial({
     uniforms: {
       map: { value: null },
-      frame: { value: new THREE.Vector4(0, 0, 1, 1) },
-      texel: { value: new THREE.Vector2(1, 1) },
+      palette: { value: null },
+      rect: { value: new THREE.Vector4(0, 0, 0, 0) },
+      cellInfo: { value: new THREE.Vector4(0, 0, 64, 64) },
+      flip: { value: 0 },
+      row: { value: 0 },
       rimDir: { value: new THREE.Vector2(0, 0) },
       rimColor: { value: new THREE.Color(0, 0, 0) },
       bright: { value: 1 },
@@ -808,9 +811,15 @@ export function spriteMaterial(): THREE.ShaderMaterial {
     `,
     fragmentShader: /* glsl */ `
       ${LIGHTS_DECL}
+      // 캐릭터 그림 모음 (색 번호 1바이트, render/gl/sprites)과 색 묶음 표
       uniform sampler2D map;
-      uniform vec4 frame;
-      uniform vec2 texel;
+      uniform sampler2D palette;
+      // 이 프레임 그림이 모음 안에 있는 자리 (왼쪽 위 x, y, 폭, 높이)
+      uniform vec4 rect;
+      // 그 그림이 칸 안에 있는 자리 (x, y)와 칸 크기 (폭, 높이)
+      uniform vec4 cellInfo;
+      uniform float flip;
+      uniform float row;
       uniform vec2 rimDir;
       uniform vec3 rimColor;
       uniform float bright;
@@ -820,12 +829,27 @@ export function spriteMaterial(): THREE.ShaderMaterial {
       varying vec2 vUv;
       varying vec3 vWorld;
       const vec3 LW = vec3(0.2126, 0.7152, 0.0722);
+      // 칸 안 픽셀 (오른쪽을 보는 그림 기준, 위에서 아래로)의 색 번호. 그림 네모 밖은 0 (투명)
+      int colorIndex(ivec2 p) {
+        ivec2 q = p - ivec2(cellInfo.xy);
+        if (q.x < 0 || q.y < 0 || q.x >= int(rect.z) || q.y >= int(rect.w)) return 0;
+        return int(texelFetch(map, ivec2(rect.xy) + q, 0).r * 255.0 + 0.5);
+      }
       void main() {
-        vec2 uv = frame.xy + vUv * frame.zw;
-        vec4 t = texture2D(map, uv);
-        if (t.a < 0.5) discard;
-        float n1 = texture2D(map, uv + rimDir * texel).a;
-        float n2 = texture2D(map, uv + rimDir * texel * 2.0).a;
+        int cw = int(cellInfo.z);
+        int ch = int(cellInfo.w);
+        int px = clamp(int(floor(vUv.x * cellInfo.z)), 0, cw - 1);
+        int py = clamp(int(floor((1.0 - vUv.y) * cellInfo.w)), 0, ch - 1);
+        // 왼쪽을 볼 때는 칸을 좌우로 뒤집어 읽는다
+        bool flipped = flip > 0.5;
+        ivec2 p = ivec2(flipped ? cw - 1 - px : px, py);
+        int ci = colorIndex(p);
+        if (ci == 0) discard;
+        vec4 t = texelFetch(palette, ivec2(ci, int(row)), 0);
+        // 테두리 빛: 빛 쪽으로 1·2칸 옆이 비었나 (그림을 뒤집었으면 옆도 뒤집어 본다. 화면 위 = 그림 위쪽 줄)
+        ivec2 d = ivec2(int(rimDir.x) * (flipped ? -1 : 1), -int(rimDir.y));
+        float n1 = colorIndex(p + d) > 0 ? 1.0 : 0.0;
+        float n2 = colorIndex(p + d * 2) > 0 ? 1.0 : 0.0;
         float rim = (1.0 - step(0.5, n1)) + (1.0 - step(0.5, n2)) * step(0.5, n1) * 0.45;
         rim *= step(0.001, abs(rimDir.x) + abs(rimDir.y));
         vec3 c = t.rgb * bright;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Motion } from '../../anim/motion';
+import type { BakedMotion } from '../../anim/bake';
 import type { LookName } from '../../anim/skeleton';
 import type { SkinId } from '../../anim/skins';
 import { cellOf } from '../../anim/motion';
@@ -8,17 +8,18 @@ import { SCREEN_H, SCREEN_W } from '../screen';
 import { canvas } from '../dither';
 import { lightPool } from './lights';
 import { contactShadowMaterial, flatMaterial, pixelTexture, spriteMaterial } from './shaders';
+import { SpriteAtlas } from './sprites';
 
 /**
  * 2.5D 화면의 캐릭터와 이펙트 (렌더 전용).
- * - 캐릭터: 미리 그린 스틱맨 시트를 싸우는 면(z = 0)의 판으로 세운다. 무대의 빛을 받고 (어두운 곳은 어둡고 차갑게,
+ * - 캐릭터: 미리 그린 스틱맨 그림(그림 모음 텍스처, sprites.ts)을 싸우는 면(z = 0)의 판으로 세운다. 무대의 빛을 받고 (어두운 곳은 어둡고 차갑게,
  *   가로등·간판·이펙트 빛 가까이는 밝고 그 빛 색으로), 가까운 광원 색으로 테두리 빛.
  * - 그림자: 발밑 바닥(발판)에 눕힌 부드러운 어두운 타원. 뜰수록 작고 옅다.
  * - 평면 층(뒤·앞): 기존 2D 그림(먼지·잔상·잔해·Sprite Fusion 이펙트)을 화면 크기 캔버스에 그려 싸우는 면 바로 뒤·앞의 판으로 얹는다.
  * 그리는 차례(renderOrder): 무대(0) → 뒤 평면 층(8) → 그림자(9) → 캐릭터(10) → 앞 평면 층(11). 캐릭터와 평면 층은 깊이를 쓰지 않는다.
  */
 export interface CharDraw {
-  motion: Motion;
+  motion: BakedMotion;
   frame: number;
   look: LookName;
   flip: boolean;
@@ -150,7 +151,8 @@ export class Actors {
   readonly front = new Flat(0.6, 11);
   private readonly chars: THREE.Mesh[] = [];
   private readonly shadows: THREE.Mesh[] = [];
-  private readonly texCache = new Map<HTMLCanvasElement, THREE.CanvasTexture>();
+  /** 캐릭터 그림 모음 (불러오기 화면이 미리 채운다) */
+  readonly sprites = new SpriteAtlas();
 
   constructor() {
     this.group.add(this.back.mesh, this.front.mesh);
@@ -171,13 +173,30 @@ export class Actors {
     }
   }
 
-  private texture(c: HTMLCanvasElement): THREE.CanvasTexture {
-    let t = this.texCache.get(c);
-    if (!t) {
-      t = pixelTexture(c);
-      this.texCache.set(c, t);
+  /** 불러오기 화면이 셰이더를 미리 만들 때: 캐릭터 판에 그림 모음 첫 장을 물린다 (그 그리기에서 실제 텍스처로 만들어지게) */
+  warm(): void {
+    const page = this.sprites.pages[0];
+    for (const m of this.chars) {
+      const u = (m.material as THREE.ShaderMaterial).uniforms;
+      u.map.value = page?.tex ?? null;
+      u.palette.value = this.sprites.palette;
+      u.rect.value.set(0, 0, 64, 64);
+      u.cellInfo.value.set(0, 0, 64, 64);
     }
-    return t;
+  }
+
+  /**
+   * 불러오기 화면: 평면 층에 큰 그림(무너질 때 조각을 잘라 오는 건물 정면 모음 등)을 처음 옮길 때 드는 준비를 미리 한다
+   * (한 칸만 옮겼다 지운다. 대련 중 건물이 처음 무너지는 순간 멈추지 않게)
+   */
+  warmFlats(sources: ReadonlyArray<CanvasImageSource | null>): void {
+    for (const flat of [this.back, this.front]) {
+      for (const src of sources) {
+        if (!src) continue;
+        flat.ctx.drawImage(src, 0, 0, 1, 1, 0, 0, 1, 1);
+        flat.ctx.clearRect(0, 0, 1, 1);
+      }
+    }
   }
 
   /** 캐릭터가 없는 화면(타이틀 등): 캐릭터·그림자·이펙트 층을 모두 감춘다 */
@@ -201,15 +220,18 @@ export class Actors {
       su.strength.value = 0.72 * Math.max(0, 1 - air / 140);
       s.visible = d.visible && su.strength.value > 0.03;
       if (!d.visible) return;
-      const sheet = d.motion.sheet!(d.look, d.flip, d.skin);
+      const skin = d.skin ?? 'base';
+      const spr = this.sprites.get(d.motion, skin, d.frame);
       const mat = m.material as THREE.ShaderMaterial;
       const u = mat.uniforms;
-      u.map.value = this.texture(sheet);
+      u.map.value = spr.tex;
+      u.palette.value = this.sprites.palette;
+      u.row.value = this.sprites.row(skin, d.look);
+      u.flip.value = d.flip ? 1 : 0;
+      u.rect.value.set(spr.ax, spr.ay, spr.f.w, spr.f.h);
       // 칸 크기는 동작마다 (보통 64×64 발밑 32,61 · 큰 칸 128×96 발밑 64,93): 판을 칸 크기로 늘리고 발밑을 맞춘다
       const cell = cellOf(d.motion);
-      const n = sheet.width / cell.w;
-      u.frame.value.set(d.frame / n, 0, 1 / n, 1);
-      u.texel.value.set(1 / sheet.width, 1 / sheet.height);
+      u.cellInfo.value.set(spr.f.x, spr.f.y, cell.w, cell.h);
       m.scale.set(cell.w / 64, cell.h / 64, 1);
       // 판 가운데는 발에서 위로 (발밑 줄 − 칸 높이의 반)px
       m.position.set(Math.round(d.x) - cell.fx + cell.w / 2, Math.round(d.h) + cell.fy - cell.h / 2, 0);

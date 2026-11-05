@@ -26,6 +26,43 @@ import type { GlView } from './view';
 import { SCREEN_H } from '../screen';
 import { CITADEL as D } from '../../data/stages/citadel';
 
+/** 무대 부품 (불러오기 화면이 하나씩 만들어 World에 넘긴다: 만드는 순서는 지금 이 순서 그대로) */
+export interface WorldParts {
+  buildings: Buildings;
+  props: Props;
+  big: BigProps;
+  plaza: Plaza;
+  edges: Edges;
+  outskirts: Outskirts;
+  life: Life;
+  rain: Rain;
+  steam: Steam;
+  wreck: Wreck;
+  foreground: THREE.Group;
+}
+
+/** 무대 부품을 만드는 차례 (이름, 만들기). 불러오기 막대가 한 부품씩 넘어간다 */
+export const WORLD_PARTS: ReadonlyArray<readonly [string, (p: Partial<WorldParts>) => void]> = [
+  ['건물', (p) => (p.buildings = new Buildings())],
+  ['소품', (p) => (p.props = new Props())],
+  ['큰 소품', (p) => (p.big = new BigProps())],
+  ['시타델 광장', (p) => (p.plaza = new Plaza())],
+  ['가장자리', (p) => (p.edges = new Edges())],
+  // 바깥 구간은 무거워서 네 구간을 한 단계씩 짓는다
+  ['바깥 구간: 공장 지대', (p) => (p.outskirts = new Outskirts(true)).build(0)],
+  ['바깥 구간: 항만 부두', (p) => p.outskirts!.build(1)],
+  ['바깥 구간: 고가 철도', (p) => p.outskirts!.build(2)],
+  ['바깥 구간: 성벽 검문소', (p) => {
+    p.outskirts!.build(3);
+    p.outskirts!.finish();
+  }],
+  ['도시의 움직임', (p) => (p.life = new Life())],
+  ['비', (p) => (p.rain = new Rain())],
+  ['증기', (p) => (p.steam = new Steam())],
+  ['구조물 손상', (p) => (p.wreck = new Wreck())],
+  ['앞겹', (p) => (p.foreground = foreground())],
+];
+
 /**
  * 2.5D 무대 전체 (렌더 전용): 먼 겹 판(하늘·먼 마천루·시타델 탑·중간 건물), 겹 사이 안개, 구간마다 다른 젖은 바닥,
  * 길가의 부서지는 건물(극장·다이너 거리, 비상계단 아파트), 시타델 광장과 본관, 부두와 공원, 부서지는 물건, 움직이는 도시, 비와 증기.
@@ -33,20 +70,20 @@ import { CITADEL as D } from '../../data/stages/citadel';
  */
 export class World {
   readonly group = new THREE.Group();
-  private readonly buildings = new Buildings();
-  private readonly props = new Props();
-  private readonly big = new BigProps();
-  private readonly plaza = new Plaza();
-  private readonly edges = new Edges();
+  private readonly buildings: Buildings;
+  private readonly props: Props;
+  private readonly big: BigProps;
+  private readonly plaza: Plaza;
+  private readonly edges: Edges;
   /** 맵을 넓히며 붙인 네 구간 (공장 지대·항만 창고 부두·고가 철도 밑·성벽 검문소) */
-  private readonly outskirts = new Outskirts();
-  private readonly life = new Life();
-  private readonly rain = new Rain();
-  private readonly steam = new Steam();
+  private readonly outskirts: Outskirts;
+  private readonly life: Life;
+  private readonly rain: Rain;
+  private readonly steam: Steam;
   /** 구조물 손상 (그동안 부서지지 않던 구조물과 거리 소품, 2026-11-02) */
-  private readonly wreck = new Wreck();
+  private readonly wreck: Wreck;
   /** 앞겹 (카메라 앞을 스치는 기둥·전선·깃발). 확인용으로 끌 수 있다 */
-  readonly foreground = foreground();
+  readonly foreground: THREE.Group;
   /** 움직이지 않는 무대 (먼 겹 판·안개 판·길·건물·앞겹) */
   private readonly statics: THREE.Object3D[] = [];
   /** 하늘과 바다 (셰이더로 그린다: 구름·달·번개·바다). 하늘 겹 크기 그림에 몇 틱마다 그려 두고 하늘 판이 그 그림을 쓴다 */
@@ -63,7 +100,24 @@ export class World {
   /** 겹 사이 안개 판 (구간 분위기로 짙기를 바꾼다)와 처음 짙기 */
   private readonly hazes: Array<[THREE.ShaderMaterial, number]> = [];
 
-  constructor() {
+  constructor(parts?: WorldParts) {
+    // 부품을 따로 받지 않으면 여기서 차례대로 만든다 (확인 도구)
+    if (!parts) {
+      const p: Partial<WorldParts> = {};
+      for (const [, make] of WORLD_PARTS) make(p);
+      parts = p as WorldParts;
+    }
+    this.buildings = parts.buildings;
+    this.props = parts.props;
+    this.big = parts.big;
+    this.plaza = parts.plaza;
+    this.edges = parts.edges;
+    this.outskirts = parts.outskirts;
+    this.life = parts.life;
+    this.rain = parts.rain;
+    this.steam = parts.steam;
+    this.wreck = parts.wreck;
+    this.foreground = parts.foreground;
     // 하늘: 하늘 겹 크기의 판을 셰이더로 칠한다
     const ss = D.sky.speed;
     this.skyW = layerW(ss);
@@ -127,6 +181,16 @@ export class World {
       });
       o.matrixWorldAutoUpdate = false;
     }
+  }
+
+  /**
+   * 불러오기 화면 (warm.ts): 하늘 그림판과 하늘 셰이더를 미리 만든다. 그린 시각은 되돌려 첫 프레임이 하늘을 새로 그리게 한다
+   * (무대의 다른 시간 상태는 건드리지 않는다)
+   */
+  warmSky(view: GlView): void {
+    this.applyMood(view, 0);
+    this.skyAt = -1e9;
+    this.skyFlash = 0;
   }
 
   /** 시간이 멈춘 연출 (라이덴 파천): 비가 공중에 서고, red 둘레 빗방울만 붉다 (렌더 전용) */

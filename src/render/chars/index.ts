@@ -80,6 +80,8 @@ export interface CharRender {
   overlay?(ctx: CanvasRenderingContext2D, s: SimState, f: Fighter, i: number, cam: { x: number; y: number }): void;
   /** HUD: 특성 표시 (껍데기 게이지·낙인·검영 수…) */
   hud?(ctx: CanvasRenderingContext2D, s: SimState, f: Fighter, i: number, slot: HudSlot): void;
+  /** 새 경기: 모듈에 남은 이 캐릭터의 연출 상태를 처음으로 되돌린다 (지난 경기나 불러오기의 '이펙트 미리 그려 보기'에서 남은 것) */
+  reset?(): void;
 }
 
 const NONE: CharRender = {};
@@ -88,4 +90,9 @@ let table: Partial<Record<CharId, CharRender>> | null = null;
 export function rendersOf(c: CharId): CharRender {
   const t = (table ??= { eunwoo: EUNWOO_RENDER, edward: EDWARD_RENDER, oscar: OSCAR_RENDER });
   return t[c] ?? NONE;
+}
+
+/** 새 경기: 모든 캐릭터 연출의 모듈 상태를 처음으로 */
+export function resetCharRenders(): void {
+  for (const r of [EUNWOO_RENDER, EDWARD_RENDER, OSCAR_RENDER]) r.reset?.();
 }

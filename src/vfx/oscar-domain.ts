@@ -271,8 +271,9 @@ export default function oscarDomain(o: Options) {
       ctx.fillStyle = o.whiteHex;
       if (D < 149) ctx.fillRect(0, 0, W, H);
       else {
-        const k = (D - 149) / 3;
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if ((BAYER[((y & 3) << 2) | (x & 3)]! + 0.5) / 16 >= k) ctx.fillRect(x, y, 1, 1);
+        // 디더로 걷힘: 4×4 무늬 한 장으로 화면을 한 번에 칠한다 (한 점씩 13만 번 칠하던 것과 같은 그림)
+        ctx.fillStyle = ditherPattern(ctx, o.whiteHex, (D - 149) / 3);
+        ctx.fillRect(0, 0, W, H);
       }
       ctx.fillStyle = o.inkHex;
       o.lines.forEach((l, i) => {
@@ -289,6 +290,25 @@ export default function oscarDomain(o: Options) {
     },
   };
   return api;
+}
+
+/** 디더 무늬 (색, 문턱 k): (BAYER + 0.5) / 16 ≥ k인 칸만 칠한 4×4 반복 무늬. 색·문턱마다 한 번 만든다 */
+const patterns = new Map<string, CanvasPattern>();
+function ditherPattern(ctx: CanvasRenderingContext2D, color: string, k: number): CanvasPattern | string {
+  const key = `${color}|${k}`;
+  let p = patterns.get(key);
+  if (!p) {
+    const c = document.createElement('canvas');
+    c.width = 4;
+    c.height = 4;
+    const g = c.getContext('2d')!;
+    g.fillStyle = color;
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) if ((BAYER[(y << 2) | x]! + 0.5) / 16 >= k) g.fillRect(x, y, 1, 1);
+    p = ctx.createPattern(c, 'repeat') ?? undefined;
+    if (!p) return color;
+    patterns.set(key, p);
+  }
+  return p;
 }
 
 /** 월드 선 하나 (화면 안만, 1px 계단). gap이면 그 간격마다 한 칸만 찍는다 (phase로 선마다 어긋나게) */
