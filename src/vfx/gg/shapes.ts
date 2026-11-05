@@ -94,6 +94,8 @@ interface Level {
   t: number;
   l: number;
   drop: number;
+  /** 두께에 더하는 px (양쪽 합 2px배, 양 끝은 함께 뾰족하다): 14-10 ① 맨 바깥 어두운 띠 */
+  px?: number;
 }
 
 /** 빛 쐐기·스우시·잉크의 공통 띠 */
@@ -175,7 +177,9 @@ function bandPaints(b: BandSpec, ph: Phase): Paint[] {
       const uB = u0 + (u1 - u0) * (b.peak + (1 - b.peak) * lv.l);
       const ba = p > 0 && b.blunt ? Math.min(b.ba, 0.6) : b.ba;
       const bf = p > 0 && b.blunt ? Math.min(b.bf, 0.6) : b.bf;
-      const H = b.mul ? (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf) * b.mul!(u, li) : (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf);
+      const H0 = b.mul ? (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf) * b.mul!(u, li) : (u: number) => lt * profile((u - uA) / (uB - uA), b.peak, ba, bf);
+      const px = lv.px ?? 0;
+      const H = px > 0 ? (u: number) => H0(u) + 2 * px * Math.min(1, 3 * profile((u - uA) / (uB - uA), b.peak, ba, bf)) * Math.pow(1 - p, 0.5) : H0;
       perLevel[li]!.push(slice((u) => b.C(u, d), (u) => b.N(u, d), H, b.skew, off - ratio, off + ratio, uA, uB, n));
     });
   }
@@ -187,10 +191,11 @@ function bandPaints(b: BandSpec, ph: Phase): Paint[] {
 }
 
 /** 셀 3단 (진한 주색 → 주색 → 심, tones로 통째로 바꿀 수 있다: 에드워드 푸른 장막 띠). 살아 있는 동안 흰 심이 맥동한다 (4틱 주기, ±22%) */
-function celLevels(o: { main?: number; core?: number; coreLen?: number; edge?: GTone; tones?: readonly [GTone, GTone, GTone] }, ph: Phase): Level[] {
+function celLevels(o: { main?: number; core?: number; coreLen?: number; edge?: GTone; tones?: readonly [GTone, GTone, GTone]; rim?: number }, ph: Phase): Level[] {
   const [te, tm, tc] = o.tones ?? [o.edge ?? 2, 1, 0];
   const core = (o.core ?? 0.3) * (1 + 0.22 * Math.sin((ph.ls * Math.PI) / 2));
-  const out: Level[] = [{ tone: te, t: 1, l: 1, drop: 0.35 }];
+  // 14-10 ①: 맨 바깥 어두운 잉크 띠 (바깥 단과 같이 흩어진다)
+  const out: Level[] = o.rim ? [{ tone: 3, t: 1, l: 1, drop: 0.35, px: o.rim }, { tone: te, t: 1, l: 1, drop: 0.35 }] : [{ tone: te, t: 1, l: 1, drop: 0.35 }];
   if ((o.main ?? 0.66) > 0) out.push({ tone: tm, t: o.main ?? 0.66, l: 0.95, drop: 0.7 });
   if ((o.core ?? 0.3) > 0) out.push({ tone: tc, t: core, l: o.coreLen ?? 0.78, drop: 0.85 });
   return out;
@@ -644,20 +649,51 @@ export function ring(s: GRing, ph: Phase, at: GPt): Paint[] {
   // 물결 고리: 파장 약 32px의 느린 굽이 (짧고 뾰족하면 번개처럼 보인다), 살아 있는 시계로 흐른다
   const rip = (s.ripple ?? 0) * kT;
   const nRip = Math.max(4, Math.round(r / 5.1));
-  const rings: number[][] = [];
+  let segs: number[][][] = [];
   let cur: number[][] | null = null;
   for (let i = 0; i <= steps; i++) {
     const a = (i / steps) * 2 * Math.PI;
     const h = t(a);
     if (inGap(a) || h < 2.6 || i === steps) {
-      if (cur && cur.length > 1) rings.push(closeArc(cur, at, r, sy, rot));
+      if (cur && cur.length > 1) segs.push(cur);
       cur = null;
       continue;
     }
     if (!cur) cur = [];
     cur.push(rip ? [a, h / 2, rip * Math.sin(nRip * a - 0.8 * ph.ls)] : [a, h / 2]);
   }
-  return [{ tone: s.tone ?? 4, rings, sep: true }];
+  // 14-10 ③ 마디마다 가운데가 굵고 양 끝이 뾰족한 리본 호 (2.6px 아래로 얇아진 끝은 뺀다)
+  if (s.taper) {
+    segs = segs.map((sg) => {
+      const a0 = sg[0]![0]!;
+      const a1 = sg[sg.length - 1]![0]!;
+      return sg.map((e) => {
+        const k = Math.pow(Math.sin((Math.PI * (e[0]! - a0)) / Math.max(1e-6, a1 - a0)), 0.75);
+        return [e[0]!, e[1]! * k, ...(e.length > 2 ? [e[2]!] : [])];
+      }).filter((e) => e[1]! * 2 >= 2.6);
+    }).filter((sg) => sg.length > 1);
+  }
+  const out: Paint[] = [];
+  // 14-10 ① 둘레 잉크 띠
+  if (s.rim) out.push({ tone: 3, rings: segs.map((sg) => closeArc(sg.map((e) => [e[0]!, e[1]! + s.rim! * kT, ...(e.length > 2 ? [e[2]!] : [])]), at, r, sy, rot)), sep: true });
+  out.push({ tone: s.tone ?? 4, rings: segs.map((sg) => closeArc(sg, at, r, sy, rot)), sep: true });
+  // 굵은 자리 안쪽 심 (7px 넘게 굵은 곳만, 두께 35%)
+  if (s.core !== undefined) {
+    const cores: number[][] = [];
+    for (const sg of segs) {
+      let run: number[][] = [];
+      for (const e of sg) {
+        if (e[1]! * 2 >= 7) run.push([e[0]!, e[1]! * 0.35, ...(e.length > 2 ? [e[2]!] : [])]);
+        else {
+          if (run.length > 1) cores.push(closeArc(run, at, r, sy, rot));
+          run = [];
+        }
+      }
+      if (run.length > 1) cores.push(closeArc(run, at, r, sy, rot));
+    }
+    if (cores.length) out.push({ tone: s.core, rings: cores, sep: true });
+  }
+  return out;
 }
 /** 고리 한 구간 (바깥 호 → 안쪽 호). 납작한 고리도 두께는 화면 px 그대로 (세로로 눌러 두께까지 얇아지지 않게) */
 function closeArc(seg: number[][], at: GPt, r: number, sy: number, rot = 0): number[] {
@@ -728,6 +764,14 @@ export function flash(s: GFlash, ph: Phase, at: GPt): Paint[] {
         at[0] + dy * W, at[1] - dx * W,
       ];
     });
+  // 14-10 ②: 세 겹 (테두리 → 몸 색 별 → 작은 흰 심)
+  if (s.inner !== undefined) {
+    return [
+      { tone: s.rim ?? 4, rings: kites(rimGrow, 1.5), sep: true },
+      { tone: s.inner, rings: kites(1, 0), sep: true },
+      { tone: 0, rings: kites(0.5, 0), sep: true },
+    ];
+  }
   return [
     { tone: s.rim ?? 4, rings: kites(rimGrow, 1.5), sep: true },
     { tone: 0, rings: kites(1, 0), sep: true },

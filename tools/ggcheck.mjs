@@ -3,6 +3,7 @@
 //     --drafts: 14-9 시안 (4타·차지·스킬·필살기 시안 3개씩)을 ?ggdraft=로 찍어 <out>/drafts.png 한 장으로 (백은우·에드워드)
 //     --base-draft atk4:3,super:3: 이전 버전을 그 시안으로 찍는다 (고른 시안의 전후 비교)
 //     --compare 4,13: 그 번호 기술마다 전후 비교 PNG (<out>/<번호>-<기술>-compare.png: 위 이전 · 아래 이번, 같은 틱 넷)
+//     --sample-compare: 스타일 견본 네 기술의 피크를 이전(왼쪽)·이번(오른쪽) 나란히 한 장 (<out>/sample-compare.png)
 //     → <out>/style-sample.png    스타일 견본: 잽·미들킥·4타·띄우기 피크 정지 화면 + 레퍼런스 세 장 (docs/refs/gg_ref_*.png)
 //       <out>/NN-<기술>-1x.gif     동작마다 번호: 왼쪽 이전 · 오른쪽 지금, 맞기 20틱 전 ~ 맞은 뒤 45틱 (같은 장면·같은 틱, 2배), 실제 속도
 //       <out>/NN-<기술>-half.gif   같은 범위 0.5배속 (틱마다 한 장)
@@ -18,7 +19,7 @@ import { encodeGifDelta } from './gif.mjs';
 import { decodePng, encodePng } from './png.mjs';
 
 const argv = process.argv.slice(2);
-const opt = { char: 'raiden', base: 'origin/main', out: '', only: '', noBase: false, debug: '', dump: '', drafts: false, baseDraft: '', compare: '' };
+const opt = { char: 'raiden', base: 'origin/main', out: '', only: '', noBase: false, debug: '', dump: '', drafts: false, baseDraft: '', compare: '', sampleCompare: false };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--char') opt.char = argv[++i];
@@ -26,6 +27,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--base') opt.base = argv[++i];
   else if (a === '--base-draft') opt.baseDraft = argv[++i];
   else if (a === '--compare') opt.compare = argv[++i];
+  else if (a === '--sample-compare') opt.sampleCompare = true;
   else if (a === '--out') opt.out = argv[++i];
   else if (a === '--only') opt.only = argv[++i];
   else if (a === '--no-base') opt.noBase = true;
@@ -340,6 +342,32 @@ function windowOf(m, f, w, h) {
   return [x0, y0];
 }
 
+// ---------------------------------------------------------------- 금 면적 (14-10 ②: 금이 두 번째 주인공 색, 이펙트의 15~25%)
+/** 따뜻한 노랑·호박색 (색상 28~62°, 채도 0.4 넘게, 밝기 0.5 넘게): 금 테·금 별·금 불씨·금 고리 */
+function isGold(r, g, b) {
+  const mx = Math.max(r, g, b);
+  const mn = Math.min(r, g, b);
+  if (mx < 128 || mx - mn < 0.4 * mx || mx !== r) return false;
+  const hue = (60 * (g - b)) / (mx - mn);
+  return hue >= 28 && hue <= 62;
+}
+/** 보이는 이펙트 칸 (밤 배경에 묻히는 어두운 남색 테·잉크 칸은 뺀다) 가운데 금 칸의 비율 */
+function goldShare(f) {
+  if (!f?.marks) return null;
+  let all = 0;
+  let gold = 0;
+  for (let i = 0; i < W * H; i++) {
+    if (!f.marks[i]) continue;
+    const r = f.d[i * 3];
+    const g = f.d[i * 3 + 1];
+    const b = f.d[i * 3 + 2];
+    if (0.299 * r + 0.587 * g + 0.114 * b < 45) continue;
+    all++;
+    if (isGold(r, g, b)) gold++;
+  }
+  return all ? { all, gold, share: gold / all } : null;
+}
+
 // ---------------------------------------------------------------- 자체 점검 (14-7·14-8 금지 모양)
 /** 이펙트 칸 묶음: 1px 굵기로 길게 이어진 것 (1px 선), 그 방향, 수평·수직 곧은 테두리 (자로 그은 직사각형) */
 function checkFrame(f, at) {
@@ -479,8 +507,9 @@ if (opt.dump) {
 }
 
 const lines = [];
-lines.push('| 번호 | 기술 | 쓴 문법 (14-8) | 1px 선 (24px 넘게) | 같은 방향 1px 선 최대 | 자로 그은 곧은 테두리 (30px 넘게) | 같은 그림이 이어진 가장 긴 틱 | 공격자 몸통·머리 위 칸 (+2틱) |');
-lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
+const GOLD_COL = CHAR === 'eunwoo';
+lines.push(`| 번호 | 기술 | 쓴 문법 (14-8) | 1px 선 (24px 넘게) | 같은 방향 1px 선 최대 | 자로 그은 곧은 테두리 (30px 넘게) | 같은 그림이 이어진 가장 긴 틱 | 공격자 몸통·머리 위 칸 (+2틱) |${GOLD_COL ? ' 금 면적 (피크) |' : ''}`);
+lines.push(`| --- | --- | --- | --- | --- | --- | --- | --- |${GOLD_COL ? ' --- |' : ''}`);
 for (const m of MOVES) {
   if (m.idx < 0) continue;
   const sh = shots[m.scene].new;
@@ -531,10 +560,12 @@ for (const m of MOVES) {
       if (run >= 3) frozen = `${k - PRE - run + 1 >= 0 ? '+' : ''}${k - PRE - run + 1}~${k - PRE >= 0 ? '+' : ''}${k - PRE}틱`;
     }
   }
-  m.check = { thin, parallel, straight, body, longest };
-  lines.push(`| ${m.l ?? m.n} | ${m.id} | ${grammarOf(m.id).join(' · ')} | ${thin}${thin ? ` (가장 긴 ${thinMax}px)` : ''} | ${parallel} | ${straight}${straight ? ` (${where})` : ''} | ${longest}${longest >= 3 ? ` (${frozen})` : ''} | ${body} |`);
+  const gs = goldShare(sh.frames[m.idx + peakOf(m)]);
+  m.check = { thin, parallel, straight, body, longest, gold: gs };
+  const goldCol = GOLD_COL ? ` ${gs ? `${Math.round(gs.share * 100)}% (${gs.gold}/${gs.all})` : '-'} |` : '';
+  lines.push(`| ${m.l ?? m.n} | ${m.id} | ${grammarOf(m.id).join(' · ')} | ${thin}${thin ? ` (가장 긴 ${thinMax}px)` : ''} | ${parallel} | ${straight}${straight ? ` (${where})` : ''} | ${longest}${longest >= 3 ? ` (${frozen})` : ''} | ${body} |${goldCol}`);
 }
-const md = [`## ${CHAR_NAME} 길티기어식 이펙트 자체 점검 (지금 버전, 맞기 20틱 전 ~ 맞은 뒤 45틱)`, '', '- 1px 선: 보이는 이펙트 칸(밤 배경에 묻히는 어두운 잉크·테두리 칸은 뺀다) 묶음 중, 상하좌우가 모두 이펙트인 칸(가로·세로 3칸 굵기)이 하나도 없이 24px 넘게 이어진 것. 2px 띠도 1px 선으로 센다', '- 자로 그은 곧은 테두리: 같은 줄에서 이펙트 위·아래 경계가 30칸 넘게 곧게 이어진 곳 수', '- 같은 그림이 이어진 가장 긴 틱: 이펙트 칸(월드 자리·색)이 그대로인 틱 수 (14-2: 2틱 넘으면 실패, 이펙트가 없는 틱은 세지 않는다)', '- 공격자 몸통·머리 위 칸: 맞은 틱 +2(다 펼쳐진 모습)에 공격자 몸통(엉덩이 → 목 선 4px 안)·머리(7px 안)에 칠한 이펙트 칸 (뒤 겹이면 몸이 위에 그려진다)', '', ...lines, ''].join('\n');
+const md = [`## ${CHAR_NAME} 길티기어식 이펙트 자체 점검 (지금 버전, 맞기 20틱 전 ~ 맞은 뒤 45틱)`, '', '- 1px 선: 보이는 이펙트 칸(밤 배경에 묻히는 어두운 잉크·테두리 칸은 뺀다) 묶음 중, 상하좌우가 모두 이펙트인 칸(가로·세로 3칸 굵기)이 하나도 없이 24px 넘게 이어진 것. 2px 띠도 1px 선으로 센다', '- 자로 그은 곧은 테두리: 같은 줄에서 이펙트 위·아래 경계가 30칸 넘게 곧게 이어진 곳 수', '- 같은 그림이 이어진 가장 긴 틱: 이펙트 칸(월드 자리·색)이 그대로인 틱 수 (14-2: 2틱 넘으면 실패, 이펙트가 없는 틱은 세지 않는다)', '- 공격자 몸통·머리 위 칸: 맞은 틱 +2(다 펼쳐진 모습)에 공격자 몸통(엉덩이 → 목 선 4px 안)·머리(7px 안)에 칠한 이펙트 칸 (뒤 겹이면 몸이 위에 그려진다)', ...(GOLD_COL ? ['- 금 면적 (14-10 ②, 목표 15~25%): 피크 틱(스타일 견본과 같은 틱)의 보이는 이펙트 칸 가운데 금·호박색 칸 (색상 28~62°, 채도 0.4 넘게). 어두운 남색 테·잉크 칸은 분모에서 뺀다'] : []), '', ...lines, ''].join('\n');
 writeFileSync(`${opt.out}/check.md`, md);
 console.log(md);
 
@@ -633,6 +664,37 @@ if (opt.compare) {
       });
     });
     save(`${opt.out}/${String(m.n).padStart(2, '0')}-${m.id}-compare.png`, o);
+  }
+}
+
+// ---------------------------------------------------------------- 네 장면 전후 피크 (--sample-compare): 기술마다 한 줄, 왼쪽 이전 · 오른쪽 이번 (같은 장면·같은 입력·같은 틱·같은 자리)
+if (opt.sampleCompare) {
+  const pk = SAMPLE.map((id) => MOVES.find((m) => m.id === id)).filter((m) => m && m.idx >= 0 && shots[m.scene].base);
+  if (pk.length) {
+    const PW = 400;
+    const PH = 225;
+    const GAP = 8;
+    const LH = 26;
+    const o = img(PW * 2 * 2 + GAP, pk.length * (PH * 2 + LH + GAP) - GAP, 18);
+    pk.forEach((m, r) => {
+      const sh = shots[m.scene];
+      const f1 = sh.new.frames[m.idx + peakOf(m)] ?? sh.new.frames[m.idx];
+      // 이전 버전도 같은 입력이라 맞은 틱 번호가 같다 (그 버전 기록으로 다시 찾는다)
+      const e = sh.base.log.find((l) => l.move === (m.log ?? m.id) && l.impact) ?? sh.base.log.find((l) => l.move === m.id && l.swing);
+      const bi = e ? sh.base.frames.findIndex((f) => f.tick === e.tick) : m.idx;
+      const f0 = sh.base.frames[(bi >= 0 ? bi : m.idx) + peakOf(m)] ?? sh.base.frames[m.idx];
+      const [x0, y0] = windowOf(m, f1, PW, PH);
+      const oy = r * (PH * 2 + LH + GAP) + LH;
+      const g0 = goldShare(f0);
+      const g1 = goldShare(f1);
+      const pct = (g) => (g ? `  GOLD ${Math.round(g.share * 100)}%` : '');
+      [[f0, 'NOW (MAIN)', [235, 235, 240], g0], [f1, '14-10', LABEL, g1]].forEach(([f, lab, rgb, g], c) => {
+        const ox = c * (PW * 2 + GAP);
+        blit(o, crop(f, x0, y0, PW, PH), ox, oy, 2);
+        text(o, `${m.l ?? m.n} ${m.name}  ${lab}  +${peakOf(m)}${pct(g)}`, ox + 4, oy - 21, 2, rgb);
+      });
+    });
+    save(`${opt.out}/sample-compare.png`, o);
   }
 }
 

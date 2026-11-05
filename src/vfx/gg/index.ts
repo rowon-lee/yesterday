@@ -145,7 +145,7 @@ export default function ggEffect(o: GGSpec) {
           vy: Math.sin(a) * v,
           life: Math.round(s.life * (0.55 + 0.45 * r())),
           size: r() < 0.3 ? 2 : 1,
-          tone: EMBER_TONES[i % EMBER_TONES.length]!,
+          tone: s.tones?.length ? s.tones[i % s.tones.length]! : EMBER_TONES[i % EMBER_TONES.length]!,
         });
       }
       embers.set(s, list);
