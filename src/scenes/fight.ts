@@ -28,6 +28,8 @@ import { drawControls } from './title';
 import { touch } from '../core/touch';
 import { audio } from '../audio/engine';
 import { SoundBridge } from '../audio/events';
+import { net } from '../net/session';
+import { OnlineFight } from './fight-online';
 
 /**
  * 1P 키보드 키 배치. 방향: 화살표 또는 WASD.
@@ -84,22 +86,27 @@ const CAMERA_DAMP = 0.35;
  *   ?p2=tech 확인용: 상대가 가만히 서 있다가 공중에서 맞는 중 낙법이 가능해지면 바로 점프 (낙법 동작 캡처용)
  *   ?p1char=raiden&p2char=… 캐릭터 고르기 (능력치·전용 동작이 캐릭터 것으로, 겉모습도 따라간다. 기본은 기본 스틱맨)
  *   ?p1skin=raiden&p2skin=… 확인용: 캐릭터 겉모습(장식·색)만 바꿔 그린다 (동작·기술은 그 캐릭터 것 그대로)
+ *   ?mode=online 온라인 대련 (로비 장면이 연결·경기 정보를 net에 두고 넘어온다. scenes/fight-online.ts). ?netcpu=1 확인용: CPU가 내 대신 누른다
  * Esc·P로 일시정지 (계속 / 처음부터 / 조작법 / 타이틀로). 경기가 끝나면 다시 하기 / 타이틀로.
  */
 export function fightScene(app?: App): Scene {
   const params = new URLSearchParams(location.search);
+  /** 온라인 대련: 연결·경기 정보는 net에 있다. 없으면(새로 고침 등) 타이틀로 */
+  const online = params.get('mode') === 'online' && net.match ? new OnlineFight() : null;
+  const lostOnline = params.get('mode') === 'online' && !online;
+  const netCpu = online !== null && params.get('netcpu') === '1';
   const p1Cpu = params.get('p1') === 'cpu';
   const practice = params.get('mode') === 'practice';
   const dummy = params.get('dummy') ?? (params.get('p2') === 'idle' ? 'stand' : params.get('p2') === 'tech' ? 'tech' : practice ? 'stand' : 'cpu');
   const cpuSkill = ({ easy: 25, normal: 55, hard: 85 } as Record<string, number>)[params.get('cpu') ?? 'normal'] ?? 55;
-  let seed = Number(params.get('seed') ?? 1) | 0;
+  let seed = online ? online.info.seed : Number(params.get('seed') ?? 1) | 0;
   let showBoxes = params.get('boxes') === '1';
   /** 두 사람의 캐릭터 (sim) */
   const charParam = (k: string): CharId => {
     const v = params.get(k);
     return isChar(v) ? v : 'base';
   };
-  const chars: [CharId, CharId] = [charParam('p1char'), charParam('p2char')];
+  const chars: [CharId, CharId] = online ? [online.info.chars[0], online.info.chars[1]] : [charParam('p1char'), charParam('p2char')];
   /** 두 사람의 캐릭터 겉모습 (렌더 전용): 따로 정하지 않으면 캐릭터를 따라간다 */
   const skinParam = (k: string, c: CharId): SkinId => {
     const v = params.get(k);
@@ -155,7 +162,7 @@ export function fightScene(app?: App): Scene {
     fightVfx.reset(s);
     sound.reset();
     hud = new Hud();
-    hud.names = p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', practice ? 'DUMMY' : 'CPU'];
+    hud.names = online ? online.names() : p1Cpu ? ['CPU 1', 'CPU 2'] : ['1P', practice ? 'DUMMY' : 'CPU'];
     paused = false;
     pauseMenu.sel = 0;
     endMenu.sel = 0;
@@ -167,7 +174,7 @@ export function fightScene(app?: App): Scene {
   };
   reset();
   // 휴대폰이면 터치 패드·버튼을 띄운다 (CPU끼리 구경할 때는 감춘다)
-  touch.enable(!p1Cpu);
+  touch.enable(!p1Cpu && !netCpu);
   // 확인 도구가 읽는 값
   (window as unknown as { __fight: () => SimState }).__fight = () => s;
   // 확인 도구(14-6 숫자 표)가 읽는 값: 애니 이펙트를 낸 기록
@@ -411,7 +418,8 @@ export function fightScene(app?: App): Scene {
       hud.meterTop = touch.shown;
       hud.draw(ctx, s);
     }
-    if (s.phase === 'matchEnd' && s.phaseT > 120 && !p1Cpu) {
+    online?.draw(ctx, s);
+    if (!online && s.phase === 'matchEnd' && s.phaseT > 120 && !p1Cpu) {
       panel(ctx, SCREEN_W / 2 - 60, 150, 120, endMenu.items.length * 16 + 12);
       endMenu.draw(ctx, SCREEN_W / 2, 157, s.tick);
     }
@@ -428,8 +436,56 @@ export function fightScene(app?: App): Scene {
     }
   };
 
+  /** sim을 한 틱 진행하고 그 틱의 사건으로 소리·이펙트·HUD·컷인·카메라를 갱신한다 (온라인은 한 장면 틱에 0~1번) */
+  const advance = (p1: number, p2: number) => {
+    step(s, [p1, p2]);
+    // 소리: 이번 틱 사건을 읽어 바로 낸다 (맞는 틱에 소리가 시작)
+    for (const c of sound.read(s)) audio.cue(c);
+    fx.push(s.events);
+    for (const e of s.events) if (e.type === 'cine' && e.text === 'start') cineStart = s.tick;
+    fightVfx.tick(s);
+    fx.tick();
+    hud.tick(s);
+    for (const e of s.events) {
+      if (e.type !== 'cutin') continue;
+      // 나중에 AI 컷씬 영상을 끼울 자리: 훅이 영상을 틀면 기본 컷인 띠는 그리지 않는다
+      const data = e.move ? movesOf(s.fighters[e.who].char)[e.move as keyof ReturnType<typeof movesOf>]?.data.cutin : undefined;
+      const style = typeof data === 'object' ? data : undefined;
+      const length = style?.freeze ?? RULES.SUPER_FREEZE;
+      const video = playCutscene({ who: e.who, move: e.move ?? '', text: e.text ?? '', ticks: length });
+      cutin = { who: e.who, text: e.text ?? '', t: 0, video, length, style };
+    }
+    watchMotion();
+    followCamera();
+    if (cutin) {
+      cutin.t++;
+      if (s.freeze === 0) cutin = null;
+    }
+  };
+
+  /** 온라인 장면 틱: 메뉴·끊김을 보고, 양쪽 입력이 모인 틱만 진행한다 (일시정지 없음) */
+  const onlineTick = (input: TickInput, ol: OnlineFight) => {
+    const ui = ol.ui(input, input.taps ?? [], s);
+    if (ui.action === 'title') return app?.goto('title');
+    if (ui.action === 'lobby') return app?.goto('online');
+    if (ui.action === 'reset') {
+      seed = ol.info.seed;
+      reset();
+    }
+    const me = ol.side;
+    const pad = touch.poll();
+    const bits = ui.menuOpen ? 0 : netCpu ? cpuInput(cpus[me], s, me) : keyboardToInput(input) | pad;
+    for (const [a, b] of ol.inputs(bits)) {
+      advance(a, b);
+      ol.afterStep(s);
+    }
+    touch.setCharge(s.fighters[me].mode === 'charge' ? 2 : s.fighters[me].chargeArm ? 1 : 0);
+  };
+
   return {
     tick(input) {
+      if (lostOnline) return app?.goto('title');
+      if (online) return onlineTick(input, online);
       if (input.pressed.has('KeyB')) showBoxes = !showBoxes;
       const taps = input.taps ?? [];
       // 일시정지: Esc·P·터치 Ⅱ 버튼. 멈춘 동안은 메뉴만 받는다 (sim은 한 틱도 가지 않는다)
@@ -464,31 +520,9 @@ export function fightScene(app?: App): Scene {
       const d2 = s.fighters[1];
       const canTech = d2.mode === 'airhit' && d2.comboHits >= RULES.TECH_HITS && d2.hitstop === 0;
       const p2 = dummy === 'stand' ? 0 : dummy === 'guard' ? (s.phase === 'fight' ? IN_DOWN : 0) : dummy === 'tech' ? (canTech ? IN_JUMP : 0) : cpuInput(cpus[1], s, 1);
-      step(s, [p1, p2]);
-      // 소리: 이번 틱 사건을 읽어 바로 낸다 (맞는 틱에 소리가 시작)
-      for (const c of sound.read(s)) audio.cue(c);
-      fx.push(s.events);
-      for (const e of s.events) if (e.type === 'cine' && e.text === 'start') cineStart = s.tick;
-      fightVfx.tick(s);
-      fx.tick();
-      hud.tick(s);
-      for (const e of s.events) {
-        if (e.type !== 'cutin') continue;
-        // 나중에 AI 컷씬 영상을 끼울 자리: 훅이 영상을 틀면 기본 컷인 띠는 그리지 않는다
-        const data = e.move ? movesOf(s.fighters[e.who].char)[e.move as keyof ReturnType<typeof movesOf>]?.data.cutin : undefined;
-        const style = typeof data === 'object' ? data : undefined;
-        const length = style?.freeze ?? RULES.SUPER_FREEZE;
-        const video = playCutscene({ who: e.who, move: e.move ?? '', text: e.text ?? '', ticks: length });
-        cutin = { who: e.who, text: e.text ?? '', t: 0, video, length, style };
-      }
-      watchMotion();
-      followCamera();
+      advance(p1, p2);
       // 터치 공격 버튼: 길게 눌러 모으는 중이면 빛낸다
       touch.setCharge(s.fighters[0].mode === 'charge' ? 2 : s.fighters[0].chargeArm ? 1 : 0);
-      if (cutin) {
-        cutin.t++;
-        if (s.freeze === 0) cutin = null;
-      }
     },
 
     render(ctx) {

@@ -10,6 +10,7 @@ import { SCREEN_H, SCREEN_W } from './render/screen';
 import { gl, hasWebGL2, initGl } from './render/gl';
 import { SIGNS } from './render/gl/signs';
 import { audio, installAudioUnlock } from './audio/engine';
+import { net } from './net/session';
 
 const params = new URLSearchParams(location.search);
 let sceneName = params.get('scene') ?? DEFAULT_SCENE;
@@ -84,6 +85,10 @@ function tick(): void {
   scenes: Object.keys(SCENES),
   get tick() { return tickCount; },
   get held() { return lastInput ? [...lastInput.held] : []; },
+  /** 온라인: 연결 단계·핑·입력 지연·기다림·해시·어긋남 (확인 도구 npm run netplay용) */
+  get net() { return net.debug(); },
+  /** 온라인: 이번 경기 기록 (시드·캐릭터·양쪽 입력·해시) */
+  get netlog() { return net.driver?.log ?? null; },
   /** 소리: 켜졌나, 소리마다 실제로 튼 횟수 (확인 도구용) */
   get sounds() { return { running: audio.running, played: { ...audio.played } }; },
   /** 확인 도구(tools/clip)용: 멈춤 해제 (frame()으로 직접 진행) */
@@ -240,8 +245,15 @@ function drawFps(ms: number, now: number): void {
   drawText(ctx, fpsText, SCREEN_W - w + 2, 2, '#ffffff');
 }
 
+/**
+ * 확인용: ?draw=0 이면 화면을 그리지 않는다 (틱만 돈다). 헤드리스 브라우저 둘로 온라인 손맛을 잴 때,
+ * 소프트웨어 렌더(그래픽 칩 없음)가 느려 틱이 밀리는 것을 빼려고
+ */
+const noDraw = params.get('draw') === '0';
+
 /** 화면 그리기: 걸린 시간과 프레임마다 돈 틱 수를 재서 느리면 빛 레이어 품질을 낮춘다 (휴대폰 60프레임) */
 function render(ticks: number, now: number): void {
+  if (noDraw) return;
   const t0 = performance.now();
   scene.render(ctx);
   const ms = performance.now() - t0;

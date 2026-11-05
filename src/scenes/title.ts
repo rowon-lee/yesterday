@@ -17,7 +17,7 @@ import { audioSettings, setAudioSettings, silentSwitchSupported, stepVolume, VOL
 /**
  * 타이틀 (?scene=title, 처음 여는 화면). 비 오는 밤 거리를 카메라가 천천히 지나가고, 위에 제목과 메뉴.
  * 메뉴: 대련(내 캐릭터 → CPU 캐릭터 → CPU 강도) / 연습(내 캐릭터 → 상대 캐릭터 → 상대 고르기) /
- * 설정(품질·소리·조작법·모션 뷰어) / 온라인(준비 중, 흐리게).
+ * 설정(품질·소리·조작법·모션 뷰어) / 온라인(방 코드로 1:1 대련, ?scene=online).
  * 소리: 전체·음악·효과음 음량(0~10, ←→ 또는 항목 왼쪽·오른쪽 반 누르기), 아이폰 무음 스위치(그 기능이 있는 브라우저에서만), 소리 시험 화면.
  * 캐릭터를 고르는 동안 고른 줄의 캐릭터가 메뉴 왼쪽에 2배 크기로 대기 동작을 한다.
  * 키보드(W·S 또는 ↑↓, J·Enter, K·Esc)와 화면 누르기로 고른다. 글자는 도트 폰트 하나(영문 대문자).
@@ -64,7 +64,7 @@ export function titleScene(app: App): Scene {
     { label: 'VERSUS CPU', act: () => { mode = 'vs'; menu = fighter; } },
     { label: 'PRACTICE', act: () => { mode = 'practice'; menu = fighter; } },
     { label: 'OPTIONS', act: () => { menu = options; } },
-    { label: 'ONLINE', disabled: true, note: 'SOON' },
+    { label: 'ONLINE', act: () => app.goto('online') },
   ]);
   const vs: Menu = new Menu([level('EASY'), level('NORMAL'), level('HARD'), { label: 'BACK', act: () => { menu = main; } }], 'CPU LEVEL');
   const practice: Menu = new Menu([
@@ -161,7 +161,7 @@ previewCanvas.height = 96;
  * 고르는 중인 캐릭터의 대기 동작 (2배, 정수배 확대). who 0 = 내 캐릭터(메뉴 왼쪽, 오른쪽을 봄), 1 = 상대(메뉴 오른쪽, 왼쪽을 봄).
  * 발밑을 판 아래 같은 줄에 맞춘다
  */
-function drawFighter(ctx: CanvasRenderingContext2D, c: CharId, who: 0 | 1, tick: number): void {
+export function drawFighter(ctx: CanvasRenderingContext2D, c: CharId, who: 0 | 1, tick: number): void {
   const name = motionOf(c, 'idle');
   const m = MOTIONS.find((x) => x.name === name);
   if (!m) return;
