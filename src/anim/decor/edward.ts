@@ -19,12 +19,13 @@ import { add, flutter, hangDir, headFrame, norm, torso, trousers } from './kit';
 const LIMB = 5;
 
 /**
- * 해머 치수 (그림 px, 2026-11-02 피드백 12-0: 자루 30px, 머리 12×9px): 앞손에서 해머 머리 가운데까지(reach), 앞손에서 자루 끝까지(pommel),
- * 머리 반길이(자루와 수직, half), 머리 반두께(자루 방향, thick). 자루 = pommel + reach − thick = 30, 머리 = 2·half × 2·thick = 12 × 9.
- * 앞손은 자루 끝 가까이(4.5px 위)를, 두 손으로 쥘 때 뒷손은 앞손보다 6px 머리 쪽을 쥔다 (data/poses/edward/stance.ts grip2).
- * 몸은 크기 배율(E_SCALE)로 커지지만 해머는 이 그림 크기 그대로다 (포즈에서 쓸 때는 배율로 나눈다)
+ * 해머 치수 (그림 px): 앞손에서 해머 머리 가운데까지(reach), 앞손에서 자루 끝까지(pommel),
+ * 머리 반길이(자루와 수직, half), 머리 반두께(자루 방향, thick). 자루 = pommel + reach − thick = 31.5, 머리 = 2·half × 2·thick = 19 × 13.
+ * 2026-11-05 피드백 '회색 워해머 정도로 크기도 키우고 색도 바꿔': 처음 치수(12-0: 자루 30px, 머리 12×9, 청동)에서 머리를 키우고 자루 끝을 늘렸다.
+ * 앞손에서 머리 가운데까지(reach 30)는 그대로 둔다: 포즈가 이 길이로 손 자리를 정하므로 (data/poses/edward/stance.ts aim) 자세·판정은 바뀌지 않는다.
+ * 두 손으로 쥘 때 뒷손은 앞손보다 6px 머리 쪽을 쥔다 (grip2). 몸은 크기 배율(E_SCALE)로 커지지만 해머는 이 그림 크기 그대로다 (포즈에서 쓸 때는 배율로 나눈다)
  */
-export const HAMMER = { reach: 30, pommel: 4.5, half: 6, thick: 4.5 } as const;
+export const HAMMER = { reach: 30, pommel: 8, half: 9.5, thick: 6.5 } as const;
 
 /** 해머 머리 가운데 자리 (발밑 기준 그림 px): 앞손에서 무기 각도로 HAMMER.reach */
 export function hammerHead(j: Joints): Point {
@@ -32,8 +33,9 @@ export function hammerHead(j: Joints): Point {
 }
 
 /**
- * 워 해머: 어두운 청동 자루(3px), 자루 끝의 둥근 꼭지, 머리 밑 고리, 청동 머리 12×9 (빛 받는 위·앞 면이 1px 밝다: 칠하기가 위·앞 가장자리를 밝힌다).
- * 일러스트의 장식 머리를 단순하게 (2026-11-02 피드백 12-0)
+ * 워 해머 (회색 쇠, 2026-11-05 피드백): 짙은 쇠 자루(3px), 자루 끝의 둥근 꼭지, 머리 밑 고리, 회색 쇠 머리 19×13
+ * (빛 받는 위·앞 면이 1px 밝다: 칠하기가 위·앞 가장자리를 밝힌다). 머리 양 끝에서 조금 안쪽에 띠를 한 줄씩 두른다 (일러스트 '양 끝에 띠').
+ * 띠·고리·꼭지는 장식 색(1P 청동, 2P 금)이라 청동 궤적 이펙트(14-4)와 이어진다
  */
 function hammer(pen: DecorPen, j: Joints): void {
   const u: Point = [Math.cos(j.wa), Math.sin(j.wa)];
@@ -42,17 +44,25 @@ function hammer(pen: DecorPen, j: Joints): void {
   const head = add(hand, u, HAMMER.reach);
   const end = add(hand, u, -HAMMER.pommel);
   const corner = (a: number, b: number): Point => add(add(head, v, a), u, b);
-  // 자루 (3px, 어두운 청동)
+  // 자루 (3px, 짙은 쇠)
   pen.fill('metalBack', (s) => s.line(end, add(head, u, -HAMMER.thick), 3));
   // 자루 끝 꼭지, 머리 밑 고리
   pen.fill('accent', (s) => {
     s.disc(end, 2);
     const collar = add(head, u, -HAMMER.thick - 1.5);
-    s.line(add(collar, v, -2.5), add(collar, v, 2.5), 2);
+    s.line(add(collar, v, -3), add(collar, v, 3), 2.5);
   });
-  // 청동 머리 12×9
+  // 회색 쇠 머리 19×13
   pen.fill('metal', (s) => {
     s.poly([corner(-HAMMER.half, -HAMMER.thick), corner(HAMMER.half, -HAMMER.thick), corner(HAMMER.half, HAMMER.thick), corner(-HAMMER.half, HAMMER.thick)]);
+  });
+  // 양 끝 띠 (끝에서 2.5px 안쪽, 폭 2px, 머리 두께보다 0.5px씩 튀어나온다)
+  pen.fill('accent', (s) => {
+    for (const side of [-1, 1]) {
+      const a = side * (HAMMER.half - 3.5);
+      const b = side * (HAMMER.half - 1.5);
+      s.poly([corner(a, -HAMMER.thick - 0.5), corner(b, -HAMMER.thick - 0.5), corner(b, HAMMER.thick + 0.5), corner(a, HAMMER.thick + 0.5)]);
+    }
   });
 }
 
@@ -169,7 +179,7 @@ export const EDWARD_DECOR: Decor = {
   },
 };
 
-/** 1P 와인포드 가주 (일러스트 왼쪽): 붉은 롱코트(몸·소매), 검은 조끼·바지·구두, 흰 머리, 흰 넥타이, 청동, 쇠 해머 */
+/** 1P 와인포드 가주 (일러스트 왼쪽): 붉은 롱코트(몸·소매), 검은 조끼·바지·구두, 흰 머리, 흰 넥타이, 청동, 회색 쇠 해머 */
 const EDWARD_P1: Look = {
   outline: 'ink', shadow: 'crimsonDark', base: 'crimson', light: 'crimsonLight',
   hair: ['paleGrey', 'white', 'fxWhite'],
@@ -177,10 +187,10 @@ const EDWARD_P1: Look = {
   accent: ['bronze', 'bronzeLight'],
   trim: 'white',
   glow: 'veil',
-  metal: ['bronzeDark', 'bronze', 'bronzeLight'],
+  metal: ['hammerDark', 'hammer', 'hammerLight'],
   skin: ['skinDark', 'skin', 'skinLight'],
 };
-/** 2P 이능력범죄대응국장 (일러스트 오른쪽): 흰 롱코트, 검은 제복, 금빛 장식·끈, 흰 머리, 쇠 해머 */
+/** 2P 이능력범죄대응국장 (일러스트 오른쪽): 흰 롱코트, 검은 제복, 금빛 장식·끈, 흰 머리, 회색 쇠 해머 */
 const EDWARD_P2: Look = {
   outline: 'ink', shadow: 'gownShade', base: 'gown', light: 'white',
   hair: ['suitGrey', 'paleGrey', 'white'],
@@ -188,7 +198,7 @@ const EDWARD_P2: Look = {
   accent: ['goldDark', 'gold'],
   trim: 'gold',
   glow: 'veil',
-  metal: ['bronzeDark', 'bronze', 'bronzeLight'],
+  metal: ['hammerDark', 'hammer', 'hammerLight'],
   skin: ['skinDark', 'skin', 'skinLight'],
 };
 /** 푸른 잔상 (대시·돌진·재현) */

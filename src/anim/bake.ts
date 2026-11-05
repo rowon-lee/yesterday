@@ -22,7 +22,7 @@ export function buildMotion(d: MotionData): Motion & { bake(skin?: SkinId): void
   const joints = keyed(n, d.keys).map((p) => solve(p, d.scale ?? 1));
   // 따라 움직이는 것 (연검 리본·옷자락·머리): 동작 자신의 손·몸 움직임으로 한 번 계산해 관절에 붙인다
   if (d.follow) bakeFollow(d.name, d.follow, joints, d.dur, !!d.loop).forEach((fx, i) => (joints[i] = { ...joints[i]!, fx }));
-  const cell = d.wide ? WIDE_CELL : SMALL_CELL;
+  const cell = d.cell ?? (d.wide ? WIDE_CELL : SMALL_CELL);
   const { w: cw, h: ch, fx, fy } = cell;
   // 그리는 관절: 스미어 프레임만 치는 팔다리를 늘린다 (판정 관절 joints는 그대로)
   const drawn = joints.map((j, i) => (d.smear && d.smear.frame === i ? smeared(j, d.smear.limb, d.smear.stretch) : j));

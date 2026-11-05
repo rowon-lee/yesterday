@@ -1,5 +1,5 @@
 import { reachTip } from '../anim/boxes';
-import { cellOf } from '../anim/motion';
+import { cellOf, MAX_CELL } from '../anim/motion';
 import { MOTIONS } from '../anim/motions';
 import { BREAKABLES, cineScenes, GRIDS, movesOf, RULES, statsOf, tramRestX, WRECKS, type Fighter, type SimState, type WreckMat } from '../sim';
 import { activeFrames, animFrameAt, fighterPose, moveAnim } from './pose';
@@ -346,10 +346,10 @@ const PACHEON_RAMP: ColorName[] = ['fxWhite', 'raiden', 'raidenDark', 'raidenDee
 /** 라이덴 번개 색 (흰 심지 → 붉은 빛 → 검붉은 테두리) */
 const BOLT: ColorName[] = ['fxWhite', 'raiden', 'fxRed', 'raidenDark', 'raidenDeep'];
 
-/** 실루엣을 그리는 캔버스 (가장 큰 칸 128×96) */
+/** 실루엣을 그리는 캔버스 (가장 큰 칸) */
 const silCanvas = document.createElement('canvas');
-silCanvas.width = 128;
-silCanvas.height = 96;
+silCanvas.width = MAX_CELL.w;
+silCanvas.height = MAX_CELL.h;
 const silCache = new Map<string, Uint32Array>();
 
 /** 동작 한 프레임의 실루엣 픽셀 (칸 크기, 캐시) */
