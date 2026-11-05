@@ -14,10 +14,23 @@ export class Effects {
   /** 화면 번쩍임 남은 틱 */
   flash = 0;
   private t = 0;
+  /** 방향 밀기 (14-9 E 화면 밖으로·K 공격 방향으로만 흔들기): 밀 px (x, y), 남은 틱, 전체 틱, 한 축 흔들기인가 */
+  private kickV: [number, number] = [0, 0];
+  private kickLeft = 0;
+  private kickLen = 0;
+  private kickShake = false;
 
   /** 충격 더하기 (0~1) */
   shake(amount: number): void {
     this.trauma = Math.min(1, this.trauma + amount);
+  }
+
+  /** 화면을 (dx, dy) px 쪽으로 밀었다가 ticks틱에 걸쳐 돌아온다. shake면 그 축을 따라서만 흔들리며 잦아든다 */
+  kick(dx: number, dy: number, ticks: number, shake = false): void {
+    this.kickV = [dx, dy];
+    this.kickLeft = ticks;
+    this.kickLen = Math.max(1, ticks);
+    this.kickShake = shake;
   }
 
   flashFor(ticks: number): void {
@@ -43,15 +56,25 @@ export class Effects {
     this.t++;
     this.trauma = Math.max(0, this.trauma - TRAUMA_DECAY);
     if (this.flash > 0) this.flash--;
+    if (this.kickLeft > 0) this.kickLeft--;
+  }
+
+  /** 방향 밀기 오프셋 (정수 px): 처음에 다 밀리고 남은 틱 동안 돌아온다. 흔들기면 같은 축에서 + − 를 오간다 */
+  private kickOffset(): [number, number] {
+    if (this.kickLeft <= 0) return [0, 0];
+    const u = this.kickLeft / this.kickLen;
+    const k = this.kickShake ? u * (this.kickLeft % 2 ? 1 : -0.6) : u * u;
+    return [Math.round(this.kickV[0] * k), Math.round(this.kickV[1] * k)];
   }
 
   /** 흔들림 오프셋 (정수 px). 틱마다 정해진 무늬로 흔들어 같은 장면은 늘 같게 찍힌다 */
   offset(): [number, number] {
+    const [kx, ky] = this.kickOffset();
     const k = this.trauma * this.trauma * SHAKE_MAX_PX;
-    if (k < 0.5) return [0, 0];
+    if (k < 0.5) return [kx, ky];
     const nx = Math.sin(this.t * 2.9) + 0.5 * Math.sin(this.t * 7.3);
     const ny = Math.sin(this.t * 3.7 + 1) + 0.5 * Math.sin(this.t * 5.1 + 2);
-    return [Math.round((k * nx) / 1.5), Math.round((k * ny) / 1.5)];
+    return [kx + Math.round((k * nx) / 1.5), ky + Math.round((k * ny) / 1.5)];
   }
 }
 

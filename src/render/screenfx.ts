@@ -60,8 +60,34 @@ export function clearScreenFx(): void {
   tint.k = 0;
   tint.halo = 1;
   rainHold.on = false;
+  rainHold.until = -1;
   press.at = -1e9;
   press.life = 0;
+  impact.at = -1e9;
+  impact.life = 0;
+  zoomPunch.at = -1e9;
+  zoomPunch.life = 0;
+}
+
+/**
+ * 임팩트 프레임 (동작연출지침서 14-9 A): at틱부터 life틱 동안 화면을 두 색으로 — 무대는 bg, 캐릭터·이펙트 칸은 ink 실루엣.
+ * 후처리(render/gl/post) 합치기 단계가 읽는다 ('#rrggbb')
+ */
+export const impact = { at: -1e9, life: 0, bg: '#ffffff', ink: '#000000' };
+/** 이 틱에 임팩트 프레임인가 */
+export function impactAt(tick: number): boolean {
+  const age = tick - impact.at;
+  return age >= 0 && age < impact.life;
+}
+
+/**
+ * 줌 펀치 (14-9 K): at틱부터 life틱 동안 화면을 (x, y) (월드 px)를 가운데로 k배 (마지막 팔레트 화면을 칸 단위로 옮겨 찍어 새 색이 생기지 않는다)
+ */
+export const zoomPunch = { at: -1e9, life: 0, k: 1, x: 0, y: 0 };
+/** 이 틱의 줌 배율 (1이면 없음) */
+export function zoomAt(tick: number): number {
+  const age = tick - zoomPunch.at;
+  return age >= 0 && age < zoomPunch.life ? zoomPunch.k : 1;
 }
 
 /**
@@ -96,8 +122,8 @@ export function pressAt(tick: number): number {
  */
 export const tint = { k: 0, shadow: '#000000', high: '#ffffff', ambient: '#000000', sat: 1, halo: 1 };
 
-/** 비 멈춤: on이면 빗줄기가 그 자리에 멈추고 물방울이 튀지 않는다 */
-export const rainHold = { on: false };
+/** 비 멈춤: on이면 빗줄기가 그 자리에 멈추고 물방울이 튀지 않는다. until: 이 sim 틱 전까지 멈춘다 (14-9 H 맞힌 순간 빗방울이 공중에 선다) */
+export const rainHold = { on: false, until: -1 };
 
 /**
  * 이번 프레임에 애니 이펙트(vfx/gg)가 칠한 칸 수: render/vfx가 더하고, 3D 화면(gl/view)이 읽고 0으로 되돌린다.

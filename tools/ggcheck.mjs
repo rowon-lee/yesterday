@@ -1,5 +1,6 @@
-// 라이덴 길티기어식 이펙트 확인 (동작연출지침서 14-8). 이전 버전(--base, 기본 origin/main)과 지금 버전을 같은 입력으로 찍어 PR 자료를 만든다.
-//   node tools/ggcheck.mjs [--base origin/main] [--out previews/fx/raiden-gg] [--only 1,4,5]
+// 길티기어식 이펙트 확인 (동작연출지침서 14-8·14-2·14-9). 이전 버전(--base, 기본 origin/main)과 지금 버전을 같은 입력으로 찍어 PR 자료를 만든다.
+//   node tools/ggcheck.mjs [--char raiden|eunwoo] [--base origin/main] [--out previews/fx/<캐릭터>-gg] [--only 1,4,5] [--drafts]
+//     --drafts: 14-9 시안 (4타·차지·스킬·필살기 시안 3개씩)을 ?ggdraft=로 찍어 <out>/drafts.png 한 장으로 (백은우)
 //     → <out>/style-sample.png    스타일 견본: 잽·미들킥·4타·띄우기 피크 정지 화면 + 레퍼런스 세 장 (docs/refs/gg_ref_*.png)
 //       <out>/NN-<기술>-1x.gif     동작마다 번호: 왼쪽 이전 · 오른쪽 지금, 맞기 20틱 전 ~ 맞은 뒤 45틱 (같은 장면·같은 틱, 2배), 실제 속도
 //       <out>/NN-<기술>-half.gif   같은 범위 0.5배속 (틱마다 한 장)
@@ -15,20 +16,23 @@ import { encodeGifDelta } from './gif.mjs';
 import { decodePng, encodePng } from './png.mjs';
 
 const argv = process.argv.slice(2);
-const opt = { base: 'origin/main', out: 'previews/fx/raiden-gg', only: '', noBase: false, debug: '', dump: '' };
+const opt = { char: 'raiden', base: 'origin/main', out: '', only: '', noBase: false, debug: '', dump: '', drafts: false };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
-  if (a === '--base') opt.base = argv[++i];
+  if (a === '--char') opt.char = argv[++i];
+  else if (a === '--drafts') opt.drafts = true;
+  else if (a === '--base') opt.base = argv[++i];
   else if (a === '--out') opt.out = argv[++i];
   else if (a === '--only') opt.only = argv[++i];
   else if (a === '--no-base') opt.noBase = true;
   else if (a === '--debug') opt.debug = argv[++i];
   else if (a === '--dump') opt.dump = argv[++i];
 }
+if (!opt.out) opt.out = `previews/fx/${opt.char}-gg`;
 mkdirSync(opt.out, { recursive: true });
 
 /** 14-8 라이덴 동작별 표 순서 (번호 = PR의 번호) */
-const MOVES = [
+const RAIDEN_MOVES = [
   { n: 1, id: 'atk1', name: 'JAB', scene: 'raiden_combo' },
   { n: 2, id: 'atk2', name: 'CROSS', scene: 'raiden_combo' },
   { n: 3, id: 'atk3', name: 'MIDDLE KICK', scene: 'raiden_combo' },
@@ -44,7 +48,35 @@ const MOVES = [
   { n: 13, id: 'skill2', name: 'HWAGWASAN', scene: 'raiden_hwagwasan' },
   { n: 14, id: 'super', name: 'PACHEON', scene: 'raiden_pacheon' },
 ].filter((m) => !opt.only || opt.only.split(',').map(Number).includes(m.n));
-const SAMPLE = ['atk1', 'atk3', 'atk4', 'launcher'];
+/**
+ * 백은우 (14-8 형식 동작별 표 순서, 14-9 기법). peak = 다 펼쳐진 모습을 보는 틱 (맞은 틱 기준. 4타는 지연 폭발이 다 핀 틱).
+ * 응답·아직 여기 있어는 판정이 없어 사건 틱 (순간이동·나비), 선의는 해제 (세계가 깨지는 틱)가 0
+ */
+const EUNWOO_MOVES = [
+  { n: 1, id: 'atk1', name: 'FLICK', scene: 'eunwoo_ground' },
+  { n: 2, id: 'atk2', name: 'BACKHAND', scene: 'eunwoo_ground' },
+  { n: 3, id: 'atk3', name: 'PIROUETTE', scene: 'eunwoo_ground' },
+  { n: 4, id: 'atk4', name: 'LASH', scene: 'eunwoo_ground', peak: 6 },
+  { n: 5, id: 'launcher', name: 'RISING CUT', scene: 'eunwoo_air' },
+  { n: 6, id: 'sweep', name: 'LOW SWEEP', scene: 'eunwoo_low' },
+  { n: 7, id: 'dashAttack', name: 'THREAD THRUST', scene: 'eunwoo_low' },
+  { n: 8, id: 'air1', name: 'AIR FLICK', scene: 'eunwoo_air' },
+  { n: 9, id: 'air2', name: 'AIR RISE', scene: 'eunwoo_air' },
+  { n: 10, id: 'air3', name: 'AIR SPIN', scene: 'eunwoo_air' },
+  { n: 11, id: 'slam', name: 'WIRE SLAM', scene: 'eunwoo_slam', peak: 4 },
+  { n: 12, id: 'wallKick', name: 'WALL KICK', scene: 'eunwoo_wallkick' },
+  { n: 13, id: 'charge', name: 'BATTO LV3', scene: 'eunwoo_charge', peak: 4 },
+  { n: 14, id: 'skill1', name: 'ANSWER', scene: 'eunwoo_skill1', peak: 3 },
+  { n: 15, id: 'skill2', name: 'STILL HERE', scene: 'eunwoo_skill2', peak: 8 },
+  { n: 16, id: 'super', log: 'superRelease', name: 'GOODWILL RELEASE', scene: 'eunwoo_super', peak: 3 },
+];
+/** 시안 피크 틱 (시안 1·2·3): 기법이 보이는 틱 (A 임팩트 프레임은 그 틱) */
+const EUNWOO_DRAFT_PEAK = { atk4: [6, 5, 6], charge: [4, 1, 4], skill1: [3, 3, 3], skill2: [8, 8, 5], super: [3, 3, 3] };
+const CHAR = opt.char;
+const MOVES = (CHAR === 'eunwoo' ? EUNWOO_MOVES : RAIDEN_MOVES).filter((m) => !opt.only || opt.only.split(',').map(Number).includes(m.n));
+const SAMPLE = CHAR === 'eunwoo' ? ['atk1', 'atk4', 'launcher', 'charge'] : ['atk1', 'atk3', 'atk4', 'launcher'];
+const LABEL = CHAR === 'eunwoo' ? [190, 225, 255] : [255, 200, 210];
+const peakOf = (m) => m.peak ?? PEAK_AT;
 /** 맞기 전·맞은 뒤 틱 (14-2 미리보기) */
 const PRE = 20;
 const POST = 45;
@@ -99,6 +131,7 @@ const save = (file, im) => {
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 const glyphRows = (await vite.ssrLoadModule('/src/render/font.ts')).glyphRows;
 const { RAIDEN_GG, RAIDEN_GG_CHARGE, RAIDEN_GG_SUPER } = await vite.ssrLoadModule('/src/data/vfx/raiden.ts');
+const EW = await vite.ssrLoadModule('/src/data/vfx/eunwoo.ts');
 await vite.close();
 function text(dst, s, x, y, scale, rgb) {
   let cx = x;
@@ -116,7 +149,9 @@ function text(dst, s, x, y, scale, rgb) {
     cx += 4 * scale;
   }
 }
-const grammarOf = (id) => (id === 'charge' ? RAIDEN_GG_CHARGE[3].grammar : id === 'super' ? RAIDEN_GG_SUPER.burst.grammar : RAIDEN_GG[id]?.grammar) ?? [];
+const grammarOf = (id) => (CHAR === 'eunwoo'
+  ? (id === 'charge' ? EW.EUNWOO_GG_CHARGE[2].grammar : id === 'skill1' ? EW.EUNWOO_GG_SKILL1[0].grammar : id === 'skill2' ? EW.EUNWOO_GG_SKILL2[0].grammar : id === 'super' ? EW.EUNWOO_GG_SUPER[0].grammar : EW.EUNWOO_GG[id]?.grammar)
+  : (id === 'charge' ? RAIDEN_GG_CHARGE[3].grammar : id === 'super' ? RAIDEN_GG_SUPER.burst.grammar : RAIDEN_GG[id]?.grammar)) ?? [];
 
 // ---------------------------------------------------------------- 장면 찍기 (이전·지금 각각 한 번 빌드)
 const SCENES = {};
@@ -152,13 +187,13 @@ function padded(sc) {
   return { ...sc, steps };
 }
 
-async function run(which, sc0) {
+async function run(which, sc0, draft = '') {
   const sc = padded(sc0);
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const stopAt = sc.stopAt ?? 75;
-  await page.goto(`${servers[which].resolvedUrls.local[0]}?${sc.q}&stopAt=${stopAt}&ff=1&quality=high`, { timeout: 600000 });
+  await page.goto(`${servers[which].resolvedUrls.local[0]}?${sc.q}&stopAt=${stopAt}&ff=1&quality=high${draft ? `&ggdraft=${draft}` : ''}`, { timeout: 600000 });
   await page.waitForFunction((n) => window.__debug?.tick >= n, stopAt, { timeout: 600000 });
   await page.evaluate(() => window.__debug.unstop());
   if (sc.p1 !== undefined) {
@@ -212,6 +247,18 @@ for (const sc of [...new Set(MOVES.map((m) => m.scene))]) {
   console.log(`장면 ${sc} …`);
   shots[sc] = { new: await run('new', SCENES[sc]), base: opt.noBase ? null : await run('base', SCENES[sc]) };
 }
+/** 시안 2·3 촬영 (14-9): 시안 1은 위 지금 버전 그대로 */
+const draftShots = {};
+if (opt.drafts && CHAR === 'eunwoo') {
+  for (const id of Object.keys(EUNWOO_DRAFT_PEAK)) {
+    const m = MOVES.find((x) => x.id === id);
+    if (!m) continue;
+    for (const d of [2, 3]) {
+      console.log(`시안 ${id} ${d} …`);
+      draftShots[`${id}:${d}`] = await run('new', SCENES[m.scene], `${id}:${d}`);
+    }
+  }
+}
 await browser.close();
 await new Promise((r) => servers.new.httpServer.close(r));
 if (servers.base) await new Promise((r) => servers.base.httpServer.close(r));
@@ -224,7 +271,8 @@ const W = 480;
 const H = 270;
 for (const m of MOVES) {
   const sh = shots[m.scene].new;
-  const hit = sh.log.find((l) => l.move === m.id && l.impact);
+  // 백은우 선의는 해제 (세계가 깨지는 틱, 'superRelease' 기록)가 0
+  const hit = sh.log.find((l) => l.move === (m.log ?? m.id) && l.impact);
   const sw = sh.log.find((l) => l.move === m.id && l.swing);
   const e = hit ?? sw;
   m.idx = e ? sh.frames.findIndex((f) => f.tick === e.tick) : -1;
@@ -406,7 +454,7 @@ for (const m of MOVES) {
     if (r.straight > straight) where = `${d >= 0 ? '+' : ''}${d}틱 ${r.where.slice(0, 2).join(' ')}`;
     if (opt.debug && r.boxes.length) debugShot(m, f, d, r.boxes);
     straight = Math.max(straight, r.straight);
-    if (d === PEAK_AT) body = r.body;
+    if (d === peakOf(m)) body = r.body;
   }
   // 같은 그림 정지 (14-2): 이펙트 칸(월드 자리 + 색)이 3틱 넘게 이어서 같으면 실패. 카메라가 움직여도 월드 자리로 맞춰 본다
   const sig = [];
@@ -438,7 +486,7 @@ for (const m of MOVES) {
   m.check = { thin, parallel, straight, body, longest };
   lines.push(`| ${m.n} | ${m.id} | ${grammarOf(m.id).join(' · ')} | ${thin}${thin ? ` (가장 긴 ${thinMax}px)` : ''} | ${parallel} | ${straight}${straight ? ` (${where})` : ''} | ${longest}${longest >= 3 ? ` (${frozen})` : ''} | ${body} |`);
 }
-const md = ['## 라이덴 길티기어식 이펙트 자체 점검 (지금 버전, 맞기 20틱 전 ~ 맞은 뒤 45틱)', '', '- 1px 선: 보이는 이펙트 칸(밤 배경에 묻히는 어두운 잉크·테두리 칸은 뺀다) 묶음 중, 상하좌우가 모두 이펙트인 칸(가로·세로 3칸 굵기)이 하나도 없이 24px 넘게 이어진 것. 2px 띠도 1px 선으로 센다', '- 자로 그은 곧은 테두리: 같은 줄에서 이펙트 위·아래 경계가 30칸 넘게 곧게 이어진 곳 수', '- 같은 그림이 이어진 가장 긴 틱: 이펙트 칸(월드 자리·색)이 그대로인 틱 수 (14-2: 2틱 넘으면 실패, 이펙트가 없는 틱은 세지 않는다)', '- 공격자 몸통·머리 위 칸: 맞은 틱 +2(다 펼쳐진 모습)에 공격자 몸통(엉덩이 → 목 선 4px 안)·머리(7px 안)에 칠한 이펙트 칸 (뒤 겹이면 몸이 위에 그려진다)', '', ...lines, ''].join('\n');
+const md = [`## ${CHAR === 'eunwoo' ? '백은우' : '라이덴'} 길티기어식 이펙트 자체 점검 (지금 버전, 맞기 20틱 전 ~ 맞은 뒤 45틱)`, '', '- 1px 선: 보이는 이펙트 칸(밤 배경에 묻히는 어두운 잉크·테두리 칸은 뺀다) 묶음 중, 상하좌우가 모두 이펙트인 칸(가로·세로 3칸 굵기)이 하나도 없이 24px 넘게 이어진 것. 2px 띠도 1px 선으로 센다', '- 자로 그은 곧은 테두리: 같은 줄에서 이펙트 위·아래 경계가 30칸 넘게 곧게 이어진 곳 수', '- 같은 그림이 이어진 가장 긴 틱: 이펙트 칸(월드 자리·색)이 그대로인 틱 수 (14-2: 2틱 넘으면 실패, 이펙트가 없는 틱은 세지 않는다)', '- 공격자 몸통·머리 위 칸: 맞은 틱 +2(다 펼쳐진 모습)에 공격자 몸통(엉덩이 → 목 선 4px 안)·머리(7px 안)에 칠한 이펙트 칸 (뒤 겹이면 몸이 위에 그려진다)', '', ...lines, ''].join('\n');
 writeFileSync(`${opt.out}/check.md`, md);
 console.log(md);
 
@@ -489,7 +537,7 @@ const GS = 1;
 for (const m of MOVES) {
   if (m.idx < 0) continue;
   const sh = shots[m.scene];
-  const f0 = sh.new.frames[m.idx + PEAK_AT] ?? sh.new.frames[m.idx];
+  const f0 = sh.new.frames[m.idx + peakOf(m)] ?? sh.new.frames[m.idx];
   const [x0, y0] = windowOf(m, f0, CW, CH);
   const tag = `${String(m.n).padStart(2, '0')}-${m.id}`;
   const peak = img(CW * S, CH * S);
@@ -500,8 +548,8 @@ for (const m of MOVES) {
     const o = img(CW * GS * (sh.base ? 2 : 1) + (sh.base ? 6 : 0), CH * GS + 16, 24);
     if (sh.base) blit(o, crop(frameAt(sh.base.frames, i), x0, y0, CW, CH), 0, 16, GS);
     blit(o, crop(frameAt(sh.new.frames, i), x0, y0, CW, CH), sh.base ? CW * GS + 6 : 0, 16, GS);
-    text(o, sh.base ? `${m.n} BEFORE` : `${m.n} AFTER ${speed}`, 4, 3, 2, sh.base ? [235, 235, 240] : [255, 200, 210]);
-    if (sh.base) text(o, `AFTER ${speed}`, CW * GS + 10, 3, 2, [255, 200, 210]);
+    text(o, sh.base ? `${m.n} BEFORE` : `${m.n} AFTER ${speed}`, 4, 3, 2, sh.base ? [235, 235, 240] : LABEL);
+    if (sh.base) text(o, `AFTER ${speed}`, CW * GS + 10, 3, 2, LABEL);
     const d = i - m.idx;
     text(o, `${d >= 0 ? '+' : ''}${d}`, o.w - 34, 3, 2, d >= 0 && d <= 2 ? [255, 236, 120] : [180, 180, 190]);
     return o;
@@ -535,13 +583,46 @@ for (const m of MOVES) {
     });
     pk.forEach((m, k) => {
       const sh = shots[m.scene].new;
-      const f0 = sh.frames[m.idx + PEAK_AT] ?? sh.frames[m.idx];
+      const f0 = sh.frames[m.idx + peakOf(m)] ?? sh.frames[m.idx];
       const [x0, y0] = windowOf(m, f0, PW, PH);
       const ox = (k % 2) * (PW * 2 + GAP);
       const oy = 24 + RH + GAP + Math.floor(k / 2) * (PH * 2 + 24) + 24;
       blit(o, crop(f0, x0, y0, PW, PH), ox, oy, 2);
-      text(o, `${m.n} ${m.name} - PEAK`, ox + 4, oy - 19, 3, [255, 200, 210]);
+      text(o, `${m.n} ${m.name} - PEAK`, ox + 4, oy - 19, 3, LABEL);
     });
     save(`${opt.out}/style-sample.png`, o);
   }
+}
+
+// ---------------------------------------------------------------- 시안 (14-9): 기술마다 한 줄, 시안 1·2·3 피크 (기법 글자)
+if (opt.drafts && CHAR === 'eunwoo') {
+  const PW = 300;
+  const PH = 170;
+  const GAP = 8;
+  const rows = Object.keys(EUNWOO_DRAFT_PEAK);
+  const techOf = (id, d) => {
+    const v = id === 'atk4' ? EW.EUNWOO_GG_DRAFTS.atk4[d - 1] : id === 'charge' ? EW.EUNWOO_GG_DRAFTS.charge[d - 1][2] : EW.EUNWOO_GG_DRAFTS[id][d - 1];
+    return v?.tech ? `${v.tech.main} / ${v.tech.aux.join(' ')}` : '';
+  };
+  const o = img(PW * 2 * 3 + GAP * 2, rows.length * (PH * 2 + 26), 18);
+  rows.forEach((id, r) => {
+    const m = EUNWOO_MOVES.find((x) => x.id === id);
+    const base = shots[m.scene]?.new;
+    const mm = MOVES.find((x) => x.id === id);
+    if (!base || !mm || mm.idx < 0) return;
+    for (let d = 1; d <= 3; d++) {
+      const sh = d === 1 ? base : draftShots[`${id}:${d}`];
+      if (!sh) continue;
+      // 시안 장면도 같은 입력이라 맞은 틱 번호가 같다 (그 시안 로그로 다시 찾는다)
+      const e = sh.log.find((l) => l.move === (mm.log ?? id) && l.impact) ?? sh.log.find((l) => l.move === id && l.swing);
+      const idx = e ? sh.frames.findIndex((f) => f.tick === e.tick) : mm.idx;
+      const f0 = sh.frames[idx + EUNWOO_DRAFT_PEAK[id][d - 1]] ?? sh.frames[idx];
+      const [x0, y0] = windowOf({ ...mm, at: e?.at ?? mm.at }, f0, PW, PH);
+      const ox = (d - 1) * (PW * 2 + GAP);
+      const oy = r * (PH * 2 + 26) + 24;
+      blit(o, crop(f0, x0, y0, PW, PH), ox, oy, 2);
+      text(o, `${m.n} ${m.name}  DRAFT ${d}${d === 1 ? ' (IN GAME)' : ''}  ${techOf(id, d)}`, ox + 4, oy - 20, 2, d === 1 ? [255, 236, 120] : LABEL);
+    }
+  });
+  save(`${opt.out}/drafts.png`, o);
 }

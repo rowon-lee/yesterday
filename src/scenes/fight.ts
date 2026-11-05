@@ -373,7 +373,7 @@ export function fightScene(app?: App): Scene {
       return {
         motion: motionByName.get(pose.motion)!,
         frame: pose.frame,
-        look: struck ? 'struck' : white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
+        look: struck ? fightVfx.struckLook(i) : white || glow === 2 ? 'flash' : glow === 1 ? (i === 0 ? 'glow1' : 'glow2') : i === 0 ? 'p1' : 'p2',
         skin: skins[i],
         flip: f.facing < 0,
         x: f.x / 256 + jitter,

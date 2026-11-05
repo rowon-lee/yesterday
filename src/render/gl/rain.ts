@@ -251,7 +251,7 @@ export class Rain {
 
   update(tick: number, camCenterX: number, camCenterY: number, ix: number, iy: number): void {
     // 비 멈춤: 라이덴 파천 정적(setFrozen)이나 캐릭터 연출(render/screenfx rainHold, 오스카 월령수류) 동안 빗줄기 시계를 세운다
-    const held = this.frozen || rainHold.on;
+    const held = this.frozen || rainHold.on || tick < rainHold.until;
     if (this.lastTick >= 0 && !held) this.time.value += Math.max(0, Math.min(4, tick - this.lastTick));
     this.lastTick = tick;
     for (const m of this.mats) {

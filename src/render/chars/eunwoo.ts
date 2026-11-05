@@ -14,11 +14,14 @@ import impact from '../../vfx/impact';
 import { lights } from '../light';
 import { COLORS, type ColorName } from '../palette';
 import { fxRamp, FX_PX } from '../vfx';
+import ggWire from '../../vfx/gg/wire';
+import { EUNWOO_GG_RAMP } from './eunwoo-gg';
+import { GG_CHARS } from './gg-table';
 
 /*
  * 백은우 고유 연출 (렌더 전용, sim 상태를 읽기만 한다).
- * - 평타 궤적 (동작연출지침서 5장·7장): 연검 칼끝이 지난 길을 따라 은빛 리본이 채찍처럼 쏘아 나가 궤적 상자(= 판정)를 덮고,
- *   앞끝이 휘어지며 가늘어진다. 리본은 무대를 비추는 은빛 광원이다.
+ * - 공격 이펙트는 길티기어식 (동작연출지침서 14-8·14-9, data/vfx/eunwoo, render/fightvfx가 그린다): 리본 띠·금실·꽃잎·나비.
+ *   여기서는 와이어 (내려찍기·차지: 곧은 은빛 띠, vfx/gg/wire)만 덧그린다. 길티기어식 이펙트가 없는 기술만 예전 궤적 (연검 리본을 따라가는 은빛 띠).
  * - 내려찍기·차지: 은빛 와이어가 쏘아 나가 감아 채고 끌어당긴다. 대시·응답: 금색 실을 따라 미끄러지고 순간이동한다.
  * - 백합 낙인: 가슴에 작은 백합이 은은히 빛나고(연분홍 빛), 막아 내면 연분홍 막이 깨지며 꽃잎이 흩날린다.
  * - 아직 여기 있어: 흰 나비들이 몸 둘레를 돌고, 회복하는 동안 금빛 반짝임이 오른다. 등장: 흰 나비 떼가 모여 흩어지면 은우가 서 있다.
@@ -50,7 +53,15 @@ const intros: Array<ReturnType<typeof eunwooIntro> | null> = [null, null];
 const INTRO_FLY: ColorName[] = ['fxWhite', 'threadLight', 'gown', 'goldLight'];
 /** 사람마다 지난 틱의 동작 프레임 (프레임이 바뀌는 순간을 잡는다) */
 const lastFrame: Array<string> = ['', ''];
-const threads: Array<{ fx: ReturnType<typeof eunwooThread>; color: string }> = [];
+const threads: Array<{ fx: { done(): boolean; phase(): { b: readonly [number, number]; k: number } }; color: string }> = [];
+/** 이 기술에 길티기어식 이펙트가 있는가 (있으면 예전 궤적·칼끝 섬광을 그리지 않는다) */
+const hasGG = (id: string, lv: number): boolean => !!GG_CHARS.eunwoo?.move(id, lv);
+/** 은빛 와이어 (11-0 곧은 금속 선 → 14-8 가운데가 굵은 곧은 띠): 손 → 과녁 */
+function wire(c: CharFx, from: () => P, to: () => P, hold: number, held: () => boolean): void {
+  const fx = ggWire({ from, to, shoot: 3, hold, back: 6, retract: true, ramp: EUNWOO_GG_RAMP, held, seed: c.seed() });
+  c.layer.add(fx);
+  threads.push({ fx, color: COLORS.gown });
+}
 const swarms: Array<ReturnType<typeof eunwooButterflies>> = [];
 const shields: Array<ReturnType<typeof lilyShield>> = [];
 /** 사람마다 지금 붙어 있는 낙인·심상세계 (없으면 null) */
@@ -115,6 +126,22 @@ function superTime(s: SimState, i: number): number {
 const HUD_LILY = ['...3...', '.3.1.3.', '..121..', '3122213', '..121..', '.3.1.3.', '...3...'];
 
 export const EUNWOO_RENDER: CharRender = {
+  // 길티기어식 이펙트 기술의 덧그림: 내려찍기 와이어 (뒷손에서 앞아래로 쏘아 감아 채고, 맞혔으면 상대 몸에 감긴 채 따라간다)
+  ggStrike(c, s, f, _i, id) {
+    const mv = movesOf(f.char)[id];
+    if (id !== 'slam' || !mv.data.box) return;
+    const b = mv.data.box;
+    const tip: P = [b.x + b.w * 0.8, b.y + b.h * 0.8];
+    const ox = f.x;
+    const oy = f.y;
+    const facing = f.facing;
+    const W = (q: readonly [number, number]): P => [q[0] / FX_PX, q[1] / FX_PX];
+    wire(c, () => W(joint(f, 'hB')), () => {
+      const d = opponent(s, f);
+      if (f.moveConnected) return [d.x / 256, GROUND_Y + d.y / 256 - 26];
+      return [ox / 256 + facing * tip[0], GROUND_Y + oy / 256 + tip[1]];
+    }, 8, () => f.hitstop > 0);
+  },
   strike(c, s, f, _i, id) {
     const mv = movesOf(f.char)[id];
     // 내려찍기: 뒷손에서 은빛 와이어(연검과 따로, 1px 곧은 쇠줄 11-0)가 앞아래로 쏘아 나가 감아 채고, 끌어당겨 거둔다
@@ -158,7 +185,7 @@ export const EUNWOO_RENDER: CharRender = {
       const a0 = mv.time.hits.length ? animFrameAt(A, mv.activeStart) : 99;
       const a1 = mv.time.hits.length ? animFrameAt(A, mv.activeEnd - 1) : -99;
       const rib = pose.motion === mv.time.motion && pose.frame >= a0 - 2 && pose.frame <= a1 + 2 ? ribbonWorld(f) : null;
-      if (rib && f.move !== 'slam' && f.move !== 'super') {
+      if (rib && f.move !== 'slam' && f.move !== 'super' && !hasGG(f.mode === 'charge' ? 'charge' : f.move, f.chargeLv)) {
         let tr = trails[i];
         if (!tr || tr.done()) {
           const fighter = f;
@@ -172,7 +199,7 @@ export const EUNWOO_RENDER: CharRender = {
       if (changed && f.move === 'atk4' && pose.frame === a1 && pose.motion === mv.time.motion) {
         const tip = ribbonTip(f);
         if (tip) {
-          tipFlash(c, tip, 0.4);
+          if (!hasGG('atk4', 0)) tipFlash(c, tip, 0.4);
           c.debris.burst('water', tip[0], GROUND_Y + f.y / 256, f.facing, 7);
         }
       }
@@ -274,35 +301,24 @@ export const EUNWOO_RENDER: CharRender = {
     const f = s.fighters[i]!;
     // 맞히면 리본이 가장 크게 펼친 순간으로 돌아가 히트스톱 동안 멈춘다 (은빛 섬광 한 번)
     if (e.type === 'hit' && e.who === i) {
-      const tip = ribbonTip(f);
-      if (tip && e.move !== 'slam' && e.move !== 'super') tipFlash(c, tip, e.heavy ? 0.45 : 0.32);
-      c.glow(e.x / 256, GROUND_Y + e.y / 256, e.heavy ? 70 : 48, COLORS.gown, e.heavy ? 0.9 : 0.7, e.heavy ? 14 : 9);
+      // 길티기어식 이펙트 기술은 맞은 점 모양·빛을 fightvfx가 그린다 (예전 칼끝 섬광·빛은 그 밖의 기술만)
+      if (!e.move || !hasGG(e.move, f.chargeLv)) {
+        const tip = ribbonTip(f);
+        if (tip && e.move !== 'slam' && e.move !== 'super') tipFlash(c, tip, e.heavy ? 0.45 : 0.32);
+        c.glow(e.x / 256, GROUND_Y + e.y / 256, e.heavy ? 70 : 48, COLORS.gown, e.heavy ? 0.9 : 0.7, e.heavy ? 14 : 9);
+      }
       // 스텔라리스 발도: 뒷손의 은빛 와이어가 맞은 상대에게 감겨 끌어당긴다
       if (e.move === 'charge') {
         const d = opponent(s, f);
-        const fx = eunwooThread({
-          from: () => joint(f, 'hB'),
-          to: () => [(d.x / 256) * FX_PX, (GROUND_Y + d.y / 256 - 26) * FX_PX],
-          shoot: 2, hold: 14, back: 6, retract: true, sag: 0, width: 1,
-          ramp: fxRamp(SILVER), seed: c.seed(), held: () => f.hitstop > 0,
-        });
-        c.layer.add(fx);
-        threads.push({ fx, color: COLORS.gown });
+        wire(c, () => {
+          const q = joint(f, 'hB');
+          return [q[0] / FX_PX, q[1] / FX_PX];
+        }, () => [d.x / 256, GROUND_Y + d.y / 256 - 26], 14, () => f.hitstop > 0);
       }
     }
     if (e.type !== 'char' || e.who !== i) return;
     if (e.text === 'teleport') {
-      // 응답: 떠난 자리에서 나타난 자리까지 금색 실이 한 줄 그어지고, 양 끝에서 금빛 반짝임
-      const ax = (e.x / 256) * FX_PX;
-      const ay = (GROUND_Y + e.y / 256 - 24) * FX_PX;
-      const bx = ((e.to ?? e.x) / 256) * FX_PX;
-      const by = (GROUND_Y + (e.combo ?? e.y) / 256 - 24) * FX_PX;
-      const fx = eunwooThread({ from: () => [ax, ay], to: () => [bx, by], shoot: 1, hold: 3, back: 8, retract: false, sag: 0, width: 1, ramp: fxRamp(GOLD), seed: c.seed() });
-      c.layer.add(fx);
-      threads.push({ fx, color: COLORS.thread });
-      sparkle(c, ax, ay, 0.35);
-      sparkle(c, bx, by, 0.45);
-      c.glow(bx / FX_PX, by / FX_PX, 46, COLORS.thread, 0.8, 8);
+      // 응답: 금실 바늘땀·나타난 자리 모양은 길티기어식 이펙트 (render/fightvfx eunwooEvent, 14-9 J)
     } else if (e.text === 'butterfly') {
       const sw = eunwooButterflies({
         center: () => toFx(f, [0, -2]), mode: 'orbit', count: 7, radius: 15,
@@ -310,8 +326,7 @@ export const EUNWOO_RENDER: CharRender = {
       });
       c.layer.add(sw);
       swarms.push(sw);
-      const [nx, ny] = joint(f, 'neck');
-      sparkle(c, nx, ny, 0.4);
+      // 퍼지는 심장 박동 고리·큰 나비는 길티기어식 이펙트 (render/fightvfx eunwooEvent, 14-9 N)
     } else if (e.text === 'shield') {
       // 백합 방어막이 막아 냄 (11-4): 맞은 쪽 테두리에서 꽃잎 조각이 흩어지고 흰 고리 섬광 한 번 (낙인은 꺼진다)
       const att = opponent(s, f);
