@@ -26,6 +26,9 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 | `node tools/numbers.mjs --char raiden [atk1 …]` | 공격 수치표 (동작연출지침서 8장): 타격 프레임의 발 간격·엉덩이 낮춤·몸통 기울기·팔 뻗음·어깨·동작선, 발동·지속·회복 틱, 몸 이동, 궤적 상자 끝 | 콘솔 |
 | `npm run balance -- [--seeds 6] [--skill 55]` | 밸런스: 모든 캐릭터 짝(양쪽 자리)을 CPU끼리 붙여 승률·준 피해·경기 길이·기술 쓰임 표 | `out/balance.md` |
 | `npm run sound` | 효과음 모음을 게임과 같은 믹서로 뽑아 번호 붙인 WAV(모노 22kHz)로. 피크·시작 시각·길이·저음 비중·덕킹 깊이를 재서 목표·1→4타 순서를 확인하고, 소리 연결이 sim 상태를 바꾸지 않는지 CPU 대전 8판으로 확인(`--wav`면 WAV만) | `previews/sound/NN-이름.wav`, `README.md`(번호표), `waveforms.png` |
+| `npm run nettest -- [--matches 2]` | 온라인(딜레이 방식) 시험, 브라우저 없이: 두 사람을 가상 시계로 이어 CPU끼리 끝까지. 왕복 0·50·100·150ms × 입력 지연 2·3·4틱마다 기다림·진행 속도·누름→반영 시간, 양쪽 해시·입력 기록·다시 넣은 상태가 같은지, 일부러 상태를 바꾸면 어긋남을 잡는지 | 콘솔 |
+| `npm run netplay -- [--quick] [--seconds 20]` | 온라인을 브라우저 두 개로: 로컬 PeerServer + 헤드리스 Chromium 둘이 실제 화면대로 방 만들기·초대 링크로 들어가기·고르기·READY. 지연을 넣고(`?lag=`) CPU끼리 싸우며 위 값을 잼. 나가기·끊김·재대결 흐름도. `--shots`는 화면 캡처 | 콘솔, `previews/online/*.png` (`--shots`) |
+| `npm run netreplay -- 기록.json` | 온라인 경기 기록(ONLINE → COPY LAST LOG로 복사한 것)을 sim에 다시 넣어 처음 어긋난 틱과 어느 기기에서 달라졌는지 | 콘솔 |
 | `npm run compare` | 무대를 바꿨을 때: 고정 카메라 지점 세 곳(극장·다이너 거리, 시타델 광장, 비상계단 아파트)을 이전 버전(기본 origin/main)과 지금 버전으로 찍어 컬러·흑백으로 나란히 놓고, 벽·바닥·주인공 간판의 흑백 밝기를 잰다. `--base 커밋`, `--only theater`, `--new "옵션"`(지금 버전 주소에 붙임) | `out/compare/<지점>-color.png`, `-gray.png`, `stats.md` |
 
 장면은 `src/scenes/index.ts`에 등록하고, 게임 주소 뒤 `?scene=이름`으로 열 수 있다.
@@ -34,7 +37,12 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 
 배포 주소: https://rowon-lee.github.io/yesterday/
 
-주소를 열면 타이틀이 나온다(`?scene=title`). 메뉴: VERSUS CPU(내 캐릭터 → CPU 캐릭터 → 강도 EASY · NORMAL · HARD, 3판 2선승 · 라운드 60초) / PRACTICE(내 캐릭터 → 상대 캐릭터 → 연습: 시간 멈춤, 체력 1에서 멈춤, 콤보가 끝나고 1초 뒤 체력 · 기력 · 방어가 다시 참. 상대 가만히 · 막기만 · CPU) / OPTIONS(화면 품질, 소리(전체 · 음악 · 효과음 음량, 소리 시험 화면 `?scene=sound`), 조작법, 모션 뷰어) / ONLINE(준비 중). 경기 중 Esc · P로 일시정지(계속 · 처음부터 · 조작법 · 타이틀).
+주소를 열면 타이틀이 나온다(`?scene=title`). 메뉴: VERSUS CPU(내 캐릭터 → CPU 캐릭터 → 강도 EASY · NORMAL · HARD, 3판 2선승 · 라운드 60초) / PRACTICE(내 캐릭터 → 상대 캐릭터 → 연습: 시간 멈춤, 체력 1에서 멈춤, 콤보가 끝나고 1초 뒤 체력 · 기력 · 방어가 다시 참. 상대 가만히 · 막기만 · CPU) / OPTIONS(화면 품질, 소리(전체 · 음악 · 효과음 음량, 소리 시험 화면 `?scene=sound`), 조작법, 모션 뷰어) / ONLINE(방 코드로 1:1 온라인 대련, 아래). 경기 중 Esc · P로 일시정지(계속 · 처음부터 · 조작법 · 타이틀).
+
+**온라인 대련** (ONLINE, `?scene=online`): 운영하는 서버 없이 두 사람이 직접 이어진다 (WebRTC). 서로를 찾을 때만 PeerJS 무료 공개 연결 중개(0.peerjs.com)를 거친다.
+CREATE ROOM이면 4자리 방 코드가 뜨고 SHARE LINK로 초대 링크(`?scene=online&room=1234`)를 보낼 수 있다. JOIN ROOM은 숫자 패드로 코드를 넣는다.
+이어지면 서로의 캐릭터 고르기가 실시간으로 보이고, 둘 다 READY면 시작한다. 입력 지연은 로비에서 핑을 재서 2~4틱 중 고른다(방장이 2·3·4로 고정 가능).
+입력만 주고받는 딜레이 방식이고 30틱마다 양쪽 상태 해시를 견준다(어긋나면 화면에 DESYNC, 기록은 브라우저에 남고 ONLINE → COPY LAST LOG로 복사). 일시정지는 없고 Esc·Ⅱ는 나가기 확인만. 경기 끝: REMATCH · CHANGE FIGHTER · LEAVE. 상대가 나가거나 끊기면 알리고 타이틀로.
 
 휴대폰은 가로로 든다. 왼쪽 아래 8방향 패드, 오른쪽 아래 버튼 6개(위 스킬 1 · 스킬 2 · 필살기, 아래 공격 · 점프 · 대시), 위 가운데 Ⅱ 일시정지. 공격 버튼을 길게 누르면 차지(모으는 동안 버튼이 주황으로 빛난다). 터치 버튼이 뜬 기기는 기력 칸이 화면 위로 올라간다. PC에서 `?touch=1`이면 터치 버튼을 마우스로 눌러 볼 수 있다.
 
