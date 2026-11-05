@@ -139,9 +139,18 @@ class OnlineSession {
     sig.connect();
   }
 
-  /** 나가기 (상대에게 알리고 끊는다) */
+  /**
+   * 나가기 (상대에게 알리고 끊는다). 'bye'를 보내자마자 연결을 닫으면 메시지가 나가기 전에 끊겨
+   * 상대에게는 '연결 끊김'으로 보인다: 연결은 잠깐 뒤(시험용 지연이 있으면 그만큼 더)에 닫는다
+   */
   leave(): void {
-    if (this.connected) this.send({ t: 'bye' });
+    const link = this.connected ? this.link : null;
+    if (link) {
+      this.send({ t: 'bye' });
+      link.onclose = null;
+      this.link = null;
+      window.setTimeout(() => link.close(), 500 + this.lag.rtt + this.lag.jitter);
+    }
     this.saveLog();
     this.reset();
   }
