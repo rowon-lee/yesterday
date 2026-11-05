@@ -662,6 +662,8 @@ uniform vec4 pressCrack;
 uniform vec3 crackDark;
 uniform vec3 crackHi;
 uniform vec3 crackLine;
+/** 퍼져 나간 금 (에드워드 '무게', 2026-11-05): xy = 가운데 (gl_FragCoord + ditherOrigin 자리), z = 번진 반지름 px (0이면 그물 금) */
+uniform vec3 crackCenter;
 varying vec2 vUv;
 ${BAYER_GLSL}
 vec2 crackHash(vec2 p) {
@@ -684,6 +686,44 @@ float crackDist(vec2 w) {
     }
   }
   return (sqrt(d2) - sqrt(d1)) * S;
+}
+/** 퍼져 나간 금의 그물 점: 고리 j (반지름 5px × 1.5^j)와 칸 s (14칸) → 가운데 기준 자리. 각과 반지름이 조금씩 비켜난다 */
+vec2 crackNode(float s, float j) {
+  vec2 h = crackHash(vec2(s, j));
+  float th = (s + 0.5 + (h.x - 0.5) * 0.6) * 0.44879895 - 3.1415927;
+  return vec2(cos(th), sin(th)) * (5.0 * pow(1.5, j) * (1.0 + (h.y - 0.5) * 0.16));
+}
+float crackSeg(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a;
+  vec2 ap = p - a;
+  return length(ap - ab * clamp(dot(ap, ab) / max(dot(ab, ab), 0.0001), 0.0, 1.0));
+}
+/**
+ * 맞은 점에서 퍼져 나간 금: 그물 점을 잇는 곧은 금 조각. 바퀴살 금은 고리마다 꺾이며 바깥으로 뻗고 (안쪽 7줄, 2~4번째 고리부터 사이에서 갈라져 14줄),
+ * 고리 금은 이웃 바퀴살 사이를 곧게 잇되 칸마다 있거나 없다 (안쪽일수록 많다). 고리 반지름이 1.5배씩 커져 가운데 가까울수록 조각이 잘고 바깥으로 갈수록 크다.
+ * 바퀴살은 가운데 가까울수록 굵다 (3px → 1.7px). 금 위면 참
+ */
+bool radialCrack(vec2 w) {
+  vec2 d = w - crackCenter.xy;
+  float r = length(d);
+  if (r > crackCenter.z) return false;
+  if (r < 3.5) return true;
+  float a = atan(d.y, d.x) + 3.1415927;
+  float j0 = floor(log(r / 5.0) / log(1.5));
+  float s0 = floor(a / 0.44879895);
+  float spoke = 99.0;
+  float ring = 99.0;
+  for (int dj = -1; dj <= 1; dj++) {
+    float j = j0 + float(dj);
+    for (int ds = -1; ds <= 1; ds++) {
+      float sl = mod(s0 + float(ds), 14.0);
+      vec2 A = crackNode(sl, j);
+      float born = mod(sl, 2.0) < 0.5 ? -9.0 : 2.0 + floor(crackHash(vec2(sl, 7.0)).x * 3.0);
+      if (j >= born) spoke = min(spoke, crackSeg(d, A, crackNode(sl, j + 1.0)));
+      if (j >= 1.0 && crackHash(vec2(sl + 31.0, j)).y < (j < 4.0 ? 0.75 : 0.5)) ring = min(ring, crackSeg(d, A, crackNode(mod(sl + 1.0, 14.0), j)));
+    }
+  }
+  return spoke < mix(1.5, 0.85, clamp(r / 80.0, 0.0, 1.0)) || ring < 0.75;
 }
 vec2 lutUv(vec3 c, float row, float rows) {
   vec3 q = floor(clamp(c, 0.0, 1.0) * 31.0 + 0.5);
@@ -734,7 +774,8 @@ void main() {
   else if (pressCrack.a > 0.0) {
     float l = dot(o, vec3(0.299, 0.587, 0.114));
     vec3 fill = l < 0.1 ? crackDark : l < 0.34 ? pressCrack.rgb : crackHi;
-    if (crackDist(gl_FragCoord.xy + ditherOrigin) < 1.6) fill = crackLine;
+    vec2 cw = gl_FragCoord.xy + ditherOrigin;
+    if (crackCenter.z > 0.0 ? radialCrack(cw) : crackDist(cw) < 1.6) fill = crackLine;
     o = mix(o, fill, step(0.5, pressCrack.a));
   }
   gl_FragColor = vec4(o, 1.0);
@@ -1010,6 +1051,7 @@ export class Post {
       crackDark: { value: new THREE.Vector3() },
       crackHi: { value: new THREE.Vector3() },
       crackLine: { value: new THREE.Vector3() },
+      crackCenter: { value: new THREE.Vector3() },
     });
     this.palette.defines = { DETAIL: '' };
     this.blit = mat(BLIT_FRAG, { src: { value: this.final.texture } });
@@ -1167,6 +1209,12 @@ export class Post {
       (pu.crackDark.value as THREE.Vector3).set(...srgb(press.dark));
       (pu.crackHi.value as THREE.Vector3).set(...srgb(press.hi));
       (pu.crackLine.value as THREE.Vector3).set(...srgb(press.crack));
+      // 퍼져 나간 금: 가운데 (월드 px → 이 단계 칸 자리 + 무늬 기준), 틱마다 바깥으로 번진다
+      const cc = pu.crackCenter.value as THREE.Vector3;
+      if (press.center) {
+        const age = time - press.at;
+        cc.set(press.center[0] + MARGIN, RT_H - MARGIN - press.center[1], age <= 0 ? 70 : age === 1 ? 170 : 4000);
+      } else cc.z = 0;
       u.press.value.w = 0;
     } else if (pk > 0) {
       const pc = this.tintColor.set(press.color);

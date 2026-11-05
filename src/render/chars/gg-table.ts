@@ -1,6 +1,6 @@
 import type { LookName } from '../../anim/skeleton';
 import type { CharId } from '../../data/characters';
-import { EDWARD_GG, EDWARD_GG_DRAFTS } from '../../data/vfx/edward';
+import { EDWARD_GG, EDWARD_GG_CHARGE, EDWARD_SKILL2, EDWARD_SUPER } from '../../data/vfx/edward';
 import { EUNWOO_GG, EUNWOO_GG_DRAFTS, EUNWOO_GG_SUPER_END } from '../../data/vfx/eunwoo';
 import { RAIDEN_GG, RAIDEN_GG_CHARGE } from '../../data/vfx/raiden';
 import type { GMove } from '../../data/vfx/types';
@@ -72,14 +72,13 @@ export const GG_CHARS: Partial<Record<CharId, GGChar>> = {
   edward: {
     ramp: EDWARD_GG_RAMP,
     flip: EDWARD_GG_FLIP,
+    // 시안은 사용자가 골랐다 (2026-11-05): 고른 것만 data/vfx/edward에 둔다
     move: (id, lv) => {
-      const d = draftOf(id) - 1;
-      if (id === 'charge') return EDWARD_GG_DRAFTS.charge[d]?.[clamp(lv, 1, 3) - 1];
-      if (id === 'atk4') return EDWARD_GG_DRAFTS.atk4[d];
+      if (id === 'charge') return EDWARD_GG_CHARGE[clamp(lv, 1, 3) - 1];
       // 염동력은 맞힌 틱의 맞은 점 모양 (장막 손·벽·터짐은 sim 사건: render/fightvfx edwardEvent)
-      if (id === 'skill2') return EDWARD_GG_DRAFTS.skill2[d]?.hit;
+      if (id === 'skill2') return EDWARD_SKILL2.hit;
       // 필살기 'hit'은 연출 끝 한 번에 들어가는 피해 (잡는 순간은 연출 시작 사건: render/fightvfx edwardSuperStart)
-      if (id === 'super') return EDWARD_GG_DRAFTS.super[d]?.end;
+      if (id === 'super') return EDWARD_SUPER.end;
       return EDWARD_GG[id];
     },
     prelude: 'hammer',
