@@ -159,13 +159,13 @@ export const EUNWOO_GG: Partial<Record<string, GMove>> = {
     shapes: [
       {
         kind: 'ribbon', pts: [[-16, -76], [6, -84], [30, -76], [46, -54], [48, -32], [38, -12], [18, -4]],
-        w: 22, peak: 0.42, bulge: [1, 0.8], skew: 0.25, coreLen: 0.55, twist: [[0.72, 0.42]], thread: gold(1), rim: RIM, wave: [2, 44], hold: 1, fade: 5,
+        w: 22, peak: 0.42, bulge: [1, 0.8], skew: 0.25, coreLen: 0.55, twist: [[0.72, 0.42]], thread: gold(1, 5), rim: RIM, wave: [2, 44], hold: 1, fade: 5,
       },
-      // C 둘째 모양: 가는 고리 대신 끝이 뾰족한 금 호 둘 (③, 흰 심)
-      { kind: 'ring', tone: 4, core: 0, rim: RIM_S, taper: true, at: [10, -40], r: 48, w: 10, thick: -20, sy: 0.92, gaps: [[100, 150], [200, 214]], delay: 2, hold: 1, fade: 8 },
+      // C 둘째 모양: 가는 고리 대신 끝이 뾰족한 은백 호 둘 (③, 가운데 금 심)
+      { kind: 'ring', tone: 1, core: 4, rim: RIM_S, taper: true, at: [10, -40], r: 48, w: 12, thick: -20, sy: 0.92, gaps: [[100, 150], [200, 214]], delay: 1, hold: 1, fade: 8 },
       { kind: 'ink', at: [42, -90], angle: 70, len: 46, w: 9, notch: [[0.45, 2]], hold: 1, fade: 7 },
       { kind: 'flutter', from: [[34, -72], [52, -44], [50, -18], [30, -4]], n: 9, fly: 0.2, size: 6, dir: -20, speed: 1.4, fan: 120, life: 30, delay: 4 },
-      ...smallHit(-20, 1.2, 24),
+      ...smallHit(-20, 1.4, 24),
     ],
   },
   /** 4 기본 4타 뛰어 내리꽂기 (강): 시안 1 (채택) — 시안 2·3은 EUNWOO_GG_DRAFTS */
@@ -236,12 +236,12 @@ export const EUNWOO_GG: Partial<Record<string, GMove>> = {
     ],
     shapes: [
       // 뿌리는 짧게 (굵어지는 기울기가 축 기울기와 맞아 아래 테두리가 수평으로 눕지 않게). ② 위쪽 가장자리 금 테 (실을 타고 간다)
-      { kind: 'wedge', at: [38, -38], angle: -13, back: 8, fwd: 330, w: 24, peak: 0.05, bulge: [0.6, 1.1], skew: -0.1, coreLen: 0.28, thread: gold(1, 4.5), rim: RIM, hold: 2, fade: 12 },
+      { kind: 'wedge', at: [38, -38], angle: -13, back: 8, fwd: 330, w: 24, peak: 0.05, bulge: [0.6, 1.1], skew: -0.1, coreLen: 0.28, thread: gold(1, 3), rim: RIM, hold: 2, fade: 12 },
       {
         kind: 'ribbon', pts: [[24, -30], [40, -44], [58, -34], [76, -48], [96, -38], [118, -50], [142, -42]],
         w: 18, peak: 0.4, bulge: [1, 0.7], skew: 0.1, coreLen: 0.45, twist: [[0.25, 0.4], [0.55, 0.42]], thread: gold(1, 3), rim: RIM_S, wave: [2, 30], hold: 2, fade: 11,
       },
-      hitRing(88, 160),
+      hitRing(88, 160, { w: 9 }),
       { kind: 'ink', anchor: 'hit', at: [-22, 18], angle: -58, len: 56, w: 9, notch: [[0.35, 2], [0.6, 2]], hold: 2, fade: 10 },
       glint(-10, 1.8, 1, 5),
       dust(16, -20, 2.2, 38, 140),
