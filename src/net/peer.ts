@@ -17,6 +17,8 @@ export class PeerLink {
   readonly ctl: Channel;
   readonly inp: Channel;
   state: PeerState = 'connecting';
+  /** 상대 이름 (중개 서버에서) */
+  readonly remote: string;
   route: PeerRoute = 'unknown';
   /** 연결이 잠깐 불안정 (끊긴 건 아님: 다시 이어질 수 있음) */
   unstable = false;
@@ -26,7 +28,11 @@ export class PeerLink {
   private pending: RTCIceCandidateInit[] = [];
   private remoteSet = false;
 
-  constructor(iceServers: RTCIceServer[], private readonly signaler: Signaler | null, private readonly remoteId: string) {
+  /**
+   * connectionId: PeerJS 규약의 연결 이름 (중개 서버 메시지마다 붙인다). 손님이 만들고 방장은 받은 제안의 것을 쓴다
+   */
+  constructor(iceServers: RTCIceServer[], private readonly signaler: Signaler | null, private readonly remoteId: string, readonly connectionId: string) {
+    this.remote = remoteId;
     this.pc = new RTCPeerConnection({ iceServers });
     const ctl = this.pc.createDataChannel('ctl', { negotiated: true, id: 0 });
     const inp = this.pc.createDataChannel('inp', { negotiated: true, id: 1, ordered: false, maxRetransmits: 0 });
@@ -61,7 +67,7 @@ export class PeerLink {
       dc.onclose = () => this.close();
     }
     this.pc.onicecandidate = (ev) => {
-      if (ev.candidate) this.signaler?.send('CANDIDATE', this.remoteId, { candidate: ev.candidate.toJSON() });
+      if (ev.candidate) this.signaler?.send('CANDIDATE', this.remoteId, { candidate: ev.candidate.toJSON(), type: 'data', connectionId: this.connectionId });
     };
     this.pc.onconnectionstatechange = () => {
       const s = this.pc.connectionState;
@@ -70,11 +76,19 @@ export class PeerLink {
     };
   }
 
-  /** 손님: 제안을 만들어 보낸다 (payload에 규약 버전·빌드를 함께) */
-  async offer(extra: Record<string, unknown>): Promise<void> {
+  /** 손님: 제안을 만들어 보낸다 (PeerJS 데이터 연결과 같은 모양, metadata에 규약 버전·빌드) */
+  async offer(metadata: Record<string, unknown>): Promise<void> {
     const o = await this.pc.createOffer();
     await this.pc.setLocalDescription(o);
-    this.signaler?.send('OFFER', this.remoteId, { sdp: this.pc.localDescription, ...extra });
+    this.signaler?.send('OFFER', this.remoteId, {
+      sdp: this.pc.localDescription,
+      type: 'data',
+      connectionId: this.connectionId,
+      label: this.connectionId,
+      reliable: false,
+      serialization: 'binary',
+      metadata,
+    });
   }
 
   /** 방장: 받은 제안에 답한다 */
@@ -83,7 +97,7 @@ export class PeerLink {
     await this.flushCandidates();
     const a = await this.pc.createAnswer();
     await this.pc.setLocalDescription(a);
-    this.signaler?.send('ANSWER', this.remoteId, { sdp: this.pc.localDescription });
+    this.signaler?.send('ANSWER', this.remoteId, { sdp: this.pc.localDescription, type: 'data', connectionId: this.connectionId });
   }
 
   /** 손님: 방장의 답을 받았다 */

@@ -20,7 +20,6 @@ const NAMES: Record<string, string> = { raiden: 'RAIDEN', eunwoo: 'BAEK EUNWOO',
 const ERRORS: Record<OnlineError, string[]> = {
   server: ['CANNOT REACH THE MATCH SERVER', 'CHECK THE NETWORK AND TRY AGAIN'],
   noroom: ['NO ROOM WITH THAT CODE', 'CHECK THE CODE OR ASK FOR A NEW ONE'],
-  full: ['THAT ROOM IS FULL'],
   version: ['GAME VERSIONS DIFFER', 'RELOAD THE PAGE ON BOTH SIDES'],
   connect: ['COULD NOT CONNECT TO THE RIVAL', 'THE NETWORK MAY BLOCK DIRECT LINKS'],
   left: ['THE RIVAL LEFT'],
@@ -117,8 +116,8 @@ export function onlineScene(app: App): Scene {
     flashT = 180;
   };
 
-  // 숫자 패드: 1 2 3 / 4 5 6 / 7 8 9 / < 0 OK
-  const PAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '<', '0', 'OK'];
+  // 숫자 패드: 1 2 3 / 4 5 6 / 7 8 9 / DEL 0 OK (도트 글꼴에 '<'가 없어 지우기는 DEL)
+  const PAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'DEL', '0', 'OK'];
   const CELL_W = 34;
   const CELL_H = 20;
   const padX = Math.round(SCREEN_W / 2 - (CELL_W * 3 + 8) / 2);
@@ -126,7 +125,7 @@ export function onlineScene(app: App): Scene {
   let padSel = -1;
   let padFlash = 0;
   const press = (k: string) => {
-    if (k === '<') digits = digits.slice(0, -1);
+    if (k === 'DEL') digits = digits.slice(0, -1);
     else if (k === 'OK') {
       if (isRoomCode(digits)) {
         net.join(digits);
@@ -179,7 +178,7 @@ export function onlineScene(app: App): Scene {
       // 처음 메뉴 / 숫자 패드
       if (view === 'pad') {
         for (let n = 0; n <= 9; n++) if (input.pressed.has(`Digit${n}`) || input.pressed.has(`Numpad${n}`)) press(String(n));
-        if (input.pressed.has('Backspace')) press('<');
+        if (input.pressed.has('Backspace')) press('DEL');
         if (input.pressed.has('Enter') || input.pressed.has('NumpadEnter') || input.pressed.has('KeyJ')) press('OK');
         if (input.pressed.has('Escape') || input.pressed.has('KeyK')) view = 'menu';
         for (const t of taps) {

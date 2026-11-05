@@ -1,6 +1,8 @@
 // 온라인 대련을 브라우저 두 개로 시험한다 (Playwright, 헤드리스 Chromium 두 개를 따로 띄움).
 //   npm run netplay                    지연 표 (왕복 0·50·100·150ms × 입력 지연 AUTO·2·3·4) + 나가기·끊김·재대결 흐름
 //   npm run netplay -- --quick         왕복 0·100ms × AUTO만 (빠른 확인)
+//   npm run netplay -- --flows         지연 표 없이 나가기·끊김·재대결 흐름만
+//   npm run netplay -- --cloud         로컬 중개 대신 실제 0.peerjs.com으로 한 판 (그 서버에 닿는 곳에서만)
 //   npm run netplay -- --shots         화면 캡처만 (방 만들기·숫자 패드·로비·대련·나가기 확인·끊김) → previews/online/
 //   --seconds 20                       한 칸에서 싸우는 시간
 // 연결 중개는 PeerJS 공식 서버 패키지(peer)를 이 컴퓨터에 띄워 쓴다 (실제 게임은 같은 서버 소프트웨어가 도는 0.peerjs.com).
@@ -20,6 +22,8 @@ const val = (k, d) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : d);
 const SECONDS = Number(val('--seconds', 20));
 const SHOTS = has('--shots');
 const QUICK = has('--quick');
+const FLOWS = has('--flows');
+const CLOUD = has('--cloud');
 
 const SIGNAL_PORT = 9000 + Math.floor(Math.random() * 500);
 const peerServer = PeerServer({ port: SIGNAL_PORT, path: '/', host: '127.0.0.1' });
@@ -27,6 +31,8 @@ const peerServer = PeerServer({ port: SIGNAL_PORT, path: '/', host: '127.0.0.1' 
 const vite = await createServer({ logLevel: 'error', server: { port: 5195, hmr: false, watch: null } });
 await vite.listen();
 const base = vite.resolvedUrls.local[0];
+/** 연결 중개: 기본은 이 컴퓨터에 띄운 PeerServer, --cloud면 게임 기본값(0.peerjs.com) */
+const SIG = CLOUD ? '' : `signal=ws://127.0.0.1:${SIGNAL_PORT}/&`;
 const ARGS = ['--disable-features=WebRtcHideLocalIpsWithMdns', '--autoplay-policy=no-user-gesture-required'];
 let failed = 0;
 const ng = (m) => {
@@ -59,7 +65,7 @@ async function keys(p, list, gap = 90) {
  * 1P는 타이틀 → ONLINE → CREATE ROOM, 2P는 초대 링크(?scene=online&room=코드)로 바로 들어간다
  */
 async function connect({ rtt, jitter, delay, chars = [0, 3], extra = '' }) {
-  const q = `signal=ws://127.0.0.1:${SIGNAL_PORT}/&ice=none&lag=${rtt}&jitter=${jitter}${extra}`;
+  const q = `${SIG}ice=none&lag=${rtt}&jitter=${jitter}${extra}`;
   const A = await open(`scene=title&${q}`);
   // 타이틀 메뉴: VERSUS CPU, PRACTICE, OPTIONS, ONLINE → ONLINE (S 세 번, J) → CREATE ROOM (J)
   await keys(A, ['KeyS', 'KeyS', 'KeyS', 'KeyJ']);
@@ -96,7 +102,7 @@ function sameInputs(la, lb) {
 if (SHOTS) {
   mkdirSync('previews/online', { recursive: true });
   const view = { width: 960, height: 540 };
-  const q = `signal=ws://127.0.0.1:${SIGNAL_PORT}/&ice=none&lag=60&jitter=5`;
+  const q = `${SIG}ice=none&lag=60&jitter=5`;
   const A = await open(`scene=online&${q}`, view);
   await A.page.waitForTimeout(1500);
   await A.page.screenshot({ path: 'previews/online/1-menu.png' });
@@ -134,8 +140,8 @@ if (SHOTS) {
 
 // ---------- 지연 표 ----------
 const rows = [];
-const RTTS = QUICK ? [0, 100] : [0, 50, 100, 150];
-const DELAYS = QUICK ? [0] : [0, 2, 3, 4];
+const RTTS = FLOWS ? [] : CLOUD ? [0] : QUICK ? [0, 100] : [0, 50, 100, 150];
+const DELAYS = QUICK || CLOUD ? [0] : [0, 2, 3, 4];
 for (const rtt of RTTS) {
   for (const delay of DELAYS) {
     const jitter = rtt ? 8 : 0;
@@ -179,7 +185,16 @@ for (const rtt of RTTS) {
 }
 
 // ---------- 흐름: 나가기, 끊김, 재대결 ----------
-if (!QUICK) {
+if (CLOUD) {
+  // 실제 중개 서버: 없는 방 코드
+  const C = await open(`scene=online&room=9871&ice=none&draw=0`);
+  await waitNet(C, () => window.__debug.net.phase === 'error', null, 30000).catch(() => {});
+  const nc = await netOf(C);
+  if (nc.error === 'noroom') console.log('OK  실제 0.peerjs.com: 없는 방 코드 9871 → NO ROOM WITH THAT CODE');
+  else ng(`실제 0.peerjs.com 없는 방: ${nc.phase} ${nc.error}`);
+  await close(C);
+}
+if (!QUICK && !CLOUD) {
   // 나가기: 1P가 Esc → LEAVE MATCH → 2P에 '상대가 나감', 아무 키 → 타이틀
   {
     const { A, B } = await connect({ rtt: 40, jitter: 4, delay: 0, extra: '&draw=0' });
@@ -227,7 +242,7 @@ if (!QUICK) {
 }
 
 mkdirSync('out/netplay', { recursive: true });
-writeFileSync('out/netplay/table.json', JSON.stringify(rows, null, 2));
+if (rows.length) writeFileSync('out/netplay/table.json', JSON.stringify(rows, null, 2));
 await finish();
 
 async function finish() {

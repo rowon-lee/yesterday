@@ -22,10 +22,10 @@ export const ONLINE_ROSTER: readonly CharId[] = (['raiden', 'eunwoo', 'edward', 
 
 export type OnlinePhase = 'idle' | 'creating' | 'waiting' | 'joining' | 'lobby' | 'match' | 'error';
 /**
- * server 중개 서버에 못 붙음 / noroom 그런 방 없음 / full 방이 꽉 참 / version 서로 게임 버전이 다름 /
+ * server 중개 서버에 못 붙음 / noroom 그런 방 없음 / version 서로 게임 버전이 다름 /
  * connect 직접 연결 실패 (망이 막음) / left 상대가 나감 / lost 연결이 끊김
  */
-export type OnlineError = 'server' | 'noroom' | 'full' | 'version' | 'connect' | 'left' | 'lost';
+export type OnlineError = 'server' | 'noroom' | 'version' | 'connect' | 'left' | 'lost';
 
 export interface Pick {
   sel: number;
@@ -129,7 +129,7 @@ class OnlineSession {
     const sig = new Signaler(this.cfg, PEER_PREFIX + Math.random().toString(36).slice(2, 12));
     this.signaler = sig;
     sig.onopen = () => {
-      const link = this.makeLink(ROOM_PREFIX + code);
+      const link = this.makeLink(ROOM_PREFIX + code, `dc_${Math.random().toString(36).slice(2, 13)}`);
       void link.offer({ v: PROTOCOL, build: BUILD_ID }).catch(() => this.fail('connect'));
     };
     sig.onmessage = (m) => this.onGuestSignal(m);
@@ -292,37 +292,31 @@ class OnlineSession {
     sig.connect();
   }
 
+  /**
+   * 방장: 손님의 제안. 이미 누가 들어오는 중이면 무시한다 (이어지는 순간 중개를 닫아 방 코드가 풀리므로 세 번째 사람은 '그런 방 없음'을 본다).
+   * 버전이 다르면 연결 뒤 hello에서 양쪽 다 '버전 다름'으로 끝난다 (ANSWER에는 다른 칸을 실을 수 없다: signal.ts 주의)
+   */
   private onHostSignal(m: SignalMessage): void {
-    const p = (m.payload ?? {}) as { sdp?: RTCSessionDescriptionInit; v?: number; build?: string; candidate?: RTCIceCandidateInit };
+    const p = (m.payload ?? {}) as { sdp?: RTCSessionDescriptionInit; connectionId?: string; candidate?: RTCIceCandidateInit };
     if (!m.src) return;
     if (m.type === 'OFFER') {
-      if (this.link) {
-        this.signaler?.send('ANSWER', m.src, { error: 'full' });
-        return;
-      }
-      if (p.v !== PROTOCOL || p.build !== BUILD_ID) {
-        this.signaler?.send('ANSWER', m.src, { error: 'version' });
-        return;
-      }
-      if (!p.sdp) return;
+      if (this.link || !p.sdp) return;
       this.deadline = performance.now() + CONNECT_MS;
-      const link = this.makeLink(m.src);
+      const link = this.makeLink(m.src, p.connectionId ?? 'dc_host');
       void link.answer(p.sdp).catch(() => this.fail('connect'));
-    } else if (m.type === 'CANDIDATE' && this.link && p.candidate) void this.link.candidate(p.candidate);
+    } else if (m.type === 'CANDIDATE' && this.link && m.src === this.link.remote && p.candidate) void this.link.candidate(p.candidate);
   }
 
   private onGuestSignal(m: SignalMessage): void {
-    const p = (m.payload ?? {}) as { sdp?: RTCSessionDescriptionInit; error?: string; candidate?: RTCIceCandidateInit };
+    const p = (m.payload ?? {}) as { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
     if (m.type === 'EXPIRE') this.fail('noroom');
     else if (m.type === 'ANSWER') {
-      if (p.error === 'full') this.fail('full');
-      else if (p.error === 'version') this.fail('version');
-      else if (p.sdp && this.link) void this.link.accept(p.sdp).catch(() => this.fail('connect'));
+      if (p.sdp && this.link) void this.link.accept(p.sdp).catch(() => this.fail('connect'));
     } else if (m.type === 'CANDIDATE' && this.link && p.candidate) void this.link.candidate(p.candidate);
   }
 
-  private makeLink(remote: string): PeerLink {
-    const link = new PeerLink(this.cfg.iceServers, this.signaler, remote);
+  private makeLink(remote: string, connectionId: string): PeerLink {
+    const link = new PeerLink(this.cfg.iceServers, this.signaler, remote, connectionId);
     this.link = link;
     link.onopen = () => {
       // 직접 이어졌으면 중개는 닫는다 (방 코드도 풀린다)

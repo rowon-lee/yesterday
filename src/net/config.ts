@@ -14,7 +14,7 @@ export interface NetConfig {
 
 /** PeerJS 클라우드와 PeerJS 라이브러리 기본 ICE 설정 (구글 STUN + PeerJS 무료 TURN: 직접 연결이 안 될 때 유럽·미국을 돌아 이어짐) */
 export const DEFAULT_NET: NetConfig = {
-  signal: 'wss://0.peerjs.com:443/',
+  signal: 'wss://0.peerjs.com/',
   key: 'peerjs',
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },

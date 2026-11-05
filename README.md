@@ -27,7 +27,7 @@ YESTERDAY 세계관의 2D 도트 액션 게임. 작업 규칙은 [CLAUDE.md](CLA
 | `npm run balance -- [--seeds 6] [--skill 55]` | 밸런스: 모든 캐릭터 짝(양쪽 자리)을 CPU끼리 붙여 승률·준 피해·경기 길이·기술 쓰임 표 | `out/balance.md` |
 | `npm run sound` | 효과음 모음을 게임과 같은 믹서로 뽑아 번호 붙인 WAV(모노 22kHz)로. 피크·시작 시각·길이·저음 비중·덕킹 깊이를 재서 목표·1→4타 순서를 확인하고, 소리 연결이 sim 상태를 바꾸지 않는지 CPU 대전 8판으로 확인(`--wav`면 WAV만) | `previews/sound/NN-이름.wav`, `README.md`(번호표), `waveforms.png` |
 | `npm run nettest -- [--matches 2]` | 온라인(딜레이 방식) 시험, 브라우저 없이: 두 사람을 가상 시계로 이어 CPU끼리 끝까지. 왕복 0·50·100·150ms × 입력 지연 2·3·4틱마다 기다림·진행 속도·누름→반영 시간, 양쪽 해시·입력 기록·다시 넣은 상태가 같은지, 일부러 상태를 바꾸면 어긋남을 잡는지 | 콘솔 |
-| `npm run netplay -- [--quick] [--seconds 20]` | 온라인을 브라우저 두 개로: 로컬 PeerServer + 헤드리스 Chromium 둘이 실제 화면대로 방 만들기·초대 링크로 들어가기·고르기·READY. 지연을 넣고(`?lag=`) CPU끼리 싸우며 위 값을 잼. 나가기·끊김·재대결 흐름도. `--shots`는 화면 캡처 | 콘솔, `previews/online/*.png` (`--shots`) |
+| `npm run netplay -- [--quick] [--seconds 20]` | 온라인을 브라우저 두 개로: 로컬 PeerServer + 헤드리스 Chromium 둘이 실제 화면대로 방 만들기·초대 링크로 들어가기·고르기·READY. 지연을 넣고(`?lag=`) CPU끼리 싸우며 위 값을 잼. 나가기·끊김·재대결 흐름도. `--flows`는 흐름만, `--cloud`는 실제 0.peerjs.com으로 한 판, `--shots`는 화면 캡처 | 콘솔, `previews/online/*.png` (`--shots`) |
 | `npm run netreplay -- 기록.json` | 온라인 경기 기록(ONLINE → COPY LAST LOG로 복사한 것)을 sim에 다시 넣어 처음 어긋난 틱과 어느 기기에서 달라졌는지 | 콘솔 |
 | `npm run compare` | 무대를 바꿨을 때: 고정 카메라 지점 세 곳(극장·다이너 거리, 시타델 광장, 비상계단 아파트)을 이전 버전(기본 origin/main)과 지금 버전으로 찍어 컬러·흑백으로 나란히 놓고, 벽·바닥·주인공 간판의 흑백 밝기를 잰다. `--base 커밋`, `--only theater`, `--new "옵션"`(지금 버전 주소에 붙임) | `out/compare/<지점>-color.png`, `-gray.png`, `stats.md` |
 

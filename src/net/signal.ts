@@ -1,8 +1,12 @@
 /**
  * 연결 중개 (PeerJS 서버 규약, 라이브러리 없이 브라우저 기본 WebSocket으로).
  *   접속: <signal>peerjs?key=peerjs&id=<내 이름>&token=<아무 값>  → 서버가 {type:'OPEN'} 또는 {type:'ID-TAKEN'}
- *   보내기: {type:'OFFER'|'ANSWER'|'CANDIDATE', dst, payload}  → 서버가 src를 붙여 상대에게 그대로 넘긴다 (payload는 서버가 보지 않음)
- *   상대가 없으면 서버가 5초쯤 들고 있다가 {type:'EXPIRE', src: 상대}를 돌려준다 → '그런 방 없음'
+ *   보내기: {type:'OFFER'|'ANSWER'|'CANDIDATE', dst, payload}  → 서버가 src를 붙여 상대에게 넘긴다
+ *   상대가 없으면 {type:'EXPIRE', src: 상대}를 돌려준다 → '그런 방 없음' (실제 클라우드는 바로, 공개 서버 패키지는 5초쯤 뒤)
+ * 주의 (2026-11-05 확인): 실제 0.peerjs.com은 payload를 정해진 칸으로만 받는다. 칸이 다르면 소켓을 닫아 버린다 (1000·1011).
+ *   OFFER: sdp, type('data'), connectionId, label, reliable, serialization, metadata(아무 JSON)
+ *   ANSWER: sdp, type, connectionId        CANDIDATE: candidate, type, connectionId
+ * 그래서 PeerJS 라이브러리가 보내는 모양 그대로 보낸다 (peer.ts)
  *   살아 있음 알림: 5초마다 {type:'HEARTBEAT'}
  */
 import type { NetConfig } from './config';
