@@ -53,7 +53,7 @@ export const bakeStats = { frames: 0, ms: 0 };
  * 대련에서는 불러오기 화면이 미리 다 그려 둔다 (bakeSome으로 조금씩). 색은 그릴 때 입힌다:
  * 3D 화면은 셰이더가 색 번호를 색 묶음 표로 바꾸고(render/gl/sprites), 2D는 draw가 칸 하나만 바꿔 옮긴다.
  */
-export type BakedMotion = Motion & Required<Pick<Motion, 'image' | 'rgba' | 'frames' | 'bakeSome' | 'isBaked'>>;
+export type BakedMotion = Motion & Required<Pick<Motion, 'image' | 'rgba' | 'frames' | 'bakeSome' | 'isBaked' | 'adopt'>>;
 
 export function buildMotion(d: MotionData): BakedMotion {
   const n = d.dur.length;
@@ -185,6 +185,10 @@ export function buildMotion(d: MotionData): BakedMotion {
     frames,
     bakeSome,
     isBaked: (skin) => (baked.get(skin)?.length ?? 0) >= n,
+    adopt(skin, list) {
+      if ((baked.get(skin)?.length ?? 0) >= n || list.length !== n) return;
+      baked.set(skin, list);
+    },
     image(frame, opts = {}) {
       return image(frame, opts.look ?? 'p1', !!opts.flip, opts.skin ?? 'base');
     },
