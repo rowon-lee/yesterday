@@ -58,34 +58,43 @@ const F_OPEN = OR({ hy: -25, tl: 12, hd: 13, lFx: 4, lFy: -3, lBx: -3, lBy: -2 }
 /** 빨리 떨어질 때: 두 발을 조금 벌려 내리고 무릎을 살짝 굽혀 착지 준비 (등은 굽은 그대로, 고개는 아래를 본다) */
 const F_READY = OR({ hy: -24, tl: 14, hd: 16, lFx: 6, lFy: -1, lBx: -5, lBy: 0 });
 
-/** 낙하: 접은 다리(꼭대기) → 펴며 → 발을 벌려 착지 준비. 12프레임 (떨어지는 속도로 프레임이 넘어간다) */
+/**
+ * 낙하 (2차 리워크): 접은 다리(꼭대기에 오래 머문다) → 무릎이 살짝 풀림 → 다리가 한 번에 펴진다 → 발을 뻗어 땅을 찾음 →
+ * 발을 벌려 착지 준비 → 빨리 떨어지면 무릎을 더 굽혀 내려앉을 채비. 6프레임 (떨어지는 속도로 프레임이 넘어간다: dur 합 36 그대로)
+ */
 export const OSCAR_FALL: MotionData = {
   name: 'oscar/fall',
   label: '오스카 낙하',
-  dur: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  dur: [8, 3, 4, 8, 7, 6],
   keys: [
     { at: 0, pose: J_TOP },
-    { at: 4, pose: F_OPEN },
-    { at: 9, pose: F_READY, stop: true },
-    { at: 11, pose: F_READY },
+    { at: 1, pose: OR({ hy: -25, tl: 12.8, hd: 12.5, lFx: 4.8, lFy: -7, lBx: -1.5, lBy: -5 }) },
+    { at: 2, pose: F_OPEN },
+    { at: 3, pose: OR({ hy: -24.6, tl: 13, hd: 15, lFx: 5, lFy: -1.5, lBx: -4, lBy: -0.5 }) },
+    { at: 4, pose: F_READY, stop: true },
+    { at: 5, pose: OR({ hy: -23.4, tl: 15.5, hd: 17, lFx: 6.5, lFy: 0, lBx: -5.5, lBy: 0.5 }) },
   ],
 };
 
 /** 닿는 순간: 무릎으로 가볍게 받는다 (소리 없이) */
 const L_TOUCH = OR({ hy: -20, tl: 16, hd: 14, lFx: 6, lBx: -5 });
 /** 가장 낮게: 2px 더 내려앉고 고개가 숙는다 */
-const L_LOW = OR({ hy: -18.5, tl: 18, hd: 15, lFx: 6, lBx: -5.5 });
+const L_LOW = OR({ hy: -18.3, tl: 18.5, hd: 16, lFx: 6, lBx: -5.5 });
 
-/** 착지: 닿음 → 무릎으로 받음 → 천천히 일어나 기본자세. 12프레임 × 1틱 (sim 착지 3틱에는 1·5·9번 프레임) */
+/**
+ * 착지 (2차 리워크): 닿음 → 무릎으로 받아 가장 낮게 (고개가 숙는다) → 일어나기 시작 → 고개를 들며 일어섬 → 기본자세.
+ * 5프레임 (sim은 착지 길이를 프레임 수로 고르게 나눈다: 표시 틱은 뷰어·시트용. 키 4개를 12장 × 1틱으로 늘이던 것 대신)
+ */
 export const OSCAR_LAND: MotionData = {
   name: 'oscar/land',
   label: '오스카 착지',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 2, 3, 3, 3],
   keys: [
     { at: 0, pose: L_TOUCH },
-    { at: 4, pose: L_LOW, stop: true },
-    { at: 8, pose: OR({ hy: -20.5, tl: 15, hd: 13 }) },
-    { at: 11, pose: O_STANCE },
+    { at: 1, pose: L_LOW, stop: true },
+    { at: 2, pose: OR({ hy: -19.8, tl: 16.5, hd: 14.5, lFx: 6, lBx: -5.5 }) },
+    { at: 3, pose: OR({ hy: -21.2, tl: 14.5, hd: 11 }) },
+    { at: 4, pose: O_STANCE },
   ],
 };
 
@@ -114,16 +123,21 @@ export const OSCAR_DASH: MotionData = {
 /** 공중에서 몸을 앞으로 눕혀 그림자처럼 미끄러진다: 칼자루를 쥔 채, 두 다리는 모아 뒤로 */
 const AD_GLIDE = OR({ hx: 2, hy: -24, tl: 52, hd: -8, lFx: -3, lFy: -6, lBx: -9, lBy: -9 });
 
-/** 공중 대시: 몸을 눕혀 미끄러짐 (2~8프레임) → 몸을 세우며 낙하 준비. 12프레임 × 1틱 */
+/**
+ * 공중 대시 (2차 리워크): 꼭대기 → 그림자 속으로 몸을 숙여 들어감 → 몸을 눕혀 미끄러짐 → 다리가 더 끌리며 길게 늘어짐 →
+ * 몸을 일으켜 나옴 → 낙하 준비. 6프레임 (sim은 공중 대시 길이를 프레임 수로 고르게 나눈다. 같은 자세 7장 대신 프레임마다 다른 자세)
+ */
 export const OSCAR_AIR_DASH: MotionData = {
   name: 'oscar/air_dash',
   label: '오스카 공중 대시',
-  dur: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  dur: [1, 1, 3, 3, 2, 2],
   keys: [
     { at: 0, pose: J_TOP },
-    { at: 1, pose: AD_GLIDE },
-    { at: 7, pose: AD_GLIDE, stop: true },
-    { at: 11, pose: F_OPEN },
+    { at: 1, pose: OR({ hx: 1, hy: -24.5, tl: 30, hd: 4, lFx: 1, lFy: -7, lBx: -5, lBy: -8 }) },
+    { at: 2, pose: AD_GLIDE },
+    { at: 3, pose: OR({ hx: 2.5, hy: -23.8, tl: 55, hd: -10, lFx: -5, lFy: -5, lBx: -11.5, lBy: -8 }) },
+    { at: 4, pose: OR({ hx: 1.5, hy: -24.5, tl: 30, hd: 6, lFx: 2, lFy: -5, lBx: -5, lBy: -4 }) },
+    { at: 5, pose: F_OPEN },
   ],
 };
 

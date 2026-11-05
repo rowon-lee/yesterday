@@ -19,19 +19,28 @@ const W2_MID = OD({ hx: -10.5, hy: -22.4, lFx: -3, lFy: -2, lBx: -18 }, 14);
 const W2 = OD({ hx: -8, lFx: 0, lBx: -14, lBy: -1 }, 14);
 const W3_MID = OD({ hx: -3.5, hy: -22.4, lFx: 3, lFy: -2, lBx: -10 }, 14);
 const W3 = OD({ hx: 0, lFx: 6, lBx: -6 }, 14);
-/** 멈춰 서서 천천히 밀어 넣는다 */
+/** 멈춰 서서 칼끝을 칼집 입구로 가져간다 (고개가 숙는다) */
+const SH0 = OD({ hy: -21.8, tl: 14, hd: 13 }, 12);
+/** 천천히 밀어 넣는다 */
 const SH1 = OD({ hd: 14 }, 9);
-const SH2 = OD({ hd: 15 }, 4);
-const SH3 = OD({ hd: 16 }, 1);
-/** '탁' — 칼자루가 칼집에 닿는다 (1프레임 멈춤) */
+const SH2 = OD({ hd: 15 }, 6.5);
+/** 칼날 5px를 남기고 멈춘다 */
+const SH3 = OD({ hy: -21.8, tl: 13.5, hd: 16 }, 5);
+/** 1틱 긴장 (어깨가 조금 내려앉는다) */
+const SH4 = OD({ hy: -21.5, tl: 14.5, hd: 16.5 }, 4.5);
+/** '탁' — 칼자루가 칼집에 닿는다 (1프레임 멈춤, 100틱. 렌더가 101틱에 칼자루 반짝) */
 const CLICK = OD({ hd: 17 }, 0);
 
-/** 등장: 틈 속 (36틱 숨김) → 세 걸음 (36~70) → 틈이 닫히는 동안 섬 (70~80) → 납도 (80~102) → '탁' 멈춤 → 대기 자세. 14프레임 112틱 */
+/**
+ * 등장 (2차 리워크): 틈 속 (36틱 숨김) → 세 걸음 (36~70) → 틈이 닫히는 동안 서 있음 (64~76) → 칼끝을 칼집 입구로 →
+ * 천천히 납도 (81~95) → 칼날 5px를 남기고 멈춤 → 1틱 긴장 → 남은 칼날이 한 번에 미끄러져 들어가 '탁' (100틱) 멈춤 → 대기 자세. 14프레임 112틱
+ * (같은 자세를 두 장씩 늘어놓던 서 있기·'탁'을 한 장으로)
+ */
 export const OSCAR_INTRO: MotionData = {
   name: 'oscar/intro',
   label: '오스카 등장',
   wide: true,
-  dur: [36, 6, 5, 6, 5, 6, 6, 10, 7, 7, 6, 2, 3, 7],
+  dur: [36, 6, 5, 6, 5, 6, 12, 5, 7, 7, 4, 1, 5, 7],
   keys: [
     { at: 0, pose: IN_SLIT },
     { at: 1, pose: W1_MID },
@@ -40,11 +49,11 @@ export const OSCAR_INTRO: MotionData = {
     { at: 4, pose: W2 },
     { at: 5, pose: W3_MID },
     { at: 6, pose: W3, stop: true },
-    { at: 7, pose: W3, stop: true },
+    { at: 7, pose: SH0 },
     { at: 8, pose: SH1 },
     { at: 9, pose: SH2 },
-    { at: 10, pose: SH3 },
-    { at: 11, pose: CLICK, stop: true },
+    { at: 10, pose: SH3, stop: true },
+    { at: 11, pose: SH4 },
     { at: 12, pose: CLICK, stop: true },
     { at: 13, pose: O_STANCE },
   ],
