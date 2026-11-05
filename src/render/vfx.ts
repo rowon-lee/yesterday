@@ -65,8 +65,16 @@ export class VfxLayer {
   private light = new Uint32Array(SCREEN_W * SCREEN_H);
   /** 애니 이펙트 칸 표시 (vfx/gg가 칠한 칸 = 1): 알파 254로 내보내 후처리가 색 보정 없이 그대로 보여 주고 강하게 번지게 한다 */
   private mark = new Uint8Array(SCREEN_W * SCREEN_H);
-  private out: ImageData | null = null;
-  private canvas: HTMLCanvasElement | null = null;
+  /** 화면에 얹는 그림판 (처음부터 만들어 둔다: 첫 이펙트 때 만들지 않게) */
+  private readonly out = new ImageData(SCREEN_W, SCREEN_H);
+  private readonly outPx = new Uint32Array(this.out.data.buffer);
+  private readonly canvas = (() => {
+    const c = document.createElement('canvas');
+    c.width = SCREEN_W;
+    c.height = SCREEN_H;
+    return c;
+  })();
+  private readonly canvasCtx = this.canvas.getContext('2d')!;
   /**
    * 확인 도구용 (켜면): 이번 프레임에 애니 이펙트가 칠한 칸 (뒤·앞 겹을 합친 것, 화면 칸마다 1). 뒤 겹을 그릴 때 비우고 앞 겹까지 더한다.
    * 캐릭터 색과 이펙트 색이 같아도 이펙트 칸만 셀 수 있다 (tools/fxcheck)
@@ -95,7 +103,7 @@ export class VfxLayer {
   }
 
   clear(): void {
-    this.list = [];
+    this.list.length = 0;
   }
 
   get count(): number {
@@ -106,7 +114,10 @@ export class VfxLayer {
   /** dt: 한 틱의 몇 배만큼 진행할지 (슬로모션이면 0.5) */
   tick(dt = 1): void {
     for (const fx of this.list) fx.update(DT * dt);
-    this.list = this.list.filter((fx) => !fx.done());
+    // 끝난 이펙트를 그 자리에서 뺀다 (배열을 새로 만들지 않는다)
+    let n = 0;
+    for (const fx of this.list) if (!fx.done()) this.list[n++] = fx;
+    this.list.length = n;
   }
 
   /**
@@ -133,13 +144,7 @@ export class VfxLayer {
       }
     }
     if (box[2] < 0) return false;
-    if (!this.canvas) {
-      this.canvas = document.createElement('canvas');
-      this.canvas.width = SCREEN_W;
-      this.canvas.height = SCREEN_H;
-      this.out = new ImageData(SCREEN_W, SCREEN_H);
-    }
-    const px = new Uint32Array(this.out!.data.buffer);
+    const px = this.outPx;
     const color = this.color;
     const light = this.light;
     const mark = this.mark;
@@ -189,8 +194,8 @@ export class VfxLayer {
     if (x1 < 0) return false;
     const w = x1 - x0 + 1;
     const h = y1 - y0 + 1;
-    this.canvas!.getContext('2d')!.putImageData(this.out!, 0, 0, x0, y0, w, h);
-    ctx.drawImage(this.canvas!, x0, y0, w, h, x0, y0, w, h);
+    this.canvasCtx.putImageData(this.out, 0, 0, x0, y0, w, h);
+    ctx.drawImage(this.canvas, x0, y0, w, h, x0, y0, w, h);
     return true;
   }
 }
