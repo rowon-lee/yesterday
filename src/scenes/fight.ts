@@ -301,11 +301,11 @@ export function fightScene(app?: App): Scene {
       const m = motionByName.get(pose.motion);
       if (!m) return;
       const cell = cellOf(m);
-      const sheet = m.sheet!(i === 0 ? 'p1' : 'p2', f.facing < 0, skins[i]);
+      const im = m.image(pose.frame, { look: i === 0 ? 'p1' : 'p2', flip: f.facing < 0, skin: skins[i] });
       const left = f.facing < 0 ? cell.w - 1 - cell.fx : cell.fx;
-      const sx = Math.round(f.x / 256 - v.x) - left;
-      const sy = Math.round(GROUND_Y + f.y / 256 - v.y) - cell.fy;
-      ctx.drawImage(sheet, pose.frame * cell.w, 0, cell.w, cell.h, (sx - z.x) * z.z, (sy - z.y) * z.z, cell.w * z.z, cell.h * z.z);
+      const sx = Math.round(f.x / 256 - v.x) - left + im.x;
+      const sy = Math.round(GROUND_Y + f.y / 256 - v.y) - cell.fy + im.y;
+      if (im.w) ctx.drawImage(im.canvas, 0, 0, im.w, im.h, (sx - z.x) * z.z, (sy - z.y) * z.z, im.w * z.z, im.h * z.z);
     });
   };
 

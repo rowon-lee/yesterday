@@ -2,7 +2,6 @@ import { Keyboard, type TickInput } from './core/input';
 import { Pointer } from './core/pointer';
 import { startLoop } from './core/loop';
 import { setupScreen } from './render/screen';
-import { bakeAllMotions } from './anim/motions';
 import { DEFAULT_SCENE, GL_SCENES, SCENES, type App } from './scenes';
 import { measureFrame, quality } from './render/light';
 import { drawText, textWidth } from './render/font';
@@ -42,8 +41,6 @@ function noWebGL(c: HTMLCanvasElement): void {
 installAudioUnlock();
 const keyboard = new Keyboard();
 const pointer = new Pointer(canvas);
-// 모든 동작의 시트를 시작할 때 미리 그려 둔다.
-bakeAllMotions();
 
 /** 다음 틱에 바꿀 장면 (장면 안에서 goto를 불러도 그 틱은 끝까지 돈다) */
 let nextScene: (() => void) | null = null;
