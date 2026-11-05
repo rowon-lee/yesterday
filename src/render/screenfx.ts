@@ -135,3 +135,42 @@ export const rainHold = { on: false, until: -1 };
 export const fxMarked = { n: 0 };
 /** 이펙트 빛 번짐 배수 (키 실루엣 이펙트가 설계값으로 줄인다, 기본 1) */
 export const fxGlowScale = { k: 1 };
+
+/** 화면 효과 상태 한 벌 (화면 밖 연습 대련과 타이틀 화면이 같은 프레임에 번갈아 돌 때 서로 섞이지 않게 바꿔 끼운다) */
+export interface ScreenFxState {
+  shears: ShearSpec[];
+  impact: typeof impact;
+  zoomPunch: typeof zoomPunch;
+  press: typeof press;
+  tint: typeof tint;
+  rainHold: typeof rainHold;
+  fxMarked: typeof fxMarked;
+  fxGlowScale: typeof fxGlowScale;
+}
+
+/** 지금 화면 효과 상태를 떠 둔다 */
+export function saveScreenFx(): ScreenFxState {
+  return {
+    shears: [...shears],
+    impact: { ...impact },
+    zoomPunch: { ...zoomPunch },
+    press: { ...press },
+    tint: { ...tint },
+    rainHold: { ...rainHold },
+    fxMarked: { ...fxMarked },
+    fxGlowScale: { ...fxGlowScale },
+  };
+}
+
+/** 떠 둔 화면 효과 상태로 되돌린다 */
+export function loadScreenFx(s: ScreenFxState): void {
+  shears.length = 0;
+  shears.push(...s.shears);
+  Object.assign(impact, s.impact);
+  Object.assign(zoomPunch, s.zoomPunch);
+  Object.assign(press, s.press);
+  Object.assign(tint, s.tint);
+  Object.assign(rainHold, s.rainHold);
+  Object.assign(fxMarked, s.fxMarked);
+  Object.assign(fxGlowScale, s.fxGlowScale);
+}

@@ -7,7 +7,7 @@ import { measureFrame, quality } from './render/light';
 import { drawText, textWidth } from './render/font';
 import { SCREEN_H, SCREEN_W } from './render/screen';
 import { gl, hasWebGL2 } from './render/gl';
-import { bootSteps, fightersOf, lastSpriteWorkers, Loader, motionPlan, ROSTER_FIGHTERS, spriteSteps } from './render/preload';
+import { bootSteps, fightersOf, lastSpriteWorkers, Loader, motionPlan, Rehearsals, ROSTER_FIGHTERS, spriteSteps, type LoadStep } from './render/preload';
 import { SIGNS } from './render/gl/signs';
 import { audio, installAudioUnlock } from './audio/engine';
 
@@ -63,10 +63,17 @@ const app: App = {
       nextScene = () => {
         history.replaceState(null, '', `?${q}`);
         sceneName = name;
-        // 아직 그리지 않은 캐릭터로 대련을 열면 (대련 주소로 바로 연 뒤 타이틀에서 다른 캐릭터를 고른 경우) 그 그림부터 불러온다
-        const need = name === 'fight' ? motionPlan(fightersOf(q)).filter(([m, skin]) => !gl().actors.sprites.has(m, skin)) : [];
-        if (need.length) {
-          loader = new Loader(spriteSteps(need));
+        // 대련을 열 때: 아직 그리지 않은 캐릭터 그림(대련 주소로 바로 연 뒤 타이틀에서 다른 캐릭터를 고른 경우)과,
+        // 타이틀 뒤에서 아직 끝내지 못한 그 두 사람의 이펙트 미리 그려 보기를 짧은 막대로 마저 한다
+        const steps: LoadStep[] = [];
+        if (name === 'fight') {
+          const fighters = fightersOf(q);
+          const need = motionPlan(fighters).filter(([m, skin]) => !gl().actors.sprites.has(m, skin));
+          if (need.length) steps.push(...spriteSteps(need));
+          if (rehearsals) steps.push(...rehearsals.stepsFor(fighters.map(([c]) => c)));
+        }
+        if (steps.length) {
+          loader = new Loader(steps);
           afterLoad = () => void (scene = SCENES[name](app));
         } else scene = SCENES[name](app);
       };
@@ -103,9 +110,18 @@ function start(): void {
   if (params.has('ff') && Number.isFinite(stopAt)) while (tickCount < stopAt) tick();
 }
 
+/**
+ * 이펙트 미리 그려 보기 (render/rehearse.ts). 타이틀로 열면 불러오기 막대가 끝난 뒤 타이틀 화면 뒤에서 한 프레임에 REHEARSE_MS씩 이어 하고,
+ * 대련 주소로 바로 열면 불러오기 막대 안에서 한다. ?rehearse=0이면 하지 않는다 (확인용)
+ */
+let rehearsals: Rehearsals | null = null;
+const REHEARSE_MS = 8;
+
 if (GL_MODE) {
   const fighters = sceneName === 'fight' ? fightersOf(params) : sceneName === 'title' ? ROSTER_FIGHTERS : [];
-  loader = new Loader(bootSteps(canvas, motionPlan(fighters), [...new Set(fighters.map(([c]) => c))]));
+  const chars = [...new Set(fighters.map(([c]) => c))];
+  if (chars.length && params.get('rehearse') !== '0') rehearsals = new Rehearsals(chars);
+  loader = new Loader(bootSteps(canvas, motionPlan(fighters), sceneName === 'title' ? null : rehearsals));
   afterLoad = start;
 } else start();
 
@@ -116,6 +132,8 @@ if (GL_MODE) {
   get loading() { return loader ? { progress: loader.progress, label: loader.label } : null; },
   /** 마지막 불러오기에 걸린 시간 (ms)과 단계별 시간 */
   get load() { return lastLoad; },
+  /** 이펙트 미리 그려 보기 진행 (0~1, 없으면 null) */
+  get rehearse() { return rehearsals ? rehearsals.progress : null; },
   /** 불러오기가 빠뜨려 대련 중에 그 자리에서 그린 동작 수 (0이어야 한다) */
   get spriteMisses() { return GL_MODE && !loader && scene ? gl().actors.sprites.misses : 0; },
   scenes: Object.keys(SCENES),
@@ -297,10 +315,14 @@ function render(ticks: number, now: number): void {
     return;
   }
   if (!scene) return;
+  // 타이틀 화면 뒤에서 이펙트 미리 그려 보기를 조금씩 (타이틀 그리기보다 먼저: 3D 화면 상태는 타이틀 그리기가 다시 정한다).
+  // 그동안은 빛 품질 재기를 하지 않는다 (미리 그려 보기로 느려진 프레임 때문에 품질이 내려가지 않게)
+  const rehearsing = !!rehearsals && sceneName === 'title' && !rehearsals.done;
+  if (rehearsing) rehearsals!.step(performance.now() + REHEARSE_MS);
   const t0 = performance.now();
   scene.render(ctx);
   const ms = performance.now() - t0;
-  measureFrame(ms, t0, ticks);
+  if (!rehearsing) measureFrame(ms, t0, ticks);
   if (showFps) drawFps(ms, now);
 }
 

@@ -8,6 +8,7 @@ import { hintBar, Menu, panel, type MenuItem } from '../render/menu';
 import { COLORS } from '../render/palette';
 import { SCREEN_H, SCREEN_W } from '../render/screen';
 import { gl } from '../render/gl';
+import { preferRehearsal } from '../render/preload';
 import { lights as lights2d, qualitySetting, setQuality } from '../render/light';
 import type { PropState } from '../sim';
 import type { App, Scene } from './scene';
@@ -51,6 +52,9 @@ export function titleScene(app: App): Scene {
         label: name,
         act: () => {
           picked[who] = id;
+          // 고른 캐릭터의 이펙트 미리 그려 보기를 먼저 (타이틀 뒤에서 하는 중이면)
+          if (who === 0) preferRehearsal(id);
+          else preferRehearsal(picked[0], id);
           menu = who === 0 ? (mode === 'vs' ? rivalVs : rivalPractice) : mode === 'vs' ? vs : practice;
         },
       })),
